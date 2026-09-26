@@ -47,8 +47,8 @@ export function getStats(hero) {
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max,
-    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct).
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));

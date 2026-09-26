@@ -46,8 +46,13 @@ export function skillEffectLabel(stats, skill, target = null) {
   }
   for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
   for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
+  if (skill.comboGain) parts.push(`+${skill.comboGain} point de combo`);
   const who = TARGET_LABELS[skill.target];
-  return `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+  const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+  // Finisher : valeurs données par point de combo, ou pour les points dépensés.
+  if (!skill.finisher) return text;
+  if (!skill.comboPoints) return `Finisher, par point de combo : ${text}`;
+  return `Finisher avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo : ${text}`;
 }
 
 // Estimation courte pour un bouton : « ~12-15 », « 4 × ~9-12 », « +23 PV », « 🛡️ 30 »…

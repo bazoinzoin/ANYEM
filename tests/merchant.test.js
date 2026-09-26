@@ -79,7 +79,7 @@ function combatAtHero(game, heroIndex) {
   for (let i = 0; i < 50; i++) {
     const turn = nextTurn(cb);
     if (turn.unit === game.party[heroIndex]) return cb;
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   throw new Error('héros jamais actif');

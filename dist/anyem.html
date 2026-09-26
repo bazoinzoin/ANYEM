@@ -172,6 +172,9 @@ button.full { width: 100%; margin-top: 12px; }
 .log div.hit { color: var(--cream); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.actions .end-turn { margin-left: auto; border-color: var(--gold); }
+.unit .combo { display: block; margin-top: 2px; }
+.unit .combo b { color: var(--gold); letter-spacing: 2px; }
 .target-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 /* ---- Équipement ---- */
@@ -1039,6 +1042,12 @@ __modules["src/data/classes.js"] = (() => {
 //   regen       gain au début de chaque tour du héros
 //   onAttack    gain après une attaque de base (Rage)
 //   onHitTaken  gain quand le héros encaisse un coup et survit (Rage)
+//   multiAction classe à Énergie : le héros enchaîne plusieurs actions par tour tant
+//               qu'il peut les payer, puis finit son tour ; la ressource est pleine
+//               au début de chaque combat
+//   actionCosts coût des actions de base { attack, defend, item } (classes à Énergie)
+// comboMax    maximum de points de combo (Voleur) : gagnés par les compétences
+//             `comboGain`, dépensés par les finishers (voir game/combo.js)
 // gear        ce que la classe peut équiper :
 //   weapons     types d'armes en main droite
 //   offHand     types d'armes ou 'bouclier' en main gauche
@@ -1064,6 +1073,9 @@ __modules["src/data/classes.js"] = (() => {
 //               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
 //               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
 //   selfEffects effets appliqués au lanceur (même format)
+//   comboGain   points de combo gagnés par le lanceur (compétence « générateur »)
+//   finisher    dépense tous les points de combo (au moins 1) : `power` et la
+//               valeur des effets (power) sont donnés PAR point de combo
 
 const CLASSES = {
   guerrier: {
@@ -1096,10 +1108,11 @@ const CLASSES = {
     color: 'var(--voleur)',
     mainStat: 'agilite',
     physStat: 'agilite',
-    desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
+    desc: "Combattant agile et rapide. Son Énergie lui permet d'agir plusieurs fois par tour : ses coups rapides accumulent des points de combo, que ses finishers dépensent pour frapper d'autant plus fort.",
     base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
     growth: { pv: 8, agilite: 1 },
-    resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
+    resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
+    comboMax: 5,
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'dague'],
       offHand: ['epee', 'hache', 'marteau', 'dague'],
@@ -1110,8 +1123,9 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     skills: [
-      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Saignement sur 3 tours' },
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
+      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
+      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
     ],
   },
   pretre: {
@@ -1223,7 +1237,8 @@ __modules["src/data/talents.js"] = (() => {
 // Effets, cumulés par rang :
 //   flat     { stat: valeur }  ajout aux stats (voir data/stats.js)
 //   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
-//   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen
+//   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen,
+//                              resMaxBonus (ressource max), critCombo (point de combo en plus sur critique)
 //   skill    compétence accordée (même format que data/classes.js)
 //   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, addEffects }
 // Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
@@ -1282,35 +1297,42 @@ const TALENTS = {
   voleur: [
     {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
-      desc: 'Dégâts rapides : nombreux coups, critiques, ralentissements. Dagues, armure moyenne.',
+      desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
       nodes: [
-        { id: 'precision', name: 'Précision', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
+        { id: 'vivacite', name: 'Vivacité', tier: 0, ranks: 3, kind: 'minor', desc: '+10 Énergie max et +5 Énergie regagnée par tour, par rang.', passive: { resMaxBonus: 10, resRegen: 5 } },
         {
           id: 'taillade', name: 'Taillade', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
+          skill: {
+            id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
+            effects: [{ id: 'ralenti', turns: 2 }],
+            desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
+          },
         },
-        { id: 'lames-aiguisees', name: 'Lames aiguisées', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
-        { id: 'opportuniste', name: 'Opportuniste', tier: 3, ranks: 1, kind: 'passive', desc: "+25 % de dégâts contre une cible affaiblie (ralentie, empoisonnée…).", passive: { vsDebuffedPct: 25 } },
+        { id: 'precision', name: 'Précision', tier: 2, ranks: 3, kind: 'minor', desc: '+3 % Taux critique et +5 % Dégâts critiques par rang.', flat: { critChance: 3, critDmg: 5 } },
+        { id: 'sceau-du-destin', name: 'Sceau du destin', tier: 3, ranks: 1, kind: 'passive', desc: 'Un coup critique d\'une compétence qui donne des points de combo en donne 1 de plus.', passive: { critCombo: 1 } },
         {
           id: 'deluge-de-lames', name: 'Déluge de lames', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'deluge-de-lames', name: 'Déluge de lames', cost: 40, kind: 'damage', target: 'enemy', power: 0.55, hits: 4, desc: 'Quatre coups rapides sur un ennemi' },
+          skill: {
+            id: 'deluge-de-lames', name: 'Déluge de lames', cost: 35, kind: 'damage', target: 'enemy', power: 0.17, hits: 4, finisher: true, critBonus: 15,
+            desc: 'Finisher : quatre coups rapides (+15 % de chance de critique), plus forts à chaque point de combo',
+          },
         },
       ],
     },
     {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
-      desc: 'Dégâts sur la durée : poisons et affaiblissements. Dagues, armure moyenne.',
+      desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
       nodes: [
         { id: 'toxines', name: 'Toxines', tier: 0, ranks: 3, kind: 'minor', desc: '+10 % de dégâts des poisons et saignements par rang.', passive: { dotPct: 10 } },
         {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
-            id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 15, kind: 'damage', target: 'enemy', power: 0.5,
-            effects: [{ id: 'poison', turns: 4, power: 0.35 }],
-            desc: 'Empoisonne la cible pendant 4 tours',
+            id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
+            effects: [{ id: 'poison', turns: 4, power: 0.45 }],
+            desc: 'Empoisonne la cible pendant 4 tours et donne 1 point de combo',
           },
         },
-        { id: 'dexterite', name: 'Dextérité', tier: 2, ranks: 3, kind: 'minor', desc: '+4 Agilité par rang.', flat: { agilite: 4 } },
+        { id: 'opportuniste', name: 'Opportuniste', tier: 2, ranks: 3, kind: 'minor', desc: '+8 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', passive: { vsDebuffedPct: 8 } },
         {
           id: 'venin-virulent', name: 'Venin virulent', tier: 3, ranks: 1, kind: 'passive',
           desc: 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).',
@@ -1319,9 +1341,9 @@ const TALENTS = {
         {
           id: 'fiole-de-peste', name: 'Fiole de peste', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
-            id: 'fiole-de-peste', name: 'Fiole de peste', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4,
-            effects: [{ id: 'poison', turns: 4, power: 0.4 }],
-            desc: 'Empoisonne tous les ennemis pendant 4 tours',
+            id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true,
+            effects: [{ id: 'poison', turns: 4, power: 0.14 }],
+            desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, plus fort à chaque point de combo',
           },
         },
       ],
@@ -1661,8 +1683,8 @@ function getStats(hero) {
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max,
-    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct).
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
@@ -2780,6 +2802,69 @@ function createEnemies(keys, level) {
 return { createEnemy, createEnemies };
 })();
 
+// ---- src/game/combo.js
+__modules["src/game/combo.js"] = (() => {
+const { getClass } = __modules["src/game/party.js"];
+// Classes à Énergie (Voleur) : plusieurs actions par tour et points de combo.
+//
+// Actions multiples : chaque action (attaque, défense, objet, compétence) coûte de
+// l'Énergie ; le héros garde la main tant qu'il peut payer une action, puis finit
+// son tour (ou le finit plus tôt s'il le souhaite). Voir game/combat.js.
+//
+// Points de combo : une compétence `comboGain` en donne au lanceur (plafond
+// comboMax de la classe) ; un `finisher` les dépense tous, et sa puissance comme
+// la valeur de ses effets sont multipliées par le nombre de points dépensés.
+
+
+
+function isMultiAction(hero) {
+  return !!getClass(hero).resource.multiAction;
+}
+
+// Coût en ressource d'une action de base ('attack' | 'defend' | 'item') : 0 hors
+// classes à Énergie.
+function actionCost(hero, type) {
+  return getClass(hero).resource.actionCosts?.[type] ?? 0;
+}
+
+function canPay(hero, type) {
+  return hero.res >= actionCost(hero, type);
+}
+
+function comboMax(hero) {
+  return getClass(hero).comboMax ?? 0;
+}
+
+function comboOf(hero) {
+  return hero.combo ?? 0;
+}
+
+function gainCombo(hero, amount) {
+  if (!amount || !comboMax(hero)) return 0;
+  const before = comboOf(hero);
+  hero.combo = Math.min(comboMax(hero), before + amount);
+  return hero.combo - before;
+}
+
+/**
+ * Compétence telle qu'elle sera lancée avec `points` points de combo : un finisher
+ * voit sa puissance et la valeur de ses effets multipliées par `points` (champ
+ * comboPoints ajouté). Les autres compétences sont renvoyées telles quelles.
+ */
+function atCombo(skill, points) {
+  if (!skill.finisher) return skill;
+  const scale = (v) => (v === undefined ? v : +(v * points).toFixed(3));
+  return {
+    ...skill,
+    power: scale(skill.power),
+    effects: (skill.effects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
+    comboPoints: points,
+  };
+}
+
+return { isMultiAction, actionCost, canPay, comboMax, comboOf, gainCombo, atCombo };
+})();
+
 // ---- src/game/formulas.js
 __modules["src/game/formulas.js"] = (() => {
 const { COMBAT, VARIANCE } = __modules["src/config.js"];
@@ -2905,7 +2990,8 @@ __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { createEnemies } = __modules["src/game/enemies.js"];
-const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
+const { getClass, getSkills, getStats, gainResource } = __modules["src/game/party.js"];
+const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __modules["src/game/combo.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus } = __modules["src/game/statuses.js"];
@@ -2922,6 +3008,12 @@ const { pick, random } = __modules["src/game/rng.js"];
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant.
+//
+// Classes à Énergie (game/combo.js) : après une action, le héros garde la main
+// (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
+// { type: 'endTurn' } finit son tour. Les autres classes n'ont qu'une action par
+// tour, mais peuvent aussi passer leur tour.
+
 
 
 
@@ -2944,6 +3036,9 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
+    hero.combo = 0;
+    // L'Énergie est pleine au début de chaque combat.
+    if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
     title, level, party, enemies: createEnemies(enemies, level), consumables,
@@ -2968,6 +3063,8 @@ function checkOutcome(cb) {
 
 // Avance jusqu'au prochain combattant vivant (et non étourdi) et prépare son tour.
 function nextTurn(cb) {
+  // Héros à Énergie qui n'a pas fini son tour : il garde la main.
+  if (cb.acting?.side === 'hero' && !checkOutcome(cb)) return cb.acting;
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
@@ -3077,22 +3174,42 @@ function targetsFor(cb, action) {
   return null;
 }
 
-// Un consommable est-il utilisable maintenant (en stock, cible possible) ?
+// Un consommable est-il utilisable maintenant (en stock, cible possible, Énergie
+// suffisante pour un héros à Énergie) ?
 function canUseItem(cb, key) {
   if (!CONSUMABLES[key] || !usableIn(key, 'combat') || countOf(cb.consumables, key) <= 0) return false;
+  if (cb.acting?.side === 'hero' && !canPay(cb.acting.unit, 'item')) return false;
   return isUntargeted(key) || cb.party.some((h) => isValidTarget(key, h));
 }
 
-// Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
+// Une compétence est-elle utilisable maintenant (ressource, cible possible, points
+// de combo pour un finisher) ?
 function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
+  if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
 
+// Action de base possible maintenant pour le héros actif ('attack' | 'defend').
+function canDoAction(cb, hero, type) {
+  if (!canPay(hero, type)) return false;
+  if (type === 'attack') return cb.enemies.some(isAlive);
+  if (type === 'defend') return !(hero.guard && isMultiAction(hero)); // une seule garde par tour
+  return true;
+}
+
+// Le héros peut-il encore agir ce tour-ci (classes à Énergie) ?
+function hasActionLeft(cb, hero) {
+  return canDoAction(cb, hero, 'attack') || canDoAction(cb, hero, 'defend')
+    || getSkills(hero).some((s) => canUseSkill(cb, hero, s))
+    || Object.keys(CONSUMABLES).some((k) => canUseItem(cb, k));
+}
+
 /**
  * Résout l'action du héros actif.
- * action : { type: 'defend' }
+ * action : { type: 'endTurn' }  (passer / finir son tour)
+ *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
  *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
@@ -3102,7 +3219,15 @@ function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
 
+  if (action.type === 'endTurn') {
+    log(cb, isMultiAction(hero) ? `${hero.name} termine son tour.` : `${hero.name} passe son tour.`);
+    endTurn(cb);
+    return true;
+  }
+
   if (action.type === 'defend') {
+    if (!canDoAction(cb, hero, 'defend')) return false;
+    hero.res -= actionCost(hero, 'defend');
     hero.guard = true;
     log(cb, `${hero.name} se met en garde.`, true);
     const stats = statsOf(hero);
@@ -3113,7 +3238,8 @@ function heroAct(cb, action) {
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
-    if (!target) return false;
+    if (!target || !canDoAction(cb, hero, 'attack')) return false;
+    hero.res -= actionCost(hero, 'attack');
     const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
     const { fell } = damage(target, hit.amount);
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
@@ -3122,6 +3248,7 @@ function heroAct(cb, action) {
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
+    const cost = actionCost(hero, 'item');
     if (def.effect.escape) {
       cb.result = 'escape';
       log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
@@ -3131,16 +3258,29 @@ function heroAct(cb, action) {
       if (result === null) return false;
       log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
     }
+    // Payé après l'effet : un Élixir rend de l'Énergie sur la ressource déjà dépensée.
+    hero.res = Math.max(0, hero.res - cost);
     cb.consumables[action.item]--;
   } else if (action.type === 'skill') {
-    const skill = getSkills(hero)[action.skill];
-    if (!skill || !canUseSkill(cb, hero, skill)) return false;
+    const base = getSkills(hero)[action.skill];
+    if (!base || !canUseSkill(cb, hero, base)) return false;
+    const skill = atCombo(base, comboOf(hero));
     const targets = skillTargets(cb, hero, skill, action.target);
     if (!targets) return false;
     hero.res -= skill.cost;
-    useSkill(cb, hero, skill, targets);
+    if (skill.finisher) hero.combo = 0;
+    const { crit } = useSkill(cb, hero, skill, targets);
+    if (skill.comboGain) {
+      const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
+      if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
+    }
   } else {
     return false;
+  }
+
+  if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
+    if (hasActionLeft(cb, hero)) return true; // le héros garde la main
+    log(cb, `${hero.name} n'a plus assez de ${getClass(hero).resource.name} : fin du tour.`);
   }
   endTurn(cb);
   return true;
@@ -3177,13 +3317,13 @@ function targetLabel(skill, targets) {
   return ` sur ${targets[0].name}`;
 }
 
-// Applique une compétence (coût déjà payé) à ses cibles.
 // Applique une compétence (coût déjà payé) à ses cibles. `caster` peut être un
 // héros ou un ennemi (capacités ennemies) ; un héros touché profite de sa garde
-// et gagne de la Rage s'il survit.
+// et gagne de la Rage s'il survit. Retourne { crit } : au moins un coup critique.
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  let crit = false;
 
   for (const target of targets) {
     if (skill.kind === 'damage') {
@@ -3193,6 +3333,7 @@ function useSkill(cb, caster, skill, targets) {
         if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
         const { taken, fell } = damage(target, hit.amount);
         hits.push({ ...hit, amount: taken });
+        crit ||= hit.crit;
         if (fell) logFall(cb, target);
         else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
       }
@@ -3217,7 +3358,9 @@ function useSkill(cb, caster, skill, targets) {
   for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+  const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  return { crit };
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
@@ -3291,7 +3434,7 @@ function enemyAct(cb) {
   endTurn(cb);
 }
 
-return { createCombat, log, checkOutcome, nextTurn, targetsFor, canUseItem, canUseSkill, heroAct, enemyAct };
+return { createCombat, log, checkOutcome, nextTurn, targetsFor, canUseItem, canUseSkill, canDoAction, hasActionLeft, heroAct, enemyAct };
 })();
 
 // ---- src/ui/encounter.js
@@ -3324,7 +3467,11 @@ function startFloor() {
 }
 
 function playerAction(action) {
-  if (heroAct(state.combat, action)) advance();
+  const cb = state.combat;
+  if (!heroAct(cb, action)) return;
+  // Héros à Énergie : il garde la main tant qu'il n'a pas fini son tour.
+  if (cb.acting) render();
+  else advance();
 }
 
 function advance() {
@@ -3992,8 +4139,13 @@ function skillEffectLabel(stats, skill, target = null) {
   }
   for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
   for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
+  if (skill.comboGain) parts.push(`+${skill.comboGain} point de combo`);
   const who = TARGET_LABELS[skill.target];
-  return `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+  const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+  // Finisher : valeurs données par point de combo, ou pour les points dépensés.
+  if (!skill.finisher) return text;
+  if (!skill.comboPoints) return `Finisher, par point de combo : ${text}`;
+  return `Finisher avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo : ${text}`;
 }
 
 // Estimation courte pour un bouton : « ~12-15 », « 4 × ~9-12 », « +23 PV », « 🛡️ 30 »…
@@ -4751,7 +4903,8 @@ const { getClass, getSkills } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
-const { targetsFor, canUseSkill, canUseItem } = __modules["src/game/combat.js"];
+const { targetsFor, canUseSkill, canUseItem, canDoAction } = __modules["src/game/combat.js"];
+const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src/game/combo.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
@@ -4760,6 +4913,9 @@ const { playerAction } = __modules["src/ui/encounter.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
 // personnelle demande une confirmation qui montre qui sera touché.
+// Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
+// tout héros peut passer son tour.
+
 
 
 
@@ -4807,10 +4963,29 @@ function heroUnit(hero, active) {
     <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
       <div class="row1"><b>${cls.icon} ${esc(hero.name)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
       ${bar(hero.hp, stats.pv, cls.color)}
-      <small ${tip(`${res} : ressource dépensée pour lancer les compétences de ${cls.name}.`)}>${res}: ${hero.res}/${stats.resMax}</small>
+      <small ${tip(resourceTip(hero))}>${res}: ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
+      ${comboDots(hero)}
       ${statusTags(hero)}
     </div>`;
+}
+
+function resourceTip(hero) {
+  const cls = getClass(hero);
+  const r = cls.resource;
+  if (!r.multiAction) return `${r.name} : ressource dépensée pour lancer les compétences de ${cls.name}.`;
+  const regen = r.regen + (statsOf(hero).resRegen ?? 0);
+  return `${r.name} : chaque action coûte de l'${r.name} (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}, compétences : leur coût). `
+    + `Le ${cls.name} agit plusieurs fois par tour tant qu'il peut payer, puis finit son tour. +${regen} au début de chacun de ses tours ; pleine au début de chaque combat.`;
+}
+
+// Points de combo : ●●●○○
+function comboDots(hero) {
+  const max = comboMax(hero);
+  if (!max || !hero.alive) return '';
+  const n = comboOf(hero);
+  const dots = '●'.repeat(n) + '○'.repeat(max - n);
+  return `<small class="combo" ${tip(`Points de combo : ${n}/${max}. Gagnés par les compétences marquées « +1 combo », dépensés tous à la fois par les finishers (plus il y en a, plus le finisher est fort). Remis à zéro au début de chaque combat.`)}>Combo <b>${dots}</b></small>`;
 }
 
 function enemyUnit(enemy, active) {
@@ -4845,20 +5020,28 @@ function actionPanel(hero) {
   const stats = statsOf(hero);
   const atkEst = range(estimateHit(stats, BASIC_ATTACK));
   const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
+  const multi = isMultiAction(hero);
+  const res = cls.resource.name;
+  const cost = (type) => (actionCost(hero, type) ? ` (${actionCost(hero, type)} ${res})` : '');
+  const takesTurn = multi ? '' : ' Prend le tour du héros.';
   return `
     <div class="card">
-      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
+      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
-        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
-        <button id="actItem" ${tip("Utilise un consommable (potion, remède, corde…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
+        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour du héros." + takesTurn)} ${canDoAction(cb, hero, 'defend') ? '' : 'disabled'}>${hero.guard ? 'En garde' : 'Défendre'}${cost('defend')}</button>
+        <button id="actItem" ${tip(`Utilise un consommable (potion, remède, corde…).${takesTurn}`)} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet${cost('item')} · ${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)}</button>
+        <button id="actEnd" class="end-turn" ${tip(multi ? `Termine le tour de ${hero.name} : l'${res} restante est conservée.` : `${hero.name} ne fait rien ce tour-ci.`)}>${multi ? '⏭️ Finir le tour' : '⏭️ Passer le tour'}</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
-        ${getSkills(hero).map((s, i) => `
-          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}`)} ${canUseSkill(cb, hero, s) ? '' : 'disabled'}>
-            ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(stats, s)}
-          </button>`).join('')}
+        ${getSkills(hero).map((base, i) => {
+          const s = atCombo(base, Math.max(1, comboOf(hero)));
+          return `
+          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
+            ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
+          </button>`;
+        }).join('')}
       </div>
       <div id="targetZone" class="target-zone"></div>
     </div>`;
@@ -4874,7 +5057,7 @@ function wireActions(app, hero) {
   const targetEstimate = (action, unit) => {
     if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
     if (action.type === 'item') return consumableEstimate(action.item, unit);
-    const skill = getSkills(hero)[action.skill];
+    const skill = atCombo(getSkills(hero)[action.skill], comboOf(hero));
     return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
   };
 
@@ -4885,7 +5068,7 @@ function wireActions(app, hero) {
     if (!targets) {
       const label = action.type === 'item'
         ? `${CONSUMABLES[action.item].name} — ${CONSUMABLES[action.item].desc}`
-        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, getSkills(hero)[action.skill])}`;
+        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)))}`;
       zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
       zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
       return;
@@ -4902,6 +5085,7 @@ function wireActions(app, hero) {
 
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
+  app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
   app.querySelector('#actItem').onclick = () => {
     zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];

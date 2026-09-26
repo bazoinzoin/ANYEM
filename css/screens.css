@@ -51,6 +51,9 @@
 .log div.hit { color: var(--cream); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.actions .end-turn { margin-left: auto; border-color: var(--gold); }
+.unit .combo { display: block; margin-top: 2px; }
+.unit .combo b { color: var(--gold); letter-spacing: 2px; }
 .target-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 /* ---- Équipement ---- */

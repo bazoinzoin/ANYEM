@@ -20,7 +20,11 @@ export function startFloor() {
 }
 
 export function playerAction(action) {
-  if (heroAct(state.combat, action)) advance();
+  const cb = state.combat;
+  if (!heroAct(cb, action)) return;
+  // Héros à Énergie : il garde la main tant qu'il n'a pas fini son tour.
+  if (cb.acting) render();
+  else advance();
 }
 
 function advance() {

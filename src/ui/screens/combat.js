@@ -1,6 +1,8 @@
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
 // personnelle demande une confirmation qui montre qui sera touché.
+// Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
+// tout héros peut passer son tour.
 
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
@@ -9,7 +11,8 @@ import { getClass, getSkills } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
-import { targetsFor, canUseSkill, canUseItem } from '../../game/combat.js';
+import { targetsFor, canUseSkill, canUseItem, canDoAction } from '../../game/combat.js';
+import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../game/combo.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, tip, bar, range } from '../html.js';
@@ -48,10 +51,29 @@ function heroUnit(hero, active) {
     <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
       <div class="row1"><b>${cls.icon} ${esc(hero.name)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
       ${bar(hero.hp, stats.pv, cls.color)}
-      <small ${tip(`${res} : ressource dépensée pour lancer les compétences de ${cls.name}.`)}>${res}: ${hero.res}/${stats.resMax}</small>
+      <small ${tip(resourceTip(hero))}>${res}: ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
+      ${comboDots(hero)}
       ${statusTags(hero)}
     </div>`;
+}
+
+function resourceTip(hero) {
+  const cls = getClass(hero);
+  const r = cls.resource;
+  if (!r.multiAction) return `${r.name} : ressource dépensée pour lancer les compétences de ${cls.name}.`;
+  const regen = r.regen + (statsOf(hero).resRegen ?? 0);
+  return `${r.name} : chaque action coûte de l'${r.name} (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}, compétences : leur coût). `
+    + `Le ${cls.name} agit plusieurs fois par tour tant qu'il peut payer, puis finit son tour. +${regen} au début de chacun de ses tours ; pleine au début de chaque combat.`;
+}
+
+// Points de combo : ●●●○○
+function comboDots(hero) {
+  const max = comboMax(hero);
+  if (!max || !hero.alive) return '';
+  const n = comboOf(hero);
+  const dots = '●'.repeat(n) + '○'.repeat(max - n);
+  return `<small class="combo" ${tip(`Points de combo : ${n}/${max}. Gagnés par les compétences marquées « +1 combo », dépensés tous à la fois par les finishers (plus il y en a, plus le finisher est fort). Remis à zéro au début de chaque combat.`)}>Combo <b>${dots}</b></small>`;
 }
 
 function enemyUnit(enemy, active) {
@@ -86,20 +108,28 @@ function actionPanel(hero) {
   const stats = statsOf(hero);
   const atkEst = range(estimateHit(stats, BASIC_ATTACK));
   const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
+  const multi = isMultiAction(hero);
+  const res = cls.resource.name;
+  const cost = (type) => (actionCost(hero, type) ? ` (${actionCost(hero, type)} ${res})` : '');
+  const takesTurn = multi ? '' : ' Prend le tour du héros.';
   return `
     <div class="card">
-      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
+      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
-        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
-        <button id="actItem" ${tip("Utilise un consommable (potion, remède, corde…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
+        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour du héros." + takesTurn)} ${canDoAction(cb, hero, 'defend') ? '' : 'disabled'}>${hero.guard ? 'En garde' : 'Défendre'}${cost('defend')}</button>
+        <button id="actItem" ${tip(`Utilise un consommable (potion, remède, corde…).${takesTurn}`)} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet${cost('item')} · ${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)}</button>
+        <button id="actEnd" class="end-turn" ${tip(multi ? `Termine le tour de ${hero.name} : l'${res} restante est conservée.` : `${hero.name} ne fait rien ce tour-ci.`)}>${multi ? '⏭️ Finir le tour' : '⏭️ Passer le tour'}</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
-        ${getSkills(hero).map((s, i) => `
-          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}`)} ${canUseSkill(cb, hero, s) ? '' : 'disabled'}>
-            ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(stats, s)}
-          </button>`).join('')}
+        ${getSkills(hero).map((base, i) => {
+          const s = atCombo(base, Math.max(1, comboOf(hero)));
+          return `
+          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
+            ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
+          </button>`;
+        }).join('')}
       </div>
       <div id="targetZone" class="target-zone"></div>
     </div>`;
@@ -115,7 +145,7 @@ function wireActions(app, hero) {
   const targetEstimate = (action, unit) => {
     if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
     if (action.type === 'item') return consumableEstimate(action.item, unit);
-    const skill = getSkills(hero)[action.skill];
+    const skill = atCombo(getSkills(hero)[action.skill], comboOf(hero));
     return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
   };
 
@@ -126,7 +156,7 @@ function wireActions(app, hero) {
     if (!targets) {
       const label = action.type === 'item'
         ? `${CONSUMABLES[action.item].name} — ${CONSUMABLES[action.item].desc}`
-        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, getSkills(hero)[action.skill])}`;
+        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)))}`;
       zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
       zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
       return;
@@ -143,6 +173,7 @@ function wireActions(app, hero) {
 
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
+  app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
   app.querySelector('#actItem').onclick = () => {
     zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];

@@ -11,7 +11,8 @@
 // Effets, cumulés par rang :
 //   flat     { stat: valeur }  ajout aux stats (voir data/stats.js)
 //   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
-//   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen
+//   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen,
+//                              resMaxBonus (ressource max), critCombo (point de combo en plus sur critique)
 //   skill    compétence accordée (même format que data/classes.js)
 //   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, addEffects }
 // Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
@@ -70,35 +71,42 @@ export const TALENTS = {
   voleur: [
     {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
-      desc: 'Dégâts rapides : nombreux coups, critiques, ralentissements. Dagues, armure moyenne.',
+      desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
       nodes: [
-        { id: 'precision', name: 'Précision', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
+        { id: 'vivacite', name: 'Vivacité', tier: 0, ranks: 3, kind: 'minor', desc: '+10 Énergie max et +5 Énergie regagnée par tour, par rang.', passive: { resMaxBonus: 10, resRegen: 5 } },
         {
           id: 'taillade', name: 'Taillade', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
+          skill: {
+            id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
+            effects: [{ id: 'ralenti', turns: 2 }],
+            desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
+          },
         },
-        { id: 'lames-aiguisees', name: 'Lames aiguisées', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
-        { id: 'opportuniste', name: 'Opportuniste', tier: 3, ranks: 1, kind: 'passive', desc: "+25 % de dégâts contre une cible affaiblie (ralentie, empoisonnée…).", passive: { vsDebuffedPct: 25 } },
+        { id: 'precision', name: 'Précision', tier: 2, ranks: 3, kind: 'minor', desc: '+3 % Taux critique et +5 % Dégâts critiques par rang.', flat: { critChance: 3, critDmg: 5 } },
+        { id: 'sceau-du-destin', name: 'Sceau du destin', tier: 3, ranks: 1, kind: 'passive', desc: 'Un coup critique d\'une compétence qui donne des points de combo en donne 1 de plus.', passive: { critCombo: 1 } },
         {
           id: 'deluge-de-lames', name: 'Déluge de lames', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'deluge-de-lames', name: 'Déluge de lames', cost: 40, kind: 'damage', target: 'enemy', power: 0.55, hits: 4, desc: 'Quatre coups rapides sur un ennemi' },
+          skill: {
+            id: 'deluge-de-lames', name: 'Déluge de lames', cost: 35, kind: 'damage', target: 'enemy', power: 0.17, hits: 4, finisher: true, critBonus: 15,
+            desc: 'Finisher : quatre coups rapides (+15 % de chance de critique), plus forts à chaque point de combo',
+          },
         },
       ],
     },
     {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
-      desc: 'Dégâts sur la durée : poisons et affaiblissements. Dagues, armure moyenne.',
+      desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
       nodes: [
         { id: 'toxines', name: 'Toxines', tier: 0, ranks: 3, kind: 'minor', desc: '+10 % de dégâts des poisons et saignements par rang.', passive: { dotPct: 10 } },
         {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
-            id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 15, kind: 'damage', target: 'enemy', power: 0.5,
-            effects: [{ id: 'poison', turns: 4, power: 0.35 }],
-            desc: 'Empoisonne la cible pendant 4 tours',
+            id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
+            effects: [{ id: 'poison', turns: 4, power: 0.45 }],
+            desc: 'Empoisonne la cible pendant 4 tours et donne 1 point de combo',
           },
         },
-        { id: 'dexterite', name: 'Dextérité', tier: 2, ranks: 3, kind: 'minor', desc: '+4 Agilité par rang.', flat: { agilite: 4 } },
+        { id: 'opportuniste', name: 'Opportuniste', tier: 2, ranks: 3, kind: 'minor', desc: '+8 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', passive: { vsDebuffedPct: 8 } },
         {
           id: 'venin-virulent', name: 'Venin virulent', tier: 3, ranks: 1, kind: 'passive',
           desc: 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).',
@@ -107,9 +115,9 @@ export const TALENTS = {
         {
           id: 'fiole-de-peste', name: 'Fiole de peste', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
-            id: 'fiole-de-peste', name: 'Fiole de peste', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4,
-            effects: [{ id: 'poison', turns: 4, power: 0.4 }],
-            desc: 'Empoisonne tous les ennemis pendant 4 tours',
+            id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true,
+            effects: [{ id: 'poison', turns: 4, power: 0.14 }],
+            desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, plus fort à chaque point de combo',
           },
         },
       ],

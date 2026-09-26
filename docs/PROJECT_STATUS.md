@@ -13,7 +13,7 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 - **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
 - **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
-- **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
+- **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Objet/Compétence/Passer le tour (plusieurs actions par tour pour le Voleur), ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
 - **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
 - **Donjons à étages** (voir détail ci-dessous) : Forêt Maudite et Catacombes oubliées, 25 étages chacun, un boss tous les 5 étages, expéditions sans retour possible avant le boss, points de départ après chaque boss, ennemis et boss avec capacités.
@@ -34,8 +34,8 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Compétences par orientation** (palier 1 / 3 / 4) :
   - Gardien : Provocation (effet Provocation) / Rempart (Défendre donne un Bouclier) / Mur de boucliers (Bouclier sur toute l'équipe).
   - Berserker : Frappe sauvage (+25 % de critique) / Berserk (+3 % de puissance par 10 % de PV manquants) / Déchaînement (zone + Enragé).
-  - Assassin : Taillade (ralentit) / Opportuniste (+25 % contre une cible affaiblie) / Déluge de lames (4 coups).
-  - Empoisonneur : Lame empoisonnée (poison 4 tours) / Venin virulent (poison +50 % et affaiblit) / Fiole de peste (poison sur tous les ennemis).
+  - Assassin (plus d'Énergie : Vivacité +10 max / +5 par tour par rang) : Taillade (générateur, ralentit) / Sceau du destin (un critique de générateur donne 1 combo de plus) / Déluge de lames (finisher, 4 coups).
+  - Empoisonneur (actions plus chères mais poisons forts ; Opportuniste +8 % par rang contre une cible affaiblie) : Lame empoisonnée (générateur, poison 4 tours) / Venin virulent (poison +50 % et affaiblit) / Fiole de peste (finisher, poison sur tous les ennemis).
   - Clerc : Prière de soins (soin de groupe) / Grâce (Soin Majeur moins cher et plus fort) / Résurrection.
   - Prêcheur : Rénovation (Régénération) / Bouclier sacré (Bouclier) / Bénédiction (Puissance à toute l'équipe).
   - Profane : Mot de douleur (Ténèbres) / Confusion (Confus) / Fléau (Ténèbres, zone).
@@ -48,6 +48,14 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
   - Exemples : Rempart (Défendre), Mur de boucliers (toute l'équipe), Bouclier sacré (un allié) et Mur d'os (ennemi) appliquent tous l'effet Bouclier ; Bénédiction, Surcharge et Cri de ralliement appliquent Puissance ; le Hurlement du Loup alpha applique Puissance + Hâte ; la Malédiction applique Affaibli.
   - Durée en tours, décomptée en fin de tour (sauf l'étourdissement, consommé au tour perdu) ; les dégâts et soins par tour ignorent la défense. Le même effet appliqué deux fois se rafraîchit au lieu de se cumuler ; des effets différents cohabitent (Poison + Saignement).
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
+
+## Classes à Énergie : Voleur (choix d'implémentation)
+
+- **Plusieurs actions par tour** : chaque action coûte de l'Énergie — Attaquer 35, Défendre 20, Objet 20, compétences selon leur coût. Le Voleur garde la main tant qu'il peut payer une action ; bouton **« Finir le tour »** pour s'arrêter avant (l'Énergie restante est conservée). S'il ne peut plus rien payer, son tour se termine seul. Une seule garde par tour.
+- **Énergie** : 100 max, pleine au début de chaque combat, **+45 au début de chacun de ses tours** (pas une recharge complète : place pour des compétences/talents qui en rendent).
+- **Points de combo** (inspiré de WoW), 5 max, remis à zéro à chaque combat : les **générateurs** (Coup Vicieux, Taillade, Lame empoisonnée) en donnent 1 ; les **finishers** (Éviscération, Lacération, Déluge de lames, Fiole de peste) les dépensent tous et exigent au moins 1 point. Puissance et valeur des effets d'un finisher sont données **par point de combo** (`finisher: true`, voir `game/combo.js`, `atCombo`).
+- **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
+- Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
 ## Donjons (choix d'implémentation)
 
@@ -94,7 +102,7 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
 - **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère).
 - **Légendaires** : 2 par classe, chacun modifie une compétence de base (puissance, coût ou durée du saignement). Pourront plus tard viser les compétences d'orientation.
-- **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Coup Vicieux est un critique garanti.
+- **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Le Voleur utilise des points de combo (voir plus haut).
 
 ## Dégâts physiques et magiques
 

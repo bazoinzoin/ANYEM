@@ -8,11 +8,17 @@
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant.
+//
+// Classes à Énergie (game/combo.js) : après une action, le héros garde la main
+// (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
+// { type: 'endTurn' } finit son tour. Les autres classes n'ont qu'une action par
+// tour, mais peuvent aussi passer leur tour.
 
 import { COMBAT } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
-import { getClass, getSkills, gainResource } from './party.js';
+import { getClass, getSkills, getStats, gainResource } from './party.js';
+import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
 import {
   rollHit, healAmount, skillHitOptions, chance, effectValue,
   BASIC_ATTACK, ENEMY_ATTACK,
@@ -33,6 +39,9 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
+    hero.combo = 0;
+    // L'Énergie est pleine au début de chaque combat.
+    if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
     title, level, party, enemies: createEnemies(enemies, level), consumables,
@@ -57,6 +66,8 @@ export function checkOutcome(cb) {
 
 // Avance jusqu'au prochain combattant vivant (et non étourdi) et prépare son tour.
 export function nextTurn(cb) {
+  // Héros à Énergie qui n'a pas fini son tour : il garde la main.
+  if (cb.acting?.side === 'hero' && !checkOutcome(cb)) return cb.acting;
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
@@ -166,22 +177,42 @@ export function targetsFor(cb, action) {
   return null;
 }
 
-// Un consommable est-il utilisable maintenant (en stock, cible possible) ?
+// Un consommable est-il utilisable maintenant (en stock, cible possible, Énergie
+// suffisante pour un héros à Énergie) ?
 export function canUseItem(cb, key) {
   if (!CONSUMABLES[key] || !usableIn(key, 'combat') || countOf(cb.consumables, key) <= 0) return false;
+  if (cb.acting?.side === 'hero' && !canPay(cb.acting.unit, 'item')) return false;
   return isUntargeted(key) || cb.party.some((h) => isValidTarget(key, h));
 }
 
-// Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
+// Une compétence est-elle utilisable maintenant (ressource, cible possible, points
+// de combo pour un finisher) ?
 export function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
+  if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
 
+// Action de base possible maintenant pour le héros actif ('attack' | 'defend').
+export function canDoAction(cb, hero, type) {
+  if (!canPay(hero, type)) return false;
+  if (type === 'attack') return cb.enemies.some(isAlive);
+  if (type === 'defend') return !(hero.guard && isMultiAction(hero)); // une seule garde par tour
+  return true;
+}
+
+// Le héros peut-il encore agir ce tour-ci (classes à Énergie) ?
+export function hasActionLeft(cb, hero) {
+  return canDoAction(cb, hero, 'attack') || canDoAction(cb, hero, 'defend')
+    || getSkills(hero).some((s) => canUseSkill(cb, hero, s))
+    || Object.keys(CONSUMABLES).some((k) => canUseItem(cb, k));
+}
+
 /**
  * Résout l'action du héros actif.
- * action : { type: 'defend' }
+ * action : { type: 'endTurn' }  (passer / finir son tour)
+ *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
  *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
@@ -191,7 +222,15 @@ export function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
 
+  if (action.type === 'endTurn') {
+    log(cb, isMultiAction(hero) ? `${hero.name} termine son tour.` : `${hero.name} passe son tour.`);
+    endTurn(cb);
+    return true;
+  }
+
   if (action.type === 'defend') {
+    if (!canDoAction(cb, hero, 'defend')) return false;
+    hero.res -= actionCost(hero, 'defend');
     hero.guard = true;
     log(cb, `${hero.name} se met en garde.`, true);
     const stats = statsOf(hero);
@@ -202,7 +241,8 @@ export function heroAct(cb, action) {
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
-    if (!target) return false;
+    if (!target || !canDoAction(cb, hero, 'attack')) return false;
+    hero.res -= actionCost(hero, 'attack');
     const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
     const { fell } = damage(target, hit.amount);
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
@@ -211,6 +251,7 @@ export function heroAct(cb, action) {
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
+    const cost = actionCost(hero, 'item');
     if (def.effect.escape) {
       cb.result = 'escape';
       log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
@@ -220,16 +261,29 @@ export function heroAct(cb, action) {
       if (result === null) return false;
       log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
     }
+    // Payé après l'effet : un Élixir rend de l'Énergie sur la ressource déjà dépensée.
+    hero.res = Math.max(0, hero.res - cost);
     cb.consumables[action.item]--;
   } else if (action.type === 'skill') {
-    const skill = getSkills(hero)[action.skill];
-    if (!skill || !canUseSkill(cb, hero, skill)) return false;
+    const base = getSkills(hero)[action.skill];
+    if (!base || !canUseSkill(cb, hero, base)) return false;
+    const skill = atCombo(base, comboOf(hero));
     const targets = skillTargets(cb, hero, skill, action.target);
     if (!targets) return false;
     hero.res -= skill.cost;
-    useSkill(cb, hero, skill, targets);
+    if (skill.finisher) hero.combo = 0;
+    const { crit } = useSkill(cb, hero, skill, targets);
+    if (skill.comboGain) {
+      const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
+      if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
+    }
   } else {
     return false;
+  }
+
+  if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
+    if (hasActionLeft(cb, hero)) return true; // le héros garde la main
+    log(cb, `${hero.name} n'a plus assez de ${getClass(hero).resource.name} : fin du tour.`);
   }
   endTurn(cb);
   return true;
@@ -266,13 +320,13 @@ function targetLabel(skill, targets) {
   return ` sur ${targets[0].name}`;
 }
 
-// Applique une compétence (coût déjà payé) à ses cibles.
 // Applique une compétence (coût déjà payé) à ses cibles. `caster` peut être un
 // héros ou un ennemi (capacités ennemies) ; un héros touché profite de sa garde
-// et gagne de la Rage s'il survit.
+// et gagne de la Rage s'il survit. Retourne { crit } : au moins un coup critique.
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  let crit = false;
 
   for (const target of targets) {
     if (skill.kind === 'damage') {
@@ -282,6 +336,7 @@ function useSkill(cb, caster, skill, targets) {
         if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
         const { taken, fell } = damage(target, hit.amount);
         hits.push({ ...hit, amount: taken });
+        crit ||= hit.crit;
         if (fell) logFall(cb, target);
         else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
       }
@@ -306,7 +361,9 @@ function useSkill(cb, caster, skill, targets) {
   for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+  const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  return { crit };
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.

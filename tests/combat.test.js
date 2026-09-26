@@ -22,7 +22,7 @@ function playUntilHero(cb, heroIndex) {
     const turn = nextTurn(cb);
     assert.ok(turn, 'le combat ne doit pas être terminé');
     if (turn.side === 'hero' && turn.unit === cb.party[heroIndex]) return turn;
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   throw new Error('héros jamais actif');
@@ -67,25 +67,28 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
   assert.equal(cb.party[guerrier].hp, 0);
 });
 
-test('Lacération fait saigner la cible à chaque fin de round', () => {
+test('Lacération (finisher) fait saigner la cible à chaque fin de round, selon les points de combo', () => {
   const { cb } = newCombat();
   const turn = playUntilHero(cb, voleur);
-  assert.ok(heroAct(cb, { type: 'skill', skill: 1, target: 0 }));
+  turn.unit.combo = 2;
+  assert.ok(heroAct(cb, { type: 'skill', skill: 2, target: 0 }));
+  assert.equal(turn.unit.combo, 0, 'le finisher dépense tous les points');
   const target = cb.enemies[0];
   const bleed = target.statuses.find((s) => s.key === 'saignement');
-  assert.equal(bleed.turns, 3);
-  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.35)));
+  assert.equal(bleed.turns, 4);
+  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.1 * 2)));
+  heroAct(cb, { type: 'endTurn' });
   const hpAfterHit = target.hp;
   // Termine le round en cours (héros en défense, ennemis ciblant les héros).
   while (cb.qIndex < cb.queue.length) {
     const t = nextTurn(cb);
     if (cb.round > 1) break;
-    if (t.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (t.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   nextTurn(cb);
   assert.equal(target.hp, hpAfterHit - bleed.dot);
-  assert.equal(target.statuses.find((s) => s.key === 'saignement').turns, 2);
+  assert.equal(target.statuses.find((s) => s.key === 'saignement').turns, 3);
 });
 
 test('la garde se lève au tour suivant du héros', () => {
@@ -143,19 +146,22 @@ test('esquive : le héros ne subit aucun dégât', () => {
   const hp = cb.party.map((h) => h.hp);
   for (let i = 0; i < 12; i++) {
     const turn = nextTurn(cb);
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   assert.deepEqual(cb.party.map((h) => h.hp), hp);
   assert.ok(cb.log.some((l) => l.text.includes('esquive')));
 });
 
-test('Coup Vicieux est toujours critique', () => {
+test('Coup Vicieux donne un point de combo (5 au maximum)', () => {
   const { cb } = newCombat();
   const turn = playUntilHero(cb, voleur);
-  turn.unit.res = 60;
+  assert.ok(heroAct(cb, { type: 'skill', skill: 0, target: 0 }));
+  assert.equal(turn.unit.combo, 1);
+  turn.unit.combo = 5;
+  turn.unit.res = 100;
   heroAct(cb, { type: 'skill', skill: 0, target: 0 });
-  assert.ok(cb.log[0].text.includes('critique') || cb.log[1].text.includes('critique'));
+  assert.equal(turn.unit.combo, 5);
 });
 
 test("l'attaque de base est physique : elle ignore l'Intelligence, même pour un mage", () => {
@@ -201,4 +207,86 @@ test("à stat principale et arme égales, le voleur frappe plus fort que le guer
   const vs = getStats(v);
   assert.ok(vs.physFromStat > gs.physFromStat);
   assert.ok(vs.physPower - vs.atq > gs.physPower - gs.atq);
+});
+
+// ---- Classes à Énergie : plusieurs actions par tour, points de combo ----
+
+test("le voleur enchaîne plusieurs actions dans le même tour, chacune coûte de l'Énergie", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  const hero = turn.unit;
+  cb.enemies.forEach((e) => { e.hp = e.stats.pv = 9999; });
+  assert.equal(hero.res, 100, "Énergie pleine au début du combat");
+  assert.ok(heroAct(cb, { type: 'attack', target: 0 }));
+  assert.equal(hero.res, 65);
+  assert.equal(cb.acting.unit, hero, 'il garde la main');
+  assert.ok(heroAct(cb, { type: 'defend' }));
+  assert.equal(hero.res, 45);
+  assert.equal(heroAct(cb, { type: 'defend' }), false, 'une seule garde par tour');
+  assert.ok(heroAct(cb, { type: 'skill', skill: 0, target: 1 }));
+  assert.equal(hero.res, 20);
+  assert.equal(cb.acting, null, "plus assez d'Énergie pour agir : fin du tour automatique");
+});
+
+test("finir son tour garde l'Énergie restante ; elle remonte en partie au tour suivant", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  const hero = turn.unit;
+  heroAct(cb, { type: 'attack', target: 0 });
+  assert.ok(heroAct(cb, { type: 'endTurn' }));
+  assert.equal(cb.acting, null);
+  hero.res = 10;
+  playUntilHero(cb, voleur);
+  assert.equal(hero.res, 55, '+45 au début du tour, pas une recharge complète');
+});
+
+test("les autres classes n'ont qu'une action par tour, sans coût d'Énergie, et peuvent passer leur tour", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, guerrier);
+  const res = turn.unit.res;
+  assert.ok(heroAct(cb, { type: 'attack', target: 0 }));
+  assert.equal(cb.acting, null);
+  assert.ok(turn.unit.res >= res, "l'attaque ne coûte pas de Rage");
+  playUntilHero(cb, mage);
+  const hp = cb.enemies.map((e) => e.hp);
+  assert.ok(heroAct(cb, { type: 'endTurn' }));
+  assert.equal(cb.acting, null);
+  assert.deepEqual(cb.enemies.map((e) => e.hp), hp);
+  assert.match(cb.log[0].text, /passe son tour/);
+});
+
+test("un finisher demande au moins 1 point de combo ; ses dégâts croissent avec les points", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  const hero = turn.unit;
+  assert.equal(heroAct(cb, { type: 'skill', skill: 1, target: 0 }), false, 'aucun point de combo');
+  const target = cb.enemies[0];
+  target.hp = target.stats.pv = 9999;
+  target.stats.def = 0;
+  const strike = (points) => {
+    hero.combo = points;
+    hero.res = 100;
+    const hp = target.hp;
+    heroAct(cb, { type: 'skill', skill: 1, target: 0 });
+    return hp - target.hp;
+  };
+  const one = strike(1);
+  const five = strike(5);
+  const physPower = getStats(hero).physPower;
+  assert.equal(one, Math.round(physPower * 0.4 * (0.9 + 0.5 * 0.25)));
+  assert.equal(five, Math.round(physPower * 2 * (0.9 + 0.5 * 0.25)));
+  assert.equal(hero.combo, 0);
+});
+
+test("un objet coûte de l'Énergie au voleur ; les combos repartent de zéro à chaque combat", () => {
+  const party = createParty();
+  party[voleur].combo = 4;
+  const cb = createCombat({ enemies: ['gobelin'], level: 1, party, consumables: { potion: 2 } });
+  assert.equal(party[voleur].combo, 0);
+  const turn = playUntilHero(cb, voleur);
+  turn.unit.hp -= 20;
+  assert.ok(heroAct(cb, { type: 'item', item: 'potion', target: voleur }));
+  assert.equal(turn.unit.res, 80);
+  turn.unit.res = 10;
+  assert.equal(heroAct(cb, { type: 'item', item: 'potion', target: voleur }), false, "pas assez d'Énergie");
 });

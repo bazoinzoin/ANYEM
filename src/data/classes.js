@@ -9,6 +9,12 @@
 //   regen       gain au début de chaque tour du héros
 //   onAttack    gain après une attaque de base (Rage)
 //   onHitTaken  gain quand le héros encaisse un coup et survit (Rage)
+//   multiAction classe à Énergie : le héros enchaîne plusieurs actions par tour tant
+//               qu'il peut les payer, puis finit son tour ; la ressource est pleine
+//               au début de chaque combat
+//   actionCosts coût des actions de base { attack, defend, item } (classes à Énergie)
+// comboMax    maximum de points de combo (Voleur) : gagnés par les compétences
+//             `comboGain`, dépensés par les finishers (voir game/combo.js)
 // gear        ce que la classe peut équiper :
 //   weapons     types d'armes en main droite
 //   offHand     types d'armes ou 'bouclier' en main gauche
@@ -34,6 +40,9 @@
 //               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
 //               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
 //   selfEffects effets appliqués au lanceur (même format)
+//   comboGain   points de combo gagnés par le lanceur (compétence « générateur »)
+//   finisher    dépense tous les points de combo (au moins 1) : `power` et la
+//               valeur des effets (power) sont donnés PAR point de combo
 
 export const CLASSES = {
   guerrier: {
@@ -66,10 +75,11 @@ export const CLASSES = {
     color: 'var(--voleur)',
     mainStat: 'agilite',
     physStat: 'agilite',
-    desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
+    desc: "Combattant agile et rapide. Son Énergie lui permet d'agir plusieurs fois par tour : ses coups rapides accumulent des points de combo, que ses finishers dépensent pour frapper d'autant plus fort.",
     base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
     growth: { pv: 8, agilite: 1 },
-    resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
+    resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
+    comboMax: 5,
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'dague'],
       offHand: ['epee', 'hache', 'marteau', 'dague'],
@@ -80,8 +90,9 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     skills: [
-      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Saignement sur 3 tours' },
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
+      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
+      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
     ],
   },
   pretre: {

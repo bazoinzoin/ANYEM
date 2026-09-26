@@ -26,7 +26,7 @@ function setup(heroIndex, talents = []) {
       hero.res = 999;
       return { cb, hero, party };
     }
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   throw new Error('héros jamais actif');
@@ -37,7 +37,8 @@ const skillIndex = (hero, id) => getSkills(hero).findIndex((s) => s.id === id);
 const PATH = {
   gardien: ['peau-de-fer', 'peau-de-fer', 'peau-de-fer', 'provocation', 'maitrise-bouclier', 'maitrise-bouclier', 'maitrise-bouclier', 'rempart', 'mur-de-boucliers'],
   berserker: ['soif-de-sang', 'soif-de-sang', 'soif-de-sang', 'frappe-sauvage', 'furie', 'furie', 'furie', 'berserk', 'dechainement'],
-  assassin: ['precision', 'precision', 'precision', 'taillade', 'lames-aiguisees', 'lames-aiguisees', 'lames-aiguisees', 'opportuniste', 'deluge-de-lames'],
+  assassin: ['vivacite', 'vivacite', 'vivacite', 'taillade', 'precision', 'precision', 'precision', 'sceau-du-destin', 'deluge-de-lames'],
+  empoisonneur: ['toxines', 'toxines', 'toxines', 'lame-empoisonnee', 'opportuniste', 'opportuniste', 'opportuniste', 'venin-virulent', 'fiole-de-peste'],
   clerc: ['devotion', 'devotion', 'devotion', 'priere-de-soins', 'meditation', 'meditation', 'meditation', 'grace', 'resurrection'],
   profane: ['ombre', 'ombre', 'ombre', 'mot-de-douleur', 'esprit-sombre', 'esprit-sombre', 'esprit-sombre', 'confusion', 'fleau'],
   glace: ['givre', 'givre', 'givre', 'eclat-de-glace', 'hiver', 'hiver', 'hiver', 'nova-de-givre', 'prison-de-glace'],
@@ -74,7 +75,7 @@ test('Gardien : Provocation force les ennemis à attaquer le guerrier', () => {
     const turn = nextTurn(cb);
     if (!turn) break;
     if (turn.side === 'enemy') enemyAct(cb);
-    else heroAct(cb, { type: 'defend' });
+    else { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
   }
   assert.deepEqual(cb.party.filter((h) => h !== hero).map((h) => h.hp), others);
 });
@@ -99,16 +100,38 @@ test('Berserker : plus de PV manquants = plus de puissance physique', () => {
   assert.equal(statsOf(hero).physPower, Math.round(full * (1 + 0.03 * 7)));
 });
 
-test('Assassin : Déluge de lames frappe 4 fois ; Opportuniste renforce contre une cible ralentie', () => {
+test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plus d\'Énergie', () => {
   const { cb, hero } = setup(1, PATH.assassin);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 });
-  assert.match(cb.log[0].text, /\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
+  assert.equal(getStats(hero).resMax, 130);
+  assert.equal(getStats(hero).resRegen, 15);
+  hero.combo = 3;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
+  assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
+});
+
+test('Assassin : Sceau du destin, un critique de générateur donne 1 point de combo de plus', () => {
+  const { cb, hero } = setup(1, PATH.assassin);
+  cb.enemies[0].hp = cb.enemies[0].stats.pv = 9999;
+  setRandomSource(() => 0); // tous les jets critiques
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'taillade'), target: 0 }));
+  assert.equal(hero.combo, 2);
+});
+
+test('Empoisonneur : Opportuniste renforce contre une cible affaiblie ; Fiole de peste empoisonne selon les combos', () => {
+  const { cb, hero } = setup(1, PATH.empoisonneur);
   const a = statsOf(hero);
-  const plain = { ...statsOf(target), debuffed: false };
+  const plain = { ...statsOf(cb.enemies[0]), debuffed: false };
   const slowed = { ...plain, debuffed: true };
   assert.ok(estimateHit(a, BASIC_ATTACK, slowed).lo > estimateHit(a, BASIC_ATTACK, plain).lo);
+  hero.combo = 4;
+  hero.res = 100;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'fiole-de-peste') }));
+  for (const e of cb.enemies.filter((x) => x.alive)) {
+    const poison = e.statuses.find((s) => s.key === 'poison');
+    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.56 * 1.3)));
+  }
 });
 
 test('Clerc : Résurrection ramène un allié tombé, uniquement s\'il y en a un', () => {
@@ -165,7 +188,7 @@ test('Glace : Prison de glace fait perdre son tour à la cible', () => {
   for (let i = 0; i < 12; i++) {
     const turn = nextTurn(cb);
     if (cb.log[0].text.includes('étourdi')) skipped = true;
-    if (turn.side === 'enemy') enemyAct(cb); else heroAct(cb, { type: 'defend' });
+    if (turn.side === 'enemy') enemyAct(cb); else { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     if (skipped) break;
   }
   assert.ok(skipped);
