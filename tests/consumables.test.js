@@ -23,13 +23,13 @@ function effectEntries() {
   const entries = [];
   const visit = (skill, where) => {
     if (!skill) return;
-    for (const e of [...(skill.effects ?? []), ...(skill.selfEffects ?? []), ...(skill.addEffects ?? [])]) entries.push({ ...e, where });
+    for (const e of [...(skill.effects ?? []), ...(skill.selfEffects ?? []), ...(skill.addEffects ?? []), ...(skill.addSelfEffects ?? [])]) entries.push({ ...e, where });
     for (const old of ['dot', 'hot', 'shield', 'status', 'selfStatus', 'set']) {
       assert.equal(skill[old], undefined, `${where} définit encore un effet à la main (${old}) : utiliser le catalogue`);
     }
   };
   Object.values(CLASSES).forEach((c) => c.skills.forEach((s) => visit(s, s.name)));
-  Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill, n.id); visit(n.skillMod, n.id); }));
+  Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill, n.id); [].concat(n.skillMod ?? []).forEach((m) => visit(m, n.id)); }));
   Object.values(ENEMIES).forEach((e) => (e.abilities ?? []).forEach((a) => visit(a.skill, `${e.name} : ${a.skill.name}`)));
   return entries;
 }

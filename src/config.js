@@ -20,6 +20,8 @@ export const COMBAT = {
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
   caps: { critChance: 75, esquive: 50, blocage: 50 }, // plafonds en %
+  executeThreshold: 0.3,  // « exécution » : bonus de dégâts contre une cible sous ce % de PV
+  minGuardFactor: 0.2,    // la garde (talents compris) ne réduit jamais les dégâts à moins de 20 %
 };
 
 // Génération des objets. budget(L) = budgetBase + budgetPerLevel × L
@@ -70,14 +72,16 @@ export const XP = {
   xpPerLevel: 5,
   toNextBase: 40,
   toNextPerLevel: 20,
+  maxLevel: 50,
 };
 
-// Arbres de compétences : 1 point par niveau (dès le niveau 1) ; le palier t d'une
+// Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
+// maximum, de quoi compléter une seule orientation) ; le palier t (0 à 9) d'une
 // branche demande t × tierPoints points déjà investis dans cette branche.
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
 export const TALENT_RULES = {
   pointsPerLevel: 1,
-  tierPoints: 2,
+  tierPoints: 5,
   resetCostPerLevel: 10,
 };
 

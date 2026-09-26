@@ -38,6 +38,7 @@ export function skillEffectLabel(stats, skill, target = null) {
     let text = `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
     if (skill.alwaysCrit) text += ' (critique garanti)';
     if (skill.critBonus) text += ` (+${skill.critBonus} % de critique)`;
+    if (skill.executePct) text += ` (+${skill.executePct} % sous 30 % de PV)`;
     parts.push(text);
   } else if (skill.kind === 'heal') {
     parts.push(`Soin +${range(est)} PV`);
@@ -46,6 +47,9 @@ export function skillEffectLabel(stats, skill, target = null) {
   }
   for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
   for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
+  if (skill.cleanse) parts.push('Retire tous les effets négatifs');
+  if (skill.resourceGain) parts.push(`+${skill.resourceGain} de ressource`);
+  if (skill.oncePerCombat) parts.push('une fois par combat');
   if (skill.comboGain) parts.push(`+${skill.comboGain} point de combo`);
   const who = TARGET_LABELS[skill.target];
   const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
@@ -62,7 +66,7 @@ export function skillShortEstimate(stats, skill, target = null) {
   if (skill.kind === 'heal') return `+${range(est)} PV`;
   if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
   const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
-  if (!main) return '';
+  if (!main) return skill.resourceGain ? `+${skill.resourceGain}` : '';
   const def = EFFECTS[main.id];
   const value = effectValue(stats, skill, main);
   if (def.value === 'shield') return `🛡️ ${value}`;

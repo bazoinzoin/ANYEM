@@ -119,6 +119,10 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .branch > .hint { font-size: 13px; margin: 4px 0 10px; }
 .talent { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; background: var(--panel2); font-size: 14px; }
 .talent.skill, .talent.passive { border-left: 3px solid var(--gold); }
+.talent.signature { border: 1px solid var(--gold); border-left-width: 4px; background: #2e2414; }
+.tier-group { margin-bottom: 6px; }
+.tier-title { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 4px; }
+.tier-group.locked .tier-title { color: var(--dim); }
 .talent.locked { opacity: .5; }
 .talent.learned { border-color: #3f6b45; }
 .talent.maxed { border-color: #6cc15a; background: #1f2a1a; }

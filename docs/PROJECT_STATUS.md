@@ -27,25 +27,26 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglages dans `src/config.js` (`XP`, `TALENT_RULES`).
 - **Orientations** (DESIGN_DOC §1) : Guerrier → Gardien, Berserker ; Voleur → Assassin, Empoisonneur ; Prêtre → Clerc, Prêcheur, Profane ; Mage → Feu, Glace, Foudre.
-- **Structure** : chaque orientation a 5 paliers. Paliers 0 et 2 : nœud secondaire (petit bonus de stats, 3 rangs). Paliers 1, 3 et 4 : nœud principal (nouvelle compétence ou nouveau passif / amélioration d'une compétence, 1 rang). Une branche complète coûte 9 points.
-- **Points** : 1 par niveau, dès le niveau 1. Le palier t d'une orientation demande 2 × t points déjà investis dans cette orientation (palier 4 : 8 points). On peut mélanger les orientations, mais les points étant rares, il faut choisir.
+- **Niveau maximum 50** (`XP.maxLevel`) : 1 point de talent par niveau, donc 50 points au maximum.
+- **Structure** : chaque orientation a **10 paliers (0 à 9) et 50 rangs** : au niveau 50, on complète exactement une orientation (on peut mélanger, mais alors pas de signature). Le palier t demande 5 × t points investis dans l'orientation (palier 9 : 45 points). Modèle commun : 12 nœuds secondaires (bonus à plusieurs rangs), 3 nouvelles compétences (paliers 1, 4, 7), 3 passifs (paliers 3, 6, 8) et la **compétence signature** au palier 9.
 - **Réinitialisation** au Maître des compétences contre 10 × niveau du héros en or.
-- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP (environ 2 combats par niveau). Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
-- **Compétences par orientation** (palier 1 / 3 / 4) :
-  - Gardien : Provocation (effet Provocation) / Rempart (Défendre donne un Bouclier) / Mur de boucliers (Bouclier sur toute l'équipe).
-  - Berserker : Frappe sauvage (+25 % de critique) / Berserk (+3 % de puissance par 10 % de PV manquants) / Déchaînement (zone + Enragé).
-  - Assassin (plus d'Énergie : Vivacité +10 max / +5 par tour par rang) : Taillade (générateur, ralentit) / Sceau du destin (un critique de générateur donne 1 combo de plus) / Déluge de lames (finisher, 4 coups).
-  - Empoisonneur (actions plus chères mais poisons forts ; Opportuniste +8 % par rang contre une cible affaiblie) : Lame empoisonnée (générateur, poison 4 tours) / Venin virulent (poison +50 % et affaiblit) / Fiole de peste (finisher, poison sur tous les ennemis).
-  - Clerc : Prière de soins (soin de groupe) / Grâce (Soin Majeur moins cher et plus fort) / Résurrection.
-  - Prêcheur : Rénovation (Régénération) / Bouclier sacré (Bouclier) / Bénédiction (Puissance à toute l'équipe).
-  - Profane : Mot de douleur (Ténèbres) / Confusion (Confus) / Fléau (Ténèbres, zone).
-  - Feu : Immolation (brûlure) / Boule ardente (Boule de Feu enflamme) / Pluie de feu (zone + brûlure).
-  - Glace : Éclat de glace (ralentit) / Nova de givre (zone + ralentit) / Prison de glace (étourdit : la cible perd son tour).
-  - Foudre : Chaîne d'éclairs (zone) / Surcharge (Puissance à un allié) / Tempête (énorme dégât direct).
+- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
+- **Passifs disponibles** (voir l'en-tête de `data/talents.js`) : berserk, vol de vie, exécution (bonus sous 30 % de PV), bonus contre cible affaiblie, bonus de zone, garde renforcée, boucliers renforcés, soins, dégâts sur la durée, ressource max / régénération, Rage par coup, combo sur critique, Énergie rendue par les finishers. Compétences : `cleanse` (retire les effets négatifs), `resourceGain` + `oncePerCombat`, `executePct`.
+- **Compétences par orientation** (palier 1 / 4 / 7 / signature 9 — passifs 3 / 6 / 8) :
+  - Gardien : Provocation / Coup de bouclier (étourdit) / Mur de boucliers / **Dernier rempart** (Bouclier + Protection sur l'équipe, provocation) — Rempart, Garde de fer, Cri de défi.
+  - Berserker : Frappe sauvage / Tourbillon (zone) / Exécution / **Carnage sanglant** (zone + Enragé) — Berserk, Frénésie, Sang bouillant.
+  - Assassin : Taillade (générateur) / Poussée d'adrénaline (Énergie, 1 fois par combat) / Déluge de lames (finisher) / **Marque de la mort** (finisher critique garanti) — Sceau du destin, Instinct du tueur, Rafale.
+  - Empoisonneur : Lame empoisonnée (générateur) / Gaz nauséabond (poison + Affaibli en zone) / Fiole de peste (finisher de zone) / **Mort lente** (finisher : poison énorme + Terreur) — Venin virulent, Hémorragie, Poison paralysant.
+  - Clerc : Prière de soins / Résurrection / Purification (retire les effets négatifs) / **Miracle** (grand soin de groupe, purification, Bouclier) — Grâce, Prière fervente, Résurrection supérieure.
+  - Prêcheur : Rénovation / Bouclier sacré / Jugement (lumière + Brûlure) / **Hymne divin** (Régénération, Bouclier, Puissance sur l'équipe) — Rénovation persistante, Bouclier de lumière, Égide supérieure.
+  - Profane : Mot de douleur / Confusion / Fléau / **Apocalypse** (zone, Ténèbres, Affaibli) — Douleur prolongée, Démence (Confusion + Terreur), Contagion.
+  - Feu (dégâts sur la durée) : Immolation / Mur de flammes / Pluie de feu / **Météore** — Boule ardente, Feu persistant, Embrasement.
+  - Glace (dégâts directs + ralentissements) : Éclat de glace / Nova de givre / Lance de glace / **Blizzard** — Givre persistant, Éclatement, Gel profond.
+  - Foudre (gros dégâts directs + étourdissement) : Chaîne d'éclairs / Onde de choc (étourdit) / Tempête / **Jugement céleste** (zone, étourdit) — Éclair renforcé, Électrocution, Paralysie.
 - **Effets (buffs / debuffs)** : un **catalogue unique** (`src/data/effects.js`). Un effet est défini une seule fois ; une compétence (héros ou ennemi) ne fait que l'appliquer via `effects` (à ses cibles) ou `selfEffects` (au lanceur), avec sa durée et, pour les effets à valeur, sa puissance. C'est la compétence qui décide qui est touché (un ennemi, un allié, toute l'équipe…), jamais l'effet.
   - Buffs : **Bouclier** (absorbe des dégâts), **Régénération** (soin par tour), **Puissance** (+25 % puissance physique et magique), **Hâte** (+25 % Vitesse), **Protection** (+50 % Défense et Défense magique), **Provocation** (attire les attaques, +30 % Défense), **Enragé** (+30 % puissance physique, −20 % Défense).
   - Debuffs : **Poison**, **Saignement**, **Brûlure**, **Ténèbres** (dégâts par tour), **Ralenti** (−30 % Vitesse), **Étourdi** (perd son prochain tour), **Confus** (1 chance sur 2 de frapper un allié), **Affaibli** (−20 % puissance physique et magique), **Terreur** (−30 % Défense et Défense magique).
-  - Exemples : Rempart (Défendre), Mur de boucliers (toute l'équipe), Bouclier sacré (un allié) et Mur d'os (ennemi) appliquent tous l'effet Bouclier ; Bénédiction, Surcharge et Cri de ralliement appliquent Puissance ; le Hurlement du Loup alpha applique Puissance + Hâte ; la Malédiction applique Affaibli.
+  - Exemples : Rempart (Défendre), Mur de boucliers (toute l'équipe), Bouclier sacré (un allié) et Mur d'os (ennemi) appliquent tous l'effet Bouclier ; Hymne divin et Cri de ralliement appliquent Puissance ; le Hurlement du Loup alpha applique Puissance + Hâte ; la Malédiction applique Affaibli.
   - Durée en tours, décomptée en fin de tour (sauf l'étourdissement, consommé au tour perdu) ; les dégâts et soins par tour ignorent la défense. Le même effet appliqué deux fois se rafraîchit au lieu de se cumuler ; des effets différents cohabitent (Poison + Saignement).
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
 

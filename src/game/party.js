@@ -57,23 +57,28 @@ export function getStats(hero) {
 
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
- *   powerPct       +% de puissance      costDelta     ± coût
- *   dotTurnsDelta  ± tours des effets de dégâts sur la durée (poison, saignement…)
- *   dotPowerPct    +% de dégâts de ces effets
- *   addEffects     effets supplémentaires appliqués aux cibles (ex. une brûlure)
+ *   powerPct        +% de puissance      costDelta     ± coût
+ *   critBonus       + % de chance de critique
+ *   dotTurnsDelta   ± tours des effets de dégâts sur la durée (poison, saignement…)
+ *   dotPowerPct     +% de dégâts de ces effets
+ *   effectTurnsDelta ± tours de tous les effets appliqués aux cibles
+ *   effectPowerPct  +% de valeur de tous les effets à valeur (soins/tour, boucliers…)
+ *   addEffects      effets supplémentaires appliqués aux cibles (ex. une brûlure)
+ *   addSelfEffects  effets supplémentaires appliqués au lanceur
  */
 function applySkillMod(skill, mod) {
   const s = { ...skill, boosted: true };
-  if (mod.powerPct) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
-  if (mod.costDelta) s.cost = Math.max(0, s.cost + mod.costDelta);
+  if (mod.powerPct && s.power) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
+  if (mod.costDelta) s.cost = Math.max(1, s.cost + mod.costDelta);
+  if (mod.critBonus) s.critBonus = (s.critBonus ?? 0) + mod.critBonus;
   s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
-    if (EFFECTS[e.id].value !== 'dot' || !(mod.dotTurnsDelta || mod.dotPowerPct)) return e;
-    return {
-      ...e,
-      turns: e.turns + (mod.dotTurnsDelta ?? 0),
-      power: +(e.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
-    };
+    const dot = EFFECTS[e.id].value === 'dot';
+    const turns = (mod.effectTurnsDelta ?? 0) + (dot ? mod.dotTurnsDelta ?? 0 : 0);
+    const pct = (mod.effectPowerPct ?? 0) + (dot ? mod.dotPowerPct ?? 0 : 0);
+    if (!turns && !(pct && e.power)) return e;
+    return { ...e, turns: e.turns + turns, ...(e.power ? { power: +(e.power * (1 + pct / 100)).toFixed(3) } : {}) };
   });
+  if (mod.addSelfEffects) s.selfEffects = [...(skill.selfEffects ?? []), ...mod.addSelfEffects];
   return s;
 }
 
@@ -93,15 +98,17 @@ export function xpToNext(level) {
 // Ajoute de l'XP ; retourne le nombre de niveaux gagnés. PV et ressource
 // gagnés avec le niveau sont ajoutés aux valeurs actuelles.
 export function gainXp(hero, amount) {
+  if (hero.level >= XP.maxLevel) return 0;
   hero.xp += amount;
   let levels = 0;
-  while (hero.xp >= xpToNext(hero.level)) {
+  while (hero.level < XP.maxLevel && hero.xp >= xpToNext(hero.level)) {
     const before = getStats(hero).pv;
     hero.xp -= xpToNext(hero.level);
     hero.level++;
     levels++;
     if (hero.alive) hero.hp += getStats(hero).pv - before;
   }
+  if (hero.level >= XP.maxLevel) hero.xp = 0; // niveau maximum atteint
   return levels;
 }
 

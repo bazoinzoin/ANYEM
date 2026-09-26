@@ -9,11 +9,12 @@ import {
 import { esc, tip, bar } from '../html.js';
 import { skillEffectLabel } from '../format.js';
 import { goTo, goBack, backLabel } from '../router.js';
+import { TALENT_RULES, XP } from '../../config.js';
 
 // État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
 const view = { heroIndex: 0, confirmReset: false, flash: null };
 
-const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif' };
+const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
 
 export function openTalents(heroIndex = view.heroIndex) {
   Object.assign(view, { heroIndex, confirmReset: false, flash: null });
@@ -48,7 +49,7 @@ export function renderTalents(app) {
         ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
       </button>
     </div>
-    <p class="hint">Chaque niveau rapporte 1 point. Un palier se débloque en investissant des points dans la même orientation (palier 1 : 2 points, palier 2 : 4, palier 3 : 6, palier 4 : 8).</p>
+    <p class="hint">Chaque niveau rapporte 1 point, soit ${XP.maxLevel} points au niveau maximum (${XP.maxLevel}) : de quoi compléter une seule orientation. Un palier se débloque en investissant des points dans la même orientation : ${TALENT_RULES.tierPoints} points par palier, jusqu'à la compétence signature du palier 9 (${tierRequirement(9)} points).</p>
     <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
@@ -80,7 +81,14 @@ function branchCard(hero, branch) {
     <div class="card branch">
       <h3>${branch.icon} ${branch.name} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
       <p class="hint">${branch.desc}</p>
-      ${branch.nodes.map((n) => nodeCard(hero, branch, n)).join('')}
+      ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
+        const locked = invested < tierRequirement(tier);
+        return `
+        <div class="tier-group ${locked ? 'locked' : ''}">
+          <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
+          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n)).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
 }
 
@@ -100,7 +108,6 @@ function nodeCard(hero, branch, node) {
   return `
     <div class="talent ${node.kind} ${status}">
       <div class="talent-head">
-        <span class="tier">Palier ${node.tier}</span>
         <b>${esc(node.name)}</b>
         <span class="kind">${KIND_LABELS[node.kind]}</span>
         <span class="rank">${rank}/${node.ranks}</span>

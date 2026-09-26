@@ -24,7 +24,7 @@ import {
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus } from './statuses.js';
+import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } from './statuses.js';
 import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { pick, random } from './rng.js';
@@ -40,6 +40,7 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     hero.guard = false;
     hero.statuses = [];
     hero.combo = 0;
+    hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
@@ -190,6 +191,7 @@ export function canUseItem(cb, key) {
 export function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
   if (skill.finisher && comboOf(hero) < 1) return false;
+  if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -244,10 +246,11 @@ export function heroAct(cb, action) {
     if (!target || !canDoAction(cb, hero, 'attack')) return false;
     hero.res -= actionCost(hero, 'attack');
     const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const { fell } = damage(target, hit.amount);
+    const { taken, fell } = damage(target, hit.amount);
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
-    gainResource(hero, getClass(hero).resource.onAttack);
+    lifesteal(cb, hero, taken);
+    gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
@@ -272,7 +275,10 @@ export function heroAct(cb, action) {
     if (!targets) return false;
     hero.res -= skill.cost;
     if (skill.finisher) hero.combo = 0;
+    if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
+    // Talent « Implacable » : un finisher rend de l'Énergie par point de combo dépensé.
+    if (skill.finisher) gainResource(hero, skill.comboPoints * (statsOf(hero).finisherRefund ?? 0));
     if (skill.comboGain) {
       const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
       if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
@@ -287,6 +293,26 @@ export function heroAct(cb, action) {
   }
   endTurn(cb);
   return true;
+}
+
+// Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
+function lifesteal(cb, hero, dealt) {
+  const pct = statsOf(hero).lifestealPct;
+  if (!pct || !dealt || !hero.alive) return;
+  const healed = heal(hero, Math.round(dealt * pct / 100));
+  if (healed) log(cb, `${hero.name} vole ${healed} PV.`);
+}
+
+// Dégâts subis par une unité en garde (Défendre ; talents « guardBonus » en plus).
+function guarded(unit, amount) {
+  if (!unit.guard) return amount;
+  const factor = Math.max(COMBAT.minGuardFactor, COMBAT.guardFactor - (statsOf(unit).guardBonus ?? 0) / 100);
+  return Math.round(amount * factor);
+}
+
+// Rage gagnée par un héros touché qui survit (classe + talents).
+function onHitTaken(hero) {
+  gainResource(hero, (getClass(hero).resource.onHitTaken ?? 0) + (statsOf(hero).resOnHitTaken ?? 0));
 }
 
 function critText(hit) {
@@ -327,18 +353,20 @@ function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
   let crit = false;
+  let dealt = 0;
 
   for (const target of targets) {
     if (skill.kind === 'damage') {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
+        hit.amount = guarded(target, hit.amount);
         const { taken, fell } = damage(target, hit.amount);
         hits.push({ ...hit, amount: taken });
+        dealt += taken;
         crit ||= hit.crit;
         if (fell) logFall(cb, target);
-        else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
+        else if (isHero(target) && !isHero(caster)) onHitTaken(target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -352,6 +380,11 @@ function useSkill(cb, caster, skill, targets) {
     }
     if (!target.alive) continue;
 
+    if (skill.cleanse) {
+      const removed = statusesOf(target).filter((st) => st.kind === 'debuff');
+      target.statuses = statusesOf(target).filter((st) => st.kind !== 'debuff');
+      if (removed.length) parts.push(`${target.name} : ${removed.map((st) => st.name).join(', ')} dissipé${removed.length > 1 ? 's' : ''}`);
+    }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
       addStatus(target, status);
@@ -359,10 +392,15 @@ function useSkill(cb, caster, skill, targets) {
     }
   }
   for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  if (skill.resourceGain && isHero(caster)) {
+    gainResource(caster, skill.resourceGain);
+    parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
+  }
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
   log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  if (isHero(caster)) lifesteal(cb, caster, dealt);
   return { crit };
 }
 
@@ -426,12 +464,12 @@ export function enemyAct(cb) {
       let dmg = hit.amount;
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
-      if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
+      dmg = guarded(target, dmg);
       const { taken, absorbed, fell } = damage(target, dmg);
       const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : ''].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
-      else gainResource(target, getClass(target).resource.onHitTaken);
+      else onHitTaken(target);
     }
   }
   endTurn(cb);

@@ -22,6 +22,7 @@ export function statsOf(unit) {
     s.physPower = Math.round(s.physPower * (1 + (s.berserk * missingTenths) / 100));
   }
   s.debuffed = isDebuffed(unit);
+  s.hpPct = s.pv ? unit.hp / s.pv : 1;
   return s;
 }
 
