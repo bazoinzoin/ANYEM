@@ -31,7 +31,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
 - Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).
 - Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée. Physique = `physPower` (Attaque des armes + Force/Agilité selon `physStat` de la classe) ; magique (`skill.magic`) et soins = `magPower` (Intelligence). L'Intelligence ne doit jamais renforcer une attaque à l'arme.
-- Objets communs : exactement stat(s) obligatoire(s) + stat principale (bouclier : Défense + Blocage obligatoires ; bijou : aucune stat obligatoire, stat principale renforcée) ; secondaires (`item.bonus`) à partir de peu commun. Armes, armures et bijoux peuvent sortir en Force, Agilité ou Intelligence. Affichage des lignes de stats : `itemStatLines(item)`.
+- Objets communs : exactement stat(s) obligatoire(s) + stat principale (armure : Armure, qui compte comme Défense et Défense magique dans `getStats` ; bouclier : Armure + Blocage ; bijou : aucune stat obligatoire, stat principale renforcée) ; secondaires (`item.bonus`) à partir de peu commun. Armes, armures et bijoux peuvent sortir en Force, Agilité ou Intelligence. Affichage des lignes de stats : `itemStatLines(item)`.
 
 ## Conventions
 

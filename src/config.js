@@ -33,7 +33,7 @@ export const ITEM = {
   budgetBase: 3,
   budgetPerLevel: 1,
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
-  armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
+  armorDef: 1.5,          // Armure = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
   shieldBlock: { base: 5, perLevel: 0.2 }, // blocage (%) obligatoire d'un bouclier
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids

@@ -53,6 +53,9 @@ export function getStats(hero) {
   const weaponSpeed = weaponSpeedOf(hero);
   const stats = {
     ...total,
+    // L'Armure (stat obligatoire des armures et boucliers) protège des deux types de dégâts.
+    def: total.def + total.armure,
+    defMag: total.defMag + total.armure,
     // Vitesse d'attaque : la Vitesse est multipliée par le coefficient des armes.
     vitBase: total.vit,
     weaponSpeed,

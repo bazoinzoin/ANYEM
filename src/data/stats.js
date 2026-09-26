@@ -11,6 +11,9 @@ export const STATS = {
   vit: { label: 'Vitesse' },
   critChance: { label: 'Taux critique', suffix: '%' },
   critDmg: { label: 'Dégâts critiques', suffix: '%' },
+  // Stat obligatoire des armures et boucliers : compte à la fois comme Défense et
+  // comme Défense magique (voir getStats).
+  armure: { label: 'Armure' },
   // Secondaires défensives
   pv: { label: 'PV' },
   def: { label: 'Défense' },
@@ -26,7 +29,7 @@ export const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
 export const STAT_ORDER = [
   'force', 'agilite', 'intelligence',
   'atq', 'vit', 'critChance', 'critDmg',
-  'pv', 'def', 'defMag', 'esquive', 'blocage', 'riposte',
+  'pv', 'armure', 'def', 'defMag', 'esquive', 'blocage', 'riposte',
 ];
 
 export function zeroStats() {

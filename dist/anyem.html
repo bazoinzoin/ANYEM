@@ -357,7 +357,7 @@ const ITEM = {
   budgetBase: 3,
   budgetPerLevel: 1,
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
-  armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
+  armorDef: 1.5,          // Armure = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
   shieldBlock: { base: 5, perLevel: 0.2 }, // blocage (%) obligatoire d'un bouclier
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
@@ -785,8 +785,8 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat obligatoire : attaque (arme), défense (armure), aucune (bijou) ;
-// exception : défense + blocage pour un bouclier.
+// Stat obligatoire : attaque (arme), Armure (armure : Défense et Défense magique), aucune (bijou) ;
+// exception : Armure + Blocage pour un bouclier.
 // Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
@@ -795,13 +795,13 @@ function mandatoryStats(base, level, mult) {
   }
   if (base.slotType === 'bouclier') {
     return {
-      def: Math.round(b * ITEM.shieldDef * mult),
+      armure: Math.round(b * ITEM.shieldDef * mult),
       blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
     };
   }
   if (JEWELS[base.slotType]) return {}; // bijou : aucune stat obligatoire
   const weight = ARMOR_PIECES[base.slotType];
-  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
+  return { armure: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
 }
 
 function primaryWeight(base) {
@@ -1355,6 +1355,9 @@ const STATS = {
   vit: { label: 'Vitesse' },
   critChance: { label: 'Taux critique', suffix: '%' },
   critDmg: { label: 'Dégâts critiques', suffix: '%' },
+  // Stat obligatoire des armures et boucliers : compte à la fois comme Défense et
+  // comme Défense magique (voir getStats).
+  armure: { label: 'Armure' },
   // Secondaires défensives
   pv: { label: 'PV' },
   def: { label: 'Défense' },
@@ -1370,7 +1373,7 @@ const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
 const STAT_ORDER = [
   'force', 'agilite', 'intelligence',
   'atq', 'vit', 'critChance', 'critDmg',
-  'pv', 'def', 'defMag', 'esquive', 'blocage', 'riposte',
+  'pv', 'armure', 'def', 'defMag', 'esquive', 'blocage', 'riposte',
 ];
 
 function zeroStats() {
@@ -2250,6 +2253,9 @@ function getStats(hero) {
   const weaponSpeed = weaponSpeedOf(hero);
   const stats = {
     ...total,
+    // L'Armure (stat obligatoire des armures et boucliers) protège des deux types de dégâts.
+    def: total.def + total.armure,
+    defMag: total.defMag + total.armure,
     // Vitesse d'attaque : la Vitesse est multipliée par le coefficient des armes.
     vitBase: total.vit,
     weaponSpeed,
@@ -2886,8 +2892,9 @@ const STAT_TIPS = {
   atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
   critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
   critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
-  def: 'Réduit les dégâts physiques subis.',
-  defMag: 'Réduit les dégâts magiques subis.',
+  armure: 'Apportée par les armures et boucliers : compte à la fois comme Défense et comme Défense magique (déjà incluse dans les deux lignes suivantes).',
+  def: 'Réduit les dégâts physiques subis (Armure comprise).',
+  defMag: 'Réduit les dégâts magiques subis (Armure comprise).',
   esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
   blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
   riposte: `Au corps à corps, chance de contre-attaquer quand on est frappé au corps à corps (${Math.round(COMBAT.ripostePower * 100)} % de la puissance physique, max ${COMBAT.caps.riposte} %).`,

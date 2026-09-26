@@ -2,6 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
+import { createParty, getStats } from '../src/game/party.js';
 import { generateItem, rollRarity, itemStats, itemStatLines } from '../src/game/items.js';
 import { RARITIES, SECONDARY_STATS, LEGENDARIES, WEAPON_TYPES, ARMOR_PIECES, SLOTS } from '../src/data/items.js';
 
@@ -22,12 +23,14 @@ test('chaque rareté a le bon nombre de stats secondaires, sans doublon', () => 
   }
 });
 
-test('stat obligatoire : attaque pour une arme, défense pour une armure, aucune pour un bijou', () => {
+test('stat obligatoire : attaque pour une arme, Armure pour une armure, aucune pour un bijou', () => {
   assert.ok(generateItem({ slotType: 'arme', weaponType: 'hache', rarity: 'commun' }).stats.atq > 0);
-  assert.ok(generateItem({ slotType: 'bottes', armorType: 'lourde', rarity: 'commun' }).stats.def > 0);
+  const boots = generateItem({ slotType: 'bottes', armorType: 'lourde', rarity: 'commun' });
+  assert.ok(boots.stats.armure > 0);
+  assert.deepEqual(boots.mandatory, ['armure']);
   const shield = generateItem({ slotType: 'bouclier', rarity: 'commun' });
-  assert.deepEqual(shield.mandatory, ['def', 'blocage']);
-  assert.ok(shield.stats.def > 0 && shield.stats.blocage > 0);
+  assert.deepEqual(shield.mandatory, ['armure', 'blocage']);
+  assert.ok(shield.stats.armure > 0 && shield.stats.blocage > 0);
   const ring = generateItem({ slotType: 'anneau', rarity: 'commun', primary: 'agilite' });
   assert.deepEqual(ring.mandatory, []);
   assert.deepEqual(Object.keys(ring.stats), ['agilite'], 'bijou commun : uniquement la stat principale');
@@ -40,7 +43,7 @@ test('stat obligatoire : attaque pour une arme, défense pour une armure, aucune
 
 test('un objet commun ne porte que ses stats obligatoire et principale', () => {
   const item = generateItem({ slotType: 'plastron', armorType: 'moyenne', primary: 'agilite', rarity: 'commun' });
-  assert.deepEqual(Object.keys(item.stats).sort(), ['agilite', 'def']);
+  assert.deepEqual(Object.keys(item.stats).sort(), ['agilite', 'armure']);
   const sword = generateItem({ slotType: 'arme', weaponType: 'epee', primary: 'agilite', rarity: 'commun' });
   assert.deepEqual(Object.keys(sword.stats).sort(), ['agilite', 'atq'], 'pas de vitesse sur une épée commune');
   // Toutes les bases possibles : obligatoire(s) + principale, rien d'autre.
@@ -128,4 +131,18 @@ test('le tirage de rareté suit les poids (commun le plus fréquent)', () => {
     counts[rarity] = (counts[rarity] ?? 0) + 1;
   }
   assert.ok(counts.commun > counts.peuCommun && counts.peuCommun > counts.rare && counts.rare > counts.epique);
+});
+
+test("l'Armure compte à la fois comme Défense et comme Défense magique ; Défense et Défense magique restent des secondaires", () => {
+  const [guerrier] = createParty();
+  guerrier.equipment = {};
+  const naked = getStats(guerrier);
+  const helm = generateItem({ slotType: 'casque', armorType: 'lourde', rarity: 'commun', primary: 'force', level: 10 });
+  guerrier.equipment.casque = helm;
+  const worn = getStats(guerrier);
+  assert.equal(worn.def - naked.def, helm.stats.armure);
+  assert.equal(worn.defMag - naked.defMag, helm.stats.armure);
+  helm.bonus = { defMag: 5 };
+  assert.equal(getStats(guerrier).defMag - naked.defMag, helm.stats.armure + 5);
+  assert.ok('def' in SECONDARY_STATS && 'defMag' in SECONDARY_STATS);
 });
