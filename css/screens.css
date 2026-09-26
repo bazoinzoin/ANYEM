@@ -1,0 +1,44 @@
+/* Styles propres à chaque écran. */
+
+/* ---- Statistiques ---- */
+.slot .stats.sheet { text-align: left; line-height: 1.8; }
+.skill-line { width: 100%; font-size: 13px; color: var(--dim); margin-bottom: 6px; text-align: left; }
+.skill-line b { color: var(--cream); }
+
+/* ---- Village ---- */
+.portals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+button.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
+button.portal:hover { background: var(--panel2); }
+.portal h3 { font-size: 16px; }
+.portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
+.services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.party-strip { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 10px; }
+.pmini { min-width: 120px; text-align: center; padding: 10px; border-top: 3px solid var(--c, var(--line)); }
+.pmini .icon { font-size: 24px; }
+.pmini.dead { opacity: .5; }
+
+/* ---- Combat ---- */
+.combatants { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+@media (max-width: 600px) { .combatants { grid-template-columns: 1fr; } }
+.side-title { font-size: 14px; color: var(--dim); margin-bottom: 6px; }
+.unit {
+  padding: 10px; border-radius: 5px; background: var(--panel2); border-left: 3px solid var(--c, var(--line));
+  margin-bottom: 8px; transition: opacity .3s;
+}
+.unit.dead { opacity: .35; }
+.unit .row1 { display: flex; justify-content: space-between; align-items: baseline; }
+.unit .row1 b { font-family: var(--font-title); font-size: 14px; }
+.unit small { color: var(--dim); }
+.unit .status { font-size: 12px; color: var(--gold); margin-top: 4px; }
+.active-turn { outline: 2px solid var(--gold); }
+.hero-name { color: var(--c); }
+
+.log {
+  background: #100c07; border: 1px solid var(--line); border-radius: 4px; padding: 10px;
+  font-size: 14px; height: 110px; overflow-y: auto; margin: 12px 0;
+}
+.log div { margin-bottom: 3px; color: var(--dim); }
+.log div.hit { color: var(--cream); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.target-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

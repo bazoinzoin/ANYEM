@@ -5,10 +5,11 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 ## Fichiers
 
-- `anyem.html` — le jeu complet, actuellement un unique fichier HTML/CSS/JS autonome (aucune dépendance, aucun build). Ouvrable directement dans un navigateur.
-- `DESIGN_DOC.md` — le document de conception original de l'utilisateur : vision complète du jeu (classes, combat, équipement, arbres de compétences, donjons, village). C'est la référence pour toutes les décisions de design futures.
+- `index.html` + `css/` + `src/` — le jeu, en modules ES sans build ni dépendance. Lancer avec `npm start` (voir `README.md`).
+- `docs/DESIGN_DOC.md` — le document de conception original de l'utilisateur : vision complète du jeu (classes, combat, équipement, arbres de compétences, donjons, village). C'est la référence pour toutes les décisions de design futures.
+- `CLAUDE.md` — architecture et conventions à respecter lors des modifications.
 
-## Ce qui est déjà fonctionnel dans anyem.html
+## Ce qui est déjà fonctionnel
 
 - **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
 - **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Marchand et Forge (placeholders "bientôt disponible"), écran de statistiques détaillées par personnage.
@@ -16,12 +17,22 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 ## Architecture actuelle (à connaître avant de modifier)
 
-Tout est dans `anyem.html` :
-- `CLASSES` : objet définissant chaque classe (stats, ressource, compétences avec `mult`/`heal`/`aoe`/`dot`, description).
-- `state` : objet global (screen courant, party, gold, dungeonLvl, combat en cours).
-- `render()` : dispatcher selon `state.screen` (`create`/`hub`/`stats`/`combat`).
-- Le combat utilise une file de tour (`turnQueue`) triée par vitesse, avec `advanceTurn()` piloté par `setTimeout` pour les tours ennemis.
-- Pas de framework, pas de build, tout en vanilla JS avec des template strings pour le rendu (pas de virtual DOM, ré-affichage complet à chaque `render()`).
+Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour le détail) :
+- `src/data/` : `CLASSES` (stats de base, ressource et ses règles de gain, compétences avec `kind`/`target`/`power`/`bleed`), `ENEMIES`, `DUNGEONS`.
+- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, saignements, fin de combat), `party.js` (héros, `getStats()`), `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
+- `src/ui/` : un écran par fichier, `router.js` pour la navigation, `encounter.js` pour le rythme des tours ennemis (`setTimeout`).
+- `src/state.js` : état global (`screen`, `party`, `gold`, `dungeonLvl`, `combat`, `hubMessage`).
+- Rendu par template strings, ré-affichage complet de l'écran à chaque `render()`.
+
+### Corrections apportées lors du découpage
+
+- Ordre de jeu : la vitesse des héros était ignorée dans le tri (seule celle des ennemis comptait).
+- Ciblage : l'index de la cible choisie ne correspondait plus à la bonne unité dès qu'un ennemi (ou allié, pour les soins) situé avant dans la liste était mort.
+- Saignement de Lacération : il n'était jamais appliqué. Il inflige désormais 6 PV par fin de round pendant 3 rounds.
+- Défendre : la garde restait active tout le combat ; elle dure maintenant jusqu'au prochain tour du héros.
+- Auberge : ne relevait pas les héros tombés lors d'une victoire, qui restaient morts sans aucun moyen de revenir.
+- Noms de héros échappés à l'affichage (un nom contenant du HTML cassait la page).
+- Estimation des soins : affiche la valeur exacte (le soin n'a pas de variance) ; celle des compétences de zone utilise leur vraie fourchette.
 
 ## Ce qui n'est PAS encore fait (voir DESIGN_DOC.md pour le détail complet)
 

@@ -1,0 +1,41 @@
+/* Composants réutilisés sur plusieurs écrans. */
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+.card.section { margin-top: 14px; }
+.card.notice { margin-bottom: 16px; border-color: var(--gold); }
+.card.waiting { text-align: center; color: var(--dim); }
+
+.btn-primary { font-family: var(--font-title); padding: 12px 28px; }
+
+/* En-tête d'écran */
+.hero { text-align: center; margin-bottom: 28px; }
+.hero h1 { font-size: clamp(28px, 6vw, 42px); }
+.hero p { color: var(--dim); margin-top: 4px; }
+
+/* Barres de PV / ressource */
+.barwrap { background: #100c07; border-radius: 3px; height: 8px; overflow: hidden; margin-top: 4px; }
+.bar { height: 100%; }
+
+/* Grille de cartes de personnage (création, statistiques) */
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.slot { border-top: 3px solid var(--c, var(--line)); }
+.slot .icon { font-size: 34px; }
+.slot .cname { font-family: var(--font-title); font-size: 15px; margin: 6px 0 2px; }
+.slot .role { color: var(--dim); font-size: 13px; margin-bottom: 8px; }
+.slot .stats { font-size: 13px; color: var(--dim); margin: 8px 0; }
+
+.skillbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* Infobulles : <x class="tooltip" data-tip="..."> */
+.tooltip { position: relative; cursor: help; border-bottom: 1px dotted var(--dim); }
+button.tooltip { border-bottom: 1px solid var(--line); cursor: pointer; }
+button.tooltip:disabled { cursor: not-allowed; }
+.tooltip:hover::after, .tooltip:focus-visible::after {
+  content: attr(data-tip); position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 9px);
+  background: #0c0904; border: 1px solid var(--line); color: var(--cream); padding: 9px 11px; border-radius: 5px;
+  font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: normal;
+}
+.tooltip:hover::before, .tooltip:focus-visible::before {
+  content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%;
+  border: 6px solid transparent; border-top-color: var(--line); z-index: 30;
+}
