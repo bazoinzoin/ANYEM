@@ -13,6 +13,9 @@ import { renderCombat } from './ui/screens/combat.js';
 import { renderStrategy } from './ui/screens/strategy.js';
 import { renderInn } from './ui/screens/inn.js';
 import { renderBank } from './ui/screens/bank.js';
+import { renderDifficulty } from './ui/screens/difficulty.js';
+import { renderRunes } from './ui/screens/runes.js';
+import { renderBestiary } from './ui/screens/bestiary.js';
 
 registerScreens({
   create: renderCreate,
@@ -27,6 +30,9 @@ registerScreens({
   strategy: renderStrategy,
   inn: renderInn,
   bank: renderBank,
+  difficulty: renderDifficulty,
+  runes: renderRunes,
+  bestiary: renderBestiary,
 });
 
 render();

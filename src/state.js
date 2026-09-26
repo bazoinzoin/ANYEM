@@ -14,10 +14,13 @@ export const state = {
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,
+  difficulty: 'balade', // voir DIFFICULTIES (config.js) et game/difficulty.js
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
+  bestiary: {},         // ennemis rencontrés : { clé: { seen, kills } } (voir game/bestiary.js)
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
+  lastCombat: null,     // { title, log } du dernier combat (journal consultable après coup)
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
 };

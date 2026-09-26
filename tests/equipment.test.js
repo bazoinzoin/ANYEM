@@ -8,7 +8,7 @@ import { equip, unequip, slotsFor, cannotEquipReason } from '../src/game/equipme
 import { learn } from '../src/game/talents.js';
 import { LEGENDARIES } from '../src/data/items.js';
 import { CLASSES } from '../src/data/classes.js';
-import { TALENTS } from '../src/data/talents.js';
+import { TALENTS, nodeSkills } from '../src/data/talents.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
 
@@ -109,7 +109,7 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
 test('un légendaire porté modifie la compétence visée (talent compris)', () => {
   const [, voleur] = party();
   voleur.level = 50;
-  for (const id of ['toxines', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) learn(voleur, id);
+  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
   const croc = generateItem({ legendary: 'crocSanglant' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
   assert.equal(lame0.effects[0].turns, 4);
@@ -119,9 +119,9 @@ test('un légendaire porté modifie la compétence visée (talent compris)', () 
   assert.equal(lame.boosted, true);
 });
 
-test('chaque légendaire vise une compétence de sa classe (de base ou de talent) ; il y en a un par orientation', () => {
+test('chaque légendaire vise une compétence de sa classe (sort de départ ou de talent) ; il y en a un par orientation', () => {
   for (const [key, leg] of Object.entries(LEGENDARIES)) {
-    const skills = [...CLASSES[leg.classKey].skills, ...TALENTS[leg.classKey].flatMap((b) => b.nodes).map((n) => n.skill).filter(Boolean)];
+    const skills = TALENTS[leg.classKey].flatMap((b) => b.nodes).flatMap(nodeSkills);
     assert.ok(skills.some((s) => s.id === leg.passive.skill), `${key} vise une compétence inconnue`);
     const item = generateItem({ legendary: key });
     const [hero] = createParty([], [leg.classKey]);
@@ -133,12 +133,14 @@ test('chaque légendaire vise une compétence de sa classe (de base ou de talent
   }
 });
 
-test('Paladin : armes au corps à corps (toute stat principale), bouclier, armures lourde et légère ; Chasseur : arc et armure moyenne', () => {
+test('Paladin : armes au corps à corps, bouclier, toutes les armures ; Chasseur : arc, armures moyenne et légère', () => {
   const [paladin, chasseur] = createParty([], ['paladin', 'chasseur']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'masse', primary: 'intelligence' })), ['mainDroite']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'bouclier' })), ['mainGauche']);
   assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), null);
-  assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })));
+  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })), null, 'qui peut le plus peut le moins');
+  assert.equal(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'legere' })), null);
+  assert.ok(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'lourde' })));
   assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'arc' })));
   assert.equal(chasseur.equipment.mainDroite.weaponType, 'arc');
   assert.ok(cannotEquipReason(chasseur, item({ slotType: 'arme', weaponType: 'dague' })));

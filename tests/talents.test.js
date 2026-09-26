@@ -8,7 +8,7 @@ import {
 } from '../src/game/talents.js';
 import { applyVictory, xpReward } from '../src/game/progression.js';
 import { createEnemies } from '../src/game/enemies.js';
-import { TALENTS } from '../src/data/talents.js';
+import { TALENTS, nodeSkills } from '../src/data/talents.js';
 import { CLASSES } from '../src/data/classes.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
@@ -39,9 +39,9 @@ test('chaque classe a ses orientations du design doc : 10 paliers, 50 rangs, une
       for (const n of b.nodes) {
         assert.ok(!ids.has(n.id), `id en double : ${n.id}`);
         ids.add(n.id);
-        if (n.kind === 'skill' || n.kind === 'signature') assert.ok(n.skill?.id, `${n.id} doit accorder une compétence`);
+        if (n.kind === 'skill' || n.kind === 'signature') assert.ok(nodeSkills(n).length && nodeSkills(n).every((s) => s.id), `${n.id} doit accorder une compétence`);
         for (const mod of [].concat(n.skillMod ?? [])) {
-          const all = [...Object.values(CLASSES).flatMap((c) => c.skills), ...Object.values(TALENTS).flat().flatMap((br) => br.nodes).map((x) => x.skill).filter(Boolean)];
+          const all = Object.values(TALENTS).flat().flatMap((br) => br.nodes).flatMap(nodeSkills);
           assert.ok(all.some((s) => s.id === mod.skill), `${n.id} vise une compétence inconnue`);
         }
       }
@@ -57,7 +57,7 @@ test('1 point de talent par niveau ; les paliers se débloquent par points inves
   assert.equal(pointsAvailable(guerrier), 0);
   assert.match(cannotLearnReason(guerrier, 'peau-de-fer'), /Aucun point/);
   guerrier.level = 6;
-  for (const id of ['peau-de-fer', 'peau-de-fer', 'posture-defensive']) learn(guerrier, id);
+  for (const id of ['peau-de-fer', 'depart-gardien', 'posture-defensive']) assert.ok(learn(guerrier, id), id);
   assert.match(cannotLearnReason(guerrier, 'provocation'), /5 points/);
   learn(guerrier, 'posture-defensive');
   assert.equal(cannotLearnReason(guerrier, 'provocation'), null);
@@ -72,21 +72,21 @@ test('les talents modifient les stats et ajoutent des compétences', () => {
   const pv = getStats(guerrier).pv;
   learn(guerrier, 'peau-de-fer');
   assert.equal(getStats(guerrier).pv, Math.round(pv * 1.04));
-  for (const id of ['peau-de-fer', 'peau-de-fer', 'posture-defensive', 'posture-defensive', 'provocation']) assert.ok(learn(guerrier, id), id);
+  for (const id of ['peau-de-fer', 'depart-gardien', 'posture-defensive', 'posture-defensive', 'provocation']) assert.ok(learn(guerrier, id), id);
   assert.ok(getSkills(guerrier).some((s) => s.id === 'provocation'));
 });
 
 test("un talent peut améliorer une compétence existante", () => {
   const [, , pretre] = createParty();
   pretre.level = 20;
-  for (const id of ['devotion', 'devotion', 'devotion', 'sagesse', 'sagesse', 'priere-de-soins', 'meditation', 'meditation', 'meditation', 'meditation',
+  for (const id of ['depart-clerc', 'devotion', 'devotion', 'sagesse', 'sagesse', 'priere-de-soins', 'meditation', 'meditation', 'meditation', 'meditation',
     'lumiere-bienveillante', 'lumiere-bienveillante', 'lumiere-bienveillante', 'robustesse-sacree', 'robustesse-sacree', 'grace']) {
     assert.ok(learn(pretre, id), id);
   }
   const soin = getSkills(pretre).find((s) => s.id === 'soin-majeur');
   assert.equal(soin.cost, 25);
   assert.equal(soin.power, 1.32);
-  assert.equal(getStats(pretre).healPct, 15);
+  assert.equal(getStats(pretre).healPct, 10);
   assert.equal(getStats(pretre).resMax, 100);
 });
 
@@ -152,4 +152,20 @@ test('niveau maximum 50 : 50 points, de quoi compléter une seule orientation', 
   assert.equal(rankOf(guerrier, 'dernier-rempart'), 1, 'la signature est atteinte');
   assert.equal(pointsAvailable(guerrier), 0);
   assert.ok(berserker.nodes.every((n) => rankOf(guerrier, n.id) === 0));
+});
+
+test('un héros commence sans sort : le sort de départ est son premier point de talent (palier 0)', () => {
+  const party = createParty();
+  for (const hero of party) assert.deepEqual(getSkills(hero), [], hero.classKey);
+  const [, voleur, pretre] = party;
+  assert.ok(learn(voleur, 'depart-assassin'));
+  assert.deepEqual(getSkills(voleur).map((s) => s.id), ['coup-vicieux', 'evisceration']);
+  voleur.level = 2;
+  assert.ok(learn(voleur, 'depart-empoisonneur'));
+  assert.deepEqual(getSkills(voleur).map((s) => s.id), ['coup-vicieux', 'evisceration', 'laceration'], 'pas de doublon');
+  assert.ok(learn(pretre, 'depart-profane'));
+  assert.deepEqual(getSkills(pretre).map((s) => s.id), ['trait-d-ombre']);
+  for (const branches of Object.values(TALENTS)) {
+    for (const b of branches) assert.ok(b.nodes.some((n) => n.tier === 0 && nodeSkills(n).length), `${b.key} : sort de départ au palier 0`);
+  }
 });

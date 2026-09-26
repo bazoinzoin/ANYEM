@@ -7,7 +7,7 @@
 // compétence signature de l'orientation.
 //
 // Modèle d'une branche (rangs par palier) :
-//   0 : 2 bonus            1 : compétence + bonus    2 : 2 bonus
+//   0 : sort de départ + 2 bonus   1 : compétence + bonus    2 : 2 bonus
 //   3 : passif + bonus     4 : compétence + bonus    5 : 2 bonus
 //   6 : passif + bonus     7 : compétence + bonus    8 : passif + bonus
 //   9 : compétence signature
@@ -38,15 +38,29 @@
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
 //   skill    compétence accordée (même format que data/classes.js)
+//   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
 //              effectTurnsDelta, effectPowerPct, addEffects, addSelfEffects } (ou une liste)
 // Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
+
+import { CLASSES } from './classes.js';
 
 // Raccourcis de construction des nœuds.
 const minor = (id, name, tier, ranks, desc, fx) => ({ id, name, tier, ranks, kind: 'minor', desc, ...fx });
 const passive = (id, name, tier, desc, fx) => ({ id, name, tier, ranks: 1, kind: 'passive', desc, ...fx });
 const skill = (tier, def) => ({ id: def.id, name: def.name, tier, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.', skill: def });
 const signature = (def) => ({ id: def.id, name: def.name, tier: 9, ranks: 1, kind: 'signature', desc: 'Compétence signature.', skill: def });
+// Nœud du palier 0 : le(s) sort(s) de départ de l'orientation (voir starterSkills
+// dans data/classes.js). Un héros commence sans sort et apprend celui-ci avec son
+// premier point de talent.
+const starter = (id, name, classKey, ids) => ({
+  id, name, tier: 0, ranks: 1, kind: 'skill', desc: 'Sort de départ.',
+  skills: ids.map((sid) => {
+    const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
+    if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
+    return skill;
+  }),
+});
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
 
 export const TALENTS = {
@@ -55,7 +69,8 @@ export const TALENTS = {
       key: 'gardien', name: 'Gardien', icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
-        minor('peau-de-fer', 'Peau de fer', 0, 3, '+4 % PV par rang.', { pct: { pv: 4 } }),
+        starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
+        minor('peau-de-fer', 'Peau de fer', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         minor('posture-defensive', 'Posture défensive', 0, 2, '+5 % Défense par rang.', { pct: { def: 5 } }),
         skill(1, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
@@ -99,7 +114,8 @@ export const TALENTS = {
       key: 'berserker', name: 'Berserker', icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
-        minor('soif-de-sang', 'Soif de sang', 0, 3, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
+        starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
+        minor('soif-de-sang', 'Soif de sang', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         minor('brutalite', 'Brutalité', 0, 2, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
         skill(1, {
           id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, critBonus: 25,
@@ -142,7 +158,8 @@ export const TALENTS = {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
       desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
       nodes: [
-        minor('vivacite', 'Vivacité', 0, 3, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
+        starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
+        minor('vivacite', 'Vivacité', 0, 2, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
         minor('precision', 'Précision', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         skill(1, {
           id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
@@ -183,7 +200,8 @@ export const TALENTS = {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
       desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
       nodes: [
-        minor('toxines', 'Toxines', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
+        minor('toxines', 'Toxines', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('opportuniste', 'Opportuniste', 0, 2, '+6 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', { passive: { vsDebuffedPct: 6 } }),
         skill(1, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
@@ -233,7 +251,8 @@ export const TALENTS = {
       key: 'clerc', name: 'Clerc', icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
-        minor('devotion', 'Dévotion', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
+        minor('devotion', 'Dévotion', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse', 'Sagesse', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'priere-de-soins', name: 'Prière de soins', cost: 40, kind: 'heal', target: 'allAllies', power: 0.55,
@@ -277,7 +296,8 @@ export const TALENTS = {
       key: 'precheur', name: 'Prêcheur', icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
-        minor('foi', 'Foi', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
+        minor('foi', 'Foi', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('constance', 'Constance', 0, 2, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
         skill(1, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
@@ -324,7 +344,8 @@ export const TALENTS = {
       key: 'profane', name: 'Profane', icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
-        minor('ombre', 'Ombre', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-profane', "Trait d'ombre", 'pretre', ['trait-d-ombre']),
+        minor('ombre', 'Ombre', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('esprit-sombre', 'Esprit sombre', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         skill(1, {
           id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
@@ -374,7 +395,8 @@ export const TALENTS = {
       key: 'feu', name: 'Mage de feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
-        minor('chaleur', 'Chaleur', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
+        minor('chaleur', 'Chaleur', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('combustion', 'Combustion', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         skill(1, {
           id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
@@ -424,7 +446,8 @@ export const TALENTS = {
       key: 'glace', name: 'Mage de glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
-        minor('froid', 'Froid', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
+        minor('froid', 'Froid', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('armure-de-givre', 'Armure de givre', 0, 2, '+5 % Défense et Défense magique par rang.', { pct: { def: 5, defMag: 5 } }),
         skill(1, {
           id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
@@ -468,7 +491,8 @@ export const TALENTS = {
       key: 'foudre', name: 'Mage de foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
-        minor('conductivite', 'Conductivité', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
+        minor('conductivite', 'Conductivité', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('surtension', 'Surtension', 0, 2, '+8 % Dégâts critiques par rang.', { flat: { critDmg: 8 } }),
         skill(1, {
           id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
@@ -516,7 +540,8 @@ export const TALENTS = {
       key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
       desc: "Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.",
       nodes: [
-        minor('oeil-percant', 'Œil perçant', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
+        minor('oeil-percant', 'Œil perçant', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('tension-de-la-corde', 'Tension de la corde', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         skill(1, {
           id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 1.75, critBonus: 10,
@@ -557,7 +582,8 @@ export const TALENTS = {
       key: 'traqueur', name: 'Traqueur', icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
-        minor('pisteur', 'Pisteur', 0, 3, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
+        starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
+        minor('pisteur', 'Pisteur', 0, 2, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
         minor('reflexes-du-traqueur', 'Réflexes du traqueur', 0, 2, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
         skill(1, {
           id: 'piege-a-machoires', name: 'Piège à mâchoires', cost: 25, kind: 'support', target: 'enemy',
@@ -607,7 +633,8 @@ export const TALENTS = {
       key: 'templier', name: 'Templier', icon: '🛡️',
       desc: "Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.",
       nodes: [
-        minor('armure-sacree', 'Armure sacrée', 0, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
+        starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
+        minor('armure-sacree', 'Armure sacrée', 0, 2, '+4 % Défense par rang.', { pct: { def: 4 } }),
         minor('vigueur', 'Vigueur', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         skill(1, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
@@ -651,7 +678,8 @@ export const TALENTS = {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
       desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
       nodes: [
-        minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
+        minor('eclat-sacre', 'Éclat sacré', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'lumiere-de-l-aube', name: "Lumière de l'aube", cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
@@ -692,3 +720,8 @@ export const TALENTS = {
     },
   ],
 };
+
+// Compétences accordées par un nœud (champ `skill` ou `skills`).
+export function nodeSkills(node) {
+  return node.skills ?? (node.skill ? [node.skill] : []);
+}

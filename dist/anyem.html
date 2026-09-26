@@ -133,6 +133,7 @@ button.full { width: 100%; margin-top: 12px; }
 .class-details > h2 { margin: 12px 0 4px; border-left: 4px solid var(--c); padding-left: 8px; }
 .leg-class { display: inline-block; font-size: 15px; padding: 0 4px; border-radius: 4px; border-bottom: 2px solid var(--c, var(--gold)); }
 .legendaries .item-card { flex: 1 1 260px; max-width: 320px; }
+.item-stats .stat-range { color: var(--dim); font-size: 12px; }
 </style>
 <style>
 /* css/screens.css */
@@ -327,6 +328,58 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .bank-table th:first-child { text-align: left; }
 .materia-table button.mini { padding: 0 6px; font-size: 12px; }
 #goldAmount { width: 110px; }
+
+/* ---- Événements d'expédition ---- */
+.card.event { border: 1px solid var(--gold); background: #2a2015; margin: 10px 0; }
+.card.event h3 { margin-top: 0; }
+.event-choices { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 12px; }
+.event-choice { flex: 1 1 260px; }
+.event-choice ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
+.event-stock .bag-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
+.event-stock .bag-row button { margin-left: auto; }
+
+/* ---- Journal et résumé de victoire ---- */
+.log div.crit { color: #ffcf6b; font-weight: 600; }
+.log .has-detail { cursor: help; }
+.log .has-detail .why { color: var(--dim); font-size: 11px; }
+.log .tooltip::after { width: 340px; }
+.last-log summary { cursor: pointer; color: var(--gold); }
+.last-log .log { height: 200px; }
+.victory-summary h3 { margin: 0 0 6px; }
+.victory-summary table { border-collapse: collapse; }
+.victory-summary th { text-align: left; padding: 3px 12px 3px 0; font-weight: 400; color: var(--dim); white-space: nowrap; vertical-align: top; }
+.victory-summary td { padding: 3px 0; }
+
+/* ---- Difficulté ---- */
+.difficulty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; margin-bottom: 12px; }
+.card.difficulty.selected { outline: 2px solid var(--gold); background: #2a2015; }
+.card.difficulty h2 { margin-top: 0; }
+.card.difficulty p { margin: 4px 0; font-size: 14px; }
+.rarity-table { border-collapse: collapse; font-size: 12px; width: 100%; margin: 8px 0; }
+.rarity-table th, .rarity-table td { padding: 2px 3px; text-align: center; }
+.rarity-table tbody th { text-align: left; color: var(--dim); font-weight: 400; }
+
+/* ---- Forge : onglets et fabrication ; Runomancien ---- */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tabs button.selected, .craft-row button.selected { background: #3a2c1c; outline: 1px solid var(--gold); }
+.craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.craft-row > span { min-width: 130px; color: var(--dim); }
+.craft-row select { padding: 6px 8px; background: #221910; color: inherit; border: 1px solid #5a4630; border-radius: 6px; }
+.reroll-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3a2c1c; }
+
+/* ---- Bestiaire ---- */
+.bestiary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-bottom: 12px; }
+.bestiary-card { text-align: center; }
+.bestiary-card.boss { outline: 1px solid var(--gold); }
+.bestiary-card.unknown { opacity: .55; display: flex; flex-direction: column; justify-content: center; min-height: 200px; }
+.bestiary-card .big-icon { font-size: 42px; }
+.bestiary-card h3 { margin: 4px 0; }
+.bestiary-card h4 { margin: 10px 0 4px; text-align: left; }
+.bestiary-stats { margin: 6px auto; border-collapse: collapse; font-size: 14px; }
+.bestiary-stats th { text-align: left; color: var(--dim); font-weight: 400; padding: 2px 10px 2px 0; }
+.bestiary-stats td { padding: 2px 6px; text-align: right; }
+.abilities { text-align: left; padding-left: 18px; margin: 0; font-size: 14px; }
+.abilities li { margin-bottom: 6px; }
 </style>
 
 </head>
@@ -397,17 +450,68 @@ const LOOT = {
   consumableChance: 0.2,
   bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
-  categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
+  categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
+
+// Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
+// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
+// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
+// changent pas.
+const DIFFICULTIES = {
+  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  aventure: {
+    name: 'Aventure', icon: '🗺️', power: 1.3,
+    loot: {
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
+      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
+      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+    },
+  },
+  guerre: {
+    name: 'Guerre', icon: '⚔️', power: 1.7,
+    loot: {
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
+      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
+      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+    },
+  },
+  horreur: {
+    name: 'Horreur', icon: '💀', power: 2.2,
+    loot: {
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
+      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+    },
+  },
+};
+const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
 // d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 const DUNGEON = {
-  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
+  continueRegenPct: 40,
+  fightsPerFloor: { min: 2, max: 3 }, // combats par étage ordinaire (un étage de boss : le boss seul)   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
+};
+
+// Événements d'expédition (data/events.js) : chance après chaque combat gagné
+// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+const EVENT_RULES = {
+  chance: 0.35,
+  merchantItems: 3,
+  merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
+  merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)
+  merchantConsumables: 3,
+  merchantConsumablePct: 75,   // consommables à 75 % du prix du village
 };
 
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
@@ -415,8 +519,8 @@ const DUNGEON = {
 const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 40,
-  toNextPerLevel: 20,
+  toNextBase: 80,
+  toNextPerLevel: 40,
   maxLevel: 50,
 };
 
@@ -440,11 +544,26 @@ const FORGE = {
   tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
+  // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),
+  // + craftPerFilter par caractéristique imposée (type, pièce, stat principale…).
+  craftBase: 20,
+  craftPerFilter: 10,
+};
+
+// Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
+// prix en or selon la rareté de l'objet.
+const RUNES = {
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
 };
 
 // Marchand. Prix de revente d'un objet :
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+// Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+const INN = {
+  maxReserve: 4,
+};
+
 const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,
@@ -477,7 +596,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -514,11 +633,13 @@ const RARITIES = {
 
 const RARITY_ORDER = Object.keys(RARITIES);
 
-// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
-// reste (armures, boucliers, bijoux) des matéria d'armure.
+// Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
+// d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.
+// Elles servent à améliorer et à fabriquer les objets de leur catégorie.
 const MATERIA_KINDS = {
   arme: { label: "Matéria d'arme", icon: '⚔️' },
   armure: { label: "Matéria d'armure", icon: '🛡️' },
+  bijou: { label: 'Matéria de bijou', icon: '💍' },
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
@@ -596,8 +717,10 @@ const SECONDARY_STATS = {
   critDmg: { base: 3, perLevel: 0.3 },
   def: { base: 1, perLevel: 0.4 },
   defMag: { base: 1, perLevel: 0.4 },
-  esquive: { base: 1, perLevel: 0.08 },
-  blocage: { base: 1, perLevel: 0.1 },
+  // Chaque secondaire a la même chance de sortir ; à niveau et rareté égaux, l'esquive
+  // (coup entièrement évité) vaut moins que le blocage (moitié des dégâts évitée).
+  esquive: { base: 0.5, perLevel: 0.04 },
+  blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
 };
 
@@ -734,12 +857,16 @@ function boost(value, plus, isMandatory) {
 // Lignes de stats à afficher, amélioration comprise, dans l'ordre :
 // obligatoire(s), principale, secondaires. [{ stat, value, secondary }]
 // Une stat peut apparaître deux fois (Blocage obligatoire + secondaire d'un bouclier).
+// Une secondaire porte aussi `range` { lo, hi } : les valeurs possibles pour ce niveau
+// et cette rareté (amélioration comprise), pour juger du tirage.
 function itemStatLines(item) {
   const plus = item.plus ?? 0;
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
-  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) =>
-    ({ stat, value: boost(value, plus, false), secondary: true }));
+  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
+  });
   return [...main, ...bonus];
 }
 
@@ -835,6 +962,13 @@ function secondaryValue(stat, level, range) {
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
 }
 
+// Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
+function secondaryRange(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
+}
+
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
  * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
@@ -878,18 +1012,18 @@ function generateItem(opts = {}) {
   return item;
 }
 
-return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
+return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, generateItem };
 })();
 
 // ---- src/game/forge.js
 __modules["src/game/forge.js"] = (() => {
 const { FORGE } = __modules["src/config.js"];
-const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
-const { isWeapon } = __modules["src/game/items.js"];
-const { random } = __modules["src/game/rng.js"];
-// Forge : décraft des objets en matéria et amélioration de +1 à +5.
+const { RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES } = __modules["src/data/items.js"];
+const { isWeapon, generateItem, primaryOptions } = __modules["src/game/items.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Forge : décraft des objets en matéria, amélioration de +1 à +5 et fabrication.
 //
-// game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … } }
+// game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … }, bijou: { … } }
 
 
 
@@ -902,7 +1036,9 @@ function emptyMateria() {
 }
 
 function materiaKind(item) {
-  return isWeapon(item) ? 'arme' : 'armure';
+  if (isWeapon(item)) return 'arme';
+  if (JEWELS[item.slotType]) return 'bijou';
+  return 'armure';
 }
 
 // Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
@@ -960,7 +1096,141 @@ function upgrade(game, item) {
   return true;
 }
 
-return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
+// ---- Fabrication ----
+//
+// Une commande : { kind: 'arme' | 'armure' | 'bijou', rarity, …filtres }.
+// Filtres possibles (chacun optionnel, tiré au hasard s'il est omis) :
+//   arme   : weaponType, primary
+//   armure : slotType (pièce d'armure ou 'bouclier'), armorType, primary
+//   bijou  : slotType ('anneau' | 'collier'), primary
+// Un légendaire est tiré parmi les légendaires de la catégorie qui respectent les filtres.
+
+const CRAFT_FILTERS = {
+  arme: ['weaponType', 'primary'],
+  armure: ['slotType', 'armorType', 'primary'],
+  bijou: ['slotType', 'primary'],
+};
+
+const PRIMARIES = ['force', 'agilite', 'intelligence'];
+
+// Valeurs proposées pour chaque filtre d'une catégorie.
+function craftOptions(kind) {
+  if (kind === 'arme') return { weaponType: Object.keys(WEAPON_TYPES), primary: PRIMARIES };
+  if (kind === 'bijou') return { slotType: Object.keys(JEWELS), primary: PRIMARIES };
+  return { slotType: [...Object.keys(ARMOR_PIECES), 'bouclier'], armorType: Object.keys(ARMOR_TYPES), primary: PRIMARIES };
+}
+
+function craftFilterCount(order) {
+  return (CRAFT_FILTERS[order.kind] ?? []).filter((f) => order[f]).length;
+}
+
+// Coût : { kind, rarity, amount } matéria.
+function craftCost(order) {
+  return { kind: order.kind, rarity: order.rarity, amount: FORGE.craftBase + FORGE.craftPerFilter * craftFilterCount(order) };
+}
+
+function legendaryKind(leg) {
+  return materiaKind({ slotType: leg.slotType });
+}
+
+// Légendaires pouvant sortir d'une commande légendaire.
+function craftLegendaries(order) {
+  return Object.keys(LEGENDARIES).filter((key) => {
+    const leg = LEGENDARIES[key];
+    return legendaryKind(leg) === order.kind && CRAFT_FILTERS[order.kind].every((f) => !order[f] || leg[f] === order[f]);
+  });
+}
+
+// Pourquoi la commande est impossible (texte), ou null si elle peut être passée.
+function craftProblem(game, order) {
+  if (!CRAFT_FILTERS[order.kind] || !RARITY_ORDER.includes(order.rarity)) return 'Commande invalide.';
+  const options = craftOptions(order.kind);
+  for (const f of CRAFT_FILTERS[order.kind]) {
+    if (order[f] && !options[f].includes(order[f])) return 'Commande invalide.';
+  }
+  if (order.slotType === 'bouclier') {
+    if (order.armorType) return "Un bouclier n'a pas de type d'armure.";
+    if (order.primary && !primaryOptions({ slotType: 'bouclier' }).includes(order.primary)) return "Un bouclier ne peut pas porter d'Agilité.";
+  }
+  if (order.rarity === 'legendaire' && !craftLegendaries(order).length) return 'Aucun légendaire ne correspond à ces critères.';
+  const { kind, rarity, amount } = craftCost(order);
+  const have = game.materia[kind][rarity];
+  if (have < amount) return `Il manque ${amount - have} matéria.`;
+  return null;
+}
+
+// Fabrique l'objet (niveau = plus haut niveau atteint) et le range dans le sac.
+// Retourne l'objet, ou null si la commande est impossible.
+function craft(game, order) {
+  if (craftProblem(game, order)) return null;
+  const { kind, rarity, amount } = craftCost(order);
+  const level = game.dungeonLvl ?? 1;
+  let item;
+  if (rarity === 'legendaire') {
+    item = generateItem({ level, legendary: pick(craftLegendaries(order)) });
+  } else {
+    const base = { slotType: order.slotType, weaponType: order.weaponType, armorType: order.armorType };
+    if (kind === 'arme') {
+      base.slotType = 'arme';
+      base.weaponType ??= pick(Object.keys(WEAPON_TYPES));
+    } else if (kind === 'bijou') {
+      base.slotType ??= pick(Object.keys(JEWELS));
+    } else {
+      // Un type d'armure ou l'Agilité imposés excluent le bouclier.
+      const shieldOk = !order.armorType && (!order.primary || primaryOptions({ slotType: 'bouclier' }).includes(order.primary));
+      base.slotType ??= pick(craftOptions('armure').slotType.filter((slot) => slot !== 'bouclier' || shieldOk));
+      if (base.slotType !== 'bouclier') base.armorType ??= pick(Object.keys(ARMOR_TYPES));
+    }
+    const primary = order.primary ?? pick(primaryOptions(base));
+    item = generateItem({ level, rarity, ...base, primary });
+  }
+  game.materia[kind][rarity] -= amount;
+  game.bag.push(item);
+  return item;
+}
+
+return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftFilterCount, craftCost, craftLegendaries, craftProblem, craft };
+})();
+
+// ---- src/data/dungeons.js
+__modules["src/data/dungeons.js"] = (() => {
+
+// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
+// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
+// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
+// Terminer un donjon débloque le suivant (ordre ci-dessous).
+//
+// pool   : ennemis des étages ordinaires (tirés au hasard)
+// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
+
+const DUNGEONS = {
+  foretMaudite: {
+    name: 'Forêt Maudite',
+    icon: '🌲',
+    desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 1,
+    maxLevel: 20,
+    pool: ['gobelin', 'loup', 'araignee'],
+    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
+  },
+  catacombes: {
+    name: 'Catacombes oubliées',
+    icon: '⚰️',
+    desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 20,
+    maxLevel: 30,
+    pool: ['squelette', 'zombie', 'spectre'],
+    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
+  },
+};
+
+const DUNGEON_ORDER = Object.keys(DUNGEONS);
+
+return { DUNGEONS, DUNGEON_ORDER };
 })();
 
 // ---- src/data/effects.js
@@ -1046,6 +1316,7 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   cleanse         retire tous les effets négatifs
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
+//   oncePerTier     utilisable une seule fois par palier du donjon (entre deux boss)
 //   escape          quitte le donjon et ramène l'équipe au village, sans perte
 
 
@@ -1053,77 +1324,78 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 const CONSUMABLES = {
   // ---- Soins ----
   potion: {
-    name: 'Potion de soin', icon: '🧪', price: 20, drop: 30, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Potion de soin', icon: '🧪', price: 40, drop: 30, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 30 }, desc: 'Rend 30 % des PV max à un allié.',
   },
   grandePotion: {
-    name: 'Grande potion de soin', icon: '⚗️', price: 50, drop: 8, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Grande potion de soin', icon: '⚗️', price: 100, drop: 8, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 60 }, desc: 'Rend 60 % des PV max à un allié.',
   },
   elixir: {
-    name: 'Élixir', icon: '💧', price: 35, drop: 12, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Élixir', icon: '💧', price: 70, drop: 12, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { resourcePct: 50 }, desc: 'Rend 50 % de sa ressource (Rage, Énergie ou Mana) à un allié.',
   },
   plumeDePhenix: {
-    name: 'Plume de phénix', icon: '🪶', price: 100, drop: 3, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
+    name: 'Plume de phénix', icon: '🪶', price: 200, drop: 3, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
     effect: { revivePct: 30 }, desc: 'Relève un allié tombé avec 30 % de ses PV.',
   },
 
   // ---- Remèdes : un remède bon marché par effet négatif, et le Remède universel.
-  // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
+  // Utilisables aussi entre deux combats : les effets négatifs restent d'un combat
+  // à l'autre (jusqu'au retour au village). ----
   antidote: {
-    name: 'Antidote', icon: '🧴', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Antidote', icon: '🧴', price: 24, drop: 6, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['poison'] }, desc: 'Guérit le poison.',
   },
   bandage: {
-    name: 'Bandage', icon: '🩹', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Bandage', icon: '🩹', price: 24, drop: 6, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['saignement'] }, desc: 'Arrête un saignement.',
   },
   onguent: {
-    name: 'Onguent', icon: '🫙', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Onguent', icon: '🫙', price: 24, drop: 4, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['brulure'] }, desc: 'Soigne une brûlure.',
   },
   selsRevigorants: {
-    name: 'Sels revigorants', icon: '🧂', price: 15, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Sels revigorants', icon: '🧂', price: 30, drop: 4, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['etourdi'] }, desc: "Réveille un allié étourdi (il pourra jouer à son prochain tour).",
   },
   tisaneDeClarte: {
-    name: 'Tisane de clarté', icon: '🍵', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tisane de clarté', icon: '🍵', price: 30, drop: 3, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['confus'] }, desc: "Dissipe la confusion d'un allié.",
   },
   tonique: {
-    name: 'Tonique', icon: '🥤', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tonique', icon: '🥤', price: 24, drop: 4, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['ralenti'] }, desc: 'Annule un ralentissement.',
   },
   fortifiant: {
-    name: 'Fortifiant', icon: '🍖', price: 12, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Fortifiant', icon: '🍖', price: 24, drop: 3, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement (dont les malédictions).',
   },
   potionDeCourage: {
-    name: 'Potion de courage', icon: '🦁', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Potion de courage', icon: '🦁', price: 30, drop: 3, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['terreur'] }, desc: 'Chasse la terreur.',
   },
   eauBenite: {
-    name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Eau bénite', icon: '⛲', price: 36, drop: 3, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
   outilsDeDesamorcage: {
-    name: 'Outils de désamorçage', icon: '🔧', price: 15, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Outils de désamorçage', icon: '🔧', price: 30, drop: 2, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cure: ['piege', 'piegeDeGivre'] }, desc: "Désamorce les pièges posés sur un allié.",
   },
   remede: {
-    name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Remède universel', icon: '🌿', price: 120, drop: 2, category: 'remede', use: ['combat', 'map'], target: 'ally',
     effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",
   },
 
   // ---- Utilitaires ----
   corde: {
-    name: "Corde d'évasion", icon: '🪢', price: 150, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
+    name: "Corde d'évasion", icon: '🪢', price: 300, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
     effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
   },
   tente: {
-    name: 'Tente', icon: '⛺', price: 100, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
-    effect: { restorePartyPct: 100 }, desc: "Entre deux étages : restaure entièrement les PV et la ressource de toute l'équipe (sauf les héros tombés).",
+    name: 'Tente', icon: '⛺', price: 300, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
+    effect: { restorePartyPct: 30, oncePerTier: true }, desc: "Entre deux étages : rend 30 % des PV et de la ressource à toute l'équipe (sauf les héros tombés). Une seule fois par palier de 5 étages.",
   },
 };
 
@@ -1171,7 +1443,9 @@ __modules["src/data/classes.js"] = (() => {
 // starterKit  équipement commun de niveau 1 donné à la création
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
-// skills[] :
+// starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
+// s'apprennent au palier 0 des orientations (voir data/talents.js), avec le
+// premier point de talent. Format d'une compétence :
 //   id        identifiant stable (référencé par les légendaires)
 //   kind      'damage' | 'heal'
 //   target    'enemy' | 'ally' | 'allEnemies'
@@ -1217,7 +1491,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
     ],
@@ -1243,7 +1517,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'dague', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
       { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
@@ -1269,9 +1543,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.1, desc: 'Soigne fortement un allié' },
       { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 0.65, magic: true, desc: 'Dégâts de lumière' },
+      { id: 'trait-d-ombre', name: "Trait d'ombre", cost: 20, kind: 'damage', target: 'enemy', power: 0.7, magic: true, desc: "Dégâts d'ombre" },
     ],
   },
   mage: {
@@ -1294,9 +1569,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
       { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.5, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
     ],
   },
   chasseur: {
@@ -1313,13 +1589,13 @@ const CLASSES = {
     gear: {
       weapons: ['arc'],
       offHand: [],
-      armor: ['moyenne'],
+      armor: ['moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
       { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
     ],
@@ -1338,13 +1614,13 @@ const CLASSES = {
     gear: {
       weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
-      armor: ['lourde', 'legere'],
+      armor: ['lourde', 'moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-du-croise', name: 'Frappe du croisé', cost: 20, kind: 'damage', target: 'enemy', power: 1.4, desc: "Coup d'arme béni (dégâts physiques, Force)" },
       { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],
@@ -1400,7 +1676,7 @@ return { STATS, PRIMARY_STATS, STAT_ORDER, zeroStats };
 
 // ---- src/data/talents.js
 __modules["src/data/talents.js"] = (() => {
-
+const { CLASSES } = __modules["src/data/classes.js"];
 // Arbres de compétences (DESIGN_DOC §3). Données pures.
 //
 // Chaque classe a une orientation par branche. Une branche compte 10 paliers
@@ -1410,7 +1686,7 @@ __modules["src/data/talents.js"] = (() => {
 // compétence signature de l'orientation.
 //
 // Modèle d'une branche (rangs par palier) :
-//   0 : 2 bonus            1 : compétence + bonus    2 : 2 bonus
+//   0 : sort de départ + 2 bonus   1 : compétence + bonus    2 : 2 bonus
 //   3 : passif + bonus     4 : compétence + bonus    5 : 2 bonus
 //   6 : passif + bonus     7 : compétence + bonus    8 : passif + bonus
 //   9 : compétence signature
@@ -1441,15 +1717,29 @@ __modules["src/data/talents.js"] = (() => {
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
 //   skill    compétence accordée (même format que data/classes.js)
+//   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
 //              effectTurnsDelta, effectPowerPct, addEffects, addSelfEffects } (ou une liste)
 // Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
+
+
 
 // Raccourcis de construction des nœuds.
 const minor = (id, name, tier, ranks, desc, fx) => ({ id, name, tier, ranks, kind: 'minor', desc, ...fx });
 const passive = (id, name, tier, desc, fx) => ({ id, name, tier, ranks: 1, kind: 'passive', desc, ...fx });
 const skill = (tier, def) => ({ id: def.id, name: def.name, tier, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.', skill: def });
 const signature = (def) => ({ id: def.id, name: def.name, tier: 9, ranks: 1, kind: 'signature', desc: 'Compétence signature.', skill: def });
+// Nœud du palier 0 : le(s) sort(s) de départ de l'orientation (voir starterSkills
+// dans data/classes.js). Un héros commence sans sort et apprend celui-ci avec son
+// premier point de talent.
+const starter = (id, name, classKey, ids) => ({
+  id, name, tier: 0, ranks: 1, kind: 'skill', desc: 'Sort de départ.',
+  skills: ids.map((sid) => {
+    const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
+    if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
+    return skill;
+  }),
+});
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
 
 const TALENTS = {
@@ -1458,7 +1748,8 @@ const TALENTS = {
       key: 'gardien', name: 'Gardien', icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
-        minor('peau-de-fer', 'Peau de fer', 0, 3, '+4 % PV par rang.', { pct: { pv: 4 } }),
+        starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
+        minor('peau-de-fer', 'Peau de fer', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         minor('posture-defensive', 'Posture défensive', 0, 2, '+5 % Défense par rang.', { pct: { def: 5 } }),
         skill(1, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
@@ -1502,7 +1793,8 @@ const TALENTS = {
       key: 'berserker', name: 'Berserker', icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
-        minor('soif-de-sang', 'Soif de sang', 0, 3, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
+        starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
+        minor('soif-de-sang', 'Soif de sang', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         minor('brutalite', 'Brutalité', 0, 2, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
         skill(1, {
           id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, critBonus: 25,
@@ -1545,7 +1837,8 @@ const TALENTS = {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
       desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
       nodes: [
-        minor('vivacite', 'Vivacité', 0, 3, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
+        starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
+        minor('vivacite', 'Vivacité', 0, 2, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
         minor('precision', 'Précision', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         skill(1, {
           id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
@@ -1586,7 +1879,8 @@ const TALENTS = {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
       desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
       nodes: [
-        minor('toxines', 'Toxines', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
+        minor('toxines', 'Toxines', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('opportuniste', 'Opportuniste', 0, 2, '+6 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', { passive: { vsDebuffedPct: 6 } }),
         skill(1, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
@@ -1636,7 +1930,8 @@ const TALENTS = {
       key: 'clerc', name: 'Clerc', icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
-        minor('devotion', 'Dévotion', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
+        minor('devotion', 'Dévotion', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse', 'Sagesse', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'priere-de-soins', name: 'Prière de soins', cost: 40, kind: 'heal', target: 'allAllies', power: 0.55,
@@ -1680,7 +1975,8 @@ const TALENTS = {
       key: 'precheur', name: 'Prêcheur', icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
-        minor('foi', 'Foi', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
+        minor('foi', 'Foi', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('constance', 'Constance', 0, 2, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
         skill(1, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
@@ -1727,7 +2023,8 @@ const TALENTS = {
       key: 'profane', name: 'Profane', icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
-        minor('ombre', 'Ombre', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-profane', "Trait d'ombre", 'pretre', ['trait-d-ombre']),
+        minor('ombre', 'Ombre', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('esprit-sombre', 'Esprit sombre', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         skill(1, {
           id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
@@ -1777,7 +2074,8 @@ const TALENTS = {
       key: 'feu', name: 'Mage de feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
-        minor('chaleur', 'Chaleur', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
+        minor('chaleur', 'Chaleur', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('combustion', 'Combustion', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         skill(1, {
           id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
@@ -1827,7 +2125,8 @@ const TALENTS = {
       key: 'glace', name: 'Mage de glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
-        minor('froid', 'Froid', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
+        minor('froid', 'Froid', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('armure-de-givre', 'Armure de givre', 0, 2, '+5 % Défense et Défense magique par rang.', { pct: { def: 5, defMag: 5 } }),
         skill(1, {
           id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
@@ -1871,7 +2170,8 @@ const TALENTS = {
       key: 'foudre', name: 'Mage de foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
-        minor('conductivite', 'Conductivité', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
+        minor('conductivite', 'Conductivité', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('surtension', 'Surtension', 0, 2, '+8 % Dégâts critiques par rang.', { flat: { critDmg: 8 } }),
         skill(1, {
           id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
@@ -1919,7 +2219,8 @@ const TALENTS = {
       key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
       desc: "Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.",
       nodes: [
-        minor('oeil-percant', 'Œil perçant', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
+        minor('oeil-percant', 'Œil perçant', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('tension-de-la-corde', 'Tension de la corde', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         skill(1, {
           id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 1.75, critBonus: 10,
@@ -1960,7 +2261,8 @@ const TALENTS = {
       key: 'traqueur', name: 'Traqueur', icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
-        minor('pisteur', 'Pisteur', 0, 3, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
+        starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
+        minor('pisteur', 'Pisteur', 0, 2, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
         minor('reflexes-du-traqueur', 'Réflexes du traqueur', 0, 2, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
         skill(1, {
           id: 'piege-a-machoires', name: 'Piège à mâchoires', cost: 25, kind: 'support', target: 'enemy',
@@ -2010,7 +2312,8 @@ const TALENTS = {
       key: 'templier', name: 'Templier', icon: '🛡️',
       desc: "Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.",
       nodes: [
-        minor('armure-sacree', 'Armure sacrée', 0, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
+        starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
+        minor('armure-sacree', 'Armure sacrée', 0, 2, '+4 % Défense par rang.', { pct: { def: 4 } }),
         minor('vigueur', 'Vigueur', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         skill(1, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
@@ -2054,7 +2357,8 @@ const TALENTS = {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
       desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
       nodes: [
-        minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
+        minor('eclat-sacre', 'Éclat sacré', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'lumiere-de-l-aube', name: "Lumière de l'aube", cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
@@ -2096,12 +2400,17 @@ const TALENTS = {
   ],
 };
 
-return { TALENTS };
+// Compétences accordées par un nœud (champ `skill` ou `skills`).
+function nodeSkills(node) {
+  return node.skills ?? (node.skill ? [node.skill] : []);
+}
+
+return { TALENTS, nodeSkills };
 })();
 
 // ---- src/game/talents.js
 __modules["src/game/talents.js"] = (() => {
-const { TALENTS } = __modules["src/data/talents.js"];
+const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
 const { TALENT_RULES } = __modules["src/config.js"];
 // Arbres de compétences : points, paliers, apprentissage, réinitialisation,
 // et effets cumulés des talents appris (lus par getStats / getSkills).
@@ -2194,7 +2503,7 @@ function talentEffects(hero) {
       add(fx.flat, node.flat, rank);
       add(fx.pct, node.pct, rank);
       add(fx.passive, node.passive, rank);
-      if (node.skill) fx.skills.push(node.skill);
+      fx.skills.push(...nodeSkills(node));
       if (node.skillMod) fx.skillMods.push(...[].concat(node.skillMod));
     }
   }
@@ -2315,12 +2624,14 @@ function applySkillMod(skill, mod) {
   return s;
 }
 
-// Compétences du héros : celles de sa classe puis celles de ses talents, modifiées
-// par les passifs des objets légendaires portés et des talents.
+// Compétences du héros : celles apprises par ses talents (un héros commence sans
+// sort : les sorts de départ sont au palier 0 des orientations), sans doublon,
+// modifiées par les passifs des objets légendaires portés et des talents.
 function getSkills(hero) {
   const fx = talentEffects(hero);
   const mods = [...wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean), ...fx.skillMods];
-  return [...getClass(hero).skills, ...fx.skills].map((skill) =>
+  const unique = fx.skills.filter((skill, i) => fx.skills.findIndex((s) => s.id === skill.id) === i);
+  return unique.map((skill) =>
     mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
 }
 
@@ -2408,8 +2719,8 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //
 // Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
 //   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
-//   dot      dégâts infligés à chaque fin de round (poison, saignement, brûlure…)
-//   hot      soins reçus à chaque fin de round
+//   dot      dégâts subis à la fin de chaque tour de l'unité (poison, saignement, brûlure…)
+//   hot      soins reçus à la fin de chaque tour de l'unité
 //   shield   points de bouclier : absorbent les dégâts avant les PV
 //   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt    les ennemis doivent attaquer cette unité
@@ -2417,7 +2728,7 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   redirect % des dégâts reportés sur status.source (Intercession)
 //   trap     dégâts d'un piège, déclenché au début du prochain tour de l'unité
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
-// Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+// Les durées (sauf étourdissement) baissent d'un à la fin de chaque tour de l'unité.
 
 
 
@@ -2485,11 +2796,15 @@ function consumeStun(unit) {
   return true;
 }
 
-// Fin de round : liste des effets périodiques à appliquer, puis décompte des durées.
+// Fin du tour de l'unité : liste des effets périodiques à appliquer, puis décompte des durées.
 // Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
+// Un statut posé pendant le tour même de l'unité (`fresh`) n'est pas décompté à
+// la fin de ce tour-là : un effet de 2 tours couvre bien 2 tours de l'unité.
 function tickStatuses(unit) {
-  const ticks = statusesOf(unit).filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
-  for (const s of statusesOf(unit)) if (!s.stun) s.turns--;
+  const due = statusesOf(unit).filter((s) => !s.fresh);
+  for (const s of statusesOf(unit)) delete s.fresh;
+  const ticks = due.filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+  for (const s of due) if (!s.stun) s.turns--;
   unit.statuses = statusesOf(unit).filter((s) => s.stun || s.turns > 0);
   return ticks;
 }
@@ -2576,6 +2891,7 @@ return { isHero, isAlive, statsOf, damage, heal };
 
 // ---- src/game/consumables.js
 __modules["src/game/consumables.js"] = (() => {
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MERCHANT } = __modules["src/config.js"];
 const { getStats, gainResource } = __modules["src/game/party.js"];
@@ -2583,6 +2899,7 @@ const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
 // Utilisation en combat : combat.js (action « Objet ») ; entre deux étages : useOnMap().
+
 
 
 
@@ -2668,6 +2985,17 @@ function restoreParty(party, pct) {
   }
 }
 
+// Palier du donjon de l'étage à venir (0 = étages 1 à 5…), sans dépendre de game/dungeon.js.
+function tierIndex(exp) {
+  return Math.floor((exp.floor - 1) / DUNGEONS[exp.dungeonKey].bossEvery);
+}
+
+// Un consommable « une fois par palier » déjà utilisé dans le palier en cours ?
+function usedThisTier(game, key) {
+  const exp = game.expedition;
+  return !!(exp && CONSUMABLES[key]?.effect.oncePerTier && exp.usedPerTier?.[key] === tierIndex(exp));
+}
+
 /**
  * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
  * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
@@ -2684,8 +3012,13 @@ function useOnMap(game, key, targetIndex) {
     message = `${def.name} : l'équipe regagne le village sans encombre.`;
   } else if (def.effect.restorePartyPct) {
     if (!game.party.some((h) => h.alive)) return { ok: false };
+    if (def.effect.oncePerTier) {
+      const tier = tierIndex(game.expedition);
+      if (game.expedition.usedPerTier?.[key] === tier) return { ok: false, message: `${def.name} : déjà utilisée dans ce palier.` };
+      game.expedition.usedPerTier = { ...game.expedition.usedPerTier, [key]: tier };
+    }
     restoreParty(game.party, def.effect.restorePartyPct);
-    message = `${def.name} : l'équipe se repose. PV et ressources restaurés.`;
+    message = `${def.name} : l'équipe se repose (+${def.effect.restorePartyPct} % de PV et de ressource).`;
   } else {
     const target = game.party[targetIndex];
     const result = target ? applyConsumable(key, target) : null;
@@ -2696,7 +3029,7 @@ function useOnMap(game, key, targetIndex) {
   return { ok: true, message, escaped };
 }
 
-return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, useOnMap };
+return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, usedThisTier, useOnMap };
 })();
 
 // ---- src/state.js
@@ -2720,10 +3053,13 @@ const state = {
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,
+  difficulty: 'balade', // voir DIFFICULTIES (config.js) et game/difficulty.js
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
+  bestiary: {},         // ennemis rencontrés : { clé: { seen, kills } } (voir game/bestiary.js)
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
+  lastCombat: null,     // { title, log } du dernier combat (journal consultable après coup)
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
 };
@@ -2918,6 +3254,20 @@ const STAT_TIPS = {
   vit: "Ordre de jeu en combat. Multipliée par le coefficient de vitesse d'attaque de l'arme (armes lourdes lentes, dagues rapides).",
 };
 
+// Bonus apportés par les talents : [clé de getStats, libellé, suffixe, explication].
+const BONUS_ROWS = [
+  ['healPct', 'Bonus de soins', ' %', 'Augmente les soins donnés par ce héros (soins directs et Régénération) : soin = puissance magique × puissance du sort × (1 + bonus).'],
+  ['dotPct', 'Bonus dégâts sur la durée', ' %', 'Augmente les dégâts de poison, saignement, brûlure et ténèbres infligés.'],
+  ['shieldPct', 'Bonus de boucliers', ' %', 'Augmente la valeur des boucliers donnés.'],
+  ['trapPct', 'Bonus de pièges', ' %', 'Augmente les dégâts des pièges posés.'],
+  ['aoePct', 'Bonus de zone', ' %', 'Augmente les dégâts des compétences qui touchent tous les ennemis.'],
+  ['vsDebuffedPct', 'Bonus contre cible affaiblie', ' %', "Dégâts directs en plus contre une cible qui subit un effet négatif."],
+  ['executePct', 'Bonus d\'exécution', ' %', 'Dégâts directs en plus contre une cible sous 30 % de PV.'],
+  ['lifestealPct', 'Vol de vie', ' %', 'Part des dégâts directs infligés rendue en PV.'],
+  ['resRegen', 'Régénération de ressource', ' / tour', 'Ressource regagnée en plus au début de chaque tour.'],
+  ['berserk', 'Berserk', ' % / 10 % PV manquants', 'Puissance physique en plus par tranche de 10 % de PV manquants.'],
+];
+
 function row(label, value, tipText) {
   const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
   return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
@@ -2940,6 +3290,10 @@ function statsList(hero) {
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  // Bonus des talents (n'apparaissent que s'ils existent).
+  for (const [key, label, suffix, tipText] of BONUS_ROWS) {
+    if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));
+  }
   return rows.join('');
 }
 
@@ -2987,7 +3341,7 @@ function itemMeta(item) {
 
 // Texte brut multi-lignes (infobulles).
 function itemTooltipText(item) {
-  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
   return lines.join('\n');
 }
@@ -2998,6 +3352,12 @@ function legendaryOwner(item) {
   return cls ? ` (${cls.icon} ${cls.name})` : '';
 }
 
+// « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
+function rangeText(line) {
+  if (!line.range || line.range.lo === line.range.hi) return '';
+  return ` (${line.range.lo} à ${line.range.hi})`;
+}
+
 // Nom coloré par rareté, avec infobulle détaillée.
 function itemChip(item) {
   return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
@@ -3006,7 +3366,7 @@ function itemChip(item) {
 // Fiche complète d'un objet.
 function itemCard(item) {
   const statLines = itemStatLines(item).map((l) =>
-    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}${rangeText(l) ? ` <span ${tip(`Valeurs possibles pour cette stat à ce niveau et à cette rareté : de ${l.range.lo} à ${l.range.hi}. Plus la valeur est proche du maximum, meilleur est le tirage.`, 'stat-range')}>${rangeText(l).trim()}</span>` : ''}</li>`);
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
@@ -3101,19 +3461,28 @@ function powerOf(attacker, magic) {
   return magic ? attacker.magPower : attacker.physPower;
 }
 
-function hitMultiplier(attacker, opts, defender, crit) {
-  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+// Facteurs multiplicateurs d'un coup, détaillés pour le journal de combat :
+// [{ label, value }] (puissance de la compétence, critique, défense, bonus…).
+function hitFactors(attacker, opts, defender, crit) {
+  const factors = [];
+  if (opts.power !== 1) factors.push({ label: 'compétence', value: opts.power });
+  if (crit) factors.push({ label: 'critique', value: critMultiplier(attacker) });
   // Talents : bonus aux compétences de zone.
-  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
+  if (opts.aoe && attacker.aoePct) factors.push({ label: 'zone', value: 1 + attacker.aoePct / 100 });
   if (defender) {
-    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+    const def = opts.magic ? defender.defMag : defender.def;
+    factors.push({ label: `${opts.magic ? 'défense magique' : 'défense'} ${def}`, value: defenseFactor(def) });
     // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
-    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+    if (defender.debuffed && attacker.vsDebuffedPct) factors.push({ label: 'cible affaiblie', value: 1 + attacker.vsDebuffedPct / 100 });
     // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
     const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
-    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
+    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) factors.push({ label: 'exécution', value: 1 + execute / 100 });
   }
-  return mult;
+  return factors;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  return hitFactors(attacker, opts, defender, crit).reduce((m, f) => m * f.value, 1);
 }
 
 // Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
@@ -3124,12 +3493,19 @@ function estimateHit(attacker, opts, defender = null) {
   return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
 }
 
+// Jet d'un coup. `detail` explique le calcul (affiché au survol du journal) :
+// « Puissance physique 22 × 1,5 (critique) × 0,91 (défense 10) × 1,04 (variation) = 31 ».
 function rollHit(attacker, opts, defender) {
   const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
   const crit = opts.alwaysCrit || random() < critChance;
-  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
+  const power = powerOf(attacker, opts.magic);
+  const factors = hitFactors(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
+  const roll = rand(lo, hi);
+  const amount = Math.max(1, Math.round(power * factors.reduce((m, f) => m * f.value, 1) * roll));
+  const num = (v) => String(+v.toFixed(2)).replace('.', ',');
+  const detail = [`Puissance ${opts.magic ? 'magique' : 'physique'} ${power}`, ...factors.map((f) => `× ${num(f.value)} (${f.label})`), `× ${num(roll)} (variation) = ${amount}`].join(' ');
+  return { amount, crit, detail };
 }
 
 // Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
@@ -3296,9 +3672,11 @@ const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { nodeSkills } = __modules["src/data/talents.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { TALENT_RULES, XP } = __modules["src/config.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
 
 
 
@@ -3400,9 +3778,9 @@ function nodeCard(hero, branch, node, readOnly = false) {
   const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
   const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
   let body = esc(node.desc);
-  if (node.skill) {
-    const s = node.skill;
-    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
+  const skills = nodeSkills(node);
+  if (skills.length) {
+    body = `${node.tier === 0 ? '<small class="hint">Sort de départ</small><br>' : ''}${skills.map((s) => `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`).join('<br>')}`;
   }
   const action = readOnly ? '' : reason
     ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
@@ -3429,8 +3807,8 @@ const { PARTY_ORDER, CLASS_ORDER } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES, SLOTS, WEAPON_TYPES, JEWELS } = __modules["src/data/items.js"];
-const { TALENTS } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats, getSkills } = __modules["src/game/party.js"];
+const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
+const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemTypeLabel } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
@@ -3575,12 +3953,12 @@ function statsTab(hero) {
         <p class="hint">Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'} (modifiable au village, bouton Stratégie). ${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
       </div>
       <div>
-        <h3>Compétences de départ</h3>
+        <h3>Sorts de départ</h3>
+        <p class="hint">Un héros commence sans sort : son premier point de talent lui fait apprendre le sort de départ d'une orientation (palier 0).</p>
         <div class="skillbox">
-          ${getSkills(hero).map((s) => `
+          ${TALENTS[hero.classKey].map((b) => `
             <div class="skill-line">
-              <b>${esc(s.name)}</b> — ${s.cost} ${r.name}<br>
-              ${esc(s.desc)}.<br><small>${esc(skillEffectLabel(stats, s))}</small>
+              <b>${b.icon} ${esc(b.name)}</b> : ${nodeSkills(b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length)).map((s) => `<b>${esc(s.name)}</b> (${s.cost} ${r.name}) — ${esc(s.desc)}. <small>${esc(skillEffectLabel(stats, s))}</small>`).join(' · ')}
             </div>`).join('')}
         </div>
         <h3>Équipement de départ</h3>
@@ -3625,11 +4003,12 @@ function legendariesTab() {
 }
 
 function skillSource(classKey, skillId) {
-  const base = CLASSES[classKey].skills.find((s) => s.id === skillId);
-  if (base) return `Renforce ${base.name} (compétence de départ).`;
   for (const branch of TALENTS[classKey]) {
-    const node = branch.nodes.find((n) => n.skill?.id === skillId);
-    if (node) return `Renforce ${node.skill.name} (${branch.icon} ${branch.name}, palier ${node.tier}).`;
+    const node = branch.nodes.find((n) => nodeSkills(n).some((s) => s.id === skillId));
+    if (node) {
+      const skill = nodeSkills(node).find((s) => s.id === skillId);
+      return `Renforce ${skill.name} (${branch.icon} ${branch.name}, ${node.tier === 0 ? 'sort de départ' : `palier ${node.tier}`}).`;
+    }
   }
   return '';
 }
@@ -3637,45 +4016,461 @@ function skillSource(classKey, skillId) {
 return { renderCreate };
 })();
 
-// ---- src/data/dungeons.js
-__modules["src/data/dungeons.js"] = (() => {
+// ---- src/data/events.js
+__modules["src/data/events.js"] = (() => {
 
-// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
-// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
-// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
-// Terminer un donjon débloque le suivant (ordre ci-dessous).
+// Événements d'expédition : après un combat gagné (hors boss), une chance
+// qu'une rencontre propose un choix au joueur. Données pures (règles : game/events.js).
 //
-// pool   : ennemis des étages ordinaires (tirés au hasard)
-// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
+// Événement : { name, icon, text, weight, choices: [choix] } ou, pour un marchand
+// ambulant, { kind: 'merchant', … } (stock tiré à la rencontre, voir EVENTS dans config.js).
+// « Passer son chemin » est toujours proposé en plus.
+//
+// Choix : { label, cost?, outcomes: [{ chance, text, effects }] } (chances en %, total 100)
+//   cost     { gold: { base, perLevel } } ou { consumable: clé } : payé en choisissant
+// Effets (le niveau est celui de l'étage) :
+//   gold        { base, perLevel }      or gagné
+//   item        { minRarity }           un équipement de cette rareté ou mieux
+//   materia     { rarity, amount }      matéria (d'arme ou d'armure au hasard)
+//   consumable  'random' | clé          un consommable
+//   restoreAll  %                       PV et ressource rendus aux héros en vie
+//   hurtRandom  { count, pct }          `count` héros au hasard perdent pct % de leurs PV max
+//   hurtAll     %                       chaque héros en vie perd ce % de ses PV max
+// Un événement ne tue jamais : un héros garde au moins 1 PV.
 
-const DUNGEONS = {
-  foretMaudite: {
-    name: 'Forêt Maudite',
-    icon: '🌲',
-    desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 1,
-    maxLevel: 20,
-    pool: ['gobelin', 'loup', 'araignee'],
-    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
+const EVENTS = {
+  sorciere: {
+    name: 'La sorcière', icon: '🧙‍♀️', weight: 10,
+    text: 'Une sorcière encapuchonnée vous barre la route et vous propose un marché.',
+    choices: [{
+      label: 'Accepter le marché',
+      outcomes: [
+        { chance: 50, text: 'La sorcière tient parole et vous tend un objet.', effects: { item: { minRarity: 'peuCommun' } } },
+        { chance: 50, text: 'Le marché tourne mal : un maléfice frappe deux de vos héros.', effects: { hurtRandom: { count: 2, pct: 30 } } },
+      ],
+    }],
   },
-  catacombes: {
-    name: 'Catacombes oubliées',
-    icon: '⚰️',
-    desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 20,
-    maxLevel: 30,
-    pool: ['squelette', 'zombie', 'spectre'],
-    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
+  autel: {
+    name: 'Autel oublié', icon: '🕯️', weight: 10,
+    text: "Un autel couvert d'offrandes anciennes luit faiblement dans la pénombre.",
+    choices: [
+      {
+        label: 'Faire une offrande', cost: { gold: { base: 10, perLevel: 3 } },
+        outcomes: [
+          { chance: 70, text: "Une douce lumière enveloppe l'équipe.", effects: { restoreAll: 40 } },
+          { chance: 30, text: "L'autel reste silencieux.", effects: {} },
+        ],
+      },
+      {
+        label: 'Piller les offrandes',
+        outcomes: [
+          { chance: 50, text: "Vous raflez l'or et les pierres de l'autel.", effects: { gold: { base: 20, perLevel: 8 }, materia: { rarity: 'peuCommun', amount: 2 } } },
+          { chance: 50, text: "Une malédiction s'abat sur l'équipe.", effects: { hurtAll: 15 } },
+        ],
+      },
+    ],
+  },
+  coffre: {
+    name: 'Coffre abandonné', icon: '🧰', weight: 12,
+    text: 'Un coffre abandonné gît au milieu du chemin. Trop beau pour être vrai ?',
+    choices: [{
+      label: "L'ouvrir",
+      outcomes: [
+        { chance: 60, text: 'Le coffre contient de l\'or et des provisions.', effects: { gold: { base: 15, perLevel: 6 }, consumable: 'random' } },
+        { chance: 40, text: "C'était un piège ! Une lame jaillit du coffre.", effects: { hurtRandom: { count: 1, pct: 35 } } },
+      ],
+    }],
+  },
+  voyageur: {
+    name: 'Voyageur blessé', icon: '🤕', weight: 8,
+    text: 'Un voyageur blessé, adossé à un arbre, implore votre aide.',
+    choices: [{
+      label: 'Lui donner une potion de soin', cost: { consumable: 'potion' },
+      outcomes: [
+        { chance: 100, text: 'Reconnaissant, il vous offre ce qu\'il a de plus précieux.', effects: { materia: { rarity: 'rare', amount: 1 }, gold: { base: 10, perLevel: 4 } } },
+      ],
+    }],
+  },
+  source: {
+    name: 'Source mystérieuse', icon: '⛲', weight: 10,
+    text: "Une source aux reflets irisés murmure doucement. L'eau semble… vivante.",
+    choices: [{
+      label: 'Boire',
+      outcomes: [
+        { chance: 55, text: "L'eau vous revigore.", effects: { restoreAll: 50 } },
+        { chance: 45, text: "L'eau est empoisonnée !", effects: { hurtAll: 20 } },
+      ],
+    }],
+  },
+  joueur: {
+    name: 'Le joueur de dés', icon: '🎲', weight: 8,
+    text: 'Un joueur de dés goguenard vous propose de parier votre or.',
+    choices: [{
+      label: 'Parier', cost: { gold: { base: 10, perLevel: 5 } },
+      outcomes: [
+        { chance: 45, text: 'Double six ! Vous doublez votre mise.', effects: { gold: { base: 20, perLevel: 10 } } },
+        { chance: 55, text: 'Les dés ne vous aiment pas : vous perdez votre mise.', effects: {} },
+      ],
+    }],
+  },
+  marchand: {
+    kind: 'merchant', name: 'Marchand ambulant', icon: '🧳', weight: 10,
+    text: "Un marchand ambulant déballe sa marchandise : des pièces rares, à des prix qu'on ne trouve pas au village.",
   },
 };
 
-const DUNGEON_ORDER = Object.keys(DUNGEONS);
+const EVENT_ORDER = Object.keys(EVENTS);
 
-return { DUNGEONS, DUNGEON_ORDER };
+return { EVENTS, EVENT_ORDER };
+})();
+
+// ---- src/game/merchant.js
+__modules["src/game/merchant.js"] = (() => {
+const { MERCHANT } = __modules["src/config.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { addConsumable, countOf } = __modules["src/game/consumables.js"];
+// Marchand : revente du butin, achat de consommables et d'équipement.
+// Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
+
+
+
+
+
+
+function sellPrice(item) {
+  const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
+  return Math.max(1, Math.round(base * MERCHANT.sellRarityMult[item.rarity] * (1 + MERCHANT.sellPerPlus * (item.plus ?? 0))));
+}
+
+function buyPrice(item) {
+  return sellPrice(item) * MERCHANT.buyMarkup;
+}
+
+// Vend un objet du sac (jamais un objet porté).
+function sell(game, item) {
+  const index = game.bag.indexOf(item);
+  if (index === -1) return false;
+  game.bag.splice(index, 1);
+  game.gold += sellPrice(item);
+  return true;
+}
+
+// Stock d'équipement : renouvelé quand le niveau du donjon change.
+function ensureStock(game) {
+  if (game.shop?.level === game.dungeonLvl) return game.shop.stock;
+  const stock = [];
+  for (let i = 0; i < MERCHANT.stockSize; i++) {
+    stock.push(generateItem({ level: game.dungeonLvl, rarity: weightedPick(MERCHANT.stockRarityWeights) }));
+  }
+  game.shop = { level: game.dungeonLvl, stock };
+  return stock;
+}
+
+// Achète un objet du stock : il rejoint le sac.
+function buyItem(game, item) {
+  const stock = ensureStock(game);
+  const index = stock.indexOf(item);
+  const price = buyPrice(item);
+  if (index === -1 || game.gold < price) return false;
+  stock.splice(index, 1);
+  game.gold -= price;
+  game.bag.push(item);
+  return true;
+}
+
+function canBuyConsumable(game, key) {
+  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+}
+
+function buyConsumable(game, key) {
+  if (!canBuyConsumable(game, key)) return false;
+  addConsumable(game.consumables, key);
+  game.gold -= CONSUMABLES[key].price;
+  return true;
+}
+
+return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
+})();
+
+// ---- src/game/difficulty.js
+__modules["src/game/difficulty.js"] = (() => {
+const { DIFFICULTIES, LOOT } = __modules["src/config.js"];
+// Difficulté de la partie (voir DIFFICULTIES dans config.js) : puissance des
+// ennemis et règles de butin. Se change au village, jamais pendant une expédition.
+
+
+
+function difficultyOf(game) {
+  return DIFFICULTIES[game?.difficulty] ? game.difficulty : 'balade';
+}
+
+function setDifficulty(game, key) {
+  if (!DIFFICULTIES[key] || game.expedition) return false;
+  game.difficulty = key;
+  return true;
+}
+
+// Multiplicateur des PV et de l'attaque des ennemis.
+function enemyPower(key) {
+  return DIFFICULTIES[key]?.power ?? 1;
+}
+
+// Règles de butin de la difficulté (LOOT, avec ses valeurs remplacées).
+function lootRules(key) {
+  return { ...LOOT, ...(DIFFICULTIES[key]?.loot ?? {}) };
+}
+
+return { difficultyOf, setDifficulty, enemyPower, lootRules };
+})();
+
+// ---- src/game/loot.js
+__modules["src/game/loot.js"] = (() => {
+const { lootRules } = __modules["src/game/difficulty.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { MATERIA_KINDS } = __modules["src/data/items.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
+// équipement, matéria et consommable (voir LOOT dans config.js).
+
+
+
+
+
+
+
+const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
+
+const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
+  Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
+
+function addMateria(list, kind, rarity, amount) {
+  const same = list.find((m) => m.kind === kind && m.rarity === rarity);
+  if (same) same.amount += amount;
+  else list.push({ kind, rarity, amount });
+}
+
+/**
+ * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level`.
+ * - Équipement : chance par ennemi ordinaire ; garanti et plus rare pour un boss
+ *   (un de plus pour le boss final, `final`).
+ * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
+ *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
+ * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
+ * Les chances et raretés dépendent de la difficulté (voir game/difficulty.js).
+ * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
+ */
+function rollLoot(level, enemies, { final = false, difficulty = 'balade' } = {}) {
+  const LOOT = lootRules(difficulty);
+  const loot = { items: [], materia: [], consumables: [] };
+  const kinds = Object.keys(MATERIA_KINDS);
+  for (const enemy of enemies) {
+    if (enemy.boss) {
+      const drops = LOOT.bossDrops + (final ? 1 : 0);
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+      addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
+    } else {
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.rarityWeights) }));
+      if (random() < LOOT.materiaChance) {
+        addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
+      }
+    }
+    if (random() < (enemy.boss ? LOOT.bossConsumableChance : LOOT.consumableChance)) {
+      loot.consumables.push(weightedPick(CONSUMABLE_DROP_WEIGHTS));
+    }
+  }
+  return loot;
+}
+
+return { CONSUMABLE_DROP_WEIGHTS, rollLoot };
+})();
+
+// ---- src/game/events.js
+__modules["src/game/events.js"] = (() => {
+const { EVENT_RULES, LOOT, MERCHANT } = __modules["src/config.js"];
+const { EVENTS } = __modules["src/data/events.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { sellPrice } = __modules["src/game/merchant.js"];
+const { addConsumable, countOf, restoreParty } = __modules["src/game/consumables.js"];
+const { CONSUMABLE_DROP_WEIGHTS } = __modules["src/game/loot.js"];
+const { getStats } = __modules["src/game/party.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Événements d'expédition (données : data/events.js).
+//
+// Après un combat gagné hors boss, EVENT_RULES.chance qu'un événement survienne :
+// game.expedition.event = { key, level, stock?, consumables? }. Tant qu'il n'est
+// pas réglé (un choix, ou « passer son chemin »), l'étage suivant attend.
+
+
+
+
+
+
+
+
+
+
+
+
+const scaled = (v, level) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
+
+// Tire l'événement d'une rencontre de niveau `level` (stock tiré pour un marchand).
+function rollEvent(level) {
+  const key = weightedPick(Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, e.weight])));
+  const event = { key, level };
+  if (EVENTS[key].kind === 'merchant') {
+    event.stock = Array.from({ length: EVENT_RULES.merchantItems }, () =>
+      generateItem({ level, rarity: weightedPick(EVENT_RULES.merchantRarityWeights) }));
+    event.consumables = Array.from({ length: EVENT_RULES.merchantConsumables }, () => {
+      const k = weightedPick(CONSUMABLE_DROP_WEIGHTS);
+      return { key: k, price: Math.max(1, Math.round(CONSUMABLES[k].price * EVENT_RULES.merchantConsumablePct / 100)) };
+    });
+  }
+  return event;
+}
+
+// Après une victoire : peut-être un événement.
+function maybeTriggerEvent(game, level) {
+  if (!game.expedition || random() >= EVENT_RULES.chance) return null;
+  game.expedition.event = rollEvent(level);
+  return game.expedition.event;
+}
+
+function currentEvent(game) {
+  return game.expedition?.event ?? null;
+}
+
+// Coût d'un choix : { gold, consumable } (or déjà mis à l'échelle du niveau).
+function choiceCost(choice, level) {
+  return {
+    gold: choice.cost?.gold ? scaled(choice.cost.gold, level) : 0,
+    consumable: choice.cost?.consumable ?? null,
+  };
+}
+
+// Raison pour laquelle le choix est impossible (coût non payable), ou null.
+function cannotChooseReason(game, index) {
+  const event = currentEvent(game);
+  const choice = event && EVENTS[event.key].choices?.[index];
+  if (!choice) return 'Choix inconnu';
+  const cost = choiceCost(choice, event.level);
+  if (game.gold < cost.gold) return `Il faut ${cost.gold} pièces d'or.`;
+  if (cost.consumable && countOf(game.consumables, cost.consumable) < 1) return `Il faut : ${CONSUMABLES[cost.consumable].name}.`;
+  return null;
+}
+
+// Rareté tirée comme un butin normal, mais au moins `minRarity`.
+function rarityAtLeast(minRarity) {
+  const min = RARITY_ORDER.indexOf(minRarity);
+  return weightedPick(Object.fromEntries(Object.entries(LOOT.rarityWeights).filter(([r]) => RARITY_ORDER.indexOf(r) >= min)));
+}
+
+function hurt(hero, pct) {
+  const amount = Math.round(getStats(hero).pv * pct / 100);
+  const before = hero.hp;
+  hero.hp = Math.max(1, hero.hp - amount); // un événement ne tue jamais
+  return before - hero.hp;
+}
+
+// Applique les effets d'une issue ; retourne { parts: [texte], loot: [objets] }.
+function applyEffects(game, effects, level) {
+  const parts = [];
+  const loot = [];
+  const gains = game.expedition?.gains;
+  if (effects.gold) {
+    const gold = scaled(effects.gold, level);
+    game.gold += gold;
+    if (gains) gains.gold += gold;
+    parts.push(`+${gold} or`);
+  }
+  if (effects.item) {
+    const item = generateItem({ level, rarity: rarityAtLeast(effects.item.minRarity) });
+    game.bag.push(item);
+    loot.push(item);
+    if (gains) gains.items++;
+  }
+  if (effects.materia) {
+    const kind = pick(Object.keys(MATERIA_KINDS));
+    game.materia[kind][effects.materia.rarity] += effects.materia.amount;
+    if (gains) gains.materia += effects.materia.amount;
+    parts.push(`${effects.materia.amount} × ${MATERIA_KINDS[kind].label}`);
+  }
+  if (effects.consumable) {
+    const key = effects.consumable === 'random' ? weightedPick(CONSUMABLE_DROP_WEIGHTS) : effects.consumable;
+    parts.push(addConsumable(game.consumables, key) ? `${CONSUMABLES[key].icon} ${CONSUMABLES[key].name}` : `${CONSUMABLES[key].name} laissé faute de place`);
+  }
+  if (effects.restoreAll) {
+    restoreParty(game.party, effects.restoreAll);
+    parts.push(`+${effects.restoreAll} % de PV et de ressource`);
+  }
+  const alive = game.party.filter((h) => h.alive);
+  if (effects.hurtRandom) {
+    const pool = [...alive];
+    for (let i = 0; i < effects.hurtRandom.count && pool.length; i++) {
+      const hero = pool.splice(Math.floor(random() * pool.length), 1)[0];
+      parts.push(`${hero.name} −${hurt(hero, effects.hurtRandom.pct)} PV`);
+    }
+  }
+  if (effects.hurtAll) {
+    for (const hero of alive) parts.push(`${hero.name} −${hurt(hero, effects.hurtAll)} PV`);
+  }
+  return { parts, loot };
+}
+
+/**
+ * Fait le choix `index` de l'événement en cours : paie son coût, tire une issue
+ * et l'applique. Retourne { ok, message, loot }.
+ */
+function chooseEvent(game, index) {
+  const event = currentEvent(game);
+  if (!event || cannotChooseReason(game, index)) return { ok: false, message: '', loot: [] };
+  const choice = EVENTS[event.key].choices[index];
+  const cost = choiceCost(choice, event.level);
+  game.gold -= cost.gold;
+  if (cost.consumable) game.consumables[cost.consumable]--;
+  let roll = random() * 100;
+  const outcome = choice.outcomes.find((o) => (roll -= o.chance) < 0) ?? choice.outcomes[choice.outcomes.length - 1];
+  const { parts, loot } = applyEffects(game, outcome.effects, event.level);
+  game.expedition.event = null;
+  const detail = parts.length ? ` (${parts.join(', ')})` : '';
+  return { ok: true, message: `${EVENTS[event.key].name} : ${outcome.text}${detail}`, loot };
+}
+
+// « Passer son chemin » (ou quitter le marchand ambulant).
+function skipEvent(game) {
+  if (!currentEvent(game)) return false;
+  game.expedition.event = null;
+  return true;
+}
+
+// Marchand ambulant : prix d'un objet (moins cher qu'au village).
+function eventItemPrice(item) {
+  return sellPrice(item) * EVENT_RULES.merchantPriceMult;
+}
+
+function buyEventItem(game, itemId) {
+  const event = currentEvent(game);
+  const i = event?.stock?.findIndex((it) => it.id === itemId) ?? -1;
+  if (i < 0 || game.gold < eventItemPrice(event.stock[i])) return false;
+  const [item] = event.stock.splice(i, 1);
+  game.gold -= eventItemPrice(item);
+  game.bag.push(item);
+  return true;
+}
+
+function buyEventConsumable(game, index) {
+  const offer = currentEvent(game)?.consumables?.[index];
+  if (!offer || game.gold < offer.price || countOf(game.consumables, offer.key) >= MERCHANT.maxConsumable) return false;
+  currentEvent(game).consumables.splice(index, 1);
+  game.gold -= offer.price;
+  addConsumable(game.consumables, offer.key);
+  return true;
+}
+
+return { rollEvent, maybeTriggerEvent, currentEvent, choiceCost, cannotChooseReason, chooseEvent, skipEvent, eventItemPrice, buyEventItem, buyEventConsumable };
 })();
 
 // ---- src/data/enemies.js
@@ -3845,72 +4640,13 @@ const ENEMIES = {
 return { ENEMIES };
 })();
 
-// ---- src/game/loot.js
-__modules["src/game/loot.js"] = (() => {
-const { LOOT } = __modules["src/config.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { MATERIA_KINDS } = __modules["src/data/items.js"];
-const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { random, pick } = __modules["src/game/rng.js"];
-// Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
-// équipement, matéria et consommable (voir LOOT dans config.js).
-
-
-
-
-
-
-
-const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
-
-const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
-  Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
-
-function addMateria(list, kind, rarity, amount) {
-  const same = list.find((m) => m.kind === kind && m.rarity === rarity);
-  if (same) same.amount += amount;
-  else list.push({ kind, rarity, amount });
-}
-
-/**
- * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level`.
- * - Équipement : chance par ennemi ordinaire ; garanti et plus rare pour un boss
- *   (un de plus pour le boss final, `final`).
- * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
- *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
- * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
- * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
- */
-function rollLoot(level, enemies, { final = false } = {}) {
-  const loot = { items: [], materia: [], consumables: [] };
-  const kinds = Object.keys(MATERIA_KINDS);
-  for (const enemy of enemies) {
-    if (enemy.boss) {
-      const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
-      addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
-    } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
-      if (random() < LOOT.materiaChance) {
-        addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
-      }
-    }
-    if (random() < (enemy.boss ? LOOT.bossConsumableChance : LOOT.consumableChance)) {
-      loot.consumables.push(weightedPick(CONSUMABLE_DROP_WEIGHTS));
-    }
-  }
-  return loot;
-}
-
-return { rollLoot };
-})();
-
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
 const { REWARDS, LOOT, XP } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
 const { addConsumable } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
@@ -3919,6 +4655,7 @@ const { random } = __modules["src/game/rng.js"];
 // Conséquences d'un combat et services du village sur l'état global du jeu.
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
+
 
 
 
@@ -3958,7 +4695,7 @@ function materiaText(materia) {
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, difficulty: difficultyOf(game) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
@@ -4003,24 +4740,86 @@ function restAtInn(game) {
 return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
 })();
 
+// ---- src/game/bestiary.js
+__modules["src/game/bestiary.js"] = (() => {
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
+// Bestiaire : ennemis rencontrés et vaincus.
+//
+// game.bestiary = { clé d'ennemi: { seen: combats où il est apparu, kills: nombre de vaincus } }
+// Un ennemi jamais rencontré n'a pas d'entrée (page vide au bestiaire).
+
+
+
+
+function bestiaryOf(game) {
+  game.bestiary ??= {};
+  return game.bestiary;
+}
+
+function entry(game, key) {
+  const book = bestiaryOf(game);
+  book[key] ??= { seen: 0, kills: 0 };
+  return book[key];
+}
+
+// Début d'un combat : chaque sorte d'ennemi présente est notée une fois.
+function recordEncounter(game, keys) {
+  for (const key of new Set(keys)) if (ENEMIES[key]) entry(game, key).seen++;
+}
+
+// Fin d'un combat : compte les ennemis vaincus.
+function recordKills(game, enemies) {
+  for (const e of enemies) if (!e.alive && ENEMIES[e.enemyKey]) entry(game, e.enemyKey).kills++;
+}
+
+function isDiscovered(game, key) {
+  return !!bestiaryOf(game)[key]?.seen;
+}
+
+// Pages du bestiaire, par donjon : [{ dungeonKey, enemies: [clés] }] (ordinaires puis boss).
+function bestiaryPages() {
+  return DUNGEON_ORDER.map((dungeonKey) => ({
+    dungeonKey,
+    enemies: [...DUNGEONS[dungeonKey].pool, ...DUNGEONS[dungeonKey].bosses],
+  }));
+}
+
+// Nombre d'ennemis découverts / total.
+function bestiaryProgress(game) {
+  const all = bestiaryPages().flatMap((p) => p.enemies);
+  return { found: all.filter((k) => isDiscovered(game, k)).length, total: all.length };
+}
+
+return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, bestiaryProgress };
+})();
+
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
+const { maybeTriggerEvent } = __modules["src/game/events.js"];
+const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { recordKills } = __modules["src/game/bestiary.js"];
 const { restoreParty } = __modules["src/game/consumables.js"];
-const { pick } = __modules["src/game/rng.js"];
+const { pick, random } = __modules["src/game/rng.js"];
 // Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
 //
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, canLeave, bossChoice, gains } | null
+// game.expedition = { dungeonKey, floor, fight, fights, canLeave, bossChoice, event, gains } | null
+//   fight / fights : combat en cours de l'étage / nombre de combats de l'étage (1 pour un boss)
+//   event      : événement en attente de choix (voir game/events.js), ou null
 //   floor      : prochain étage à combattre
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
+
+
+
 
 
 
@@ -4075,38 +4874,61 @@ function startFloors(game, key) {
   return floors;
 }
 
+// Nombre de combats d'un étage : un seul pour un boss, sinon DUNGEON.fightsPerFloor.
+function fightsOnFloor(key, floor) {
+  if (isBossFloor(key, floor)) return 1;
+  const { min, max } = DUNGEON.fightsPerFloor;
+  return min + Math.floor(random() * (max - min + 1));
+}
+
+// Arrivée à un étage : premier de ses combats.
+function enterFloor(exp, floor) {
+  exp.floor = floor;
+  exp.fight = 1;
+  exp.fights = fightsOnFloor(exp.dungeonKey, floor);
+}
+
 function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
+  game.expedition = { dungeonKey: key, floor, fight: 1, fights: 1, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
+  enterFloor(game.expedition, floor);
   return true;
 }
 
 // Paramètres du combat de l'étage courant (pour createCombat).
 function floorCombat(game) {
-  const { dungeonKey, floor } = game.expedition;
+  const { dungeonKey, floor, fight, fights } = game.expedition;
   const d = DUNGEONS[dungeonKey];
   const { enemies, boss } = encounterFor(dungeonKey, floor);
   return {
     enemies,
     level: floorLevel(dungeonKey, floor),
-    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ''}`,
+    power: enemyPower(difficultyOf(game)),
+    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }
 
 /**
- * Étage gagné : récompenses, point de passage si c'était un boss, étage suivant.
- * Si c'était le dernier étage, le donjon est terminé et l'expédition s'achève.
- * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ * Combat gagné : récompenses. S'il reste des combats sur l'étage, on passe au
+ * suivant ; sinon l'étage est franchi : point de passage si c'était un boss,
+ * étage suivant, et peut-être un événement. Si c'était le dernier étage, le
+ * donjon est terminé et l'expédition s'achève.
+ * Retourne le résultat d'applyVictory, plus { boss, floorDone, cleared, unlocked, event }.
  */
 function winFloor(game, combat) {
   const exp = game.expedition;
   const key = exp.dungeonKey;
   const { boss, final } = encounterFor(key, exp.floor);
+  recordKills(game, combat.enemies);
   const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
   exp.gains.materia = (exp.gains.materia ?? 0) + result.materia.reduce((sum, m) => sum + m.amount, 0);
+  if (!boss && exp.fight < exp.fights) {
+    exp.fight++;
+    return { ...result, boss, floorDone: false, cleared: false, unlocked: null, event: null };
+  }
   const progress = progressOf(game, key);
   let cleared = false;
   let unlocked = null;
@@ -4117,23 +4939,28 @@ function winFloor(game, combat) {
     unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
     game.expedition = null;
   } else {
-    exp.floor++;
+    enterFloor(exp, exp.floor + 1);
     exp.canLeave = boss;
     exp.bossChoice = boss;
   }
-  return { ...result, boss, cleared, unlocked };
+  // Étage ordinaire franchi : peut-être un événement (voir game/events.js).
+  const event = !boss && game.expedition ? maybeTriggerEvent(game, combat.level) : null;
+  return { ...result, boss, floorDone: true, cleared, unlocked, event };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
 // La progression reste au dernier boss vaincu.
-function loseExpedition(game) {
+// `combat` (facultatif) : le combat perdu, pour compter les ennemis vaincus au bestiaire.
+function loseExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
   return applyDefeat(game);
 }
 
-// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss est en attente.)
+// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss
+// ou un événement est en attente.)
 function canFightNextFloor(game) {
-  return !!game.expedition && !game.expedition.bossChoice && game.party.some((h) => h.alive);
+  return !!game.expedition && !game.expedition.bossChoice && !game.expedition.event && game.party.some((h) => h.alive);
 }
 
 // Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de
@@ -4148,7 +4975,8 @@ function continueExpedition(game) {
 }
 
 // Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-function escapeExpedition(game) {
+function escapeExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
 }
 
@@ -4158,7 +4986,7 @@ function leaveExpedition(game) {
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, fightsOnFloor, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
 })();
 
 // ---- src/game/enemies.js
@@ -4172,10 +5000,29 @@ const { rand } = __modules["src/game/rng.js"];
 
 const scaled = (def, level) => (def ? Math.round(def.base + def.perLevel * level) : 0);
 
-function createEnemy(key, level, label) {
+// Stats d'un ennemi à un niveau donné, sans hasard (Vitesse = minimum de sa fourchette).
+// `power` : multiplicateur de difficulté des PV et de l'attaque (1 en Balade).
+function enemyStats(key, level, power = 1) {
   const def = ENEMIES[key];
-  const pv = scaled(def.pv, level);
-  const atq = scaled(def.atq, level);
+  const pv = Math.round(scaled(def.pv, level) * power);
+  const atq = Math.round(scaled(def.atq, level) * power);
+  return {
+    ...zeroStats(),
+    critDmg: 50,
+    pv,
+    atq,
+    physPower: atq,
+    magPower: atq,
+    def: scaled(def.def, level),
+    defMag: scaled(def.defMag, level),
+    vit: def.vit.min,
+    riposte: def.riposte ?? 0,
+  };
+}
+
+function createEnemy(key, level, label, power = 1) {
+  const def = ENEMIES[key];
+  const stats = { ...enemyStats(key, level, power), vit: Math.round(rand(def.vit.min, def.vit.max)) };
   return {
     enemyKey: key,
     name: label ? `${def.name} ${label}` : def.name,
@@ -4183,19 +5030,8 @@ function createEnemy(key, level, label) {
     boss: !!def.boss,
     magic: !!def.magic,
     row: def.ranged ? 'ranged' : 'melee',
-    hp: pv,
-    stats: {
-      ...zeroStats(),
-      critDmg: 50,
-      pv,
-      atq,
-      physPower: atq,
-      magPower: atq,
-      def: scaled(def.def, level),
-      defMag: scaled(def.defMag, level),
-      vit: Math.round(rand(def.vit.min, def.vit.max)),
-      riposte: def.riposte ?? 0,
-    },
+    hp: stats.pv,
+    stats,
     alive: true,
     guard: false,
     statuses: [],
@@ -4203,17 +5039,17 @@ function createEnemy(key, level, label) {
 }
 
 // Crée les ennemis d'une rencontre ; numérote les doublons (« Loup 1 », « Loup 2 »).
-function createEnemies(keys, level) {
+function createEnemies(keys, level, power = 1) {
   const counts = {};
   keys.forEach((k) => { counts[k] = (counts[k] ?? 0) + 1; });
   const seen = {};
   return keys.map((k) => {
     seen[k] = (seen[k] ?? 0) + 1;
-    return createEnemy(k, level, counts[k] > 1 ? seen[k] : null);
+    return createEnemy(k, level, counts[k] > 1 ? seen[k] : null, power);
   });
 }
 
-return { createEnemy, createEnemies };
+return { enemyStats, createEnemy, createEnemies };
 })();
 
 // ---- src/game/combo.js
@@ -4381,7 +5217,8 @@ const { pick, random } = __modules["src/game/rng.js"];
 // (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
-// passe au combattant suivant.
+// passe au combattant suivant. Les effets sur la durée (poison, régénération…)
+// s'appliquent et se décomptent à la fin du tour de chaque unité.
 //
 // Classes à Énergie (game/combo.js) : après une action, le héros garde la main
 // (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
@@ -4407,11 +5244,14 @@ const { pick, random } = __modules["src/game/rng.js"];
  * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
  * consumables : inventaire partagé de l'équipe (modifié quand un objet est utilisé)
  * title       : texte d'introduction (ex. « Forêt Maudite — étage 3 »)
+ * power       : multiplicateur de difficulté des ennemis (PV et attaque)
  */
-function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
+function createCombat({ party, enemies, level, consumables = {}, title = 'Combat', power = 1 }) {
   party.forEach((hero) => {
     hero.guard = false;
-    hero.statuses = [];
+    // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
+    // remède) ; les effets positifs disparaissent.
+    hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
@@ -4419,15 +5259,17 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
-    title, level, party, enemies: createEnemies(enemies, level), consumables,
+    title, level, party, enemies: createEnemies(enemies, level, power), consumables,
     log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
   };
   log(cb, `${title} (niveau ${level}).`);
   return cb;
 }
 
-function log(cb, text, hit = false) {
-  cb.log.unshift({ text, hit });
+// Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
+// affichée au survol (calcul des dégâts), `crit` = coup critique.
+function log(cb, text, hit = false, detail = null, crit = false) {
+  cb.log.unshift({ text, hit, detail, crit });
   if (cb.log.length > COMBAT.logMax) cb.log.pop();
 }
 
@@ -4446,8 +5288,6 @@ function nextTurn(cb) {
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
-      if (cb.round > 0) endRound(cb);
-      if (checkOutcome(cb)) break;
       startRound(cb);
       continue;
     }
@@ -4463,10 +5303,12 @@ function nextTurn(cb) {
     }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
     if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
@@ -4504,10 +5346,11 @@ function startRound(cb) {
   cb.round++;
 }
 
-// Fin de round : effets sur la durée (dégâts, soins), puis décompte des statuts.
-function endRound(cb) {
-  for (const unit of [...cb.party, ...cb.enemies]) {
-    if (!unit.alive) continue;
+// Fin du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent,
+// puis la durée de ses statuts baisse d'un tour.
+function endUnitTurn(cb, unit) {
+  if (!unit.alive) return;
+  {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
@@ -4528,10 +5371,10 @@ function confusedHeroStrikes(cb, hero) {
   const allies = cb.party.filter((h) => h.alive && h !== hero);
   if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
   const victim = pick(allies);
-  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
-  const { taken, fell } = hurt(cb, victim, hit.amount);
-  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
-  if (fell) logFall(cb, victim);
+  const r = strike(cb, hero, victim, BASIC_ATTACK);
+  if (r.dodged) log(cb, `${hero.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+  else log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+  if (r.fell) logFall(cb, victim);
   return true;
 }
 
@@ -4542,8 +5385,14 @@ function startHeroTurn(hero) {
 }
 
 function endTurn(cb) {
+  if (cb.acting) endUnitTurn(cb, cb.acting.unit);
   cb.qIndex++;
   cb.acting = null;
+}
+
+// Pose un statut ; posé sur l'unité qui joue, il ne sera pas décompté à la fin de ce tour.
+function applyStatus(cb, unit, status) {
+  addStatus(unit, cb.acting?.unit === unit ? { ...status, fresh: true } : status);
 }
 
 function logFall(cb, unit) {
@@ -4643,16 +5492,17 @@ function heroAct(cb, action) {
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, makeStatus('bouclier', 2, amount));
+      applyStatus(cb, hero, makeStatus('bouclier', 2, amount));
       log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
     if (!target || !canDoAction(cb, hero, 'attack')) return false;
     hero.res -= actionCost(hero, 'attack');
-    const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const { taken, fell } = damage(target, hit.amount);
-    log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
+    const r = strike(cb, hero, target, BASIC_ATTACK);
+    const { taken, fell } = r;
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${hero.name} !`, true, r.detail);
+    else log(cb, `${hero.name} attaque ${target.name} pour ${taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
     if (fell) logFall(cb, target);
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
@@ -4704,6 +5554,41 @@ function heroAct(cb, action) {
   return true;
 }
 
+/**
+ * Coup direct (attaque simple ou compétence de dégâts) de `attacker` sur `target` :
+ * esquive (tout le coup évité), jet de dégâts, blocage (une partie évitée), garde,
+ * boucliers, Intercession. Retourne { dodged, blocked, crit, taken, fell, detail }.
+ * Un héros touché qui survit gagne sa Rage d'encaissement.
+ */
+function strike(cb, attacker, target, opts) {
+  const ts = statsOf(target);
+  if (random() < chance(ts, 'esquive')) {
+    return { dodged: true, blocked: false, crit: false, taken: 0, fell: false, detail: `${target.name} esquive (${Math.round(chance(ts, 'esquive') * 100)} % de chance)` };
+  }
+  const hit = rollHit(statsOf(attacker), opts, ts);
+  let dmg = hit.amount;
+  const notes = [hit.detail];
+  const blocked = random() < chance(ts, 'blocage');
+  if (blocked) {
+    dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
+    notes.push(`bloqué (−${Math.round(COMBAT.blockReduction * 100)} %) → ${dmg}`);
+  }
+  if (target.guard) {
+    dmg = guarded(target, dmg);
+    notes.push(`en garde → ${dmg}`);
+  }
+  const r = hurt(cb, target, dmg);
+  if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
+  if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
+  if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
+  return { dodged: false, blocked, crit: hit.crit, taken: r.taken, fell: r.fell, detail: notes.join(' ; '), redirect: redirectText(r) };
+}
+
+// « (critique !) (bloqué) (12 encaissés par Aldric) »
+function strikeNotes(r) {
+  return `${r.crit ? ' (critique !)' : ''}${r.blocked ? ' (bloqué)' : ''}${r.redirect ?? ''}`;
+}
+
 // Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
 function hurt(cb, unit, amount) {
   const r = damage(unit, amount);
@@ -4749,15 +5634,12 @@ function onHitTaken(hero) {
   gainResource(hero, (getClass(hero).resource.onHitTaken ?? 0) + (statsOf(hero).resOnHitTaken ?? 0));
 }
 
-function critText(hit) {
-  return hit.crit ? ' (critique !)' : '';
-}
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  const notes = hits.map((h) => h.note ?? '').join('');
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
-  const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
+  const notes = hits.map((h) => `${h.blocked ? ' (bloqué)' : ''}${h.note ?? ''}`).join('');
+  if (hits.length === 1) return hits[0].dodged ? 'esquivé' : `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
+  const text = hits.map((h) => (h.dodged ? 'esquivé' : `${h.amount}${h.crit ? '*' : ''}`)).join(' + ');
   return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
@@ -4787,6 +5669,7 @@ function targetLabel(skill, targets) {
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  const details = [];
   let crit = false;
   let dealt = 0;
 
@@ -4794,15 +5677,12 @@ function useSkill(cb, caster, skill, targets) {
     if (skill.kind === 'damage') {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
-        const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        hit.amount = guarded(target, hit.amount);
-        const r = hurt(cb, target, hit.amount);
-        const { taken, fell } = r;
-        hits.push({ ...hit, amount: taken, note: redirectText(r) });
-        dealt += taken;
-        crit ||= hit.crit;
-        if (fell) logFall(cb, target);
-        else if (isHero(target) && !isHero(caster)) onHitTaken(target);
+        const r = strike(cb, caster, target, skillHitOptions(skill));
+        hits.push({ ...r, amount: r.taken, note: r.redirect });
+        details.push(`${target.name} : ${r.detail}`);
+        dealt += r.taken;
+        crit ||= r.crit;
+        if (r.fell) logFall(cb, target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -4827,11 +5707,11 @@ function useSkill(cb, caster, skill, targets) {
         if (target === caster) continue; // on ne s'intercède pas pour soi-même
         status.source = caster;
       }
-      addStatus(target, status);
+      applyStatus(cb, target, status);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
@@ -4839,7 +5719,7 @@ function useSkill(cb, caster, skill, targets) {
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true, details.join('\n') || null, crit);
   if (isHero(caster)) lifesteal(cb, caster, dealt);
   return { crit };
 }
@@ -4880,7 +5760,7 @@ function pickAbility(enemy) {
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
 // (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
-// (esquive / blocage / garde / boucliers possibles).
+// (esquive / blocage / garde / boucliers possibles, sur tous les coups directs).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
@@ -4888,10 +5768,10 @@ function enemyAct(cb) {
   const others = cb.enemies.filter((e) => e.alive && e !== enemy);
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
-    const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = hurt(cb, victim, hit.amount);
-    log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
-    if (fell) logFall(cb, victim);
+    const r = strike(cb, enemy, victim, ENEMY_ATTACK);
+    if (r.dodged) log(cb, `${enemy.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+    else log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, victim);
     endTurn(cb);
     return;
   }
@@ -4907,25 +5787,11 @@ function enemyAct(cb) {
 
   const target = enemyTarget(cb);
   if (target) {
-    const targetStats = statsOf(target);
-    if (random() < chance(targetStats, 'esquive')) {
-      log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
-    } else {
-      const hit = rollHit(statsOf(enemy), { ...ENEMY_ATTACK, magic: enemy.magic }, targetStats);
-      let dmg = hit.amount;
-      const blocked = random() < chance(targetStats, 'blocage');
-      if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
-      dmg = guarded(target, dmg);
-      const r = hurt(cb, target, dmg);
-      const { taken, absorbed, fell } = r;
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
-      log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
-      if (fell) logFall(cb, target);
-      else {
-        onHitTaken(target);
-        if (!enemy.magic) riposte(cb, enemy, target);
-      }
-    }
+    const r = strike(cb, enemy, target, { ...ENEMY_ATTACK, magic: enemy.magic });
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true, r.detail);
+    else log(cb, `${enemy.name} attaque ${target.name} pour ${r.taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, target);
+    else if (!enemy.magic) riposte(cb, enemy, target);
   }
   endTurn(cb);
 }
@@ -4939,6 +5805,7 @@ const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
 const { floorCombat, winFloor, loseExpedition, escapeExpedition } = __modules["src/game/dungeon.js"];
+const { recordEncounter } = __modules["src/game/bestiary.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
 // Orchestration d'un combat d'étage : enchaîne les tours du moteur (game/combat.js),
@@ -4952,12 +5819,15 @@ const { render, showHub, goTo } = __modules["src/ui/router.js"];
 
 
 
+
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
-const lastFloor = { message: null, loot: [] };
+const lastFloor = { message: null, loot: [], summary: null };
 
 // Lance le combat de l'étage courant de l'expédition.
 function startFloor() {
-  state.combat = createCombat({ ...floorCombat(state), party: state.party, consumables: state.consumables });
+  const params = floorCombat(state);
+  recordEncounter(state, params.enemies);
+  state.combat = createCombat({ ...params, party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -4994,13 +5864,14 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
   if (cb.result === 'escape') {
-    escapeExpedition(state);
+    escapeExpedition(state, cb);
     showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
     return;
   }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state).message);
+    showHub(loseExpedition(state, cb).message);
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
@@ -5011,25 +5882,84 @@ function finish() {
     return;
   }
   const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
   goTo('dungeon');
 }
 
 return { lastFloor, startFloor, playerAction };
 })();
 
+// ---- src/ui/combatLog.js
+__modules["src/ui/combatLog.js"] = (() => {
+const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+// Journal de combat et résumé de victoire (partagés par les écrans de combat,
+// d'expédition et du village).
+
+
+
+
+
+
+// Lignes du journal : les coups critiques ressortent, et le calcul des dégâts
+// s'affiche au survol quand il est connu.
+function logLines(entries) {
+  return entries.map((l) => {
+    const cls = `${l.hit ? 'hit' : ''} ${l.crit ? 'crit' : ''}`;
+    if (!l.detail) return `<div class="${cls}">${l.crit ? '💥 ' : ''}${esc(l.text)}</div>`;
+    return `<div ${tip(l.detail, `${cls} has-detail`)}>${l.crit ? '💥 ' : ''}${esc(l.text)} <span class="why">ⓘ</span></div>`;
+  }).join('');
+}
+
+// Journal du dernier combat, repliable (après la fin du combat).
+function lastCombatLog(last) {
+  if (!last?.log?.length) return '';
+  return `
+    <details class="card last-log">
+      <summary>📜 Journal du dernier combat (${esc(last.title)})</summary>
+      <div class="log">${logLines(last.log)}</div>
+    </details>`;
+}
+
+// Résumé détaillé d'une victoire (résultat de applyVictory / winFloor).
+function victorySummary(r) {
+  if (!r) return '';
+  const rows = [
+    ['💰 Or', `+${r.gold}`],
+    ['⭐ Expérience', `+${r.xp} XP pour chaque héros`],
+  ];
+  if (r.levelUps?.length) rows.push(['🎉 Niveau supérieur', r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
+  rows.push(['🎒 Équipement', r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
+  rows.push(['💎 Matéria', r.materia?.length
+    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${MATERIA_KINDS[m.kind].icon} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
+    : '<span class="hint">aucune</span>']);
+  rows.push(['🧪 Consommables', r.consumables?.length ? r.consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', ') : '<span class="hint">aucun</span>']);
+  return `
+    <div class="victory-summary">
+      <h3>Victoire !</h3>
+      <table>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    </div>`;
+}
+
+return { logLines, lastCombatLog, victorySummary };
+})();
+
 // ---- src/ui/screens/equipment.js
 __modules["src/ui/screens/equipment.js"] = (() => {
 const { state } = __modules["src/state.js"];
+const { isTwoHanded } = __modules["src/game/items.js"];
 const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
 const { STAT_ORDER } = __modules["src/data/stats.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
-const { esc } = __modules["src/ui/html.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
+
 
 
 
@@ -5125,6 +6055,15 @@ function isSelected(sel) {
 function slotRow(hero, slot) {
   const item = hero.equipment[slot];
   const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
+  // Une arme à deux mains occupe aussi la main gauche.
+  const twoHand = hero.equipment.mainDroite;
+  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
+    return `
+    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
+    </button>`;
+  }
   if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
@@ -5189,11 +6128,13 @@ return { openEquipment, renderEquipment };
 // ---- src/ui/screens/forge.js
 __modules["src/ui/screens/forge.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITIES, RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { FORGE } = __modules["src/config.js"];
 const { getClass } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemStats } = __modules["src/game/items.js"];
-const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } = __modules["src/game/forge.js"];
+const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries } = __modules["src/game/forge.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
 const { goTo } = __modules["src/ui/router.js"];
@@ -5209,27 +6150,37 @@ const { goTo } = __modules["src/ui/router.js"];
 
 
 
+
+
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-const view = { selectedId: null, confirm: null, flash: null };
+// tab : 'items' (amélioration / décraft) ou 'craft' (fabrication) ; order : commande en cours.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' } };
 
 // Raretés dont le décraft demande une confirmation.
 const CONFIRM_RARITIES = ['epique', 'legendaire'];
 
 function openForge() {
-  Object.assign(view, { selectedId: null, confirm: null, flash: null });
+  Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
   goTo('forge');
 }
 
 function renderForge(app) {
   const item = findItem(view.selectedId);
   const flash = view.flash;
+  const crafted = view.crafted;
   view.flash = null;
+  view.crafted = null;
   const commons = state.bag.filter((i) => i.rarity === 'commun');
 
   app.innerHTML = `
     <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    ${flash ? `<div class="card notice">${esc(flash)}${crafted ? itemCard(crafted) : ''}</div>` : ''}
     <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
+    <div class="tabs">
+      <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
+      <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+    </div>
+    ${view.tab === 'craft' ? craftPanel() : `
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -5246,10 +6197,17 @@ function renderForge(app) {
           </button>` : ''}
       </div>
       <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
-    </div>
+    </div>`}
     <div class="center"><button id="backHub">← Retour au village</button></div>
   `;
 
+  app.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { tab: btn.dataset.tab, confirm: null });
+      goTo('forge');
+    };
+  });
+  bindCraft(app);
   app.querySelectorAll('[data-item]').forEach((row) => {
     row.onclick = () => {
       Object.assign(view, { selectedId: row.dataset.item, confirm: null });
@@ -5367,76 +6325,249 @@ function decraftSection(item) {
     </div>`;
 }
 
+// ---- Fabrication ----
+
+const KIND_FILTER_LABELS = {
+  weaponType: "Type d'arme", slotType: 'Pièce', armorType: "Type d'armure", primary: 'Stat principale',
+};
+
+function optionLabel(filter, value) {
+  if (filter === 'weaponType') return WEAPON_TYPES[value].name;
+  if (filter === 'armorType') return ARMOR_TYPES[value].label;
+  if (filter === 'primary') return STATS[value].label;
+  if (value === 'bouclier') return SHIELD.name;
+  if (JEWELS[value]) return JEWELS[value].name;
+  return SLOTS[value].label;
+}
+
+function craftPanel() {
+  const order = view.order;
+  const cost = craftCost(order);
+  const problem = craftProblem(state, order);
+  const have = state.materia[cost.kind][cost.rarity];
+  const options = craftOptions(order.kind);
+  const legendaries = order.rarity === 'legendaire' ? craftLegendaries(order) : [];
+  return `
+    <div class="card craft">
+      <p class="hint">Fabrique un objet du niveau le plus haut atteint (${state.dungeonLvl}) avec ${FORGE.craftBase} matéria de la rareté voulue, +${FORGE.craftPerFilter} par caractéristique imposée. Ce qui reste « au hasard » est tiré au sort.</p>
+      <div class="craft-row"><span>Catégorie</span>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
+      </div>
+      <div class="craft-row"><span>Rareté</span>
+        ${RARITY_ORDER.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+      </div>
+      ${CRAFT_FILTERS[order.kind].map((f) => `
+        <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
+          <select data-craft-filter="${f}">
+            <option value="">Au hasard</option>
+            ${options[f].map((v) => `<option value="${v}" ${order[f] === v ? 'selected' : ''}>${esc(optionLabel(f, v))}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+      ${order.rarity === 'legendaire' ? `<p class="hint">Légendaires possibles : ${legendaries.length ? legendaries.map((k) => `<b style="color:${RARITIES.legendaire.color}">${esc(LEGENDARIES[k].name)}</b>`).join(', ') : 'aucun'}.</p>` : ''}
+      <ul class="cost"><li class="${have < cost.amount ? 'lack' : 'ok'}">${cost.amount} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(cost.rarity)} <small>(possédé : ${have})</small></li></ul>
+      ${problem ? `<p class="hint">${esc(problem)}</p>` : ''}
+      <button id="craftBtn" ${problem ? 'disabled' : ''}>⚒️ Fabriquer</button>
+    </div>`;
+}
+
+function bindCraft(app) {
+  app.querySelectorAll('[data-craft-kind]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order = { kind: btn.dataset.craftKind, rarity: view.order.rarity };
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-rarity]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order.rarity = btn.dataset.craftRarity;
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-filter]').forEach((sel) => {
+    sel.onchange = () => {
+      if (sel.value) view.order[sel.dataset.craftFilter] = sel.value;
+      else delete view.order[sel.dataset.craftFilter];
+      goTo('forge');
+    };
+  });
+  app.querySelector('#craftBtn')?.addEventListener('click', () => {
+    const item = craft(state, view.order);
+    if (item) {
+      view.flash = `Fabriqué : ${itemName(item)} (dans le sac).`;
+      view.crafted = item;
+    }
+    goTo('forge');
+  });
+}
+
 return { openForge, renderForge };
 })();
 
-// ---- src/game/merchant.js
-__modules["src/game/merchant.js"] = (() => {
-const { MERCHANT } = __modules["src/config.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { addConsumable, countOf } = __modules["src/game/consumables.js"];
-// Marchand : revente du butin, achat de consommables et d'équipement.
-// Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
+// ---- src/game/runes.js
+__modules["src/game/runes.js"] = (() => {
+const { RUNES } = __modules["src/config.js"];
+const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
+const { secondaryValue } = __modules["src/game/items.js"];
+const { pick } = __modules["src/game/rng.js"];
+// Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
+// et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
 
 
 
 
 
 
-function sellPrice(item) {
-  const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
-  return Math.max(1, Math.round(base * MERCHANT.sellRarityMult[item.rarity] * (1 + MERCHANT.sellPerPlus * (item.plus ?? 0))));
+// Prix d'une relance, ou null si l'objet n'a pas de secondaire.
+function rerollCost(item) {
+  if (!Object.keys(item.bonus ?? {}).length) return null;
+  return RUNES.price[item.rarity] ?? null;
 }
 
-function buyPrice(item) {
-  return sellPrice(item) * MERCHANT.buyMarkup;
+// Stats pouvant remplacer `stat` : jamais une stat déjà présente sur l'objet
+// (sauf le Blocage d'un bouclier), mais la stat relancée peut ressortir avec une autre valeur.
+function rerollPool(item, stat) {
+  const repeatable = item.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  const others = Object.keys(item.bonus).filter((k) => k !== stat);
+  return Object.keys(SECONDARY_STATS).filter((k) =>
+    k === stat || (!others.includes(k) && (!(k in item.stats) || repeatable.includes(k))));
 }
 
-// Vend un objet du sac (jamais un objet porté).
-function sell(game, item) {
-  const index = game.bag.indexOf(item);
-  if (index === -1) return false;
-  game.bag.splice(index, 1);
-  game.gold += sellPrice(item);
-  return true;
+// Pourquoi la relance est impossible (texte), ou null.
+function rerollProblem(game, item, stat) {
+  if (!(stat in (item.bonus ?? {}))) return "Cette stat n'est pas une stat secondaire de l'objet.";
+  const cost = rerollCost(item);
+  if (game.gold < cost) return `Il manque ${cost - game.gold} pièces d'or.`;
+  return null;
 }
 
-// Stock d'équipement : renouvelé quand le niveau du donjon change.
-function ensureStock(game) {
-  if (game.shop?.level === game.dungeonLvl) return game.shop.stock;
-  const stock = [];
-  for (let i = 0; i < MERCHANT.stockSize; i++) {
-    stock.push(generateItem({ level: game.dungeonLvl, rarity: weightedPick(MERCHANT.stockRarityWeights) }));
+// Relance la secondaire `stat` (l'ordre des lignes est conservé).
+// Retourne { from: { stat, value }, to: { stat, value } }, ou null si impossible.
+function rerollSecondary(game, item, stat) {
+  if (rerollProblem(game, item, stat)) return null;
+  game.gold -= rerollCost(item);
+  const from = { stat, value: item.bonus[stat] };
+  const newStat = pick(rerollPool(item, stat));
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
+  return { from, to };
+}
+
+return { rerollCost, rerollPool, rerollProblem, rerollSecondary };
+})();
+
+// ---- src/ui/screens/runes.js
+__modules["src/ui/screens/runes.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { itemStatLines } = __modules["src/game/items.js"];
+const { rerollCost, rerollPool, rerollProblem, rerollSecondary } = __modules["src/game/runes.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Runomancien : relance d'une stat secondaire d'un objet (porté ou dans le sac).
+
+
+
+
+
+
+
+
+
+
+
+
+const view = { selectedId: null, flash: null };
+
+function openRunes() {
+  Object.assign(view, { selectedId: null, flash: null });
+  goTo('runes');
+}
+
+// Objets relançables : au moins une secondaire.
+const rerollable = (item) => rerollCost(item) !== null;
+
+function renderRunes(app) {
+  const item = findItem(view.selectedId);
+  const flash = view.flash;
+  view.flash = null;
+  const bagItems = state.bag.filter(rerollable);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🔮 Runomancien</h1><p>Or : ${state.gold} · « Donne-moi une rune, je t'en graverai une autre. »</p></div>
+    ${flash ? `<div class="card notice">${flash}</div>` : ''}
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets portés</h3>
+        ${state.party.map((hero) => `
+          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
+          ${equippedItems(hero).filter(rerollable).map(itemRow).join('') || '<p class="hint">Rien à relancer.</p>'}`).join('')}
+        <h3 class="bag-title">Sac</h3>
+        ${bagItems.length ? bagItems.map(itemRow).join('') : '<p class="hint">Aucun objet à stats secondaires dans le sac.</p>'}
+      </div>
+      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Choisis un objet : le Runomancien relance une de ses stats secondaires (nouvelle stat, nouvelle valeur). Les objets communs n\'en ont pas.</p>'}</div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => {
+      view.selectedId = row.dataset.item;
+      goTo('runes');
+    };
+  });
+  app.querySelectorAll('[data-reroll]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = rerollSecondary(state, item, btn.dataset.reroll);
+      if (r) view.flash = `${esc(itemName(item))} : <s>${formatStat(r.from.stat, r.from.value)}</s> → <b>${formatStat(r.to.stat, r.to.value)}</b>`;
+      goTo('runes');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function findItem(id) {
+  if (!id) return null;
+  for (const hero of state.party) {
+    const found = equippedItems(hero).find((i) => i.id === id);
+    if (found) return found;
   }
-  game.shop = { level: game.dungeonLvl, stock };
-  return stock;
+  return state.bag.find((i) => i.id === id) ?? null;
 }
 
-// Achète un objet du stock : il rejoint le sac.
-function buyItem(game, item) {
-  const stock = ensureStock(game);
-  const index = stock.indexOf(item);
-  const price = buyPrice(item);
-  if (index === -1 || game.gold < price) return false;
-  stock.splice(index, 1);
-  game.gold -= price;
-  game.bag.push(item);
-  return true;
+function itemRow(item) {
+  return `
+    <button class="bag-row ${item.id === view.selectedId ? 'selected' : ''}" data-item="${item.id}">
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`;
 }
 
-function canBuyConsumable(game, key) {
-  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+function detailPanel(item) {
+  const cost = rerollCost(item);
+  const lines = itemStatLines(item).filter((l) => l.secondary);
+  return `
+    ${itemCard(item)}
+    <div class="forge-section">
+      <h3>Relancer une stat secondaire — ${cost} pièces d'or</h3>
+      <p class="hint">Une seule stat change à la fois ; elle peut devenir n'importe quelle stat absente de l'objet, ou ressortir avec une autre valeur.</p>
+      ${lines.map((l) => {
+        const problem = rerollProblem(state, item, l.stat);
+        const pool = rerollPool(item, l.stat).map((k) => STATS[k].label).join(', ');
+        return `
+          <div class="reroll-row">
+            <span>${formatStat(l.stat, l.value)}</span>
+            <button data-reroll="${l.stat}" ${problem ? 'disabled' : ''} title="Résultats possibles : ${esc(pool)}">🔮 Relancer</button>
+          </div>`;
+      }).join('')}
+      ${state.gold < cost ? `<p class="hint">Il te manque ${cost - state.gold} pièces d'or.</p>` : ''}
+    </div>`;
 }
 
-function buyConsumable(game, key) {
-  if (!canBuyConsumable(game, key)) return false;
-  addConsumable(game.consumables, key);
-  game.gold -= CONSUMABLES[key].price;
-  return true;
-}
-
-return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
+return { openRunes, renderRunes };
 })();
 
 // ---- src/ui/screens/merchant.js
@@ -5597,8 +6728,10 @@ return { openMerchant, renderMerchant };
 
 // ---- src/game/roster.js
 __modules["src/game/roster.js"] = (() => {
+const { INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { createHero, restoreFully } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
 // Auberge : recrutement de compagnons et gestion de l'équipe.
 //
 // L'équipe (game.party) compte toujours 4 héros. Recruter un compagnon (niveau 1,
@@ -5606,6 +6739,8 @@ const { createHero, restoreFully } = __modules["src/game/party.js"];
 // l'équipe, qui part se reposer à l'auberge (game.reserve) avec son équipement et
 // ses talents. Les héros de l'auberge ne gagnent pas d'XP (seule l'équipe combat).
 // Tout se fait au village, jamais pendant une expédition.
+
+
 
 
 
@@ -5626,12 +6761,44 @@ function rosterLockedReason(game) {
  * null si c'est impossible.
  */
 function recruit(game, classKey, name, replaceIndex) {
-  if (rosterLockedReason(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
+  if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
   const hero = createHero(classKey, name?.trim());
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);
   return hero;
+}
+
+// Pourquoi on ne peut pas recruter maintenant (texte), ou null.
+function recruitProblem(game) {
+  const locked = rosterLockedReason(game);
+  if (locked) return locked;
+  if (reserveOf(game).length >= INN.maxReserve) {
+    return `L'auberge est pleine (${INN.maxReserve} compagnons au repos) : renvoie d'abord un compagnon.`;
+  }
+  return null;
+}
+
+// Ce que deviendrait l'équipement d'un compagnon renvoyé :
+// { destroyed: objets communs (perdus), returned: autres objets (rendus au sac) }.
+function dismissOutcome(hero) {
+  const items = [...new Set(equippedItems(hero))];
+  return {
+    destroyed: items.filter((i) => i.rarity === 'commun'),
+    returned: items.filter((i) => i.rarity !== 'commun'),
+  };
+}
+
+// Renvoie définitivement le compagnon `reserveIndex` de l'auberge. Ses objets communs
+// sont détruits, les autres rendus au sac. Retourne { hero, destroyed, returned }, ou null.
+function dismiss(game, reserveIndex) {
+  const reserve = reserveOf(game);
+  if (rosterLockedReason(game) || !reserve[reserveIndex]) return null;
+  const [hero] = reserve.splice(reserveIndex, 1);
+  const outcome = dismissOutcome(hero);
+  game.bag.push(...outcome.returned);
+  for (const slot of Object.keys(hero.equipment)) hero.equipment[slot] = null;
+  return { hero, ...outcome };
 }
 
 // Échange le héros `partyIndex` de l'équipe avec le héros `reserveIndex` de l'auberge.
@@ -5645,19 +6812,19 @@ function swapWithReserve(game, partyIndex, reserveIndex) {
   return true;
 }
 
-return { reserveOf, rosterLockedReason, recruit, swapWithReserve };
+return { reserveOf, rosterLockedReason, recruit, recruitProblem, dismissOutcome, dismiss, swapWithReserve };
 })();
 
 // ---- src/ui/screens/inn.js
 __modules["src/ui/screens/inn.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { CLASS_ORDER } = __modules["src/config.js"];
+const { CLASS_ORDER, INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { restAtInn } = __modules["src/game/progression.js"];
-const { recruit, swapWithReserve, reserveOf, rosterLockedReason } = __modules["src/game/roster.js"];
+const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
-const { equipmentTooltip } = __modules["src/ui/items.js"];
+const { equipmentTooltip, itemChip } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 // Auberge : repos, recrutement de compagnons et gestion de l'équipe (4 héros ;
 // les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
@@ -5674,10 +6841,10 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, flash: null };
+const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
 
 function openInn() {
-  Object.assign(view, { selectedReserve: null, flash: null });
+  Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
   goTo('inn');
 }
 
@@ -5687,6 +6854,7 @@ function renderInn(app) {
   const locked = rosterLockedReason(state);
   const reserve = reserveOf(state);
   const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
+  const cannotRecruit = recruitProblem(state);
 
   app.innerHTML = `
     <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
@@ -5703,9 +6871,10 @@ function renderInn(app) {
     </div>
 
     <div class="card">
-      <h2>À l'auberge (${reserve.length})</h2>
-      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe.</p>
+      <h2>À l'auberge (${reserve.length}/${INN.maxReserve})</h2>
+      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe ou le renvoyer.</p>
       <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
+      ${picking && !locked ? dismissPanel(picking) : ''}
     </div>
 
     <div class="card">
@@ -5715,8 +6884,9 @@ function renderInn(app) {
         ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
       </div>
       <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+      ${cannotRecruit && !locked ? `<p class="hint">${esc(cannotRecruit)}</p>` : ''}
       <div class="actions">
-        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${locked ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
+        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
       </div>
     </div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
@@ -5751,6 +6921,7 @@ function renderInn(app) {
     btn.onclick = () => {
       const i = Number(btn.dataset.reserve);
       view.selectedReserve = view.selectedReserve === i ? null : i;
+      view.confirmDismiss = false;
       goTo('inn');
     };
   });
@@ -5766,7 +6937,35 @@ function renderInn(app) {
       goTo('inn');
     };
   });
+  app.querySelector('#dismiss')?.addEventListener('click', () => {
+    if (!view.confirmDismiss) {
+      view.confirmDismiss = true;
+    } else {
+      const r = dismiss(state, view.selectedReserve);
+      if (r) {
+        const parts = [`${r.hero.name} quitte l'auberge pour de bon.`];
+        if (r.returned.length) parts.push(`${r.returned.length} objet${r.returned.length > 1 ? 's' : ''} rendu${r.returned.length > 1 ? 's' : ''} au sac.`);
+        if (r.destroyed.length) parts.push(`${r.destroyed.length} objet${r.destroyed.length > 1 ? 's' : ''} commun${r.destroyed.length > 1 ? 's' : ''} perdu${r.destroyed.length > 1 ? 's' : ''}.`);
+        view.flash = parts.join(' ');
+      }
+      Object.assign(view, { selectedReserve: null, confirmDismiss: false });
+    }
+    goTo('inn');
+  });
   app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Renvoi du compagnon sélectionné : ce que devient son équipement, puis confirmation.
+function dismissPanel(hero) {
+  const { destroyed, returned } = dismissOutcome(hero);
+  return `
+    <div class="forge-section">
+      <h3>Renvoyer ${esc(hero.name)} ?</h3>
+      <p class="hint">Le compagnon quitte définitivement l'auberge, avec ses niveaux et ses talents.</p>
+      ${returned.length ? `<p>Rendu au sac : ${returned.map(itemChip).join(' ')}</p>` : ''}
+      ${destroyed.length ? `<p>Perdu (objets communs) : ${destroyed.map(itemChip).join(' ')}</p>` : ''}
+      <button id="dismiss" class="${view.confirmDismiss ? 'danger' : ''}">${view.confirmDismiss ? `Confirmer : renvoyer ${esc(hero.name)}` : `🚪 Renvoyer ${esc(hero.name)}`}</button>
+    </div>`;
 }
 
 // Vignette d'un héros ; l'infobulle montre son équipement.
@@ -5790,18 +6989,28 @@ __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } = __modules["src/game/dungeon.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
+const { lastCombatLog } = __modules["src/ui/combatLog.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
+const { bestiaryProgress } = __modules["src/game/bestiary.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
+const { openRunes } = __modules["src/ui/screens/runes.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 const { openMerchant } = __modules["src/ui/screens/merchant.js"];
 const { openInn } = __modules["src/ui/screens/inn.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
+
+
+
+
 
 
 
@@ -5825,8 +7034,10 @@ function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${message ? lastCombatLog(state.lastCombat) : ''}
+    ${noSkillNotice()}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
@@ -5839,10 +7050,13 @@ function renderHub(app) {
         <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
         <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
-        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
+        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
+        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -5857,10 +7071,20 @@ function renderHub(app) {
   app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
+  app.querySelector('#runesBtn').onclick = () => openRunes();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
+  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
+}
+
+// Rappel : un héros sans sort doit dépenser son premier point de talent.
+function noSkillNotice() {
+  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
+  if (!names.length) return '';
+  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
 }
 
 function heroMini(hero) {
@@ -5980,20 +7204,105 @@ function sheet(hero, index) {
 return { renderStats };
 })();
 
+// ---- src/game/field.js
+__modules["src/game/field.js"] = (() => {
+const { getSkills } = __modules["src/game/party.js"];
+const { statsOf, heal } = __modules["src/game/units.js"];
+const { healAmount } = __modules["src/game/formulas.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+// Soins hors combat (entre deux combats d'une expédition) : les héros peuvent
+// lancer leurs compétences de soin et de purification. Les autres effets (buffs,
+// boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
+// se sur-préparer avant une rencontre.
+
+
+
+
+
+
+// Compétence utilisable hors combat : un soin direct ou une purification.
+function isFieldSkill(skill) {
+  return skill.kind === 'heal' || !!skill.cleanse;
+}
+
+// Compétences du héros utilisables hors combat : [{ skill, index }] (index dans getSkills).
+function fieldSkills(hero) {
+  return getSkills(hero).map((skill, index) => ({ skill, index })).filter(({ skill }) => isFieldSkill(skill));
+}
+
+// Cibles possibles d'une compétence hors combat (héros en vie) : indices dans l'équipe.
+function fieldTargets(game, casterIndex, skill) {
+  if (skill.target === 'self') return [casterIndex];
+  if (skill.target === 'ally' || skill.target === 'allAllies') {
+    return game.party.map((h, i) => (h.alive ? i : -1)).filter((i) => i >= 0);
+  }
+  return [];
+}
+
+// Raison pour laquelle la compétence ne peut pas être lancée maintenant, ou null.
+function cannotCastReason(game, casterIndex, skill) {
+  const caster = game.party[casterIndex];
+  if (!game.expedition) return 'Uniquement pendant une expédition.';
+  if (!caster?.alive) return 'Ce héros est tombé.';
+  if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
+  if (caster.res < skill.cost) return 'Pas assez de ressource.';
+  return null;
+}
+
+/**
+ * Lance la compétence `skillIndex` du héros `casterIndex` hors combat, sur le héros
+ * `targetIndex` (ignoré pour une compétence de groupe). Retourne { ok, message }.
+ */
+function castOutOfCombat(game, casterIndex, skillIndex, targetIndex) {
+  const caster = game.party[casterIndex];
+  const skill = caster && getSkills(caster)[skillIndex];
+  if (!skill || cannotCastReason(game, casterIndex, skill)) return { ok: false, message: '' };
+  const group = skill.target === 'allAllies';
+  if (!group && !fieldTargets(game, casterIndex, skill).includes(skill.target === 'self' ? casterIndex : targetIndex)) {
+    return { ok: false, message: '' };
+  }
+  const targets = group ? game.party.filter((h) => h.alive) : [game.party[skill.target === 'self' ? casterIndex : targetIndex]];
+  caster.res -= skill.cost;
+  const stats = statsOf(caster);
+  const parts = targets.map((t) => {
+    const bits = [];
+    if (skill.kind === 'heal') bits.push(`+${heal(t, healAmount(stats, skill.power, skill.physHeal))} PV`);
+    if (skill.cleanse) {
+      const removed = statusesOf(t).filter((s) => s.kind === 'debuff');
+      t.statuses = statusesOf(t).filter((s) => s.kind !== 'debuff');
+      bits.push(removed.length ? `${removed.map((s) => s.name).join(', ')} retiré${removed.length > 1 ? 's' : ''}` : 'aucun effet négatif');
+    }
+    return `${t.name} : ${bits.join(', ')}`;
+  });
+  return { ok: true, message: `${caster.name} lance ${skill.name} (${parts.join(' ; ')}).` };
+}
+
+return { isFieldSkill, fieldSkills, fieldTargets, cannotCastReason, castOutOfCombat };
+})();
+
 // ---- src/ui/screens/dungeon.js
 __modules["src/ui/screens/dungeon.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
+const { fieldSkills, castOutOfCombat, cannotCastReason } = __modules["src/game/field.js"];
+const { healAmount } = __modules["src/game/formulas.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
-const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } = __modules["src/game/consumables.js"];
+const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } = __modules["src/game/consumables.js"];
+const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
+const { EVENTS } = __modules["src/data/events.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { MERCHANT } = __modules["src/config.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
-const { itemChip } = __modules["src/ui/items.js"];
+const { itemChip, itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
 const { consumableEstimate } = __modules["src/ui/format.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
 const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
+const { victorySummary, lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 // Expédition : entre deux étages d'un donjon. On y voit la progression et l'état
@@ -6015,28 +7324,49 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 
 
 
+
+
+
+
+
+
+
+
+
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
-const view = { pendingItem: null, flash: null };
+// panel : 'items' | 'spells' | null (menu ouvert entre deux combats) ; caster /
+// pendingSpell : sort hors combat en cours de ciblage.
+const view = { pendingItem: null, flash: null, flashLoot: [], panel: null, caster: null, pendingSpell: null };
 
 function renderDungeon(app) {
   const exp = state.expedition;
   const d = DUNGEONS[exp.dungeonKey];
   const message = view.flash ?? lastFloor.message;
-  const loot = view.flash ? [] : lastFloor.loot;
-  Object.assign(lastFloor, { message: null, loot: [] });
+  const loot = view.flash ? view.flashLoot : lastFloor.loot;
+  const summary = view.flash ? null : lastFloor.summary;
+  Object.assign(lastFloor, { message: null, loot: [], summary: null });
   view.flash = null;
+  view.flashLoot = [];
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
-    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Étage ${exp.floor}/${d.floors}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
+    ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${lastCombatLog(state.lastCombat)}
     <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
       <div class="expedition-info">
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
-      ${itemPanel()}
+      ${exp.event ? eventPanel(exp.event) : ''}
+      <div class="actions field-menu">
+        <button id="itemsBtn" class="${view.panel === 'items' ? 'selected' : ''}" ${tip('Utiliser un objet (potion, remède, tente, corde…).')}>🎒 Objets (${CONSUMABLE_ORDER.reduce((n, k) => n + (usableIn(k, 'map') ? countOf(state.consumables, k) : 0), 0)})</button>
+        <button id="spellsBtn" class="${view.panel === 'spells' ? 'selected' : ''}" ${tip('Lancer un soin ou une purification hors combat (les autres sorts ne servent qu\'en combat).')}>✨ Sorts</button>
+      </div>
+      ${view.panel === 'items' ? itemPanel() : ''}
+      ${view.panel === 'spells' ? spellPanel() : ''}
       ${exp.bossChoice ? `
         <div class="boss-choice">
           <p><b>Le boss est vaincu.</b> Rentrer au village avec tout le butin, ou continuer le donjon ?
@@ -6048,7 +7378,7 @@ function renderDungeon(app) {
         </div>` : `
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
+          ${nextIsBoss ? `☠️ Affronter le boss (étage ${exp.floor})` : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${exp.floor} (${exp.fights} combats)`}
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
@@ -6064,6 +7394,62 @@ function renderDungeon(app) {
     </div>
   `;
 
+  app.querySelectorAll('[data-event-choice]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = chooseEvent(state, Number(btn.dataset.eventChoice));
+      if (r.ok) Object.assign(view, { flash: r.message, flashLoot: r.loot });
+      goTo('dungeon');
+    };
+  });
+  app.querySelector('#eventSkip')?.addEventListener('click', () => {
+    const e = currentEvent(state);
+    if (skipEvent(state)) view.flash = EVENTS[e.key].kind === 'merchant' ? 'Le marchand ambulant remballe sa marchandise.' : `Vous passez votre chemin (${EVENTS[e.key].name}).`;
+    goTo('dungeon');
+  });
+  app.querySelectorAll('[data-event-buy]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventItem(state, btn.dataset.eventBuy)) view.flash = 'Achat effectué : l\'objet rejoint le sac.';
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-event-consumable]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventConsumable(state, Number(btn.dataset.eventConsumable))) view.flash = 'Achat effectué.';
+      goTo('dungeon');
+    };
+  });
+  app.querySelector('#itemsBtn').onclick = () => {
+    Object.assign(view, { panel: view.panel === 'items' ? null : 'items', pendingItem: null });
+    goTo('dungeon');
+  };
+  app.querySelector('#spellsBtn').onclick = () => {
+    Object.assign(view, { panel: view.panel === 'spells' ? null : 'spells', caster: null, pendingSpell: null });
+    goTo('dungeon');
+  };
+  app.querySelectorAll('[data-caster]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { caster: Number(btn.dataset.caster), pendingSpell: null });
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-spell]').forEach((btn) => {
+    btn.onclick = () => {
+      const index = Number(btn.dataset.spell);
+      const skill = getSkills(state.party[view.caster])[index];
+      if (skill.target === 'ally' && view.pendingSpell !== index) {
+        view.pendingSpell = index; // choix de la cible
+        return goTo('dungeon');
+      }
+      if (skill.target !== 'ally' && view.pendingSpell !== index) {
+        view.pendingSpell = index; // confirmation
+        return goTo('dungeon');
+      }
+      castSpell(index, view.caster);
+    };
+  });
+  app.querySelectorAll('[data-spell-target]').forEach((btn) => {
+    btn.onclick = () => castSpell(view.pendingSpell, Number(btn.dataset.spellTarget));
+  });
   app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
@@ -6096,12 +7482,52 @@ function renderDungeon(app) {
   app.querySelector('#stats').onclick = () => goTo('stats');
 }
 
+function castSpell(skillIndex, targetIndex) {
+  const r = castOutOfCombat(state, view.caster, skillIndex, targetIndex);
+  view.pendingSpell = null;
+  if (r.ok) view.flash = r.message;
+  goTo('dungeon');
+}
+
+// Sorts hors combat : d'abord le héros (grisé s'il n'a aucun soin ni purification),
+// puis ses sorts utilisables, puis la cible.
+function spellPanel() {
+  const heroes = state.party.map((h, i) => {
+    const usable = h.alive && fieldSkills(h).length > 0;
+    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${getClass(h).icon} ${esc(h.name)}</button>`;
+  }).join('');
+  let spells = '';
+  if (view.caster !== null) {
+    const caster = state.party[view.caster];
+    const stats = getStats(caster);
+    spells = fieldSkills(caster).map(({ skill, index }) => {
+      const reason = cannotCastReason(state, view.caster, skill);
+      const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
+        .filter(Boolean).join(', ');
+      const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
+      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(skill.name)} · ${skill.cost} ${getClass(caster).resource.name} · ${effect}${who}</button>`;
+    }).join('');
+    const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
+    if (pending?.target === 'ally') {
+      spells += `<div class="target-zone">${state.party.map((h, i) => (h.alive ? `<button data-spell-target="${i}">Cibler ${esc(h.name)} · PV ${h.hp}/${getStats(h).pv}${statusesOf(h).some((st) => st.kind === 'debuff') ? ' · ⚠️ affaibli' : ''}</button>` : '')).join('')}</div>`;
+    } else if (pending) {
+      spells += `<div class="target-zone"><button data-spell="${view.pendingSpell}" class="danger">Confirmer : ${esc(pending.name)}</button></div>`;
+    }
+  }
+  return `
+    <div class="map-items">
+      <div class="hint">Qui lance un sort ? (seuls les soins et les purifications marchent hors combat)</div>
+      <div class="actions">${heroes}</div>
+      ${spells ? `<div class="actions">${spells}</div>` : ''}
+    </div>`;
+}
+
 function useItem(key, targetIndex) {
   const dungeonName = DUNGEONS[state.expedition.dungeonKey].name;
   const r = useOnMap(state, key, targetIndex);
   view.pendingItem = null;
   if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
-  if (r.ok) view.flash = r.message;
+  if (r.ok || r.message) view.flash = r.message;
   goTo('dungeon');
 }
 
@@ -6123,7 +7549,7 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(CONSUMABLES[k].desc)}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;
@@ -6151,7 +7577,77 @@ function heroMini(hero) {
       ${bar(hero.hp, stats.pv, cls.color)}
       <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
+      ${debuffTags(hero)}
     </div>`;
+}
+
+// Effets négatifs qui suivent le héros d'un combat à l'autre.
+function debuffTags(hero) {
+  const list = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
+  if (!list.length) return '';
+  return `<div class="status">${list.map((st) => `<span class="tag debuff" ${tip(`${EFFECTS[st.key]?.desc ?? ''} Reste jusqu'à un remède, une purification ou le retour au village.`)}>${st.icon ?? ''} ${esc(st.name)}${st.stun ? '' : ` (${st.turns})`}</span>`).join('')}</div>`;
+}
+
+// ---- Événements ----
+
+// Texte d'une issue : « 50 % : objet peu commun ou mieux », « 50 % : 2 héros au hasard perdent 30 % de leurs PV max ».
+function outcomeText(outcome, level) {
+  const e = outcome.effects;
+  const scaled = (v) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
+  const parts = [];
+  if (e.gold) parts.push(`+${scaled(e.gold)} or`);
+  if (e.item) parts.push(`un équipement ${RARITIES[e.item.minRarity].label.toLowerCase()} ou mieux`);
+  if (e.materia) parts.push(`${e.materia.amount} matéria ${RARITIES[e.materia.rarity].label.toLowerCase()}${e.materia.amount > 1 ? 's' : ''}`);
+  if (e.consumable) parts.push(e.consumable === 'random' ? 'un consommable' : CONSUMABLES[e.consumable].name);
+  if (e.restoreAll) parts.push(`+${e.restoreAll} % de PV et de ressource à l'équipe`);
+  if (e.hurtRandom) parts.push(`${e.hurtRandom.count} héros au hasard perd${e.hurtRandom.count > 1 ? 'ent' : ''} ${e.hurtRandom.pct} % de ${e.hurtRandom.count > 1 ? 'leurs' : 'ses'} PV max`);
+  if (e.hurtAll) parts.push(`chaque héros perd ${e.hurtAll} % de ses PV max`);
+  return `${outcome.chance} % : ${parts.length ? parts.join(', ') : 'rien'}`;
+}
+
+function eventPanel(event) {
+  const def = EVENTS[event.key];
+  const body = def.kind === 'merchant' ? merchantBody(event) : `
+    <div class="event-choices">
+      ${def.choices.map((c, i) => {
+        const cost = choiceCost(c, event.level);
+        const costText = [cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : ''].filter(Boolean).join(', ');
+        const reason = cannotChooseReason(state, i);
+        return `
+          <div class="event-choice">
+            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}${costText ? ` (coût : ${costText})` : ''}</button>
+            <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
+          </div>`;
+      }).join('')}
+    </div>`;
+  return `
+    <div class="card event">
+      <h3>${def.icon} ${esc(def.name)}</h3>
+      <p>${esc(def.text)}</p>
+      ${body}
+      <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
+      <p class="hint">Il faut régler cet événement avant de descendre à l'étage suivant.</p>
+    </div>`;
+}
+
+function merchantBody(event) {
+  const items = event.stock.length ? event.stock.map((item) => {
+    const price = eventItemPrice(item);
+    return `
+      <div class="bag-row" ${tip(itemTooltipText(item))}>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+        <small>${itemMeta(item)}</small>
+        <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>
+      </div>`;
+  }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
+  const consumables = event.consumables.map((o, i) => `
+    <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
+      ${CONSUMABLES[o.key].icon} ${CONSUMABLES[o.key].name} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+    </button>`).join('');
+  return `
+    <p>Or : <b>${state.gold}</b></p>
+    <div class="event-stock">${items}</div>
+    ${consumables ? `<div class="actions">${consumables}</div>` : ''}`;
 }
 
 return { renderDungeon };
@@ -6174,11 +7670,13 @@ const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
 const { skillEffectLabel, skillShortEstimate, consumableEstimate } = __modules["src/ui/format.js"];
 const { playerAction } = __modules["src/ui/encounter.js"];
+const { logLines } = __modules["src/ui/combatLog.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
 // personnelle demande une confirmation qui montre qui sera touché.
 // Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
 // tout héros peut passer son tour.
+
 
 
 
@@ -6213,7 +7711,7 @@ function renderCombat(app) {
         ${cb.enemies.map((e) => enemyUnit(e, e === acting?.unit)).join('')}
       </div>
     </div>
-    <div class="log">${cb.log.map((l) => `<div class="${l.hit ? 'hit' : ''}">${esc(l.text)}</div>`).join('')}</div>
+    <div class="log">${logLines(cb.log)}</div>
     ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
   `;
 
@@ -6313,7 +7811,7 @@ function actionPanel(hero) {
           <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
           </button>`;
-        }).join('')}
+        }).join('') || `<span class="hint">${esc(hero.name)} ne connaît encore aucun sort : apprends son sort de départ au Maître des compétences (premier point de talent).</span>`}
       </div>
       <div id="targetZone" class="target-zone"></div>
     </div>`;
@@ -6631,6 +8129,174 @@ function itemList(items, action) {
 return { renderBank };
 })();
 
+// ---- src/ui/screens/difficulty.js
+__modules["src/ui/screens/difficulty.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DIFFICULTIES, DIFFICULTY_ORDER } = __modules["src/config.js"];
+const { RARITIES, RARITY_ORDER } = __modules["src/data/items.js"];
+const { difficultyOf, setDifficulty, lootRules, enemyPower } = __modules["src/game/difficulty.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Difficulté : puissance des ennemis et butin, au choix au village.
+
+
+
+
+
+
+
+function renderDifficulty(app) {
+  const current = difficultyOf(state);
+  app.innerHTML = `
+    <div class="hero"><h1>⚖️ Difficulté</h1><p>Plus c'est dur, plus les monstres sont puissants… et plus le butin est riche</p></div>
+    ${state.expedition ? '<div class="card notice">Impossible de changer de difficulté pendant une expédition.</div>' : ''}
+    <div class="difficulty-grid">${DIFFICULTY_ORDER.map((k) => card(k, k === current)).join('')}</div>
+    <p class="hint center">L'or et l'expérience ne changent pas. Chances d'objets par ennemi ordinaire ; un boss laisse toujours au moins un équipement peu commun ou mieux.</p>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-difficulty]').forEach((btn) => {
+    btn.onclick = () => {
+      setDifficulty(state, btn.dataset.difficulty);
+      goTo('difficulty');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+const short = (label) => label.split(' ').map((w) => w[0].toUpperCase()).join('');
+const pct = (v) => `${Math.round(v * 100)} %`;
+
+function weights(w) {
+  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${w[r] ? `${w[r]} %` : '—'}</td>`).join('');
+}
+
+function card(key, selected) {
+  const d = DIFFICULTIES[key];
+  const loot = lootRules(key);
+  return `
+    <div class="card difficulty ${selected ? 'selected' : ''}">
+      <h2>${d.icon} ${d.name}</h2>
+      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
+      <p>Équipement ${pct(loot.dropChance)} · Matéria ${pct(loot.materiaChance)} · Consommable ${pct(loot.consumableChance)}</p>
+      <table class="rarity-table">
+        <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="color:${RARITIES[r].color}" title="${RARITIES[r].label}">${short(RARITIES[r].label)}</th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><th>Équipement</th>${weights(loot.rarityWeights)}</tr>
+          <tr><th>Boss</th>${weights(loot.bossRarityWeights)}</tr>
+          <tr><th>Matéria</th>${weights(loot.materiaRarityWeights)}</tr>
+          <tr><th>Matéria (boss)</th>${weights(loot.bossMateriaRarityWeights)}</tr>
+        </tbody>
+      </table>
+      <button data-difficulty="${key}" class="full ${selected ? 'selected' : ''}" ${selected || state.expedition ? 'disabled' : ''}>${selected ? '✔ Difficulté actuelle' : 'Choisir'}</button>
+    </div>`;
+}
+
+return { renderDifficulty };
+})();
+
+// ---- src/ui/screens/bestiary.js
+__modules["src/ui/screens/bestiary.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { enemyStats } = __modules["src/game/enemies.js"];
+const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
+const { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered } = __modules["src/game/bestiary.js"];
+const { isUnlocked } = __modules["src/game/dungeon.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Bestiaire : fiches des ennemis rencontrés, page vide pour les autres.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const view = { dungeon: null };
+
+const ABILITY_TARGETS = {
+  hero: 'un héros',
+  allHeroes: "toute l'équipe",
+  self: 'lui-même',
+  allAllies: 'ses alliés',
+};
+
+function renderBestiary(app) {
+  const pages = bestiaryPages();
+  const page = pages.find((p) => p.dungeonKey === view.dungeon) ?? pages[0];
+  const { found, total } = bestiaryProgress(state);
+  const diff = difficultyOf(state);
+
+  app.innerHTML = `
+    <div class="hero"><h1>📚 Bestiaire</h1><p>${found} / ${total} créatures découvertes</p></div>
+    <div class="tabs">
+      ${pages.map((p) => {
+        const d = DUNGEONS[p.dungeonKey];
+        const n = p.enemies.filter((k) => isDiscovered(state, k)).length;
+        return `<button data-page="${p.dungeonKey}" class="${p === page ? 'selected' : ''}">${d.icon} ${isUnlocked(state, p.dungeonKey) || n ? esc(d.name) : '???'} <small>(${n}/${p.enemies.length})</small></button>`;
+      }).join('')}
+    </div>
+    <p class="hint">Stats au premier et au dernier étage du donjon (niveaux ${DUNGEONS[page.dungeonKey].minLevel} → ${DUNGEONS[page.dungeonKey].maxLevel}), en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
+    <div class="bestiary-grid">${page.enemies.map((k) => enemyCard(k, page.dungeonKey, enemyPower(diff))).join('')}</div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.onclick = () => {
+      view.dungeon = btn.dataset.page;
+      goTo('bestiary');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function enemyCard(key, dungeonKey, power) {
+  const def = ENEMIES[key];
+  if (!isDiscovered(state, key)) {
+    return `<div class="card bestiary-card unknown"><div class="big-icon">❔</div><h3>???</h3><p class="hint">${def.boss ? 'Un boss' : 'Une créature'} encore jamais rencontré${def.boss ? '' : 'e'}.</p></div>`;
+  }
+  const { minLevel, maxLevel } = DUNGEONS[dungeonKey];
+  const lo = enemyStats(key, minLevel, power);
+  const hi = enemyStats(key, maxLevel, power);
+  const row = (stat, label = STATS[stat].label) => `<tr><th>${label}</th><td>${lo[stat]}</td><td>→ ${hi[stat]}</td></tr>`;
+  const { seen, kills } = bestiaryOf(state)[key];
+  const traits = [
+    def.boss ? '👑 Boss' : null,
+    def.ranged ? '🏹 À distance' : '⚔️ Corps à corps',
+    def.magic ? '✨ Attaque magique' : '🗡️ Attaque physique',
+    def.riposte ? `↩️ Riposte ${def.riposte} %` : null,
+  ].filter(Boolean);
+  return `
+    <div class="card bestiary-card ${def.boss ? 'boss' : ''}">
+      <div class="big-icon">${def.icon}</div>
+      <h3>${esc(def.name)}</h3>
+      <p class="hint">${traits.join(' · ')}</p>
+      <table class="bestiary-stats">
+        ${row('pv')}${row('atq')}${row('def')}${row('defMag')}
+        <tr><th>Vitesse</th><td colspan="2">${def.vit.min} à ${def.vit.max}</td></tr>
+      </table>
+      ${def.abilities?.length ? `
+        <h4>Capacités</h4>
+        <ul class="abilities">${def.abilities.map(({ chance, skill }) => `
+          <li><b>${esc(skill.name)}</b> <small>(${Math.round(chance * 100)} % par tour)</small><br>
+          <small>Niv. ${maxLevel} : ${esc(skillEffectLabel(hi, { ...skill, target: null }))} — ${ABILITY_TARGETS[skill.target]}</small></li>`).join('')}
+        </ul>` : '<p class="hint">Aucune capacité spéciale : attaque de base.</p>'}
+      <p class="hint">Rencontré ${seen} fois · vaincu ${kills} fois</p>
+    </div>`;
+}
+
+return { renderBestiary };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -6646,7 +8312,13 @@ const { renderCombat } = __modules["src/ui/screens/combat.js"];
 const { renderStrategy } = __modules["src/ui/screens/strategy.js"];
 const { renderInn } = __modules["src/ui/screens/inn.js"];
 const { renderBank } = __modules["src/ui/screens/bank.js"];
+const { renderDifficulty } = __modules["src/ui/screens/difficulty.js"];
+const { renderRunes } = __modules["src/ui/screens/runes.js"];
+const { renderBestiary } = __modules["src/ui/screens/bestiary.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
+
+
 
 
 
@@ -6675,6 +8347,9 @@ registerScreens({
   strategy: renderStrategy,
   inn: renderInn,
   bank: renderBank,
+  difficulty: renderDifficulty,
+  runes: renderRunes,
+  bestiary: renderBestiary,
 });
 
 render();

@@ -1,6 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { learnStarters } from './helpers.js';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
@@ -10,7 +11,7 @@ import { setPosition } from '../src/game/position.js';
 beforeEach(() => setRandomSource(() => 0.5));
 
 function newCombat() {
-  const party = createParty();
+  const party = learnStarters(createParty());
   const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   return { party, cb };
 }
@@ -104,10 +105,10 @@ test('la garde se lève au tour suivant du héros', () => {
 test('les compétences de zone ne demandent pas de cible', () => {
   const { cb } = newCombat();
   const turn = playUntilHero(cb, guerrier);
-  assert.equal(targetsFor(cb, { type: 'skill', skill: 1 }), null);
+  assert.equal(targetsFor(cb, { type: 'skill', skill: 0 }), null);
   turn.unit.res = 100;
   const before = cb.enemies.map((e) => e.hp);
-  assert.ok(heroAct(cb, { type: 'skill', skill: 1 }));
+  assert.ok(heroAct(cb, { type: 'skill', skill: 0 }));
   cb.enemies.forEach((e, i) => assert.ok(e.hp < before[i]));
 });
 
@@ -282,7 +283,7 @@ test("un finisher demande au moins 1 point de combo ; ses dégâts croissent ave
 });
 
 test("un objet coûte de l'Énergie au voleur ; les combos repartent de zéro à chaque combat", () => {
-  const party = createParty();
+  const party = learnStarters(createParty());
   party[voleur].combo = 4;
   const cb = createCombat({ enemies: ['gobelin'], level: 1, party, consumables: { potion: 2 } });
   assert.equal(party[voleur].combo, 0);
@@ -298,7 +299,7 @@ test("un objet coûte de l'Énergie au voleur ; les combos repartent de zéro à
 // ---- Positions : corps à corps / distance ----
 
 test("positions par défaut selon la classe ; une arme ne sert que depuis sa position", () => {
-  const party = createParty([], ['guerrier', 'chasseur', 'pretre', 'paladin']);
+  const party = learnStarters(createParty([], ['guerrier', 'chasseur', 'pretre', 'paladin']));
   const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   assert.deepEqual(cb.party.map((h) => h.row), ['melee', 'ranged', 'ranged', 'melee']);
   const chasseur = playUntilHero(cb, 1).unit;

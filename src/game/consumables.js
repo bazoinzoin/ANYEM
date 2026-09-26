@@ -1,6 +1,7 @@
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
 // Utilisation en combat : combat.js (action « Objet ») ; entre deux étages : useOnMap().
 
+import { DUNGEONS } from '../data/dungeons.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { MERCHANT } from '../config.js';
 import { getStats, gainResource } from './party.js';
@@ -85,6 +86,17 @@ export function restoreParty(party, pct) {
   }
 }
 
+// Palier du donjon de l'étage à venir (0 = étages 1 à 5…), sans dépendre de game/dungeon.js.
+function tierIndex(exp) {
+  return Math.floor((exp.floor - 1) / DUNGEONS[exp.dungeonKey].bossEvery);
+}
+
+// Un consommable « une fois par palier » déjà utilisé dans le palier en cours ?
+export function usedThisTier(game, key) {
+  const exp = game.expedition;
+  return !!(exp && CONSUMABLES[key]?.effect.oncePerTier && exp.usedPerTier?.[key] === tierIndex(exp));
+}
+
 /**
  * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
  * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
@@ -101,8 +113,13 @@ export function useOnMap(game, key, targetIndex) {
     message = `${def.name} : l'équipe regagne le village sans encombre.`;
   } else if (def.effect.restorePartyPct) {
     if (!game.party.some((h) => h.alive)) return { ok: false };
+    if (def.effect.oncePerTier) {
+      const tier = tierIndex(game.expedition);
+      if (game.expedition.usedPerTier?.[key] === tier) return { ok: false, message: `${def.name} : déjà utilisée dans ce palier.` };
+      game.expedition.usedPerTier = { ...game.expedition.usedPerTier, [key]: tier };
+    }
     restoreParty(game.party, def.effect.restorePartyPct);
-    message = `${def.name} : l'équipe se repose. PV et ressources restaurés.`;
+    message = `${def.name} : l'équipe se repose (+${def.effect.restorePartyPct} % de PV et de ressource).`;
   } else {
     const target = game.party[targetIndex];
     const result = target ? applyConsumable(key, target) : null;

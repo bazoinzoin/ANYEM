@@ -29,11 +29,13 @@ export const RARITIES = {
 
 export const RARITY_ORDER = Object.keys(RARITIES);
 
-// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
-// reste (armures, boucliers, bijoux) des matéria d'armure.
+// Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
+// d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.
+// Elles servent à améliorer et à fabriquer les objets de leur catégorie.
 export const MATERIA_KINDS = {
   arme: { label: "Matéria d'arme", icon: '⚔️' },
   armure: { label: "Matéria d'armure", icon: '🛡️' },
+  bijou: { label: 'Matéria de bijou', icon: '💍' },
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
@@ -111,8 +113,10 @@ export const SECONDARY_STATS = {
   critDmg: { base: 3, perLevel: 0.3 },
   def: { base: 1, perLevel: 0.4 },
   defMag: { base: 1, perLevel: 0.4 },
-  esquive: { base: 1, perLevel: 0.08 },
-  blocage: { base: 1, perLevel: 0.1 },
+  // Chaque secondaire a la même chance de sortir ; à niveau et rareté égaux, l'esquive
+  // (coup entièrement évité) vaut moins que le blocage (moitié des dégâts évitée).
+  esquive: { base: 0.5, perLevel: 0.04 },
+  blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
 };
 

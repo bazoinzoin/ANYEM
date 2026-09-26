@@ -15,7 +15,8 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 - **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Objet/Compétence/Passer le tour (plusieurs actions par tour pour le Voleur), ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
-- **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
+- **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5, fabrication d'objets.
+- **Runomancien** (`game/runes.js`) : relance une stat secondaire choisie (nouvelle stat parmi celles absentes de l'objet, ou la même avec une autre valeur) ; prix selon la rareté (`RUNES` dans `config.js` : 60 / 150 / 400 / 1000 or).
 - **Donjons à étages** (voir détail ci-dessous) : Forêt Maudite et Catacombes oubliées, 25 étages chacun, un boss tous les 5 étages, expéditions sans retour possible avant le boss, points de départ après chaque boss, ennemis et boss avec capacités.
 - **Marchand** (voir détail ci-dessous) : revente du butin, achat de consommables et d'équipement ; action « Objet » en combat.
 - **Expérience et niveaux** : XP à chaque victoire, montée de niveau (PV et stat principale), 1 point de talent par niveau.
@@ -28,9 +29,10 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglages dans `src/config.js` (`XP`, `TALENT_RULES`).
 - **Orientations** (DESIGN_DOC §1) : Guerrier → Gardien, Berserker ; Voleur → Assassin, Empoisonneur ; Prêtre → Clerc, Prêcheur, Profane ; Mage → Feu, Glace, Foudre.
 - **Niveau maximum 50** (`XP.maxLevel`) : 1 point de talent par niveau, donc 50 points au maximum.
+- **Sorts de départ** : un héros commence **sans sort**. Le palier 0 de chaque orientation contient son sort de départ (1 rang) : c'est le premier point de talent. Guerrier : Gardien → Cri de Guerre, Berserker → Frappe Brutale ; Voleur : Assassin → Coup Vicieux + Éviscération, Empoisonneur → Coup Vicieux + Lacération ; Prêtre : Clerc → Soin Majeur, Prêcheur → Soin Majeur + Éclat de Lumière, Profane → Trait d'ombre ; Mage : Feu → Boule de Feu, Glace → Trait de givre, Foudre → Éclair ; Chasseur : Œil de Faucon → Tir visé, Traqueur → Tir rapide ; Paladin : Templier → Frappe du croisé, Lumière → Lumière sacrée. Un même sort appris par deux orientations ne compte qu'une fois.
 - **Structure** : chaque orientation a **10 paliers (0 à 9) et 50 rangs** : au niveau 50, on complète exactement une orientation (on peut mélanger, mais alors pas de signature). Le palier t demande 5 × t points investis dans l'orientation (palier 9 : 45 points). Modèle commun : 12 nœuds secondaires (bonus à plusieurs rangs), 3 nouvelles compétences (paliers 1, 4, 7), 3 passifs (paliers 3, 6, 8) et la **compétence signature** au palier 9.
 - **Réinitialisation** au Maître des compétences contre 10 × niveau du héros en or.
-- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
+- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 80 + 40 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
 - **Passifs disponibles** (voir l'en-tête de `data/talents.js`) : berserk, vol de vie, exécution (bonus sous 30 % de PV), bonus contre cible affaiblie, bonus de zone, garde renforcée, boucliers renforcés, soins, dégâts sur la durée, ressource max / régénération, Rage par coup, combo sur critique, Énergie rendue par les finishers. Compétences : `cleanse` (retire les effets négatifs), `resourceGain` + `oncePerCombat`, `executePct`.
 - **Compétences par orientation** (palier 1 / 4 / 7 / signature 9 — passifs 3 / 6 / 8) :
   - Gardien : Provocation / Coup de bouclier (étourdit) / Mur de boucliers / **Dernier rempart** (Bouclier + Protection sur l'équipe, provocation) — Rempart, Garde de fer, Cri de défi.
@@ -62,7 +64,36 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Combat : règles de défense et journal (choix d'implémentation)
+
+- **Esquive** (rare, max 50 %) : annule entièrement un coup direct, quel qu'il soit (attaque simple ou compétence, physique ou magique, dans les deux camps). **Blocage** (plus fréquent, boucliers, max 50 %) : réduit un coup direct de 50 %. **Riposte** : renvoie des dégâts au corps à corps. Les dégâts sur la durée ne s'esquivent pas.
+- **Effets sur la durée** (poison, régénération…) : appliqués et décomptés **à la fin du tour de l'unité** qui les porte (un effet posé sur soi pendant son tour n'est pas décompté ce tour-là).
+- **Journal** : chaque coup indique critique / bloqué / esquivé ; le calcul détaillé apparaît au survol (puissance × compétence × critique × défense × variation, puis blocage, garde, bouclier). Le journal du dernier combat reste consultable après le combat ; un résumé de victoire détaille or, XP, équipement, matéria, consommables et montées de niveau.
+- **Tente** : 30 % des PV et de la ressource, une fois par palier de 5 étages, 300 or. Prix des consommables doublés. XP : niveau L → L+1 demande 80 + 40 × L.
+
+## Expédition : étages et soins hors combat (choix d'implémentation)
+
+- **Plusieurs combats par étage** : 2 ou 3 combats par étage ordinaire (`DUNGEON.fightsPerFloor`), le boss seul sur son étage. L'événement éventuel se tire à la fin de l'étage.
+- **Effets négatifs persistants** : ils restent d'un combat à l'autre (durée décomptée seulement en combat) jusqu'à un remède, une purification ou le retour au village ; les effets positifs disparaissent à la fin de chaque combat. Ils s'affichent sur les héros entre deux combats.
+- **Hors combat** (entre deux combats) : bouton **Objets** (tous les consommables, remèdes compris) et bouton **Sorts** (choix du héros, grisé s'il n'a aucun soin ; seuls les soins directs et les purifications, `game/field.js`, pour éviter de se sur-préparer avec des buffs).
+
+## Événements d'expédition (choix d'implémentation)
+
+- À la fin de chaque étage ordinaire, **35 %** de chance d'un événement (`EVENT_RULES`, contenu dans `src/data/events.js`, règles dans `src/game/events.js`). Il faut le régler (un choix ou « Passer son chemin ») avant l'étage suivant.
+- Chaque choix affiche ses chances et ses issues. Un événement ne tue jamais (1 PV minimum).
+- Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
+- Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).
+
+## Difficulté (choix d'implémentation)
+
+- 4 niveaux (`DIFFICULTIES` dans `config.js`) : Balade ×1 (réglages d'origine), Aventure ×1,3, Guerre ×1,7, Horreur ×2,2 sur les PV et l'Attaque des ennemis.
+- Chaque niveau surcharge les chances et raretés de butin (`lootRules` dans `game/difficulty.js`) ; les types d'équipement restent équiprobables, l'or et l'XP ne changent pas.
+- Choix à l'écran « Difficulté » du village (`ui/screens/difficulty.js`), bloqué pendant une expédition ; stocké dans `state.difficulty`.
+
 ## Village : auberge et banque (choix d'implémentation)
+
+- Auberge : au plus 4 compagnons au repos (`INN.maxReserve`) ; on peut renvoyer définitivement un compagnon au repos (`dismiss`) : ses objets communs portés sont détruits, les autres rendus au sac.
+- Bestiaire (`game/bestiary.js`, écran `ui/screens/bestiary.js`) : `state.bestiary` note les rencontres (`recordEncounter`, au lancement du combat) et les ennemis vaincus (`recordKills`, victoire et défaite). Fiche par donjon : stats au premier et dernier étage (difficulté actuelle, via `enemyStats`), capacités ; page vide « ??? » pour un ennemi jamais rencontré.
 
 - **Auberge** (`game/roster.js`, écran `inn`) : repos gratuit ; **recrutement** d'un compagnon de n'importe quelle classe, au niveau 1 avec l'équipement de départ, à la place d'un membre de l'équipe ; le héros remplacé part **à l'auberge** (`state.reserve`) avec son équipement et ses talents, et n'y gagne pas d'XP. On peut échanger à tout moment un héros de l'équipe avec un héros de l'auberge (au village uniquement). Survoler un héros affiche l'équipement qu'il porte.
 - **Banque** (`game/bank.js`, écran `bank`) : dépôt et retrait d'or, d'objets, de consommables et de matéria. Ce qui est à la banque ne se perd pas lors d'une défaite. Fermée pendant une expédition. Le sac reste limité à 9 exemplaires par consommable ; la banque n'a pas de limite.
@@ -116,8 +147,9 @@ Réglages dans `src/config.js` (`MERCHANT`), consommables dans `src/data/consuma
 ## Forge (choix d'implémentation)
 
 Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
-- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte **1 à 3 matéria (au hasard)** de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour tout le reste (armures, boucliers, bijoux). Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
+- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte **1 à 3 matéria (au hasard)** de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour une armure ou un bouclier, matéria de bijou pour un bijou. Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
 - **Amélioration** (+1 à +5), possible sur un objet porté ou dans le sac. Coût du passage à +1/+2/+3/+4/+5 : **2/4/6/8/10 matéria de chaque rareté**, de commun jusqu'à celle de l'objet, plus (10 + 5 × niveau de l'objet) × niveau visé en pièces d'or. Exemple : une arme rare +1 demande 2 matéria d'arme commune, 2 peu commune, 2 rare.
+- **Fabrication** : 20 matéria de la rareté voulue (sorte de la catégorie), +10 par caractéristique imposée (arme : type, stat principale ; armure : pièce ou bouclier, type d'armure, stat principale ; bijou : anneau/collier, stat principale). Le reste est tiré au sort ; niveau = plus haut niveau atteint. En légendaire, un légendaire de la catégorie respectant les filtres est tiré (voir `craftLegendaries`).
 - **Effet** : chaque +1 augmente les stats de l'objet de 10 % (arrondi ; la stat obligatoire gagne au moins +1 par niveau). Les stats de base restent stockées dans `item.stats` ; les stats effectives se lisent via `itemStats(item)`.
 
 ## Système d'équipement (choix d'implémentation)
@@ -173,7 +205,6 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 - Éléments des sorts (feu, glace, foudre… plus ou moins efficaces selon les monstres)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
 - Donjons procéduraux (étages générés, cartes) : pour l'instant, étages = suite de combats
-- Réglage de difficulté au village pour augmenter le butin (DESIGN_DOC §8)
 - Banque
 - Vrais sprites visuels (actuellement : emojis et couleurs CSS en guise de placeholders)
 - Village explorable avec déplacement libre du personnage (actuellement un simple menu/hub)

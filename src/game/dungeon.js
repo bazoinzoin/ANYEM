@@ -3,18 +3,23 @@
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, canLeave, bossChoice, gains } | null
+// game.expedition = { dungeonKey, floor, fight, fights, canLeave, bossChoice, event, gains } | null
+//   fight / fights : combat en cours de l'étage / nombre de combats de l'étage (1 pour un boss)
+//   event      : événement en attente de choix (voir game/events.js), ou null
 //   floor      : prochain étage à combattre
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
 
+import { maybeTriggerEvent } from './events.js';
+import { difficultyOf, enemyPower } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
+import { recordKills } from './bestiary.js';
 import { restoreParty } from './consumables.js';
-import { pick } from './rng.js';
+import { pick, random } from './rng.js';
 
 export function progressOf(game, key) {
   game.dungeons ??= {};
@@ -63,38 +68,61 @@ export function startFloors(game, key) {
   return floors;
 }
 
+// Nombre de combats d'un étage : un seul pour un boss, sinon DUNGEON.fightsPerFloor.
+export function fightsOnFloor(key, floor) {
+  if (isBossFloor(key, floor)) return 1;
+  const { min, max } = DUNGEON.fightsPerFloor;
+  return min + Math.floor(random() * (max - min + 1));
+}
+
+// Arrivée à un étage : premier de ses combats.
+function enterFloor(exp, floor) {
+  exp.floor = floor;
+  exp.fight = 1;
+  exp.fights = fightsOnFloor(exp.dungeonKey, floor);
+}
+
 export function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
+  game.expedition = { dungeonKey: key, floor, fight: 1, fights: 1, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
+  enterFloor(game.expedition, floor);
   return true;
 }
 
 // Paramètres du combat de l'étage courant (pour createCombat).
 export function floorCombat(game) {
-  const { dungeonKey, floor } = game.expedition;
+  const { dungeonKey, floor, fight, fights } = game.expedition;
   const d = DUNGEONS[dungeonKey];
   const { enemies, boss } = encounterFor(dungeonKey, floor);
   return {
     enemies,
     level: floorLevel(dungeonKey, floor),
-    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ''}`,
+    power: enemyPower(difficultyOf(game)),
+    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }
 
 /**
- * Étage gagné : récompenses, point de passage si c'était un boss, étage suivant.
- * Si c'était le dernier étage, le donjon est terminé et l'expédition s'achève.
- * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ * Combat gagné : récompenses. S'il reste des combats sur l'étage, on passe au
+ * suivant ; sinon l'étage est franchi : point de passage si c'était un boss,
+ * étage suivant, et peut-être un événement. Si c'était le dernier étage, le
+ * donjon est terminé et l'expédition s'achève.
+ * Retourne le résultat d'applyVictory, plus { boss, floorDone, cleared, unlocked, event }.
  */
 export function winFloor(game, combat) {
   const exp = game.expedition;
   const key = exp.dungeonKey;
   const { boss, final } = encounterFor(key, exp.floor);
+  recordKills(game, combat.enemies);
   const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
   exp.gains.materia = (exp.gains.materia ?? 0) + result.materia.reduce((sum, m) => sum + m.amount, 0);
+  if (!boss && exp.fight < exp.fights) {
+    exp.fight++;
+    return { ...result, boss, floorDone: false, cleared: false, unlocked: null, event: null };
+  }
   const progress = progressOf(game, key);
   let cleared = false;
   let unlocked = null;
@@ -105,23 +133,28 @@ export function winFloor(game, combat) {
     unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
     game.expedition = null;
   } else {
-    exp.floor++;
+    enterFloor(exp, exp.floor + 1);
     exp.canLeave = boss;
     exp.bossChoice = boss;
   }
-  return { ...result, boss, cleared, unlocked };
+  // Étage ordinaire franchi : peut-être un événement (voir game/events.js).
+  const event = !boss && game.expedition ? maybeTriggerEvent(game, combat.level) : null;
+  return { ...result, boss, floorDone: true, cleared, unlocked, event };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
 // La progression reste au dernier boss vaincu.
-export function loseExpedition(game) {
+// `combat` (facultatif) : le combat perdu, pour compter les ennemis vaincus au bestiaire.
+export function loseExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
   return applyDefeat(game);
 }
 
-// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss est en attente.)
+// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss
+// ou un événement est en attente.)
 export function canFightNextFloor(game) {
-  return !!game.expedition && !game.expedition.bossChoice && game.party.some((h) => h.alive);
+  return !!game.expedition && !game.expedition.bossChoice && !game.expedition.event && game.party.some((h) => h.alive);
 }
 
 // Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de
@@ -136,7 +169,8 @@ export function continueExpedition(game) {
 }
 
 // Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-export function escapeExpedition(game) {
+export function escapeExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
 }
 

@@ -24,7 +24,9 @@
 // starterKit  équipement commun de niveau 1 donné à la création
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
-// skills[] :
+// starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
+// s'apprennent au palier 0 des orientations (voir data/talents.js), avec le
+// premier point de talent. Format d'une compétence :
 //   id        identifiant stable (référencé par les légendaires)
 //   kind      'damage' | 'heal'
 //   target    'enemy' | 'ally' | 'allEnemies'
@@ -70,7 +72,7 @@ export const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
     ],
@@ -96,7 +98,7 @@ export const CLASSES = {
       { slotType: 'arme', weaponType: 'dague', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
       { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
@@ -122,9 +124,10 @@ export const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.1, desc: 'Soigne fortement un allié' },
       { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 0.65, magic: true, desc: 'Dégâts de lumière' },
+      { id: 'trait-d-ombre', name: "Trait d'ombre", cost: 20, kind: 'damage', target: 'enemy', power: 0.7, magic: true, desc: "Dégâts d'ombre" },
     ],
   },
   mage: {
@@ -147,9 +150,10 @@ export const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
       { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.5, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
     ],
   },
   chasseur: {
@@ -166,13 +170,13 @@ export const CLASSES = {
     gear: {
       weapons: ['arc'],
       offHand: [],
-      armor: ['moyenne'],
+      armor: ['moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
       { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
     ],
@@ -191,13 +195,13 @@ export const CLASSES = {
     gear: {
       weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
-      armor: ['lourde', 'legere'],
+      armor: ['lourde', 'moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-du-croise', name: 'Frappe du croisé', cost: 20, kind: 'damage', target: 'enemy', power: 1.4, desc: "Coup d'arme béni (dégâts physiques, Force)" },
       { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],

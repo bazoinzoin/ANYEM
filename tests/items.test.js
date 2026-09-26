@@ -146,3 +146,32 @@ test("l'Armure compte à la fois comme Défense et comme Défense magique ; Déf
   assert.equal(getStats(guerrier).defMag - naked.defMag, helm.stats.armure + 5);
   assert.ok('def' in SECONDARY_STATS && 'defMag' in SECONDARY_STATS);
 });
+
+test("esquive et blocage : même chance de sortir en secondaire, mais l'esquive vaut moins", () => {
+  const seen = { esquive: 0, blocage: 0 };
+  let n = 0;
+  setRandomSource(() => ((n++ * 0.6180339) % 1));
+  for (let i = 0; i < 600; i++) {
+    const it = generateItem({ level: 20, rarity: 'rare', slotType: 'casque', armorType: 'moyenne', primary: 'force' });
+    for (const k of Object.keys(seen)) if (it.bonus[k]) seen[k]++;
+  }
+  assert.ok(Math.abs(seen.esquive - seen.blocage) < 60, JSON.stringify(seen));
+  const { esquive, blocage } = SECONDARY_STATS;
+  for (const level of [1, 10, 30, 50]) {
+    assert.ok(esquive.base + esquive.perLevel * level < blocage.base + blocage.perLevel * level, `niveau ${level}`);
+  }
+});
+
+test('chaque stat secondaire indique sa fourchette possible (niveau, rareté, amélioration)', () => {
+  const item = generateItem({ level: 20, rarity: 'epique', slotType: 'casque', armorType: 'lourde', primary: 'force' });
+  const lines = itemStatLines(item).filter((l) => l.secondary);
+  assert.equal(lines.length, 3);
+  for (const l of lines) {
+    assert.ok(l.range.lo <= l.value && l.value <= l.range.hi, `${l.stat} ${l.value} ∉ [${l.range.lo}, ${l.range.hi}]`);
+  }
+  const before = lines[0].range.hi;
+  item.plus = 5;
+  const boosted = itemStatLines(item).filter((l) => l.secondary)[0];
+  assert.ok(boosted.range.hi >= before && boosted.range.lo <= boosted.value && boosted.value <= boosted.range.hi);
+  assert.ok(itemStatLines(item).filter((l) => !l.secondary).every((l) => !l.range), 'pas de fourchette sur les stats fixes');
+});

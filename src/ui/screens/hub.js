@@ -3,13 +3,18 @@
 import { state } from '../../state.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../../data/dungeons.js';
 import { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } from '../../game/dungeon.js';
-import { getClass, getStats, xpToNext } from '../../game/party.js';
+import { getClass, getStats, getSkills, xpToNext } from '../../game/party.js';
 import { esc, tip, bar } from '../html.js';
 import { goTo } from '../router.js';
 import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
+import { lastCombatLog } from '../combatLog.js';
+import { DIFFICULTIES } from '../../config.js';
+import { difficultyOf } from '../../game/difficulty.js';
+import { bestiaryProgress } from '../../game/bestiary.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
+import { openRunes } from './runes.js';
 import { openTalents } from './talents.js';
 import { openMerchant } from './merchant.js';
 import { openInn } from './inn.js';
@@ -22,8 +27,10 @@ export function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${message ? lastCombatLog(state.lastCombat) : ''}
+    ${noSkillNotice()}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
@@ -36,10 +43,13 @@ export function renderHub(app) {
         <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
         <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
-        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
+        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
+        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -54,10 +64,20 @@ export function renderHub(app) {
   app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
+  app.querySelector('#runesBtn').onclick = () => openRunes();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
+  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
+}
+
+// Rappel : un héros sans sort doit dépenser son premier point de talent.
+function noSkillNotice() {
+  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
+  if (!names.length) return '';
+  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
 }
 
 function heroMini(hero) {

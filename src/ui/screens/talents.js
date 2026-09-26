@@ -8,6 +8,7 @@ import {
 } from '../../game/talents.js';
 import { esc, tip, bar } from '../html.js';
 import { skillEffectLabel } from '../format.js';
+import { nodeSkills } from '../../data/talents.js';
 import { goTo, goBack, backLabel } from '../router.js';
 import { TALENT_RULES, XP } from '../../config.js';
 
@@ -103,9 +104,9 @@ function nodeCard(hero, branch, node, readOnly = false) {
   const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
   const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
   let body = esc(node.desc);
-  if (node.skill) {
-    const s = node.skill;
-    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
+  const skills = nodeSkills(node);
+  if (skills.length) {
+    body = `${node.tier === 0 ? '<small class="hint">Sort de départ</small><br>' : ''}${skills.map((s) => `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`).join('<br>')}`;
   }
   const action = readOnly ? '' : reason
     ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)

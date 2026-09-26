@@ -55,17 +55,68 @@ export const LOOT = {
   consumableChance: 0.2,
   bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
-  categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
+  categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
+
+// Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
+// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
+// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
+// changent pas.
+export const DIFFICULTIES = {
+  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  aventure: {
+    name: 'Aventure', icon: '🗺️', power: 1.3,
+    loot: {
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
+      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
+      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+    },
+  },
+  guerre: {
+    name: 'Guerre', icon: '⚔️', power: 1.7,
+    loot: {
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
+      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
+      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+    },
+  },
+  horreur: {
+    name: 'Horreur', icon: '💀', power: 2.2,
+    loot: {
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
+      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+    },
+  },
+};
+export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
 // d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 export const DUNGEON = {
-  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
+  continueRegenPct: 40,
+  fightsPerFloor: { min: 2, max: 3 }, // combats par étage ordinaire (un étage de boss : le boss seul)   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
+};
+
+// Événements d'expédition (data/events.js) : chance après chaque combat gagné
+// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+export const EVENT_RULES = {
+  chance: 0.35,
+  merchantItems: 3,
+  merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
+  merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)
+  merchantConsumables: 3,
+  merchantConsumablePct: 75,   // consommables à 75 % du prix du village
 };
 
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
@@ -73,8 +124,8 @@ export const DUNGEON = {
 export const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 40,
-  toNextPerLevel: 20,
+  toNextBase: 80,
+  toNextPerLevel: 40,
   maxLevel: 50,
 };
 
@@ -98,11 +149,26 @@ export const FORGE = {
   tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
+  // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),
+  // + craftPerFilter par caractéristique imposée (type, pièce, stat principale…).
+  craftBase: 20,
+  craftPerFilter: 10,
+};
+
+// Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
+// prix en or selon la rareté de l'objet.
+export const RUNES = {
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
 };
 
 // Marchand. Prix de revente d'un objet :
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+// Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+export const INN = {
+  maxReserve: 4,
+};
+
 export const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,

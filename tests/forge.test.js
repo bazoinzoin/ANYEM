@@ -21,9 +21,9 @@ test('décraft : 1 à 3 matéria de la rareté et du type de l\'objet', () => {
   setRandomSource(() => 0);
   assert.deepEqual(decraft(game, sword), { kind: 'arme', rarity: 'rare', amount: 1 });
   setRandomSource(() => 0.999);
-  assert.deepEqual(decraft(game, ring), { kind: 'armure', rarity: 'peuCommun', amount: 3 });
+  assert.deepEqual(decraft(game, ring), { kind: 'bijou', rarity: 'peuCommun', amount: 3 });
   assert.equal(game.materia.arme.rare, 1);
-  assert.equal(game.materia.armure.peuCommun, 3);
+  assert.equal(game.materia.bijou.peuCommun, 3);
   assert.deepEqual(game.bag, []);
 });
 

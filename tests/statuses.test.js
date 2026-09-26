@@ -96,8 +96,8 @@ test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plu
   const { cb, hero } = setup(1, 'assassin');
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  assert.equal(getStats(hero).resMax, 150);
-  assert.equal(getStats(hero).resRegen, 21);
+  assert.equal(getStats(hero).resMax, 140);
+  assert.equal(getStats(hero).resRegen, 18);
   hero.combo = 3;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
   assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
@@ -238,4 +238,36 @@ test('Clerc : Purification retire les effets négatifs', () => {
   addStatus(g, makeStatus('puissance', 3));
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'purification'), target: 0 }));
   assert.deepEqual(g.statuses.map((s) => s.key), ['puissance']);
+});
+
+test("les effets s'appliquent et se décomptent à la fin du tour de l'unité, pas du round", () => {
+  const party = createParty();
+  const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
+  let turn = nextTurn(cb);
+  while (turn.side !== 'hero' || turn.unit !== party[0]) {
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); } else enemyAct(cb);
+    turn = nextTurn(cb);
+  }
+  const [g] = party;
+  const goblin = cb.enemies[0];
+  goblin.hp = goblin.stats.pv = 999;
+  addStatus(goblin, makeStatus('poison', 2, 7));
+  const hp = goblin.hp;
+  heroAct(cb, { type: 'defend' }); // fin du tour du guerrier : le poison du gobelin ne bouge pas
+  assert.equal(goblin.hp, hp);
+  assert.equal(goblin.statuses[0].turns, 2);
+  // Le bouclier de Défendre (talent) ou un buff posé sur soi dure bien jusqu'au tour suivant.
+  let t = nextTurn(cb);
+  while (t.unit !== goblin) { if (t.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); } else enemyAct(cb); t = nextTurn(cb); }
+  cb.enemies[1].alive = false;
+  g.hp = 999;
+  enemyAct(cb); // fin du tour du gobelin : le poison s'applique
+  assert.equal(goblin.hp, hp - 7);
+  assert.equal(goblin.statuses.find((s) => s.key === 'poison').turns, 1);
+});
+
+test("un buff posé sur soi pendant son tour n'est pas décompté à la fin de ce même tour", () => {
+  const { cb, hero } = setup(0, 'gardien', 1);
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'provocation') }));
+  assert.equal(hero.statuses.find((s) => s.key === 'provocation').turns, 2);
 });

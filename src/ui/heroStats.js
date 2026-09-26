@@ -18,6 +18,20 @@ const STAT_TIPS = {
   vit: "Ordre de jeu en combat. Multipliée par le coefficient de vitesse d'attaque de l'arme (armes lourdes lentes, dagues rapides).",
 };
 
+// Bonus apportés par les talents : [clé de getStats, libellé, suffixe, explication].
+const BONUS_ROWS = [
+  ['healPct', 'Bonus de soins', ' %', 'Augmente les soins donnés par ce héros (soins directs et Régénération) : soin = puissance magique × puissance du sort × (1 + bonus).'],
+  ['dotPct', 'Bonus dégâts sur la durée', ' %', 'Augmente les dégâts de poison, saignement, brûlure et ténèbres infligés.'],
+  ['shieldPct', 'Bonus de boucliers', ' %', 'Augmente la valeur des boucliers donnés.'],
+  ['trapPct', 'Bonus de pièges', ' %', 'Augmente les dégâts des pièges posés.'],
+  ['aoePct', 'Bonus de zone', ' %', 'Augmente les dégâts des compétences qui touchent tous les ennemis.'],
+  ['vsDebuffedPct', 'Bonus contre cible affaiblie', ' %', "Dégâts directs en plus contre une cible qui subit un effet négatif."],
+  ['executePct', 'Bonus d\'exécution', ' %', 'Dégâts directs en plus contre une cible sous 30 % de PV.'],
+  ['lifestealPct', 'Vol de vie', ' %', 'Part des dégâts directs infligés rendue en PV.'],
+  ['resRegen', 'Régénération de ressource', ' / tour', 'Ressource regagnée en plus au début de chaque tour.'],
+  ['berserk', 'Berserk', ' % / 10 % PV manquants', 'Puissance physique en plus par tranche de 10 % de PV manquants.'],
+];
+
 function row(label, value, tipText) {
   const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
   return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
@@ -40,5 +54,9 @@ export function statsList(hero) {
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  // Bonus des talents (n'apparaissent que s'ils existent).
+  for (const [key, label, suffix, tipText] of BONUS_ROWS) {
+    if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));
+  }
   return rows.join('');
 }

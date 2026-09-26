@@ -18,13 +18,41 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 const newGame = () => ({ party: createParty(), bag: [], gold: 100, dungeonLvl: 1, dungeons: {}, expedition: null });
 
-// Gagne l'étage courant sans jouer le combat (tous les ennemis vaincus).
-function clearFloor(game) {
+// Gagne un combat sans le jouer (tous les ennemis vaincus).
+function winFight(game) {
   const params = floorCombat(game);
   const cb = createCombat({ party: game.party, ...params });
   cb.enemies.forEach((e) => { e.alive = false; e.hp = 0; });
   return winFloor(game, cb);
 }
+
+// Gagne tous les combats de l'étage courant (en ignorant les événements).
+function clearFloor(game) {
+  let r;
+  do {
+    if (game.expedition) game.expedition.event = null;
+    r = winFight(game);
+  } while (!r.floorDone);
+  return r;
+}
+
+test("un étage ordinaire compte 2 ou 3 combats, un étage de boss un seul", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  const exp = game.expedition;
+  assert.ok(exp.fights >= 2 && exp.fights <= 3);
+  assert.equal(exp.fight, 1);
+  assert.match(floorCombat(game).title, /combat 1\//);
+  const r = winFight(game);
+  assert.equal(r.floorDone, false);
+  assert.equal(exp.floor, 1);
+  assert.equal(exp.fight, 2);
+  exp.event = null;
+  for (let f = 1; f <= 4; f++) clearFloor(game);
+  assert.equal(game.expedition.floor, 5);
+  assert.equal(game.expedition.fights, 1, 'boss seul');
+  assert.match(floorCombat(game).title, /BOSS/);
+});
 
 test('données : chaque donjon a un boss par palier, et des ennemis existants', () => {
   for (const d of Object.values(DUNGEONS)) {

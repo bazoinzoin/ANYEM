@@ -28,7 +28,7 @@ function effectEntries() {
       assert.equal(skill[old], undefined, `${where} définit encore un effet à la main (${old}) : utiliser le catalogue`);
     }
   };
-  Object.values(CLASSES).forEach((c) => c.skills.forEach((s) => visit(s, s.name)));
+  Object.values(CLASSES).forEach((c) => c.starterSkills.forEach((s) => visit(s, s.name)));
   Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill, n.id); [].concat(n.skillMod ?? []).forEach((m) => visit(m, n.id)); }));
   Object.values(ENEMIES).forEach((e) => (e.abilities ?? []).forEach((a) => visit(a.skill, `${e.name} : ${a.skill.name}`)));
   return entries;
@@ -71,7 +71,7 @@ test('un remède ne vise que les héros qui ont l\'effet qu\'il guérit, et ne r
   assert.deepEqual(targetsFor(cb, { type: 'item', item: 'antidote' }).units, [g]);
   assert.ok(heroAct(cb, { type: 'item', item: 'antidote', target: 0 }));
   assert.deepEqual(g.statuses.map((s) => s.key), ['saignement']);
-  assert.match(cb.log[0].text, /Poison retiré/);
+  assert.ok(cb.log.some((l) => /Poison retiré/.test(l.text)));
 });
 
 test('le Remède universel retire tous les effets négatifs', () => {
@@ -123,8 +123,8 @@ function inDungeon(consumables) {
   return game;
 }
 
-test('entre deux étages : la Tente restaure les héros en vie, pas les héros tombés', () => {
-  const game = inDungeon({ tente: 1 });
+test('entre deux étages : la Tente rend 30 % aux héros en vie, une seule fois par palier', () => {
+  const game = inDungeon({ tente: 3 });
   const [g, v] = game.party;
   g.hp = 5;
   g.res = 0;
@@ -132,14 +132,17 @@ test('entre deux étages : la Tente restaure les héros en vie, pas les héros t
   v.hp = 0;
   const r = useOnMap(game, 'tente');
   assert.ok(r.ok);
-  assert.equal(g.hp, getStats(g).pv);
-  assert.equal(g.res, getStats(g).resMax);
+  assert.equal(g.hp, 5 + Math.round(getStats(g).pv * 0.3));
+  assert.equal(g.res, Math.round(getStats(g).resMax * 0.3));
   assert.equal(v.alive, false);
-  assert.equal(game.consumables.tente, 0);
-  assert.equal(useOnMap(game, 'tente').ok, false, 'plus de tente');
+  assert.equal(game.consumables.tente, 2);
+  assert.equal(useOnMap(game, 'tente').ok, false, 'déjà utilisée dans ce palier');
+  assert.equal(game.consumables.tente, 2);
+  game.expedition.floor = 6; // palier suivant (étages 6 à 10)
+  assert.ok(useOnMap(game, 'tente').ok);
 });
 
-test("entre deux étages : la Corde termine l'expédition ; potions et plume utilisables ; remèdes non", () => {
+test("entre deux étages : la Corde termine l'expédition ; potions, plume et remèdes utilisables", () => {
   const game = inDungeon({ corde: 1, potion: 1, plumeDePhenix: 1, antidote: 1 });
   const [g, v] = game.party;
   g.hp = 10;
@@ -149,7 +152,10 @@ test("entre deux étages : la Corde termine l'expédition ; potions et plume uti
   assert.equal(useOnMap(game, 'plumeDePhenix', 0).ok, false, 'Guerrier est en vie');
   assert.ok(useOnMap(game, 'plumeDePhenix', 1).ok);
   assert.equal(v.alive, true);
-  assert.equal(useOnMap(game, 'antidote', 0).ok, false);
+  assert.equal(useOnMap(game, 'antidote', 0).ok, false, "pas d'empoisonnement à soigner");
+  addStatus(g, poison);
+  assert.ok(useOnMap(game, 'antidote', 0).ok);
+  assert.deepEqual(g.statuses, []);
   const r = useOnMap(game, 'corde');
   assert.ok(r.ok && r.escaped);
   assert.equal(game.expedition, null);

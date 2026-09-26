@@ -7,8 +7,8 @@ import { PARTY_ORDER, CLASS_ORDER } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES, SLOTS, WEAPON_TYPES, JEWELS } from '../../data/items.js';
-import { TALENTS } from '../../data/talents.js';
-import { createParty, createHero, getStats, getSkills } from '../../game/party.js';
+import { TALENTS, nodeSkills } from '../../data/talents.js';
+import { createParty, createHero, getStats } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { itemTypeLabel } from '../../game/items.js';
 import { esc, tip } from '../html.js';
@@ -134,12 +134,12 @@ function statsTab(hero) {
         <p class="hint">Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'} (modifiable au village, bouton Stratégie). ${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
       </div>
       <div>
-        <h3>Compétences de départ</h3>
+        <h3>Sorts de départ</h3>
+        <p class="hint">Un héros commence sans sort : son premier point de talent lui fait apprendre le sort de départ d'une orientation (palier 0).</p>
         <div class="skillbox">
-          ${getSkills(hero).map((s) => `
+          ${TALENTS[hero.classKey].map((b) => `
             <div class="skill-line">
-              <b>${esc(s.name)}</b> — ${s.cost} ${r.name}<br>
-              ${esc(s.desc)}.<br><small>${esc(skillEffectLabel(stats, s))}</small>
+              <b>${b.icon} ${esc(b.name)}</b> : ${nodeSkills(b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length)).map((s) => `<b>${esc(s.name)}</b> (${s.cost} ${r.name}) — ${esc(s.desc)}. <small>${esc(skillEffectLabel(stats, s))}</small>`).join(' · ')}
             </div>`).join('')}
         </div>
         <h3>Équipement de départ</h3>
@@ -184,11 +184,12 @@ function legendariesTab() {
 }
 
 function skillSource(classKey, skillId) {
-  const base = CLASSES[classKey].skills.find((s) => s.id === skillId);
-  if (base) return `Renforce ${base.name} (compétence de départ).`;
   for (const branch of TALENTS[classKey]) {
-    const node = branch.nodes.find((n) => n.skill?.id === skillId);
-    if (node) return `Renforce ${node.skill.name} (${branch.icon} ${branch.name}, palier ${node.tier}).`;
+    const node = branch.nodes.find((n) => nodeSkills(n).some((s) => s.id === skillId));
+    if (node) {
+      const skill = nodeSkills(node).find((s) => s.id === skillId);
+      return `Renforce ${skill.name} (${branch.icon} ${branch.name}, ${node.tier === 0 ? 'sort de départ' : `palier ${node.tier}`}).`;
+    }
   }
   return '';
 }

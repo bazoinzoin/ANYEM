@@ -6,15 +6,18 @@ import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
 import { floorCombat, winFloor, loseExpedition, escapeExpedition } from '../game/dungeon.js';
+import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
-export const lastFloor = { message: null, loot: [] };
+export const lastFloor = { message: null, loot: [], summary: null };
 
 // Lance le combat de l'étage courant de l'expédition.
 export function startFloor() {
-  state.combat = createCombat({ ...floorCombat(state), party: state.party, consumables: state.consumables });
+  const params = floorCombat(state);
+  recordEncounter(state, params.enemies);
+  state.combat = createCombat({ ...params, party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -51,13 +54,14 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
   if (cb.result === 'escape') {
-    escapeExpedition(state);
+    escapeExpedition(state, cb);
     showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
     return;
   }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state).message);
+    showHub(loseExpedition(state, cb).message);
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
@@ -68,6 +72,6 @@ function finish() {
     return;
   }
   const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
   goTo('dungeon');
 }

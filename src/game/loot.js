@@ -1,7 +1,7 @@
 // Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
 // équipement, matéria et consommable (voir LOOT dans config.js).
 
-import { LOOT } from '../config.js';
+import { lootRules } from './difficulty.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { MATERIA_KINDS } from '../data/items.js';
 import { generateItem, weightedPick } from './items.js';
@@ -9,7 +9,7 @@ import { random, pick } from './rng.js';
 
 const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
 
-const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
+export const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
   Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
 
 function addMateria(list, kind, rarity, amount) {
@@ -25,9 +25,11 @@ function addMateria(list, kind, rarity, amount) {
  * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
  *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
  * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
+ * Les chances et raretés dépendent de la difficulté (voir game/difficulty.js).
  * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
-export function rollLoot(level, enemies, { final = false } = {}) {
+export function rollLoot(level, enemies, { final = false, difficulty = 'balade' } = {}) {
+  const LOOT = lootRules(difficulty);
   const loot = { items: [], materia: [], consumables: [] };
   const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
@@ -36,7 +38,7 @@ export function rollLoot(level, enemies, { final = false } = {}) {
       for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
       addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
     } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.rarityWeights) }));
       if (random() < LOOT.materiaChance) {
         addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
       }

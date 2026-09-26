@@ -2,21 +2,21 @@
 // les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
 
 import { state } from '../../state.js';
-import { CLASS_ORDER } from '../../config.js';
+import { CLASS_ORDER, INN } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { getClass, getStats } from '../../game/party.js';
 import { restAtInn } from '../../game/progression.js';
-import { recruit, swapWithReserve, reserveOf, rosterLockedReason } from '../../game/roster.js';
+import { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } from '../../game/roster.js';
 import { esc, tip } from '../html.js';
-import { equipmentTooltip } from '../items.js';
+import { equipmentTooltip, itemChip } from '../items.js';
 import { goTo, goBack, backLabel } from '../router.js';
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, flash: null };
+const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
 
 export function openInn() {
-  Object.assign(view, { selectedReserve: null, flash: null });
+  Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
   goTo('inn');
 }
 
@@ -26,6 +26,7 @@ export function renderInn(app) {
   const locked = rosterLockedReason(state);
   const reserve = reserveOf(state);
   const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
+  const cannotRecruit = recruitProblem(state);
 
   app.innerHTML = `
     <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
@@ -42,9 +43,10 @@ export function renderInn(app) {
     </div>
 
     <div class="card">
-      <h2>À l'auberge (${reserve.length})</h2>
-      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe.</p>
+      <h2>À l'auberge (${reserve.length}/${INN.maxReserve})</h2>
+      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe ou le renvoyer.</p>
       <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
+      ${picking && !locked ? dismissPanel(picking) : ''}
     </div>
 
     <div class="card">
@@ -54,8 +56,9 @@ export function renderInn(app) {
         ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
       </div>
       <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+      ${cannotRecruit && !locked ? `<p class="hint">${esc(cannotRecruit)}</p>` : ''}
       <div class="actions">
-        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${locked ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
+        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
       </div>
     </div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
@@ -90,6 +93,7 @@ export function renderInn(app) {
     btn.onclick = () => {
       const i = Number(btn.dataset.reserve);
       view.selectedReserve = view.selectedReserve === i ? null : i;
+      view.confirmDismiss = false;
       goTo('inn');
     };
   });
@@ -105,7 +109,35 @@ export function renderInn(app) {
       goTo('inn');
     };
   });
+  app.querySelector('#dismiss')?.addEventListener('click', () => {
+    if (!view.confirmDismiss) {
+      view.confirmDismiss = true;
+    } else {
+      const r = dismiss(state, view.selectedReserve);
+      if (r) {
+        const parts = [`${r.hero.name} quitte l'auberge pour de bon.`];
+        if (r.returned.length) parts.push(`${r.returned.length} objet${r.returned.length > 1 ? 's' : ''} rendu${r.returned.length > 1 ? 's' : ''} au sac.`);
+        if (r.destroyed.length) parts.push(`${r.destroyed.length} objet${r.destroyed.length > 1 ? 's' : ''} commun${r.destroyed.length > 1 ? 's' : ''} perdu${r.destroyed.length > 1 ? 's' : ''}.`);
+        view.flash = parts.join(' ');
+      }
+      Object.assign(view, { selectedReserve: null, confirmDismiss: false });
+    }
+    goTo('inn');
+  });
   app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Renvoi du compagnon sélectionné : ce que devient son équipement, puis confirmation.
+function dismissPanel(hero) {
+  const { destroyed, returned } = dismissOutcome(hero);
+  return `
+    <div class="forge-section">
+      <h3>Renvoyer ${esc(hero.name)} ?</h3>
+      <p class="hint">Le compagnon quitte définitivement l'auberge, avec ses niveaux et ses talents.</p>
+      ${returned.length ? `<p>Rendu au sac : ${returned.map(itemChip).join(' ')}</p>` : ''}
+      ${destroyed.length ? `<p>Perdu (objets communs) : ${destroyed.map(itemChip).join(' ')}</p>` : ''}
+      <button id="dismiss" class="${view.confirmDismiss ? 'danger' : ''}">${view.confirmDismiss ? `Confirmer : renvoyer ${esc(hero.name)}` : `🚪 Renvoyer ${esc(hero.name)}`}</button>
+    </div>`;
 }
 
 // Vignette d'un héros ; l'infobulle montre son équipement.
