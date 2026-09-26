@@ -227,3 +227,17 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .craft-row > span { min-width: 130px; color: var(--dim); }
 .craft-row select { padding: 6px 8px; background: #221910; color: inherit; border: 1px solid #5a4630; border-radius: 6px; }
 .reroll-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3a2c1c; }
+
+/* ---- Bestiaire ---- */
+.bestiary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-bottom: 12px; }
+.bestiary-card { text-align: center; }
+.bestiary-card.boss { outline: 1px solid var(--gold); }
+.bestiary-card.unknown { opacity: .55; display: flex; flex-direction: column; justify-content: center; min-height: 200px; }
+.bestiary-card .big-icon { font-size: 42px; }
+.bestiary-card h3 { margin: 4px 0; }
+.bestiary-card h4 { margin: 10px 0 4px; text-align: left; }
+.bestiary-stats { margin: 6px auto; border-collapse: collapse; font-size: 14px; }
+.bestiary-stats th { text-align: left; color: var(--dim); font-weight: 400; padding: 2px 10px 2px 0; }
+.bestiary-stats td { padding: 2px 6px; text-align: right; }
+.abilities { text-align: left; padding-left: 18px; margin: 0; font-size: 14px; }
+.abilities li { margin-bottom: 6px; }

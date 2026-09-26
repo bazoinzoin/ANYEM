@@ -16,6 +16,7 @@ export const state = {
   gold: START_GOLD,
   difficulty: 'balade', // voir DIFFICULTIES (config.js) et game/difficulty.js
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
+  bestiary: {},         // ennemis rencontrés : { clé: { seen, kills } } (voir game/bestiary.js)
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,

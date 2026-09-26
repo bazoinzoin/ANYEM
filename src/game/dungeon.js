@@ -17,6 +17,7 @@ import { difficultyOf, enemyPower } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
+import { recordKills } from './bestiary.js';
 import { restoreParty } from './consumables.js';
 import { pick, random } from './rng.js';
 
@@ -112,6 +113,7 @@ export function winFloor(game, combat) {
   const exp = game.expedition;
   const key = exp.dungeonKey;
   const { boss, final } = encounterFor(key, exp.floor);
+  recordKills(game, combat.enemies);
   const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
@@ -142,7 +144,9 @@ export function winFloor(game, combat) {
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
 // La progression reste au dernier boss vaincu.
-export function loseExpedition(game) {
+// `combat` (facultatif) : le combat perdu, pour compter les ennemis vaincus au bestiaire.
+export function loseExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
   return applyDefeat(game);
 }
@@ -165,7 +169,8 @@ export function continueExpedition(game) {
 }
 
 // Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-export function escapeExpedition(game) {
+export function escapeExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
 }
 

@@ -164,6 +164,11 @@ export const RUNES = {
 // Marchand. Prix de revente d'un objet :
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+// Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+export const INN = {
+  maxReserve: 4,
+};
+
 export const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,

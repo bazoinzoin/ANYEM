@@ -366,6 +366,20 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .craft-row > span { min-width: 130px; color: var(--dim); }
 .craft-row select { padding: 6px 8px; background: #221910; color: inherit; border: 1px solid #5a4630; border-radius: 6px; }
 .reroll-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3a2c1c; }
+
+/* ---- Bestiaire ---- */
+.bestiary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; margin-bottom: 12px; }
+.bestiary-card { text-align: center; }
+.bestiary-card.boss { outline: 1px solid var(--gold); }
+.bestiary-card.unknown { opacity: .55; display: flex; flex-direction: column; justify-content: center; min-height: 200px; }
+.bestiary-card .big-icon { font-size: 42px; }
+.bestiary-card h3 { margin: 4px 0; }
+.bestiary-card h4 { margin: 10px 0 4px; text-align: left; }
+.bestiary-stats { margin: 6px auto; border-collapse: collapse; font-size: 14px; }
+.bestiary-stats th { text-align: left; color: var(--dim); font-weight: 400; padding: 2px 10px 2px 0; }
+.bestiary-stats td { padding: 2px 6px; text-align: right; }
+.abilities { text-align: left; padding-left: 18px; margin: 0; font-size: 14px; }
+.abilities li { margin-bottom: 6px; }
 </style>
 
 </head>
@@ -545,6 +559,11 @@ const RUNES = {
 // Marchand. Prix de revente d'un objet :
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+// Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+const INN = {
+  maxReserve: 4,
+};
+
 const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,
@@ -577,7 +596,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -3036,6 +3055,7 @@ const state = {
   gold: START_GOLD,
   difficulty: 'balade', // voir DIFFICULTIES (config.js) et game/difficulty.js
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
+  bestiary: {},         // ennemis rencontrés : { clé: { seen, kills } } (voir game/bestiary.js)
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
@@ -4720,6 +4740,60 @@ function restAtInn(game) {
 return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
 })();
 
+// ---- src/game/bestiary.js
+__modules["src/game/bestiary.js"] = (() => {
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
+// Bestiaire : ennemis rencontrés et vaincus.
+//
+// game.bestiary = { clé d'ennemi: { seen: combats où il est apparu, kills: nombre de vaincus } }
+// Un ennemi jamais rencontré n'a pas d'entrée (page vide au bestiaire).
+
+
+
+
+function bestiaryOf(game) {
+  game.bestiary ??= {};
+  return game.bestiary;
+}
+
+function entry(game, key) {
+  const book = bestiaryOf(game);
+  book[key] ??= { seen: 0, kills: 0 };
+  return book[key];
+}
+
+// Début d'un combat : chaque sorte d'ennemi présente est notée une fois.
+function recordEncounter(game, keys) {
+  for (const key of new Set(keys)) if (ENEMIES[key]) entry(game, key).seen++;
+}
+
+// Fin d'un combat : compte les ennemis vaincus.
+function recordKills(game, enemies) {
+  for (const e of enemies) if (!e.alive && ENEMIES[e.enemyKey]) entry(game, e.enemyKey).kills++;
+}
+
+function isDiscovered(game, key) {
+  return !!bestiaryOf(game)[key]?.seen;
+}
+
+// Pages du bestiaire, par donjon : [{ dungeonKey, enemies: [clés] }] (ordinaires puis boss).
+function bestiaryPages() {
+  return DUNGEON_ORDER.map((dungeonKey) => ({
+    dungeonKey,
+    enemies: [...DUNGEONS[dungeonKey].pool, ...DUNGEONS[dungeonKey].bosses],
+  }));
+}
+
+// Nombre d'ennemis découverts / total.
+function bestiaryProgress(game) {
+  const all = bestiaryPages().flatMap((p) => p.enemies);
+  return { found: all.filter((k) => isDiscovered(game, k)).length, total: all.length };
+}
+
+return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, bestiaryProgress };
+})();
+
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
 const { maybeTriggerEvent } = __modules["src/game/events.js"];
@@ -4727,6 +4801,7 @@ const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { recordKills } = __modules["src/game/bestiary.js"];
 const { restoreParty } = __modules["src/game/consumables.js"];
 const { pick, random } = __modules["src/game/rng.js"];
 // Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
@@ -4742,6 +4817,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
+
 
 
 
@@ -4843,6 +4919,7 @@ function winFloor(game, combat) {
   const exp = game.expedition;
   const key = exp.dungeonKey;
   const { boss, final } = encounterFor(key, exp.floor);
+  recordKills(game, combat.enemies);
   const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
@@ -4873,7 +4950,9 @@ function winFloor(game, combat) {
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
 // La progression reste au dernier boss vaincu.
-function loseExpedition(game) {
+// `combat` (facultatif) : le combat perdu, pour compter les ennemis vaincus au bestiaire.
+function loseExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
   return applyDefeat(game);
 }
@@ -4896,7 +4975,8 @@ function continueExpedition(game) {
 }
 
 // Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-function escapeExpedition(game) {
+function escapeExpedition(game, combat = null) {
+  if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
 }
 
@@ -4920,11 +5000,29 @@ const { rand } = __modules["src/game/rng.js"];
 
 const scaled = (def, level) => (def ? Math.round(def.base + def.perLevel * level) : 0);
 
+// Stats d'un ennemi à un niveau donné, sans hasard (Vitesse = minimum de sa fourchette).
 // `power` : multiplicateur de difficulté des PV et de l'attaque (1 en Balade).
-function createEnemy(key, level, label, power = 1) {
+function enemyStats(key, level, power = 1) {
   const def = ENEMIES[key];
   const pv = Math.round(scaled(def.pv, level) * power);
   const atq = Math.round(scaled(def.atq, level) * power);
+  return {
+    ...zeroStats(),
+    critDmg: 50,
+    pv,
+    atq,
+    physPower: atq,
+    magPower: atq,
+    def: scaled(def.def, level),
+    defMag: scaled(def.defMag, level),
+    vit: def.vit.min,
+    riposte: def.riposte ?? 0,
+  };
+}
+
+function createEnemy(key, level, label, power = 1) {
+  const def = ENEMIES[key];
+  const stats = { ...enemyStats(key, level, power), vit: Math.round(rand(def.vit.min, def.vit.max)) };
   return {
     enemyKey: key,
     name: label ? `${def.name} ${label}` : def.name,
@@ -4932,19 +5030,8 @@ function createEnemy(key, level, label, power = 1) {
     boss: !!def.boss,
     magic: !!def.magic,
     row: def.ranged ? 'ranged' : 'melee',
-    hp: pv,
-    stats: {
-      ...zeroStats(),
-      critDmg: 50,
-      pv,
-      atq,
-      physPower: atq,
-      magPower: atq,
-      def: scaled(def.def, level),
-      defMag: scaled(def.defMag, level),
-      vit: Math.round(rand(def.vit.min, def.vit.max)),
-      riposte: def.riposte ?? 0,
-    },
+    hp: stats.pv,
+    stats,
     alive: true,
     guard: false,
     statuses: [],
@@ -4962,7 +5049,7 @@ function createEnemies(keys, level, power = 1) {
   });
 }
 
-return { createEnemy, createEnemies };
+return { enemyStats, createEnemy, createEnemies };
 })();
 
 // ---- src/game/combo.js
@@ -5718,6 +5805,7 @@ const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
 const { floorCombat, winFloor, loseExpedition, escapeExpedition } = __modules["src/game/dungeon.js"];
+const { recordEncounter } = __modules["src/game/bestiary.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
 // Orchestration d'un combat d'étage : enchaîne les tours du moteur (game/combat.js),
@@ -5731,12 +5819,15 @@ const { render, showHub, goTo } = __modules["src/ui/router.js"];
 
 
 
+
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
 const lastFloor = { message: null, loot: [], summary: null };
 
 // Lance le combat de l'étage courant de l'expédition.
 function startFloor() {
-  state.combat = createCombat({ ...floorCombat(state), party: state.party, consumables: state.consumables });
+  const params = floorCombat(state);
+  recordEncounter(state, params.enemies);
+  state.combat = createCombat({ ...params, party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -5775,12 +5866,12 @@ function finish() {
   state.combat = null;
   state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
   if (cb.result === 'escape') {
-    escapeExpedition(state);
+    escapeExpedition(state, cb);
     showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
     return;
   }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state).message);
+    showHub(loseExpedition(state, cb).message);
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
@@ -6637,8 +6728,10 @@ return { openMerchant, renderMerchant };
 
 // ---- src/game/roster.js
 __modules["src/game/roster.js"] = (() => {
+const { INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { createHero, restoreFully } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
 // Auberge : recrutement de compagnons et gestion de l'équipe.
 //
 // L'équipe (game.party) compte toujours 4 héros. Recruter un compagnon (niveau 1,
@@ -6646,6 +6739,8 @@ const { createHero, restoreFully } = __modules["src/game/party.js"];
 // l'équipe, qui part se reposer à l'auberge (game.reserve) avec son équipement et
 // ses talents. Les héros de l'auberge ne gagnent pas d'XP (seule l'équipe combat).
 // Tout se fait au village, jamais pendant une expédition.
+
+
 
 
 
@@ -6666,12 +6761,44 @@ function rosterLockedReason(game) {
  * null si c'est impossible.
  */
 function recruit(game, classKey, name, replaceIndex) {
-  if (rosterLockedReason(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
+  if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
   const hero = createHero(classKey, name?.trim());
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);
   return hero;
+}
+
+// Pourquoi on ne peut pas recruter maintenant (texte), ou null.
+function recruitProblem(game) {
+  const locked = rosterLockedReason(game);
+  if (locked) return locked;
+  if (reserveOf(game).length >= INN.maxReserve) {
+    return `L'auberge est pleine (${INN.maxReserve} compagnons au repos) : renvoie d'abord un compagnon.`;
+  }
+  return null;
+}
+
+// Ce que deviendrait l'équipement d'un compagnon renvoyé :
+// { destroyed: objets communs (perdus), returned: autres objets (rendus au sac) }.
+function dismissOutcome(hero) {
+  const items = [...new Set(equippedItems(hero))];
+  return {
+    destroyed: items.filter((i) => i.rarity === 'commun'),
+    returned: items.filter((i) => i.rarity !== 'commun'),
+  };
+}
+
+// Renvoie définitivement le compagnon `reserveIndex` de l'auberge. Ses objets communs
+// sont détruits, les autres rendus au sac. Retourne { hero, destroyed, returned }, ou null.
+function dismiss(game, reserveIndex) {
+  const reserve = reserveOf(game);
+  if (rosterLockedReason(game) || !reserve[reserveIndex]) return null;
+  const [hero] = reserve.splice(reserveIndex, 1);
+  const outcome = dismissOutcome(hero);
+  game.bag.push(...outcome.returned);
+  for (const slot of Object.keys(hero.equipment)) hero.equipment[slot] = null;
+  return { hero, ...outcome };
 }
 
 // Échange le héros `partyIndex` de l'équipe avec le héros `reserveIndex` de l'auberge.
@@ -6685,19 +6812,19 @@ function swapWithReserve(game, partyIndex, reserveIndex) {
   return true;
 }
 
-return { reserveOf, rosterLockedReason, recruit, swapWithReserve };
+return { reserveOf, rosterLockedReason, recruit, recruitProblem, dismissOutcome, dismiss, swapWithReserve };
 })();
 
 // ---- src/ui/screens/inn.js
 __modules["src/ui/screens/inn.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { CLASS_ORDER } = __modules["src/config.js"];
+const { CLASS_ORDER, INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { restAtInn } = __modules["src/game/progression.js"];
-const { recruit, swapWithReserve, reserveOf, rosterLockedReason } = __modules["src/game/roster.js"];
+const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
-const { equipmentTooltip } = __modules["src/ui/items.js"];
+const { equipmentTooltip, itemChip } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 // Auberge : repos, recrutement de compagnons et gestion de l'équipe (4 héros ;
 // les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
@@ -6714,10 +6841,10 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, flash: null };
+const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
 
 function openInn() {
-  Object.assign(view, { selectedReserve: null, flash: null });
+  Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
   goTo('inn');
 }
 
@@ -6727,6 +6854,7 @@ function renderInn(app) {
   const locked = rosterLockedReason(state);
   const reserve = reserveOf(state);
   const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
+  const cannotRecruit = recruitProblem(state);
 
   app.innerHTML = `
     <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
@@ -6743,9 +6871,10 @@ function renderInn(app) {
     </div>
 
     <div class="card">
-      <h2>À l'auberge (${reserve.length})</h2>
-      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe.</p>
+      <h2>À l'auberge (${reserve.length}/${INN.maxReserve})</h2>
+      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe ou le renvoyer.</p>
       <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
+      ${picking && !locked ? dismissPanel(picking) : ''}
     </div>
 
     <div class="card">
@@ -6755,8 +6884,9 @@ function renderInn(app) {
         ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
       </div>
       <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+      ${cannotRecruit && !locked ? `<p class="hint">${esc(cannotRecruit)}</p>` : ''}
       <div class="actions">
-        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${locked ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
+        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
       </div>
     </div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
@@ -6791,6 +6921,7 @@ function renderInn(app) {
     btn.onclick = () => {
       const i = Number(btn.dataset.reserve);
       view.selectedReserve = view.selectedReserve === i ? null : i;
+      view.confirmDismiss = false;
       goTo('inn');
     };
   });
@@ -6806,7 +6937,35 @@ function renderInn(app) {
       goTo('inn');
     };
   });
+  app.querySelector('#dismiss')?.addEventListener('click', () => {
+    if (!view.confirmDismiss) {
+      view.confirmDismiss = true;
+    } else {
+      const r = dismiss(state, view.selectedReserve);
+      if (r) {
+        const parts = [`${r.hero.name} quitte l'auberge pour de bon.`];
+        if (r.returned.length) parts.push(`${r.returned.length} objet${r.returned.length > 1 ? 's' : ''} rendu${r.returned.length > 1 ? 's' : ''} au sac.`);
+        if (r.destroyed.length) parts.push(`${r.destroyed.length} objet${r.destroyed.length > 1 ? 's' : ''} commun${r.destroyed.length > 1 ? 's' : ''} perdu${r.destroyed.length > 1 ? 's' : ''}.`);
+        view.flash = parts.join(' ');
+      }
+      Object.assign(view, { selectedReserve: null, confirmDismiss: false });
+    }
+    goTo('inn');
+  });
   app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Renvoi du compagnon sélectionné : ce que devient son équipement, puis confirmation.
+function dismissPanel(hero) {
+  const { destroyed, returned } = dismissOutcome(hero);
+  return `
+    <div class="forge-section">
+      <h3>Renvoyer ${esc(hero.name)} ?</h3>
+      <p class="hint">Le compagnon quitte définitivement l'auberge, avec ses niveaux et ses talents.</p>
+      ${returned.length ? `<p>Rendu au sac : ${returned.map(itemChip).join(' ')}</p>` : ''}
+      ${destroyed.length ? `<p>Perdu (objets communs) : ${destroyed.map(itemChip).join(' ')}</p>` : ''}
+      <button id="dismiss" class="${view.confirmDismiss ? 'danger' : ''}">${view.confirmDismiss ? `Confirmer : renvoyer ${esc(hero.name)}` : `🚪 Renvoyer ${esc(hero.name)}`}</button>
+    </div>`;
 }
 
 // Vignette d'un héros ; l'infobulle montre son équipement.
@@ -6838,6 +6997,7 @@ const { itemChip } = __modules["src/ui/items.js"];
 const { lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { DIFFICULTIES } = __modules["src/config.js"];
 const { difficultyOf } = __modules["src/game/difficulty.js"];
+const { bestiaryProgress } = __modules["src/game/bestiary.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
 const { openRunes } = __modules["src/ui/screens/runes.js"];
@@ -6846,6 +7006,7 @@ const { openMerchant } = __modules["src/ui/screens/merchant.js"];
 const { openInn } = __modules["src/ui/screens/inn.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
 
 
 
@@ -6895,6 +7056,7 @@ function renderHub(app) {
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
         <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
+        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -6915,6 +7077,7 @@ function renderHub(app) {
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
   app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
+  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
 }
 
 // Rappel : un héros sans sort doit dépenser son premier point de talent.
@@ -8030,6 +8193,110 @@ function card(key, selected) {
 return { renderDifficulty };
 })();
 
+// ---- src/ui/screens/bestiary.js
+__modules["src/ui/screens/bestiary.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { enemyStats } = __modules["src/game/enemies.js"];
+const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
+const { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered } = __modules["src/game/bestiary.js"];
+const { isUnlocked } = __modules["src/game/dungeon.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Bestiaire : fiches des ennemis rencontrés, page vide pour les autres.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const view = { dungeon: null };
+
+const ABILITY_TARGETS = {
+  hero: 'un héros',
+  allHeroes: "toute l'équipe",
+  self: 'lui-même',
+  allAllies: 'ses alliés',
+};
+
+function renderBestiary(app) {
+  const pages = bestiaryPages();
+  const page = pages.find((p) => p.dungeonKey === view.dungeon) ?? pages[0];
+  const { found, total } = bestiaryProgress(state);
+  const diff = difficultyOf(state);
+
+  app.innerHTML = `
+    <div class="hero"><h1>📚 Bestiaire</h1><p>${found} / ${total} créatures découvertes</p></div>
+    <div class="tabs">
+      ${pages.map((p) => {
+        const d = DUNGEONS[p.dungeonKey];
+        const n = p.enemies.filter((k) => isDiscovered(state, k)).length;
+        return `<button data-page="${p.dungeonKey}" class="${p === page ? 'selected' : ''}">${d.icon} ${isUnlocked(state, p.dungeonKey) || n ? esc(d.name) : '???'} <small>(${n}/${p.enemies.length})</small></button>`;
+      }).join('')}
+    </div>
+    <p class="hint">Stats au premier et au dernier étage du donjon (niveaux ${DUNGEONS[page.dungeonKey].minLevel} → ${DUNGEONS[page.dungeonKey].maxLevel}), en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
+    <div class="bestiary-grid">${page.enemies.map((k) => enemyCard(k, page.dungeonKey, enemyPower(diff))).join('')}</div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.onclick = () => {
+      view.dungeon = btn.dataset.page;
+      goTo('bestiary');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function enemyCard(key, dungeonKey, power) {
+  const def = ENEMIES[key];
+  if (!isDiscovered(state, key)) {
+    return `<div class="card bestiary-card unknown"><div class="big-icon">❔</div><h3>???</h3><p class="hint">${def.boss ? 'Un boss' : 'Une créature'} encore jamais rencontré${def.boss ? '' : 'e'}.</p></div>`;
+  }
+  const { minLevel, maxLevel } = DUNGEONS[dungeonKey];
+  const lo = enemyStats(key, minLevel, power);
+  const hi = enemyStats(key, maxLevel, power);
+  const row = (stat, label = STATS[stat].label) => `<tr><th>${label}</th><td>${lo[stat]}</td><td>→ ${hi[stat]}</td></tr>`;
+  const { seen, kills } = bestiaryOf(state)[key];
+  const traits = [
+    def.boss ? '👑 Boss' : null,
+    def.ranged ? '🏹 À distance' : '⚔️ Corps à corps',
+    def.magic ? '✨ Attaque magique' : '🗡️ Attaque physique',
+    def.riposte ? `↩️ Riposte ${def.riposte} %` : null,
+  ].filter(Boolean);
+  return `
+    <div class="card bestiary-card ${def.boss ? 'boss' : ''}">
+      <div class="big-icon">${def.icon}</div>
+      <h3>${esc(def.name)}</h3>
+      <p class="hint">${traits.join(' · ')}</p>
+      <table class="bestiary-stats">
+        ${row('pv')}${row('atq')}${row('def')}${row('defMag')}
+        <tr><th>Vitesse</th><td colspan="2">${def.vit.min} à ${def.vit.max}</td></tr>
+      </table>
+      ${def.abilities?.length ? `
+        <h4>Capacités</h4>
+        <ul class="abilities">${def.abilities.map(({ chance, skill }) => `
+          <li><b>${esc(skill.name)}</b> <small>(${Math.round(chance * 100)} % par tour)</small><br>
+          <small>Niv. ${maxLevel} : ${esc(skillEffectLabel(hi, { ...skill, target: null }))} — ${ABILITY_TARGETS[skill.target]}</small></li>`).join('')}
+        </ul>` : '<p class="hint">Aucune capacité spéciale : attaque de base.</p>'}
+      <p class="hint">Rencontré ${seen} fois · vaincu ${kills} fois</p>
+    </div>`;
+}
+
+return { renderBestiary };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -8047,7 +8314,9 @@ const { renderInn } = __modules["src/ui/screens/inn.js"];
 const { renderBank } = __modules["src/ui/screens/bank.js"];
 const { renderDifficulty } = __modules["src/ui/screens/difficulty.js"];
 const { renderRunes } = __modules["src/ui/screens/runes.js"];
+const { renderBestiary } = __modules["src/ui/screens/bestiary.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -8080,6 +8349,7 @@ registerScreens({
   bank: renderBank,
   difficulty: renderDifficulty,
   runes: renderRunes,
+  bestiary: renderBestiary,
 });
 
 render();

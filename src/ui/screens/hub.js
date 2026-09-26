@@ -11,6 +11,7 @@ import { itemChip } from '../items.js';
 import { lastCombatLog } from '../combatLog.js';
 import { DIFFICULTIES } from '../../config.js';
 import { difficultyOf } from '../../game/difficulty.js';
+import { bestiaryProgress } from '../../game/bestiary.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
 import { openRunes } from './runes.js';
@@ -48,6 +49,7 @@ export function renderHub(app) {
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
         <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
+        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -68,6 +70,7 @@ export function renderHub(app) {
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
   app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
+  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
 }
 
 // Rappel : un héros sans sort doit dépenser son premier point de talent.
