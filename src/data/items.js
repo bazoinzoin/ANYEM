@@ -71,7 +71,9 @@ export const WEAPON_TYPES = {
   baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
 };
 
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
+// Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
+// peut en plus ressortir en stat secondaire (repeatableSecondaries).
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
 
 export const JEWELS = {
   anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },

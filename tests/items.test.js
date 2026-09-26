@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
-import { generateItem, rollRarity } from '../src/game/items.js';
+import { generateItem, rollRarity, itemStats, itemStatLines } from '../src/game/items.js';
 import { RARITIES, SECONDARY_STATS, LEGENDARIES } from '../src/data/items.js';
 
 beforeEach(() => setRandomSource(null));
@@ -11,11 +11,12 @@ test('chaque rareté a le bon nombre de stats secondaires, sans doublon', () => 
   for (const [rarity, def] of Object.entries(RARITIES)) {
     for (let i = 0; i < 50; i++) {
       const item = generateItem({ level: 5, rarity });
-      assert.equal(item.secondaries.length, def.secondaries, `${rarity} : ${item.name}`);
-      assert.equal(new Set(item.secondaries).size, item.secondaries.length);
-      for (const k of item.secondaries) {
+      const secondaries = Object.keys(item.bonus);
+      assert.equal(secondaries.length, def.secondaries, `${rarity} : ${item.name}`);
+      for (const k of secondaries) {
         assert.ok(k in SECONDARY_STATS);
-        assert.ok(!item.mandatory.includes(k) && k !== item.primary);
+        assert.ok(k !== item.primary);
+        if (item.slotType !== 'bouclier') assert.ok(!item.mandatory.includes(k), `${item.name} : ${k} en double`);
       }
     }
   }
@@ -24,7 +25,9 @@ test('chaque rareté a le bon nombre de stats secondaires, sans doublon', () => 
 test('stat obligatoire : attaque pour une arme, défense pour une armure, défense magique pour un bijou', () => {
   assert.ok(generateItem({ slotType: 'arme', weaponType: 'hache', rarity: 'commun' }).stats.atq > 0);
   assert.ok(generateItem({ slotType: 'bottes', armorType: 'lourde', rarity: 'commun' }).stats.def > 0);
-  assert.ok(generateItem({ slotType: 'bouclier', rarity: 'commun' }).stats.def > 0);
+  const shield = generateItem({ slotType: 'bouclier', rarity: 'commun' });
+  assert.deepEqual(shield.mandatory, ['def', 'blocage']);
+  assert.ok(shield.stats.def > 0 && shield.stats.blocage > 0);
   assert.ok(generateItem({ slotType: 'anneau', rarity: 'commun' }).stats.defMag > 0);
 });
 
@@ -33,18 +36,31 @@ test('un objet commun ne porte que ses stats obligatoire et principale', () => {
   assert.deepEqual(Object.keys(item.stats).sort(), ['agilite', 'def']);
   const sword = generateItem({ slotType: 'arme', weaponType: 'epee', primary: 'agilite', rarity: 'commun' });
   assert.deepEqual(Object.keys(sword.stats).sort(), ['agilite', 'atq'], 'pas de vitesse sur une épée commune');
-  // Toutes les bases possibles : exactement 2 stats.
+  // Toutes les bases possibles : obligatoire(s) + principale, rien d'autre.
   for (let i = 0; i < 300; i++) {
     const it = generateItem({ level: 1 + (i % 20), rarity: 'commun' });
-    assert.equal(Object.keys(it.stats).length, 2, `${it.name} : ${JSON.stringify(it.stats)}`);
-    assert.equal(it.mandatory.length, 1);
+    const expected = it.slotType === 'bouclier' ? 3 : 2; // bouclier : Défense + Blocage + principale
+    assert.equal(Object.keys(it.stats).length, expected, `${it.name} : ${JSON.stringify(it.stats)}`);
+    assert.deepEqual(it.bonus, {});
   }
+});
+
+test('bouclier : le Blocage peut ressortir en stat secondaire et se cumule', () => {
+  let found = null;
+  for (let i = 0; i < 400 && !found; i++) {
+    const s = generateItem({ slotType: 'bouclier', rarity: 'epique', level: 5 });
+    if ('blocage' in s.bonus) found = s;
+  }
+  assert.ok(found, 'un bouclier épique finit par tirer du Blocage en secondaire');
+  assert.equal(itemStats(found).blocage, found.stats.blocage + found.bonus.blocage);
+  const lines = itemStatLines(found).filter((l) => l.stat === 'blocage');
+  assert.deepEqual(lines.map((l) => l.secondary), [false, true], 'affiché deux fois : obligatoire puis secondaire');
 });
 
 test('les stats secondaires apparaissent à partir de peu commun', () => {
   for (let i = 0; i < 100; i++) {
     const it = generateItem({ level: 5, rarity: 'peuCommun' });
-    assert.equal(Object.keys(it.stats).length, 3);
+    assert.equal(Object.keys(it.bonus).length, 1);
   }
 });
 
@@ -72,7 +88,7 @@ test('un légendaire est lié à une classe et porte un passif', () => {
   assert.equal(item.name, LEGENDARIES.crocSanglant.name);
   assert.equal(item.legendary.classKey, 'voleur');
   assert.equal(item.weaponType, 'dague');
-  assert.equal(item.secondaries.length, 4);
+  assert.equal(Object.keys(item.bonus).length, 4);
   const random = generateItem({ rarity: 'legendaire' });
   assert.ok(random.legendary);
 });

@@ -3,7 +3,7 @@
 import { STATS } from '../data/stats.js';
 import { RARITIES, SLOTS } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
-import { itemTypeLabel, itemStats } from '../game/items.js';
+import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
 
 // « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
@@ -18,19 +18,13 @@ export function itemName(item) {
   return item.plus ? `${item.name} +${item.plus}` : item.name;
 }
 
-function itemStatKeys(item) {
-  const primary = item.mandatory.includes(item.primary) ? [] : [item.primary];
-  return [...item.mandatory, ...primary, ...item.secondaries];
-}
-
 export function itemMeta(item) {
   return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
 }
 
 // Texte brut multi-lignes (infobulles).
 export function itemTooltipText(item) {
-  const stats = itemStats(item);
-  const lines = [itemName(item), itemMeta(item), ...itemStatKeys(item).map((k) => formatStat(k, stats[k]))];
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
   if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
   return lines.join('\n');
 }
@@ -42,11 +36,8 @@ export function itemChip(item) {
 
 // Fiche complète d'un objet.
 export function itemCard(item) {
-  const stats = itemStats(item);
-  const statLines = itemStatKeys(item).map((k) => {
-    const cls = item.secondaries.includes(k) ? 'secondary' : 'main';
-    return `<li class="${cls}">${formatStat(k, stats[k])}</li>`;
-  });
+  const statLines = itemStatLines(item).map((l) =>
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>

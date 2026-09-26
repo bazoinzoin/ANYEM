@@ -258,6 +258,7 @@ const ITEM = {
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
   armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
+  shieldBlock: { base: 5, perLevel: 0.2 }, // blocage (%) obligatoire d'un bouclier
   jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
@@ -381,7 +382,9 @@ const WEAPON_TYPES = {
   baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
 };
 
-const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
+// Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
+// peut en plus ressortir en stat secondaire (repeatableSecondaries).
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
 
 const JEWELS = {
   anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
@@ -484,8 +487,11 @@ const { rand, pick, random } = __modules["src/game/rng.js"];
 //
 // Un objet est une donnée figée à sa création, sauf son niveau d'amélioration :
 // { id, name, level, rarity, plus, slotType, weaponType?, armorType?, primary,
-//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
-// `stats` sont les stats de base : les stats effectives se lisent via itemStats().
+//   stats: { clé: valeur },   stat(s) obligatoire(s) + stat principale
+//   mandatory: [clés],        stat(s) obligatoire(s)
+//   bonus: { clé: valeur },   stats secondaires (rareté ≥ peu commun)
+//   legendary? }
+// Valeurs de base : les stats effectives se lisent via itemStats() / itemStatLines().
 // slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
 
 
@@ -498,16 +504,29 @@ function budget(level) {
   return ITEM.budgetBase + ITEM.budgetPerLevel * level;
 }
 
-// Stats effectives, amélioration (+1..+5) comprise.
-function itemStats(item) {
+function boost(value, plus, isMandatory) {
+  if (!plus) return value;
+  const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+  return isMandatory ? Math.max(v, value + plus) : v;
+}
+
+// Lignes de stats à afficher, amélioration comprise, dans l'ordre :
+// obligatoire(s), principale, secondaires. [{ stat, value, secondary }]
+// Une stat peut apparaître deux fois (Blocage obligatoire + secondaire d'un bouclier).
+function itemStatLines(item) {
   const plus = item.plus ?? 0;
-  if (!plus) return item.stats;
-  const boosted = {};
-  for (const [stat, value] of Object.entries(item.stats)) {
-    const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
-    boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
-  }
-  return boosted;
+  const main = Object.entries(item.stats).map(([stat, value]) =>
+    ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
+  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) =>
+    ({ stat, value: boost(value, plus, false), secondary: true }));
+  return [...main, ...bonus];
+}
+
+// Stats effectives totales de l'objet, amélioration comprise.
+function itemStats(item) {
+  const total = {};
+  for (const { stat, value } of itemStatLines(item)) total[stat] = (total[stat] ?? 0) + value;
+  return total;
 }
 
 function isWeapon(item) {
@@ -563,14 +582,20 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat obligatoire : attaque (arme), défense (armure, bouclier), défense magique (bijou).
-// Un objet commun ne porte que celle-ci et sa stat principale.
+// Stat obligatoire : attaque (arme), défense (armure), défense magique (bijou) ;
+// exception : défense + blocage pour un bouclier.
+// Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
   if (base.slotType === 'arme') {
     return { atq: Math.round(b * ITEM.weaponAtq * WEAPON_TYPES[base.weaponType].atqMult * mult) };
   }
-  if (base.slotType === 'bouclier') return { def: Math.round(b * ITEM.shieldDef * mult) };
+  if (base.slotType === 'bouclier') {
+    return {
+      def: Math.round(b * ITEM.shieldDef * mult),
+      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
+    };
+  }
   if (JEWELS[base.slotType]) {
     return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
   }
@@ -613,25 +638,26 @@ function generateItem(opts = {}) {
   const mandatory = Object.keys(stats);
   stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
 
-  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
-  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
-  const secondaries = [];
+  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet
+  // (sauf exception : le Blocage d'un bouclier).
+  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+  const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    stats[stat] = secondaryValue(stat, level, r.range);
-    secondaries.push(stat);
+    bonus[stat] = secondaryValue(stat, level, r.range);
   }
 
   let name = legendary ? legendary.name : baseName(base);
   if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
 
-  const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, secondaries };
+  const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, bonus };
   for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
   if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
   return item;
 }
 
-return { budget, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
+return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
 })();
 
 // ---- src/game/forge.js
@@ -1699,7 +1725,7 @@ __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
 const { RARITIES, SLOTS } = __modules["src/data/items.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { itemTypeLabel, itemStats } = __modules["src/game/items.js"];
+const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 // Affichage des objets et des stats.
 
@@ -1721,19 +1747,13 @@ function itemName(item) {
   return item.plus ? `${item.name} +${item.plus}` : item.name;
 }
 
-function itemStatKeys(item) {
-  const primary = item.mandatory.includes(item.primary) ? [] : [item.primary];
-  return [...item.mandatory, ...primary, ...item.secondaries];
-}
-
 function itemMeta(item) {
   return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
 }
 
 // Texte brut multi-lignes (infobulles).
 function itemTooltipText(item) {
-  const stats = itemStats(item);
-  const lines = [itemName(item), itemMeta(item), ...itemStatKeys(item).map((k) => formatStat(k, stats[k]))];
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
   if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
   return lines.join('\n');
 }
@@ -1745,11 +1765,8 @@ function itemChip(item) {
 
 // Fiche complète d'un objet.
 function itemCard(item) {
-  const stats = itemStats(item);
-  const statLines = itemStatKeys(item).map((k) => {
-    const cls = item.secondaries.includes(k) ? 'secondary' : 'main';
-    return `<li class="${cls}">${formatStat(k, stats[k])}</li>`;
-  });
+  const statLines = itemStatLines(item).map((l) =>
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>

@@ -138,7 +138,7 @@ test('esquive : le héros ne subit aucun dégât', () => {
   cb.party.forEach((h) => { h.equipment = {}; });
   // esquive 100 % (plafonnée à 50 %) et jets à 0,4 : toujours esquivé
   setRandomSource(() => 0.4);
-  cb.party.forEach((h) => { h.equipment.anneau1 = { stats: { esquive: 100 } }; });
+  cb.party.forEach((h) => { h.equipment.anneau1 = { stats: { esquive: 100 }, mandatory: [] }; });
   const hp = cb.party.map((h) => h.hp);
   for (let i = 0; i < 12; i++) {
     const turn = nextTurn(cb);
@@ -167,7 +167,7 @@ test("l'attaque de base est physique : elle ignore l'Intelligence, même pour un
   const stats = getStats(turn.unit);
   assert.equal(stats.physPower, stats.atq + Math.round(stats.force * 0.5));
   assert.equal(hp - target.hp, Math.round(stats.physPower * (0.9 + 0.5 * 0.25)));
-  turn.unit.equipment.anneau1 = { stats: { intelligence: 100 } };
+  turn.unit.equipment.anneau1 = { stats: { intelligence: 100 }, mandatory: [] };
   assert.equal(getStats(turn.unit).physPower, stats.physPower, "l'Intelligence ne change pas la puissance physique");
 });
 

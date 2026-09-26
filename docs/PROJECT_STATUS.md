@@ -29,8 +29,8 @@ Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
 
 Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus dans `src/data/items.js`.
 - **Emplacements** : casque, épaulières, plastron, gants, ceinture, bottes, collier, anneau ×2, main droite, main gauche.
-- **Stat obligatoire** : Attaque (armes), Défense (armures et boucliers), Défense magique (bijoux — choix non précisé par le design doc).
-- **Un objet commun porte exactement 2 stats** : sa stat obligatoire et sa stat principale. Les stats secondaires n'apparaissent qu'à partir de peu commun.
+- **Stat obligatoire** : Attaque (armes), Défense (armures), Défense magique (bijoux — choix non précisé par le design doc). **Exception : le bouclier a deux stats obligatoires, Défense et Blocage**, et le Blocage peut en plus ressortir en stat secondaire (il se cumule alors et s'affiche sur deux lignes).
+- **Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale** (2 stats, 3 pour un bouclier). Les stats secondaires n'apparaissent qu'à partir de peu commun ; elles sont rangées à part dans `item.bonus`.
 - **Stat principale** cohérente avec le type : armure lourde = Force, moyenne = Force/Agilité, légère = Intelligence, bâton = Intelligence, dague = Agilité/Intelligence, armes 1M = Force/Agilité, 2M = Force, bijoux = au choix. (Voir « Dégâts physiques et magiques » ci-dessous pour leur effet.)
 - **Raretés** : commun (gris, 0 secondaire), peu commun (vert, 1), rare (bleu, 2), épique (violet, 3), légendaire (orange, 4 + passif unique). Les stats obligatoire/principale sont aussi multipliées par la rareté.
 - **Niveau** : un objet a le niveau du donjon où il est trouvé ; ses stats en dépendent.
