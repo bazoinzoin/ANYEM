@@ -79,7 +79,10 @@ input[type=text] {
 .slot .cname { font-family: var(--font-title); font-size: 15px; margin: 6px 0 2px; }
 .slot .role { color: var(--dim); font-size: 13px; margin-bottom: 8px; }
 .slot .stats { font-size: 13px; color: var(--dim); margin: 8px 0; }
-.slot select { width: 100%; margin: 6px 0; font-family: var(--font-title); font-size: 15px; background: var(--panel2); color: var(--cream); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
+.class-picker { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
+.class-picker button { padding: 2px 6px; font-size: 18px; line-height: 1.3; opacity: .55; border-bottom: 3px solid var(--c); }
+.class-picker button.selected { opacity: 1; outline: 2px solid var(--gold); background: #3a2c1c; }
+.class-picker button:hover { opacity: 1; }
 .slot .class-desc { font-size: 12px; color: var(--dim); margin: 6px 0 10px; line-height: 1.35; }
 
 .skillbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
@@ -2755,20 +2758,21 @@ const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES
 function renderCreate(app) {
   app.innerHTML = `
     <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
+    <p class="center hint">6 classes au choix : ${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(' · ')}. Clique sur une classe dans la carte d'un héros pour la changer.</p>
     <div class="slots">
       ${draft.classes.map((key, i) => classCard(key, i)).join('')}
     </div>
     <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
   `;
 
-  app.querySelectorAll('[data-class-slot]').forEach((select) => {
-    select.onchange = () => {
-      const i = Number(select.dataset.classSlot);
+  app.querySelectorAll('[data-class-slot]').forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.classSlot);
       const before = draft.classes[i];
       readNames(app);
       // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
-      if (draft.names[i] === CLASSES[before].name) draft.names[i] = CLASSES[select.value].name;
-      draft.classes[i] = select.value;
+      if (draft.names[i] === CLASSES[before].name) draft.names[i] = CLASSES[btn.dataset.class].name;
+      draft.classes[i] = btn.dataset.class;
       renderCreate(app);
     };
   });
@@ -2793,9 +2797,10 @@ function classCard(key, i) {
   return `
     <div class="card slot" style="--c:${cls.color}">
       <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
-      <select data-class-slot="${i}" aria-label="Classe du héros ${i + 1}">
-        ${CLASS_ORDER.map((k) => `<option value="${k}" ${k === key ? 'selected' : ''}>${CLASSES[k].icon} ${CLASSES[k].name}</option>`).join('')}
-      </select>
+      <div class="cname">${cls.name}</div>
+      <div class="class-picker" role="group" aria-label="Classe du héros ${i + 1}">
+        ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].name)}>${CLASSES[k].icon}</button>`).join('')}
+      </div>
       <div class="role">Ressource : ${cls.resource.name} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''}</div>
       <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
       <div class="role">${branches}</div>
