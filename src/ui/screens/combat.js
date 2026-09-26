@@ -6,9 +6,11 @@ import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { STATS } from '../../data/stats.js';
 import { DUNGEONS } from '../../data/dungeons.js';
-import { getClass, getSkills } from '../../game/party.js';
+import { getClass, getSkills, getStats } from '../../game/party.js';
+import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
+import { countOf } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
-import { targetsFor, canUseSkill } from '../../game/combat.js';
+import { targetsFor, canUseSkill, canUseItem } from '../../game/combat.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, tip, bar, range } from '../html.js';
@@ -91,6 +93,7 @@ function actionPanel(hero) {
       <div class="actions">
         <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
+        <button id="actItem" ${tip("Utilise un consommable du sac (potion, élixir…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
@@ -112,6 +115,7 @@ function wireActions(app, hero) {
   // Estimation affichée sur chaque cible (défense de la cible comprise).
   const targetEstimate = (action, unit) => {
     if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
+    if (action.type === 'item') return consumableEstimate(action.item, unit);
     const skill = getSkills(hero)[action.skill];
     return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
   };
@@ -138,7 +142,27 @@ function wireActions(app, hero) {
 
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
+  app.querySelector('#actItem').onclick = () => {
+    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0).map((k) => {
+      const c = CONSUMABLES[k];
+      return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;
+    }).join('');
+    zone.querySelectorAll('[data-item]').forEach((btn) => {
+      btn.onclick = () => chooseTarget({ type: 'item', item: btn.dataset.item });
+    });
+  };
   app.querySelectorAll('[data-skill]').forEach((btn) => {
     btn.onclick = () => chooseTarget({ type: 'skill', skill: Number(btn.dataset.skill) });
   });
+}
+
+// Effet prévu d'un consommable sur un héros (« +45 PV », « +30 ressource »…).
+function consumableEstimate(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  const stats = getStats(hero);
+  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
+  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
+  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
+  if (effect.cleanse) return 'retire les effets négatifs';
+  return '';
 }

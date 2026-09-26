@@ -8,7 +8,7 @@ import { applyVictory, applyDefeat } from '../game/progression.js';
 import { render, showHub } from './router.js';
 
 export function startEncounter(dungeonKey) {
-  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party });
+  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }

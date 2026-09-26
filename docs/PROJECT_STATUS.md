@@ -12,10 +12,11 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 ## Ce qui est déjà fonctionnel
 
 - **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
-- **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Forge, Marchand (placeholder "bientôt disponible"), écran de statistiques détaillées par personnage.
+- **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
 - **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
+- **Marchand** (voir détail ci-dessous) : revente du butin, achat de consommables et d'équipement ; action « Objet » en combat.
 - **Expérience et niveaux** : XP à chaque victoire, montée de niveau (PV et stat principale), 1 point de talent par niveau.
 - **Arbres de compétences** (voir détail ci-dessous) : orientations du design doc, écran « Maître des compétences » au village.
 - **Effets de combat** : buffs/debuffs, poisons et saignements, soins sur la durée, boucliers, étourdissement, provocation, confusion, soins de groupe, résurrection, multi-frappe.
@@ -42,6 +43,14 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
   - Foudre : Chaîne d'éclairs (zone) / Surcharge (+25 % puissance à un allié) / Tempête (énorme dégât direct).
 - **Statuts** (`src/game/statuses.js`) : durée en rounds, décomptée en fin de round (sauf l'étourdissement, consommé au tour perdu) ; les effets sur la durée ignorent la défense. Un statut de même nom se rafraîchit au lieu de se cumuler.
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
+
+## Marchand (choix d'implémentation)
+
+Réglages dans `src/config.js` (`MERCHANT`), consommables dans `src/data/consumables.js`, logique dans `src/game/merchant.js` et `src/game/consumables.js`.
+- **Revente** : uniquement les objets du sac. Prix = (5 + 2 × niveau) × rareté (commun ×1, peu commun ×2, rare ×4, épique ×8, légendaire ×16) × (1 + 20 % par amélioration). Confirmation pour un objet épique ou légendaire ; bouton « vendre tous les communs » avec confirmation.
+- **Consommables** : Potion de soin (30 % des PV max, 20 or), Grande potion (60 %, 50 or), Élixir (50 % de la ressource, 35 or), Remède (retire les effets négatifs, 25 or), Plume de phénix (relève un allié à 30 % des PV, 100 or). 9 maximum de chaque. L'équipe part avec 2 potions. Ils ne sont pas perdus en cas de défaite.
+- **Équipement en vente** : 4 objets du niveau du donjon (commun 55 %, peu commun 35 %, rare 10 %), renouvelés à chaque nouveau niveau de donjon ; prix d'achat = 4 × prix de revente.
+- **Action « Objet » en combat** (DESIGN_DOC §2) : utiliser un consommable prend le tour du héros ; cible toujours choisie, avec l'effet prévu affiché (ex. « Cibler Mage · +28 PV »). La Plume de phénix ne propose que les alliés tombés.
 
 ## Forge (choix d'implémentation)
 
@@ -77,9 +86,9 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 
 Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour le détail) :
 - `src/data/` : `CLASSES` (stats de base, croissance par niveau, maîtrises d'équipement, kit de départ, ressource, compétences), `TALENTS` (arbres), `STATS`, objets (`SLOTS`, `RARITIES`, types d'armes/armures, `LEGENDARIES`), `ENEMIES`, `DUNGEONS`.
-- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, compétences généralisées, IA avec provocation/confusion, fin de combat), `statuses.js` (effets à durée), `talents.js` (points, paliers, effets), `party.js` (héros, niveaux/XP, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `forge.js`, `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
+- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, compétences généralisées, IA avec provocation/confusion, fin de combat), `statuses.js` (effets à durée), `talents.js` (points, paliers, effets), `party.js` (héros, niveaux/XP, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `forge.js`, `merchant.js`, `consumables.js`, `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
 - `src/ui/` : un écran par fichier, `router.js` pour la navigation, `encounter.js` pour le rythme des tours ennemis (`setTimeout`).
-- `src/state.js` : état global (`screen`, `party`, `bag`, `materia`, `gold`, `dungeonLvl`, `combat`, `hubMessage`, `hubLoot`).
+- `src/state.js` : état global (`screen`, `party`, `bag`, `materia`, `consumables`, `shop`, `gold`, `dungeonLvl`, `combat`, `hubMessage`, `hubLoot`).
 - Rendu par template strings, ré-affichage complet de l'écran à chaque `render()`.
 
 ### Corrections apportées lors du découpage
@@ -94,12 +103,9 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 
 ## Ce qui n'est PAS encore fait (voir DESIGN_DOC.md pour le détail complet)
 
-- Revente du butin (Marchand)
-- Objets de soin (action « Objet » en combat)
 - Éléments des sorts (feu, glace, foudre… plus ou moins efficaces selon les monstres)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
 - Donjons à étages multiples avec boss tous les x étages, plusieurs donjons de niveau croissant
-- Marchand fonctionnel
 - Banque
 - Vrais sprites visuels (actuellement : emojis et couleurs CSS en guise de placeholders)
 - Village explorable avec déplacement libre du personnage (actuellement un simple menu/hub)

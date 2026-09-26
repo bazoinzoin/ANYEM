@@ -18,16 +18,19 @@ import {
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
 import { addStatus, hasStatus, consumeStun, tickStatuses } from './statuses.js';
+import { applyConsumable, countOf, isValidTarget } from './consumables.js';
+import { CONSUMABLES } from '../data/consumables.js';
 import { pick, random } from './rng.js';
 
-export function createCombat({ dungeonKey, level, party }) {
+// `consumables` : inventaire partagé de l'équipe (modifié quand un objet est utilisé).
+export function createCombat({ dungeonKey, level, party, consumables = {} }) {
   const dungeon = DUNGEONS[dungeonKey];
   const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
   });
-  const cb = { dungeonKey, level, party, enemies, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
+  const cb = { dungeonKey, level, party, enemies, consumables, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
   log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
   return cb;
 }
@@ -129,12 +132,18 @@ function aliveAt(list, index) {
  */
 export function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
+  if (action.type === 'item') return { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
   if (action.type !== 'skill') return null;
   const skill = getSkills(cb.acting.unit)[action.skill];
   if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
   if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
   if (skill.target === 'deadAlly') return { side: 'hero', units: cb.party.filter((h) => !h.alive) };
   return null;
+}
+
+// Un consommable est-il utilisable maintenant (en stock, cible possible) ?
+export function canUseItem(cb, key) {
+  return countOf(cb.consumables, key) > 0 && cb.party.some((h) => isValidTarget(key, h));
 }
 
 // Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
@@ -149,6 +158,7 @@ export function canUseSkill(cb, hero, skill) {
  * action : { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
+ *        | { type: 'item', item: cléConsommable, target: indexAllié }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 export function heroAct(cb, action) {
@@ -172,6 +182,13 @@ export function heroAct(cb, action) {
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
     gainResource(hero, getClass(hero).resource.onAttack);
+  } else if (action.type === 'item') {
+    const target = cb.party[action.target];
+    if (!CONSUMABLES[action.item] || !target || !canUseItem(cb, action.item)) return false;
+    const result = applyConsumable(action.item, target);
+    if (result === null) return false;
+    cb.consumables[action.item]--;
+    log(cb, `${hero.name} utilise ${CONSUMABLES[action.item].name} sur ${target.name} (${result}).`, true);
   } else if (action.type === 'skill') {
     const skill = getSkills(hero)[action.skill];
     if (!skill || !canUseSkill(cb, hero, skill)) return false;

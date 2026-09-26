@@ -243,6 +243,18 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .talent-body small { color: var(--dim); }
 .talent button { padding: 4px 12px; font-size: 14px; }
 .talent .reason { color: var(--dim); font-style: italic; }
+
+/* ---- Marchand ---- */
+.gold { color: var(--gold); }
+.shop-section { margin-bottom: 14px; }
+.shop-section h3 { font-size: 16px; margin-bottom: 4px; }
+.shop-section h3 small { color: var(--dim); font-family: var(--font-body); font-size: 13px; }
+.shop-section > .hint { font-size: 13px; margin: 0 0 10px; }
+.shop-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.shop-info { min-width: 0; }
+.shop-info small { color: var(--dim); }
+.shop-info .hint { font-size: 12px; }
+.shop-row button { flex-shrink: 0; padding: 6px 12px; font-size: 14px; }
 </style>
 
 </head>
@@ -329,6 +341,21 @@ const FORGE = {
   goldPerLevel: 5,
 };
 
+// Marchand. Prix de revente d'un objet :
+// (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
+// Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+const MERCHANT = {
+  sellBase: 5,
+  sellPerLevel: 2,
+  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16 },
+  sellPerPlus: 0.2,
+  buyMarkup: 4,
+  stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon
+  stockRarityWeights: { commun: 55, peuCommun: 35, rare: 10 },
+  maxConsumable: 9,        // nombre maximum de chaque consommable transporté
+  startingConsumables: { potion: 2 },
+};
+
 // Fourchettes de variance des dégâts [min, max].
 const VARIANCE = {
   hero: [0.9, 1.15],
@@ -350,7 +377,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, XP, TALENT_RULES, FORGE, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -789,63 +816,43 @@ function upgrade(game, item) {
 return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
 })();
 
-// ---- src/state.js
-__modules["src/state.js"] = (() => {
-const { START_GOLD, START_DUNGEON_LEVEL } = __modules["src/config.js"];
-const { emptyMateria } = __modules["src/game/forge.js"];
-// État global du jeu (source de vérité unique, lue par l'interface).
+// ---- src/data/consumables.js
+__modules["src/data/consumables.js"] = (() => {
 
+// Consommables vendus par le Marchand et utilisables en combat (action « Objet »).
+// Données pures. Effets (voir game/consumables.js) :
+//   healPct      soigne ce % des PV max de la cible
+//   resourcePct  rend ce % de la ressource max (Rage, Énergie, Mana)
+//   cleanse      retire les effets négatifs (poison, ralentissement…)
+//   revivePct    relève un allié tombé avec ce % de ses PV
+// target : 'ally' (allié en vie) ou 'deadAlly' (allié tombé).
 
-
-
-const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'combat'
-  party: [],
-  bag: [],              // objets non équipés, partagés par l'équipe
-  materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
-  gold: START_GOLD,
-  dungeonLvl: START_DUNGEON_LEVEL,
-  combat: null,
-  hubMessage: null,     // message affiché une seule fois à l'arrivée au village
-  hubLoot: [],          // objets obtenus, affichés avec ce message
+const CONSUMABLES = {
+  potion: {
+    name: 'Potion de soin', icon: '🧪', price: 20, target: 'ally',
+    effect: { healPct: 30 }, desc: 'Rend 30 % des PV max à un allié.',
+  },
+  grandePotion: {
+    name: 'Grande potion de soin', icon: '⚗️', price: 50, target: 'ally',
+    effect: { healPct: 60 }, desc: 'Rend 60 % des PV max à un allié.',
+  },
+  elixir: {
+    name: 'Élixir', icon: '💧', price: 35, target: 'ally',
+    effect: { resourcePct: 50 }, desc: 'Rend 50 % de sa ressource (Rage, Énergie ou Mana) à un allié.',
+  },
+  remede: {
+    name: 'Remède', icon: '🌿', price: 25, target: 'ally',
+    effect: { cleanse: true }, desc: 'Retire tous les effets négatifs (poison, ralentissement, confusion…) d\'un allié.',
+  },
+  plumeDePhenix: {
+    name: 'Plume de phénix', icon: '🪶', price: 100, target: 'deadAlly',
+    effect: { revivePct: 30 }, desc: 'Relève un allié tombé avec 30 % de ses PV.',
+  },
 };
 
-return { state };
-})();
+const CONSUMABLE_ORDER = Object.keys(CONSUMABLES);
 
-// ---- src/ui/router.js
-__modules["src/ui/router.js"] = (() => {
-const { state } = __modules["src/state.js"];
-// Navigation entre écrans. Chaque écran est une fonction (app) => void qui
-// remplit #app et branche ses propres événements.
-
-
-
-const screens = {};
-
-function registerScreens(map) {
-  Object.assign(screens, map);
-}
-
-function render() {
-  const app = document.getElementById('app');
-  const screen = screens[state.screen];
-  if (!screen) throw new Error(`Écran inconnu : ${state.screen}`);
-  screen(app);
-}
-
-function goTo(screen) {
-  state.screen = screen;
-  render();
-}
-
-function showHub(message = null, loot = []) {
-  state.hubMessage = message;
-  state.hubLoot = loot;
-  goTo('hub');
-}
-
-return { registerScreens, render, goTo, showHub };
+return { CONSUMABLES, CONSUMABLE_ORDER };
 })();
 
 // ---- src/data/classes.js
@@ -1592,104 +1599,6 @@ function restoreFully(hero) {
 return { getClass, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
-// ---- src/ui/html.js
-__modules["src/ui/html.js"] = (() => {
-
-// Petits utilitaires de rendu HTML.
-
-const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
-// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
-}
-
-// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
-function tip(text, extraClass = '') {
-  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
-}
-
-function bar(value, max, color) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
-}
-
-function range({ lo, hi }) {
-  return lo === hi ? `${lo}` : `${lo}-${hi}`;
-}
-
-return { esc, tip, bar, range };
-})();
-
-// ---- src/ui/screens/create.js
-__modules["src/ui/screens/create.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { PARTY_ORDER } = __modules["src/config.js"];
-const { CLASSES } = __modules["src/data/classes.js"];
-const { createParty, createHero, getStats } = __modules["src/game/party.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { goTo } = __modules["src/ui/router.js"];
-// Création de l'équipe.
-
-
-
-
-
-
-
-
-function renderCreate(app) {
-  app.innerHTML = `
-    <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
-    <div class="slots">
-      ${PARTY_ORDER.map((key, i) => classCard(key, i)).join('')}
-    </div>
-    <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
-  `;
-
-  app.querySelector('#startBtn').onclick = () => {
-    const names = PARTY_ORDER.map((_, i) => app.querySelector(`#name${i}`).value);
-    state.party = createParty(names);
-    goTo('hub');
-  };
-}
-
-function classCard(key, i) {
-  const cls = CLASSES[key];
-  const stats = getStats(createHero(key)); // avec l'équipement de départ
-  const power = cls.skills.some((s) => s.magic || s.kind === 'heal')
-    ? `Magie ${stats.magPower}` : `Puissance ${stats.physPower}`;
-  return `
-    <div class="card slot" style="--c:${cls.color}">
-      <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
-      <div class="cname">${cls.name}</div>
-      <div class="role">Ressource : ${cls.resource.name}</div>
-      <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
-      <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(cls.name)}" maxlength="24">
-    </div>`;
-}
-
-return { renderCreate };
-})();
-
-// ---- src/data/dungeons.js
-__modules["src/data/dungeons.js"] = (() => {
-
-// Donjons accessibles depuis les portails du village.
-// encounter : liste des clés d'ennemis (voir enemies.js) composant un combat.
-
-const DUNGEONS = {
-  foretMaudite: {
-    name: 'Forêt Maudite',
-    icon: '🌲',
-    desc: 'Un groupe de gobelins garde le passage.',
-    encounter: ['gobelin', 'gobelin'],
-  },
-};
-
-return { DUNGEONS };
-})();
-
 // ---- src/game/statuses.js
 __modules["src/game/statuses.js"] = (() => {
 
@@ -1828,6 +1737,235 @@ function heal(unit, amount) {
 }
 
 return { isHero, isAlive, statsOf, damage, heal };
+})();
+
+// ---- src/game/consumables.js
+__modules["src/game/consumables.js"] = (() => {
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { MERCHANT } = __modules["src/config.js"];
+const { getStats, gainResource } = __modules["src/game/party.js"];
+const { heal } = __modules["src/game/units.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+// Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
+
+
+
+
+
+
+
+function startingConsumables() {
+  return { ...MERCHANT.startingConsumables };
+}
+
+function countOf(inventory, key) {
+  return inventory?.[key] ?? 0;
+}
+
+function addConsumable(inventory, key, amount = 1) {
+  const total = countOf(inventory, key) + amount;
+  if (total > MERCHANT.maxConsumable || total < 0) return false;
+  inventory[key] = total;
+  return true;
+}
+
+// La cible est-elle valable pour ce consommable ?
+function isValidTarget(key, target) {
+  const def = CONSUMABLES[key];
+  return def.target === 'deadAlly' ? !target.alive : target.alive;
+}
+
+/**
+ * Applique l'effet d'un consommable à un héros (sans le retirer de l'inventaire).
+ * Retourne un texte décrivant le résultat, ou null si la cible n'est pas valable.
+ */
+function applyConsumable(key, target) {
+  const { effect } = CONSUMABLES[key];
+  if (!isValidTarget(key, target)) return null;
+  const stats = getStats(target);
+  const parts = [];
+  if (effect.revivePct) {
+    target.alive = true;
+    target.statuses = [];
+    target.hp = Math.max(1, Math.round(stats.pv * effect.revivePct / 100));
+    parts.push(`revient à la vie (${target.hp} PV)`);
+  }
+  if (effect.healPct) parts.push(`+${heal(target, Math.max(1, Math.round(stats.pv * effect.healPct / 100)))} PV`);
+  if (effect.resourcePct) {
+    const before = target.res;
+    gainResource(target, Math.round(stats.resMax * effect.resourcePct / 100));
+    parts.push(`+${target.res - before} ressource`);
+  }
+  if (effect.cleanse) {
+    const removed = statusesOf(target).filter((s) => s.kind === 'debuff').length;
+    target.statuses = statusesOf(target).filter((s) => s.kind !== 'debuff');
+    parts.push(removed ? `${removed} effet${removed > 1 ? 's' : ''} négatif${removed > 1 ? 's' : ''} retiré${removed > 1 ? 's' : ''}` : 'aucun effet négatif');
+  }
+  return parts.join(', ');
+}
+
+return { startingConsumables, countOf, addConsumable, isValidTarget, applyConsumable };
+})();
+
+// ---- src/state.js
+__modules["src/state.js"] = (() => {
+const { START_GOLD, START_DUNGEON_LEVEL } = __modules["src/config.js"];
+const { emptyMateria } = __modules["src/game/forge.js"];
+const { startingConsumables } = __modules["src/game/consumables.js"];
+// État global du jeu (source de vérité unique, lue par l'interface).
+
+
+
+
+
+const state = {
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'combat'
+  party: [],
+  bag: [],              // objets non équipés, partagés par l'équipe
+  materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
+  consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
+  shop: null,           // stock du Marchand : { level, stock: [objets] }
+  gold: START_GOLD,
+  dungeonLvl: START_DUNGEON_LEVEL,
+  combat: null,
+  hubMessage: null,     // message affiché une seule fois à l'arrivée au village
+  hubLoot: [],          // objets obtenus, affichés avec ce message
+};
+
+return { state };
+})();
+
+// ---- src/ui/router.js
+__modules["src/ui/router.js"] = (() => {
+const { state } = __modules["src/state.js"];
+// Navigation entre écrans. Chaque écran est une fonction (app) => void qui
+// remplit #app et branche ses propres événements.
+
+
+
+const screens = {};
+
+function registerScreens(map) {
+  Object.assign(screens, map);
+}
+
+function render() {
+  const app = document.getElementById('app');
+  const screen = screens[state.screen];
+  if (!screen) throw new Error(`Écran inconnu : ${state.screen}`);
+  screen(app);
+}
+
+function goTo(screen) {
+  state.screen = screen;
+  render();
+}
+
+function showHub(message = null, loot = []) {
+  state.hubMessage = message;
+  state.hubLoot = loot;
+  goTo('hub');
+}
+
+return { registerScreens, render, goTo, showHub };
+})();
+
+// ---- src/ui/html.js
+__modules["src/ui/html.js"] = (() => {
+
+// Petits utilitaires de rendu HTML.
+
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
+}
+
+// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
+function tip(text, extraClass = '') {
+  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
+}
+
+function bar(value, max, color) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
+}
+
+function range({ lo, hi }) {
+  return lo === hi ? `${lo}` : `${lo}-${hi}`;
+}
+
+return { esc, tip, bar, range };
+})();
+
+// ---- src/ui/screens/create.js
+__modules["src/ui/screens/create.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { PARTY_ORDER } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { createParty, createHero, getStats } = __modules["src/game/party.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Création de l'équipe.
+
+
+
+
+
+
+
+
+function renderCreate(app) {
+  app.innerHTML = `
+    <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
+    <div class="slots">
+      ${PARTY_ORDER.map((key, i) => classCard(key, i)).join('')}
+    </div>
+    <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
+  `;
+
+  app.querySelector('#startBtn').onclick = () => {
+    const names = PARTY_ORDER.map((_, i) => app.querySelector(`#name${i}`).value);
+    state.party = createParty(names);
+    goTo('hub');
+  };
+}
+
+function classCard(key, i) {
+  const cls = CLASSES[key];
+  const stats = getStats(createHero(key)); // avec l'équipement de départ
+  const power = cls.skills.some((s) => s.magic || s.kind === 'heal')
+    ? `Magie ${stats.magPower}` : `Puissance ${stats.physPower}`;
+  return `
+    <div class="card slot" style="--c:${cls.color}">
+      <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
+      <div class="cname">${cls.name}</div>
+      <div class="role">Ressource : ${cls.resource.name}</div>
+      <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
+      <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(cls.name)}" maxlength="24">
+    </div>`;
+}
+
+return { renderCreate };
+})();
+
+// ---- src/data/dungeons.js
+__modules["src/data/dungeons.js"] = (() => {
+
+// Donjons accessibles depuis les portails du village.
+// encounter : liste des clés d'ennemis (voir enemies.js) composant un combat.
+
+const DUNGEONS = {
+  foretMaudite: {
+    name: 'Forêt Maudite',
+    icon: '🌲',
+    desc: 'Un groupe de gobelins garde le passage.',
+    encounter: ['gobelin', 'gobelin'],
+  },
+};
+
+return { DUNGEONS };
 })();
 
 // ---- src/game/loot.js
@@ -2096,6 +2234,8 @@ const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
 const { rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses } = __modules["src/game/statuses.js"];
+const { applyConsumable, countOf, isValidTarget } = __modules["src/game/consumables.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { pick, random } = __modules["src/game/rng.js"];
 // Moteur de combat tour par tour. Logique pure : pas de DOM, pas de timers.
 // Le rythme (délais des tours ennemis) et l'affichage sont gérés par ui/encounter.js.
@@ -2116,14 +2256,17 @@ const { pick, random } = __modules["src/game/rng.js"];
 
 
 
-function createCombat({ dungeonKey, level, party }) {
+
+
+// `consumables` : inventaire partagé de l'équipe (modifié quand un objet est utilisé).
+function createCombat({ dungeonKey, level, party, consumables = {} }) {
   const dungeon = DUNGEONS[dungeonKey];
   const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
   });
-  const cb = { dungeonKey, level, party, enemies, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
+  const cb = { dungeonKey, level, party, enemies, consumables, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
   log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
   return cb;
 }
@@ -2225,12 +2368,18 @@ function aliveAt(list, index) {
  */
 function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
+  if (action.type === 'item') return { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
   if (action.type !== 'skill') return null;
   const skill = getSkills(cb.acting.unit)[action.skill];
   if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
   if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
   if (skill.target === 'deadAlly') return { side: 'hero', units: cb.party.filter((h) => !h.alive) };
   return null;
+}
+
+// Un consommable est-il utilisable maintenant (en stock, cible possible) ?
+function canUseItem(cb, key) {
+  return countOf(cb.consumables, key) > 0 && cb.party.some((h) => isValidTarget(key, h));
 }
 
 // Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
@@ -2245,6 +2394,7 @@ function canUseSkill(cb, hero, skill) {
  * action : { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
+ *        | { type: 'item', item: cléConsommable, target: indexAllié }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 function heroAct(cb, action) {
@@ -2268,6 +2418,13 @@ function heroAct(cb, action) {
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
     gainResource(hero, getClass(hero).resource.onAttack);
+  } else if (action.type === 'item') {
+    const target = cb.party[action.target];
+    if (!CONSUMABLES[action.item] || !target || !canUseItem(cb, action.item)) return false;
+    const result = applyConsumable(action.item, target);
+    if (result === null) return false;
+    cb.consumables[action.item]--;
+    log(cb, `${hero.name} utilise ${CONSUMABLES[action.item].name} sur ${target.name} (${result}).`, true);
   } else if (action.type === 'skill') {
     const skill = getSkills(hero)[action.skill];
     if (!skill || !canUseSkill(cb, hero, skill)) return false;
@@ -2400,7 +2557,7 @@ function enemyAct(cb) {
   endTurn(cb);
 }
 
-return { createCombat, log, checkOutcome, nextTurn, targetsFor, canUseSkill, heroAct, enemyAct };
+return { createCombat, log, checkOutcome, nextTurn, targetsFor, canUseItem, canUseSkill, heroAct, enemyAct };
 })();
 
 // ---- src/ui/encounter.js
@@ -2420,7 +2577,7 @@ const { render, showHub } = __modules["src/ui/router.js"];
 
 
 function startEncounter(dungeonKey) {
-  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party });
+  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -3218,6 +3375,229 @@ function nodeCard(hero, branch, node) {
 return { openTalents, renderTalents };
 })();
 
+// ---- src/game/merchant.js
+__modules["src/game/merchant.js"] = (() => {
+const { MERCHANT } = __modules["src/config.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { addConsumable, countOf } = __modules["src/game/consumables.js"];
+// Marchand : revente du butin, achat de consommables et d'équipement.
+// Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
+
+
+
+
+
+
+function sellPrice(item) {
+  const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
+  return Math.max(1, Math.round(base * MERCHANT.sellRarityMult[item.rarity] * (1 + MERCHANT.sellPerPlus * (item.plus ?? 0))));
+}
+
+function buyPrice(item) {
+  return sellPrice(item) * MERCHANT.buyMarkup;
+}
+
+// Vend un objet du sac (jamais un objet porté).
+function sell(game, item) {
+  const index = game.bag.indexOf(item);
+  if (index === -1) return false;
+  game.bag.splice(index, 1);
+  game.gold += sellPrice(item);
+  return true;
+}
+
+// Stock d'équipement : renouvelé quand le niveau du donjon change.
+function ensureStock(game) {
+  if (game.shop?.level === game.dungeonLvl) return game.shop.stock;
+  const stock = [];
+  for (let i = 0; i < MERCHANT.stockSize; i++) {
+    stock.push(generateItem({ level: game.dungeonLvl, rarity: weightedPick(MERCHANT.stockRarityWeights) }));
+  }
+  game.shop = { level: game.dungeonLvl, stock };
+  return stock;
+}
+
+// Achète un objet du stock : il rejoint le sac.
+function buyItem(game, item) {
+  const stock = ensureStock(game);
+  const index = stock.indexOf(item);
+  const price = buyPrice(item);
+  if (index === -1 || game.gold < price) return false;
+  stock.splice(index, 1);
+  game.gold -= price;
+  game.bag.push(item);
+  return true;
+}
+
+function canBuyConsumable(game, key) {
+  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+}
+
+function buyConsumable(game, key) {
+  if (!canBuyConsumable(game, key)) return false;
+  addConsumable(game.consumables, key);
+  game.gold -= CONSUMABLES[key].price;
+  return true;
+}
+
+return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
+})();
+
+// ---- src/ui/screens/merchant.js
+__modules["src/ui/screens/merchant.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { MERCHANT } = __modules["src/config.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } = __modules["src/game/merchant.js"];
+const { countOf } = __modules["src/game/consumables.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Marchand : achat de consommables et d'équipement, revente du butin.
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran : vente en attente de confirmation, dernier message.
+const view = { confirm: null, flash: null };
+
+// Raretés dont la vente demande une confirmation.
+const CONFIRM_RARITIES = ['epique', 'legendaire'];
+
+function openMerchant() {
+  Object.assign(view, { confirm: null, flash: null });
+  goTo('merchant');
+}
+
+function renderMerchant(app) {
+  const stock = ensureStock(state);
+  const flash = view.flash;
+  view.flash = null;
+  const commons = state.bag.filter((i) => i.rarity === 'commun');
+  const commonsValue = commons.reduce((sum, i) => sum + sellPrice(i), 0);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🛒 Marchand</h1><p>Or : <b class="gold">${state.gold}</b></p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    <div class="equip-layout">
+      <div>
+        <div class="card shop-section">
+          <h3>Consommables</h3>
+          <p class="hint">Utilisables en combat avec l'action « Objet » (maximum ${MERCHANT.maxConsumable} de chaque).</p>
+          ${CONSUMABLE_ORDER.map(consumableRow).join('')}
+        </div>
+        <div class="card shop-section">
+          <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
+          <p class="hint">Renouvelé à chaque nouveau niveau de donjon. Les objets achetés vont dans le sac.</p>
+          ${stock.length ? stock.map(stockRow).join('') : '<p class="hint">Tout a été vendu : revenez après le prochain donjon.</p>'}
+        </div>
+      </div>
+      <div class="card shop-section">
+        <h3>Vendre le butin <small>${state.bag.length} objet${state.bag.length > 1 ? 's' : ''} dans le sac</small></h3>
+        <p class="hint">Seuls les objets du sac se vendent (retire d'abord un objet porté pour le vendre).</p>
+        ${commons.length ? `
+          <button id="sellCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
+            ${view.confirm === 'commons'
+              ? `Confirmer : vendre ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''} pour ${commonsValue} or`
+              : `Vendre tous les objets communs (${commons.length}) — ${commonsValue} or`}
+          </button>` : ''}
+        ${state.bag.length ? state.bag.map(sellRow).join('') : '<p class="hint">Le sac est vide.</p>'}
+      </div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-buy-consumable]').forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.buyConsumable;
+      if (buyConsumable(state, key)) view.flash = `Vous achetez : ${CONSUMABLES[key].name}.`;
+      rerender();
+    };
+  });
+  app.querySelectorAll('[data-buy-item]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = stock.find((i) => i.id === btn.dataset.buyItem);
+      if (item && buyItem(state, item)) view.flash = `Vous achetez ${itemName(item)} pour ${buyPrice(item)} or. Il est dans le sac.`;
+      rerender();
+    };
+  });
+  app.querySelectorAll('[data-sell]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = state.bag.find((i) => i.id === btn.dataset.sell);
+      if (!item) return rerender();
+      if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
+        view.confirm = item.id;
+        return goTo('merchant');
+      }
+      const price = sellPrice(item);
+      if (sell(state, item)) view.flash = `${itemName(item)} vendu pour ${price} or.`;
+      rerender();
+    };
+  });
+  app.querySelector('#sellCommons')?.addEventListener('click', () => {
+    if (view.confirm !== 'commons') {
+      view.confirm = 'commons';
+      return goTo('merchant');
+    }
+    const sold = commons.filter((i) => sell(state, i));
+    view.flash = `${sold.length} objet${sold.length > 1 ? 's' : ''} vendu${sold.length > 1 ? 's' : ''} pour ${commonsValue} or.`;
+    rerender();
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function rerender() {
+  view.confirm = null;
+  goTo('merchant');
+}
+
+function consumableRow(key) {
+  const c = CONSUMABLES[key];
+  const owned = countOf(state.consumables, key);
+  return `
+    <div class="shop-row">
+      <div class="shop-info">
+        <b>${c.icon} ${c.name}</b> <small>possédé : ${owned}/${MERCHANT.maxConsumable}</small>
+        <div class="hint">${c.desc}</div>
+      </div>
+      <button data-buy-consumable="${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${c.price} or</button>
+    </div>`;
+}
+
+function itemLabel(item) {
+  return `<span ${tip(itemTooltipText(item), 'rarity-text')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
+}
+
+function stockRow(item) {
+  const price = buyPrice(item);
+  return `
+    <div class="shop-row">
+      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
+      <button data-buy-item="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter · ${price} or</button>
+    </div>`;
+}
+
+function sellRow(item) {
+  const confirming = view.confirm === item.id;
+  return `
+    <div class="shop-row">
+      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
+      <button data-sell="${item.id}" class="${confirming ? 'danger' : ''}">${confirming ? 'Confirmer la vente' : 'Vendre'} · ${sellPrice(item)} or</button>
+    </div>`;
+}
+
+return { openMerchant, renderMerchant };
+})();
+
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -3231,8 +3611,10 @@ const { itemChip } = __modules["src/ui/items.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { openMerchant } = __modules["src/ui/screens/merchant.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
 
 
 
@@ -3270,7 +3652,7 @@ function renderHub(app) {
       <h2>Services</h2>
       <div class="services">
         <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
-        <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
+        <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
         <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
@@ -3283,7 +3665,7 @@ function renderHub(app) {
     btn.onclick = () => startEncounter(btn.dataset.dungeon);
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
-  app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
+  app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
@@ -3394,9 +3776,11 @@ const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
-const { getClass, getSkills } = __modules["src/game/party.js"];
+const { getClass, getSkills, getStats } = __modules["src/game/party.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { countOf } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
-const { targetsFor, canUseSkill } = __modules["src/game/combat.js"];
+const { targetsFor, canUseSkill, canUseItem } = __modules["src/game/combat.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
@@ -3405,6 +3789,8 @@ const { playerAction } = __modules["src/ui/encounter.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
 // personnelle demande une confirmation qui montre qui sera touché.
+
+
 
 
 
@@ -3495,6 +3881,7 @@ function actionPanel(hero) {
       <div class="actions">
         <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
+        <button id="actItem" ${tip("Utilise un consommable du sac (potion, élixir…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
@@ -3516,6 +3903,7 @@ function wireActions(app, hero) {
   // Estimation affichée sur chaque cible (défense de la cible comprise).
   const targetEstimate = (action, unit) => {
     if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
+    if (action.type === 'item') return consumableEstimate(action.item, unit);
     const skill = getSkills(hero)[action.skill];
     return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
   };
@@ -3542,9 +3930,29 @@ function wireActions(app, hero) {
 
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
+  app.querySelector('#actItem').onclick = () => {
+    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0).map((k) => {
+      const c = CONSUMABLES[k];
+      return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;
+    }).join('');
+    zone.querySelectorAll('[data-item]').forEach((btn) => {
+      btn.onclick = () => chooseTarget({ type: 'item', item: btn.dataset.item });
+    });
+  };
   app.querySelectorAll('[data-skill]').forEach((btn) => {
     btn.onclick = () => chooseTarget({ type: 'skill', skill: Number(btn.dataset.skill) });
   });
+}
+
+// Effet prévu d'un consommable sur un héros (« +45 PV », « +30 ressource »…).
+function consumableEstimate(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  const stats = getStats(hero);
+  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
+  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
+  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
+  if (effect.cleanse) return 'retire les effets négatifs';
+  return '';
 }
 
 return { renderCombat };
@@ -3559,8 +3967,10 @@ const { renderStats } = __modules["src/ui/screens/stats.js"];
 const { renderEquipment } = __modules["src/ui/screens/equipment.js"];
 const { renderForge } = __modules["src/ui/screens/forge.js"];
 const { renderTalents } = __modules["src/ui/screens/talents.js"];
+const { renderMerchant } = __modules["src/ui/screens/merchant.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -3578,6 +3988,7 @@ registerScreens({
   equipment: renderEquipment,
   forge: renderForge,
   talents: renderTalents,
+  merchant: renderMerchant,
   combat: renderCombat,
 });
 

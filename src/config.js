@@ -71,6 +71,21 @@ export const FORGE = {
   goldPerLevel: 5,
 };
 
+// Marchand. Prix de revente d'un objet :
+// (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
+// Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
+export const MERCHANT = {
+  sellBase: 5,
+  sellPerLevel: 2,
+  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16 },
+  sellPerPlus: 0.2,
+  buyMarkup: 4,
+  stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon
+  stockRarityWeights: { commun: 55, peuCommun: 35, rare: 10 },
+  maxConsumable: 9,        // nombre maximum de chaque consommable transporté
+  startingConsumables: { potion: 2 },
+};
+
 // Fourchettes de variance des dégâts [min, max].
 export const VARIANCE = {
   hero: [0.9, 1.15],

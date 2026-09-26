@@ -11,6 +11,7 @@ import { itemChip } from '../items.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
 import { openTalents } from './talents.js';
+import { openMerchant } from './merchant.js';
 import { pointsAvailable } from '../../game/talents.js';
 
 export function renderHub(app) {
@@ -36,7 +37,7 @@ export function renderHub(app) {
       <h2>Services</h2>
       <div class="services">
         <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
-        <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
+        <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
         <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
@@ -49,7 +50,7 @@ export function renderHub(app) {
     btn.onclick = () => startEncounter(btn.dataset.dungeon);
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
-  app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
+  app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
