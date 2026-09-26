@@ -37,8 +37,9 @@ import { pick, random } from './rng.js';
  * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
  * consumables : inventaire partagé de l'équipe (modifié quand un objet est utilisé)
  * title       : texte d'introduction (ex. « Forêt Maudite — étage 3 »)
+ * power       : multiplicateur de difficulté des ennemis (PV et attaque)
  */
-export function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
+export function createCombat({ party, enemies, level, consumables = {}, title = 'Combat', power = 1 }) {
   party.forEach((hero) => {
     hero.guard = false;
     // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
@@ -51,7 +52,7 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
-    title, level, party, enemies: createEnemies(enemies, level), consumables,
+    title, level, party, enemies: createEnemies(enemies, level, power), consumables,
     log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
   };
   log(cb, `${title} (niveau ${level}).`);

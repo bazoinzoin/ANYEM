@@ -6,6 +6,7 @@ import { REWARDS, LOOT, XP } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
 import { rollLoot } from './loot.js';
+import { difficultyOf } from './difficulty.js';
 import { emptyMateria } from './forge.js';
 import { addConsumable } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
@@ -40,7 +41,7 @@ function materiaText(materia) {
 export function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, difficulty: difficultyOf(game) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);

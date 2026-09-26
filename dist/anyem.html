@@ -349,6 +349,15 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .victory-summary table { border-collapse: collapse; }
 .victory-summary th { text-align: left; padding: 3px 12px 3px 0; font-weight: 400; color: var(--dim); white-space: nowrap; vertical-align: top; }
 .victory-summary td { padding: 3px 0; }
+
+/* ---- Difficulté ---- */
+.difficulty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; margin-bottom: 12px; }
+.card.difficulty.selected { outline: 2px solid var(--gold); background: #2a2015; }
+.card.difficulty h2 { margin-top: 0; }
+.card.difficulty p { margin: 4px 0; font-size: 14px; }
+.rarity-table { border-collapse: collapse; font-size: 12px; width: 100%; margin: 8px 0; }
+.rarity-table th, .rarity-table td { padding: 2px 3px; text-align: center; }
+.rarity-table tbody th { text-align: left; color: var(--dim); font-weight: 400; }
 </style>
 
 </head>
@@ -422,6 +431,45 @@ const LOOT = {
   categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
+
+// Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
+// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
+// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
+// changent pas.
+const DIFFICULTIES = {
+  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  aventure: {
+    name: 'Aventure', icon: '🗺️', power: 1.3,
+    loot: {
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
+      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
+      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+    },
+  },
+  guerre: {
+    name: 'Guerre', icon: '⚔️', power: 1.7,
+    loot: {
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
+      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
+      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+    },
+  },
+  horreur: {
+    name: 'Horreur', icon: '💀', power: 2.2,
+    loot: {
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
+      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+    },
+  },
+};
+const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
@@ -511,7 +559,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -2871,6 +2919,7 @@ const state = {
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,
+  difficulty: 'balade', // voir DIFFICULTIES (config.js) et game/difficulty.js
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
@@ -4009,9 +4058,40 @@ function buyConsumable(game, key) {
 return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
 })();
 
+// ---- src/game/difficulty.js
+__modules["src/game/difficulty.js"] = (() => {
+const { DIFFICULTIES, LOOT } = __modules["src/config.js"];
+// Difficulté de la partie (voir DIFFICULTIES dans config.js) : puissance des
+// ennemis et règles de butin. Se change au village, jamais pendant une expédition.
+
+
+
+function difficultyOf(game) {
+  return DIFFICULTIES[game?.difficulty] ? game.difficulty : 'balade';
+}
+
+function setDifficulty(game, key) {
+  if (!DIFFICULTIES[key] || game.expedition) return false;
+  game.difficulty = key;
+  return true;
+}
+
+// Multiplicateur des PV et de l'attaque des ennemis.
+function enemyPower(key) {
+  return DIFFICULTIES[key]?.power ?? 1;
+}
+
+// Règles de butin de la difficulté (LOOT, avec ses valeurs remplacées).
+function lootRules(key) {
+  return { ...LOOT, ...(DIFFICULTIES[key]?.loot ?? {}) };
+}
+
+return { difficultyOf, setDifficulty, enemyPower, lootRules };
+})();
+
 // ---- src/game/loot.js
 __modules["src/game/loot.js"] = (() => {
-const { LOOT } = __modules["src/config.js"];
+const { lootRules } = __modules["src/game/difficulty.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MATERIA_KINDS } = __modules["src/data/items.js"];
 const { generateItem, weightedPick } = __modules["src/game/items.js"];
@@ -4043,9 +4123,11 @@ function addMateria(list, kind, rarity, amount) {
  * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
  *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
  * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
+ * Les chances et raretés dépendent de la difficulté (voir game/difficulty.js).
  * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
-function rollLoot(level, enemies, { final = false } = {}) {
+function rollLoot(level, enemies, { final = false, difficulty = 'balade' } = {}) {
+  const LOOT = lootRules(difficulty);
   const loot = { items: [], materia: [], consumables: [] };
   const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
@@ -4054,7 +4136,7 @@ function rollLoot(level, enemies, { final = false } = {}) {
       for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
       addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
     } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.rarityWeights) }));
       if (random() < LOOT.materiaChance) {
         addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
       }
@@ -4429,6 +4511,7 @@ const { REWARDS, LOOT, XP } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
 const { addConsumable } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
@@ -4437,6 +4520,7 @@ const { random } = __modules["src/game/rng.js"];
 // Conséquences d'un combat et services du village sur l'état global du jeu.
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
+
 
 
 
@@ -4476,7 +4560,7 @@ function materiaText(materia) {
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, difficulty: difficultyOf(game) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
@@ -4524,6 +4608,7 @@ return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
 const { maybeTriggerEvent } = __modules["src/game/events.js"];
+const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
@@ -4542,6 +4627,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
+
 
 
 
@@ -4626,6 +4712,7 @@ function floorCombat(game) {
   return {
     enemies,
     level: floorLevel(dungeonKey, floor),
+    power: enemyPower(difficultyOf(game)),
     title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }
@@ -4718,10 +4805,11 @@ const { rand } = __modules["src/game/rng.js"];
 
 const scaled = (def, level) => (def ? Math.round(def.base + def.perLevel * level) : 0);
 
-function createEnemy(key, level, label) {
+// `power` : multiplicateur de difficulté des PV et de l'attaque (1 en Balade).
+function createEnemy(key, level, label, power = 1) {
   const def = ENEMIES[key];
-  const pv = scaled(def.pv, level);
-  const atq = scaled(def.atq, level);
+  const pv = Math.round(scaled(def.pv, level) * power);
+  const atq = Math.round(scaled(def.atq, level) * power);
   return {
     enemyKey: key,
     name: label ? `${def.name} ${label}` : def.name,
@@ -4749,13 +4837,13 @@ function createEnemy(key, level, label) {
 }
 
 // Crée les ennemis d'une rencontre ; numérote les doublons (« Loup 1 », « Loup 2 »).
-function createEnemies(keys, level) {
+function createEnemies(keys, level, power = 1) {
   const counts = {};
   keys.forEach((k) => { counts[k] = (counts[k] ?? 0) + 1; });
   const seen = {};
   return keys.map((k) => {
     seen[k] = (seen[k] ?? 0) + 1;
-    return createEnemy(k, level, counts[k] > 1 ? seen[k] : null);
+    return createEnemy(k, level, counts[k] > 1 ? seen[k] : null, power);
   });
 }
 
@@ -4954,8 +5042,9 @@ const { pick, random } = __modules["src/game/rng.js"];
  * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
  * consumables : inventaire partagé de l'équipe (modifié quand un objet est utilisé)
  * title       : texte d'introduction (ex. « Forêt Maudite — étage 3 »)
+ * power       : multiplicateur de difficulté des ennemis (PV et attaque)
  */
-function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
+function createCombat({ party, enemies, level, consumables = {}, title = 'Combat', power = 1 }) {
   party.forEach((hero) => {
     hero.guard = false;
     // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
@@ -4968,7 +5057,7 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
-    title, level, party, enemies: createEnemies(enemies, level), consumables,
+    title, level, party, enemies: createEnemies(enemies, level, power), consumables,
     log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
   };
   log(cb, `${title} (niveau ${level}).`);
@@ -6371,6 +6460,8 @@ const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { lastCombatLog } = __modules["src/ui/combatLog.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
@@ -6395,6 +6486,8 @@ const { pointsAvailable } = __modules["src/game/talents.js"];
 
 
 
+
+
 function renderHub(app) {
   const message = state.hubMessage;
   const loot = state.hubLoot;
@@ -6402,7 +6495,7 @@ function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${message ? lastCombatLog(state.lastCombat) : ''}
     ${noSkillNotice()}
@@ -6422,6 +6515,7 @@ function renderHub(app) {
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -6440,6 +6534,7 @@ function renderHub(app) {
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
 }
 
 // Rappel : un héros sans sort doit dépenser son premier point de talent.
@@ -7491,6 +7586,70 @@ function itemList(items, action) {
 return { renderBank };
 })();
 
+// ---- src/ui/screens/difficulty.js
+__modules["src/ui/screens/difficulty.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DIFFICULTIES, DIFFICULTY_ORDER } = __modules["src/config.js"];
+const { RARITIES, RARITY_ORDER } = __modules["src/data/items.js"];
+const { difficultyOf, setDifficulty, lootRules, enemyPower } = __modules["src/game/difficulty.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Difficulté : puissance des ennemis et butin, au choix au village.
+
+
+
+
+
+
+
+function renderDifficulty(app) {
+  const current = difficultyOf(state);
+  app.innerHTML = `
+    <div class="hero"><h1>⚖️ Difficulté</h1><p>Plus c'est dur, plus les monstres sont puissants… et plus le butin est riche</p></div>
+    ${state.expedition ? '<div class="card notice">Impossible de changer de difficulté pendant une expédition.</div>' : ''}
+    <div class="difficulty-grid">${DIFFICULTY_ORDER.map((k) => card(k, k === current)).join('')}</div>
+    <p class="hint center">L'or et l'expérience ne changent pas. Chances d'objets par ennemi ordinaire ; un boss laisse toujours au moins un équipement peu commun ou mieux.</p>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-difficulty]').forEach((btn) => {
+    btn.onclick = () => {
+      setDifficulty(state, btn.dataset.difficulty);
+      goTo('difficulty');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+const short = (label) => label.split(' ').map((w) => w[0].toUpperCase()).join('');
+const pct = (v) => `${Math.round(v * 100)} %`;
+
+function weights(w) {
+  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${w[r] ? `${w[r]} %` : '—'}</td>`).join('');
+}
+
+function card(key, selected) {
+  const d = DIFFICULTIES[key];
+  const loot = lootRules(key);
+  return `
+    <div class="card difficulty ${selected ? 'selected' : ''}">
+      <h2>${d.icon} ${d.name}</h2>
+      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
+      <p>Équipement ${pct(loot.dropChance)} · Matéria ${pct(loot.materiaChance)} · Consommable ${pct(loot.consumableChance)}</p>
+      <table class="rarity-table">
+        <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="color:${RARITIES[r].color}" title="${RARITIES[r].label}">${short(RARITIES[r].label)}</th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><th>Équipement</th>${weights(loot.rarityWeights)}</tr>
+          <tr><th>Boss</th>${weights(loot.bossRarityWeights)}</tr>
+          <tr><th>Matéria</th>${weights(loot.materiaRarityWeights)}</tr>
+          <tr><th>Matéria (boss)</th>${weights(loot.bossMateriaRarityWeights)}</tr>
+        </tbody>
+      </table>
+      <button data-difficulty="${key}" class="full ${selected ? 'selected' : ''}" ${selected || state.expedition ? 'disabled' : ''}>${selected ? '✔ Difficulté actuelle' : 'Choisir'}</button>
+    </div>`;
+}
+
+return { renderDifficulty };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -7506,7 +7665,9 @@ const { renderCombat } = __modules["src/ui/screens/combat.js"];
 const { renderStrategy } = __modules["src/ui/screens/strategy.js"];
 const { renderInn } = __modules["src/ui/screens/inn.js"];
 const { renderBank } = __modules["src/ui/screens/bank.js"];
+const { renderDifficulty } = __modules["src/ui/screens/difficulty.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -7535,6 +7696,7 @@ registerScreens({
   strategy: renderStrategy,
   inn: renderInn,
   bank: renderBank,
+  difficulty: renderDifficulty,
 });
 
 render();

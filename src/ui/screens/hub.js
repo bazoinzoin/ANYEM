@@ -9,6 +9,8 @@ import { goTo } from '../router.js';
 import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
 import { lastCombatLog } from '../combatLog.js';
+import { DIFFICULTIES } from '../../config.js';
+import { difficultyOf } from '../../game/difficulty.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
 import { openTalents } from './talents.js';
@@ -23,7 +25,7 @@ export function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${message ? lastCombatLog(state.lastCombat) : ''}
     ${noSkillNotice()}
@@ -43,6 +45,7 @@ export function renderHub(app) {
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
         <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
@@ -61,6 +64,7 @@ export function renderHub(app) {
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
 }
 
 // Rappel : un héros sans sort doit dépenser son premier point de talent.

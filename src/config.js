@@ -59,6 +59,45 @@ export const LOOT = {
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
+// Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
+// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
+// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
+// changent pas.
+export const DIFFICULTIES = {
+  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  aventure: {
+    name: 'Aventure', icon: '🗺️', power: 1.3,
+    loot: {
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
+      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
+      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+    },
+  },
+  guerre: {
+    name: 'Guerre', icon: '⚔️', power: 1.7,
+    loot: {
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
+      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
+      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+    },
+  },
+  horreur: {
+    name: 'Horreur', icon: '💀', power: 2.2,
+    loot: {
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
+      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+    },
+  },
+};
+export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
+
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
 // d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.

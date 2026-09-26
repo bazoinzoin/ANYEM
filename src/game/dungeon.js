@@ -13,6 +13,7 @@
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
 
 import { maybeTriggerEvent } from './events.js';
+import { difficultyOf, enemyPower } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
@@ -95,6 +96,7 @@ export function floorCombat(game) {
   return {
     enemies,
     level: floorLevel(dungeonKey, floor),
+    power: enemyPower(difficultyOf(game)),
     title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }

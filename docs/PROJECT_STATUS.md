@@ -83,6 +83,12 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
 - Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).
 
+## Difficulté (choix d'implémentation)
+
+- 4 niveaux (`DIFFICULTIES` dans `config.js`) : Balade ×1 (réglages d'origine), Aventure ×1,3, Guerre ×1,7, Horreur ×2,2 sur les PV et l'Attaque des ennemis.
+- Chaque niveau surcharge les chances et raretés de butin (`lootRules` dans `game/difficulty.js`) ; les types d'équipement restent équiprobables, l'or et l'XP ne changent pas.
+- Choix à l'écran « Difficulté » du village (`ui/screens/difficulty.js`), bloqué pendant une expédition ; stocké dans `state.difficulty`.
+
 ## Village : auberge et banque (choix d'implémentation)
 
 - **Auberge** (`game/roster.js`, écran `inn`) : repos gratuit ; **recrutement** d'un compagnon de n'importe quelle classe, au niveau 1 avec l'équipement de départ, à la place d'un membre de l'équipe ; le héros remplacé part **à l'auberge** (`state.reserve`) avec son équipement et ses talents, et n'y gagne pas d'XP. On peut échanger à tout moment un héros de l'équipe avec un héros de l'auberge (au village uniquement). Survoler un héros affiche l'équipement qu'il porte.
@@ -194,7 +200,6 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 - Éléments des sorts (feu, glace, foudre… plus ou moins efficaces selon les monstres)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
 - Donjons procéduraux (étages générés, cartes) : pour l'instant, étages = suite de combats
-- Réglage de difficulté au village pour augmenter le butin (DESIGN_DOC §8)
 - Banque
 - Vrais sprites visuels (actuellement : emojis et couleurs CSS en guise de placeholders)
 - Village explorable avec déplacement libre du personnage (actuellement un simple menu/hub)
