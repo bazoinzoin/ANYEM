@@ -133,6 +133,7 @@ button.full { width: 100%; margin-top: 12px; }
 .class-details > h2 { margin: 12px 0 4px; border-left: 4px solid var(--c); padding-left: 8px; }
 .leg-class { display: inline-block; font-size: 15px; padding: 0 4px; border-radius: 4px; border-bottom: 2px solid var(--c, var(--gold)); }
 .legendaries .item-card { flex: 1 1 260px; max-width: 320px; }
+.item-stats .stat-range { color: var(--dim); font-size: 12px; }
 </style>
 <style>
 /* css/screens.css */
@@ -768,12 +769,16 @@ function boost(value, plus, isMandatory) {
 // Lignes de stats à afficher, amélioration comprise, dans l'ordre :
 // obligatoire(s), principale, secondaires. [{ stat, value, secondary }]
 // Une stat peut apparaître deux fois (Blocage obligatoire + secondaire d'un bouclier).
+// Une secondaire porte aussi `range` { lo, hi } : les valeurs possibles pour ce niveau
+// et cette rareté (amélioration comprise), pour juger du tirage.
 function itemStatLines(item) {
   const plus = item.plus ?? 0;
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
-  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) =>
-    ({ stat, value: boost(value, plus, false), secondary: true }));
+  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
+  });
   return [...main, ...bonus];
 }
 
@@ -869,6 +874,13 @@ function secondaryValue(stat, level, range) {
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
 }
 
+// Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
+function secondaryRange(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
+}
+
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
  * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
@@ -912,7 +924,7 @@ function generateItem(opts = {}) {
   return item;
 }
 
-return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
+return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, secondaryRange, generateItem };
 })();
 
 // ---- src/game/forge.js
@@ -3104,7 +3116,7 @@ function itemMeta(item) {
 
 // Texte brut multi-lignes (infobulles).
 function itemTooltipText(item) {
-  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
   return lines.join('\n');
 }
@@ -3115,6 +3127,12 @@ function legendaryOwner(item) {
   return cls ? ` (${cls.icon} ${cls.name})` : '';
 }
 
+// « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
+function rangeText(line) {
+  if (!line.range || line.range.lo === line.range.hi) return '';
+  return ` (${line.range.lo} à ${line.range.hi})`;
+}
+
 // Nom coloré par rareté, avec infobulle détaillée.
 function itemChip(item) {
   return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
@@ -3123,7 +3141,7 @@ function itemChip(item) {
 // Fiche complète d'un objet.
 function itemCard(item) {
   const statLines = itemStatLines(item).map((l) =>
-    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}${rangeText(l) ? ` <span ${tip(`Valeurs possibles pour cette stat à ce niveau et à cette rareté : de ${l.range.lo} à ${l.range.hi}. Plus la valeur est proche du maximum, meilleur est le tirage.`, 'stat-range')}>${rangeText(l).trim()}</span>` : ''}</li>`);
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>

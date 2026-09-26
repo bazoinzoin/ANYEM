@@ -31,12 +31,16 @@ function boost(value, plus, isMandatory) {
 // Lignes de stats à afficher, amélioration comprise, dans l'ordre :
 // obligatoire(s), principale, secondaires. [{ stat, value, secondary }]
 // Une stat peut apparaître deux fois (Blocage obligatoire + secondaire d'un bouclier).
+// Une secondaire porte aussi `range` { lo, hi } : les valeurs possibles pour ce niveau
+// et cette rareté (amélioration comprise), pour juger du tirage.
 export function itemStatLines(item) {
   const plus = item.plus ?? 0;
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
-  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) =>
-    ({ stat, value: boost(value, plus, false), secondary: true }));
+  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
+  });
   return [...main, ...bonus];
 }
 
@@ -130,6 +134,13 @@ function secondaryValue(stat, level, range) {
   const def = SECONDARY_STATS[stat];
   const unit = def.base + def.perLevel * level;
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
+}
+
+// Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
+export function secondaryRange(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
 /**

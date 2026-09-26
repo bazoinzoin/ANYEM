@@ -31,7 +31,7 @@ export function itemMeta(item) {
 
 // Texte brut multi-lignes (infobulles).
 export function itemTooltipText(item) {
-  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
   return lines.join('\n');
 }
@@ -42,6 +42,12 @@ function legendaryOwner(item) {
   return cls ? ` (${cls.icon} ${cls.name})` : '';
 }
 
+// « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
+function rangeText(line) {
+  if (!line.range || line.range.lo === line.range.hi) return '';
+  return ` (${line.range.lo} à ${line.range.hi})`;
+}
+
 // Nom coloré par rareté, avec infobulle détaillée.
 export function itemChip(item) {
   return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
@@ -50,7 +56,7 @@ export function itemChip(item) {
 // Fiche complète d'un objet.
 export function itemCard(item) {
   const statLines = itemStatLines(item).map((l) =>
-    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}${rangeText(l) ? ` <span ${tip(`Valeurs possibles pour cette stat à ce niveau et à cette rareté : de ${l.range.lo} à ${l.range.hi}. Plus la valeur est proche du maximum, meilleur est le tirage.`, 'stat-range')}>${rangeText(l).trim()}</span>` : ''}</li>`);
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>

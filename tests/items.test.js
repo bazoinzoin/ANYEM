@@ -161,3 +161,17 @@ test("esquive et blocage : même chance de sortir en secondaire, mais l'esquive 
     assert.ok(esquive.base + esquive.perLevel * level < blocage.base + blocage.perLevel * level, `niveau ${level}`);
   }
 });
+
+test('chaque stat secondaire indique sa fourchette possible (niveau, rareté, amélioration)', () => {
+  const item = generateItem({ level: 20, rarity: 'epique', slotType: 'casque', armorType: 'lourde', primary: 'force' });
+  const lines = itemStatLines(item).filter((l) => l.secondary);
+  assert.equal(lines.length, 3);
+  for (const l of lines) {
+    assert.ok(l.range.lo <= l.value && l.value <= l.range.hi, `${l.stat} ${l.value} ∉ [${l.range.lo}, ${l.range.hi}]`);
+  }
+  const before = lines[0].range.hi;
+  item.plus = 5;
+  const boosted = itemStatLines(item).filter((l) => l.secondary)[0];
+  assert.ok(boosted.range.hi >= before && boosted.range.lo <= boosted.value && boosted.value <= boosted.range.hi);
+  assert.ok(itemStatLines(item).filter((l) => !l.secondary).every((l) => !l.range), 'pas de fourchette sur les stats fixes');
+});
