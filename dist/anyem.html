@@ -121,13 +121,20 @@ button.full { width: 100%; margin-top: 12px; }
 /* Tableau de stats */
 .stat-row { display: flex; justify-content: space-between; gap: 8px; }
 .stat-row small { color: var(--dim); }
+.slot.selected { outline: 2px solid var(--gold); }
+.class-details { border-top: 3px solid var(--c); margin: 14px 0 20px; }
+.class-details .details-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.class-details h2 { font-size: 20px; margin: 0; }
+.class-details h3 { font-size: 15px; margin: 12px 0 6px; }
+.details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.details-items { display: flex; flex-wrap: wrap; gap: 10px; }
 </style>
 <style>
 /* css/screens.css */
 /* Styles propres à chaque écran. */
 
 /* ---- Statistiques ---- */
-.slot .stats.sheet { text-align: left; line-height: 1.7; }
+.slot .stats.sheet, .class-details .stats.sheet { text-align: left; line-height: 1.7; }
 .boosted { color: var(--r-legendaire); font-size: 12px; }
 .equipped-list { gap: 4px 12px; }
 .skill-line { width: 100%; font-size: 13px; color: var(--dim); margin-bottom: 6px; text-align: left; }
@@ -2702,6 +2709,94 @@ function showHub(message = null, loot = []) {
 return { registerScreens, render, goTo, goBack, backLabel, showHub };
 })();
 
+// ---- src/game/equipment.js
+__modules["src/game/equipment.js"] = (() => {
+const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { isTwoHanded } = __modules["src/game/items.js"];
+const { getClass, clampToStats } = __modules["src/game/party.js"];
+// Règles d'équipement : qui peut porter quoi, où, et échanges avec le sac.
+//
+// hero.equipment : { [slotKey]: item } (emplacement absent = vide)
+// bag            : tableau d'objets partagé par toute l'équipe
+
+
+
+
+
+// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
+// l'emplacement), ou null s'il le peut.
+function cannotEquipReason(hero, item) {
+  const cls = getClass(hero);
+  if (item.legendary && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
+  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `${cls.name} ne porte pas ce type d'armure`;
+  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `${cls.name} ne manie pas le bouclier`;
+  if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
+    return `${cls.name} ne manie pas ce type d'arme`;
+  }
+  return null;
+}
+
+// Emplacements où le héros peut placer cet objet (vide si aucun).
+function slotsFor(hero, item) {
+  if (cannotEquipReason(hero, item)) return [];
+  const gear = getClass(hero).gear;
+  return SLOT_ORDER.filter((slot) => {
+    if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
+    if (item.slotType !== 'arme') return true;
+    if (slot === 'mainDroite') return gear.weapons.includes(item.weaponType);
+    // Main gauche : arme à une main seulement, si la classe est ambidextre pour ce type.
+    return !WEAPON_TYPES[item.weaponType].twoHanded && gear.offHand.includes(item.weaponType);
+  });
+}
+
+function equippedItems(hero) {
+  return SLOT_ORDER.map((slot) => hero.equipment[slot]).filter(Boolean);
+}
+
+/**
+ * Équipe `item` (présent dans `bag`) sur `slot`. Les objets déplacés retournent au sac :
+ * l'ancien objet de l'emplacement, et l'autre main si une arme à deux mains est en jeu.
+ * Retourne false sans rien modifier si l'opération est impossible.
+ */
+function equip(hero, bag, item, slot) {
+  const index = bag.indexOf(item);
+  if (index === -1 || !slotsFor(hero, item).includes(slot)) return false;
+
+  bag.splice(index, 1);
+  const displaced = [hero.equipment[slot]];
+  if (slot === 'mainDroite' && isTwoHanded(item)) {
+    displaced.push(hero.equipment.mainGauche);
+    delete hero.equipment.mainGauche;
+  }
+  if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) {
+    displaced.push(hero.equipment.mainDroite);
+    delete hero.equipment.mainDroite;
+  }
+  hero.equipment[slot] = item;
+  bag.push(...displaced.filter(Boolean));
+  clampToStats(hero);
+  return true;
+}
+
+function unequip(hero, bag, slot) {
+  const item = hero.equipment[slot];
+  if (!item) return false;
+  delete hero.equipment[slot];
+  bag.push(item);
+  clampToStats(hero);
+  return true;
+}
+
+// Aperçu : copie du héros avec l'objet équipé (pour comparer les stats).
+function previewEquip(hero, item, slot) {
+  const copy = { ...hero, equipment: { ...hero.equipment } };
+  const bag = [item];
+  return equip(copy, bag, item, slot) ? copy : null;
+}
+
+return { cannotEquipReason, slotsFor, equippedItems, equip, unequip, previewEquip };
+})();
+
 // ---- src/ui/html.js
 __modules["src/ui/html.js"] = (() => {
 
@@ -2731,6 +2826,491 @@ function range({ lo, hi }) {
 return { esc, tip, bar, range };
 })();
 
+// ---- src/ui/heroStats.js
+__modules["src/ui/heroStats.js"] = (() => {
+const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
+const { COMBAT } = __modules["src/config.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { tip } = __modules["src/ui/html.js"];
+// Tableau des stats finales d'un héros (feuilles de personnage, écran d'équipement).
+
+
+
+
+
+
+const STAT_TIPS = {
+  atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
+  critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
+  critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
+  def: 'Réduit les dégâts physiques subis.',
+  defMag: 'Réduit les dégâts magiques subis.',
+  esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
+  blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
+};
+
+function row(label, value, tipText) {
+  const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
+  return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+}
+
+function statsList(hero) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const phys = STATS[cls.physStat].label;
+  const rows = STAT_ORDER.map((k) => {
+    const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
+    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    return row(label, value, STAT_TIPS[k]);
+  });
+  // Puissances dérivées, juste après les stats principales.
+  rows.splice(STAT_ORDER.indexOf('atq'), 0,
+    row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
+      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
+    row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
+      'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
+  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  return rows.join('');
+}
+
+return { statsList };
+})();
+
+// ---- src/ui/items.js
+__modules["src/ui/items.js"] = (() => {
+const { STATS } = __modules["src/data/stats.js"];
+const { RARITIES, SLOTS } = __modules["src/data/items.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+// Affichage des objets et des stats.
+
+
+
+
+
+
+
+// « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
+function formatStat(key, value, { sign = true } = {}) {
+  const def = STATS[key];
+  const prefix = sign && value >= 0 ? '+' : '';
+  return `${prefix}${value}${def.suffix ? ` ${def.suffix}` : ''} ${def.label}`;
+}
+
+// Nom avec niveau d'amélioration, ex. « Épée du Faucon +2 » (texte brut, non échappé).
+function itemName(item) {
+  return item.plus ? `${item.name} +${item.plus}` : item.name;
+}
+
+function itemMeta(item) {
+  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
+}
+
+// Texte brut multi-lignes (infobulles).
+function itemTooltipText(item) {
+  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
+  if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
+  return lines.join('\n');
+}
+
+// Nom coloré par rareté, avec infobulle détaillée.
+function itemChip(item) {
+  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
+}
+
+// Fiche complète d'un objet.
+function itemCard(item) {
+  const statLines = itemStatLines(item).map((l) =>
+    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
+  return `
+    <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
+      <div class="item-name">${esc(itemName(item))}</div>
+      <div class="item-rarity">${RARITIES[item.rarity].label}</div>
+      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
+      <ul class="item-stats">${statLines.join('')}</ul>
+      ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
+    </div>`;
+}
+
+function slotLabel(slot) {
+  return SLOTS[slot].label;
+}
+
+return { formatStat, itemName, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
+})();
+
+// ---- src/game/formulas.js
+__modules["src/game/formulas.js"] = (() => {
+const { COMBAT, VARIANCE } = __modules["src/config.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
+const { rand, random } = __modules["src/game/rng.js"];
+// Formules de dégâts et de soins, et leurs estimations affichées au joueur.
+// Les estimations utilisent exactement les mêmes calculs que les jets réels.
+//
+// Un coup : puissance du lanceur × multiplicateur × variance [× critique] × facteur de défense.
+// Puissance physique (arme + Force/Agilité) contre la Défense, ou puissance magique
+// (Intelligence) contre la Défense magique.
+// `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
+
+
+
+
+
+// Options d'un coup : { power, variance, magic, alwaysCrit, critBonus, aoe, executePct }
+const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false, critBonus: 0 };
+const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false, critBonus: 0 };
+
+function skillHitOptions(skill) {
+  return {
+    power: skill.power,
+    variance: skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero,
+    magic: !!skill.magic,
+    alwaysCrit: !!skill.alwaysCrit,
+    critBonus: skill.critBonus ?? 0,
+    aoe: skill.target === 'allEnemies',
+    executePct: skill.executePct ?? 0,
+  };
+}
+
+function defenseFactor(defense) {
+  return COMBAT.defenseK / (COMBAT.defenseK + Math.max(0, defense));
+}
+
+function critMultiplier(stats) {
+  return 1 + stats.critDmg / 100;
+}
+
+// Probabilité (0-1) plafonnée d'une stat en %, ex. chance(stats, 'esquive').
+function chance(stats, stat) {
+  return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
+}
+
+function powerOf(attacker, magic) {
+  return magic ? attacker.magPower : attacker.physPower;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+  // Talents : bonus aux compétences de zone.
+  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
+  if (defender) {
+    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+    // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
+    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+    // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
+    const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
+    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
+  }
+  return mult;
+}
+
+// Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
+// Sans `defender`, la défense de la cible n'est pas prise en compte.
+function estimateHit(attacker, opts, defender = null) {
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
+  const [lo, hi] = opts.variance;
+  return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
+}
+
+function rollHit(attacker, opts, defender) {
+  const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
+  const crit = opts.alwaysCrit || random() < critChance;
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
+  const [lo, hi] = opts.variance;
+  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
+}
+
+// Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
+// puissance physique pour une compétence `physHeal` (Paladin Templier, Force).
+function healAmount(stats, power, phys = false) {
+  return Math.round((phys ? stats.physPower : stats.magPower) * power * (1 + (stats.healPct ?? 0) / 100));
+}
+
+// Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
+// puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
+function dotTick(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
+}
+
+// Soins par tour (Régénération) : puissance magique × power.
+function hotTick(stats, power, phys = false) {
+  return Math.max(1, healAmount(stats, power, phys));
+}
+
+// Dégâts d'un piège : puissance du lanceur × power, + bonus des talents (trapPct).
+function trapDamage(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.trapPct ?? 0) / 100)));
+}
+
+// Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
+function shieldAmount(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.shieldPct ?? 0) / 100)));
+}
+
+// Valeur d'un effet appliqué par `skill` (entrée { id, turns, power }) : dégâts ou
+// soins par tour, points de bouclier ; undefined pour un effet sans valeur.
+function effectValue(stats, skill, entry) {
+  switch (EFFECTS[entry.id].value) {
+    case 'dot': return dotTick(stats, entry.power, skill.magic);
+    case 'hot': return hotTick(stats, entry.power, skill.physHeal);
+    case 'trap': return trapDamage(stats, entry.power, skill.magic);
+    case 'shield': return shieldAmount(stats, entry.power, skill.magic);
+    default: return undefined;
+  }
+}
+
+// Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,
+// soin (exact), ou null si la compétence n'inflige ni dégâts ni soin directs.
+function estimateSkill(attacker, skill, defender = null) {
+  if (skill.kind === 'heal') {
+    const amount = healAmount(attacker, skill.power, skill.physHeal);
+    return { lo: amount, hi: amount };
+  }
+  if (skill.kind !== 'damage') return null;
+  return estimateHit(attacker, skillHitOptions(skill), defender);
+}
+
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, trapDamage, shieldAmount, effectValue, estimateSkill };
+})();
+
+// ---- src/ui/format.js
+__modules["src/ui/format.js"] = (() => {
+const { estimateSkill, effectValue } = __modules["src/game/formulas.js"];
+const { getStats, getClass } = __modules["src/game/party.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { range } = __modules["src/ui/html.js"];
+// Libellés partagés entre plusieurs écrans : description et estimation des compétences.
+// Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
+
+
+
+
+
+
+
+
+const TARGET_LABELS = {
+  allEnemies: 'tous les ennemis',
+  allAllies: "toute l'équipe",
+  self: 'soi-même',
+  deadAlly: 'un allié tombé',
+};
+
+// « Poison ~6/tour, 4 tours », « Bouclier de 30, 2 tours », « Ralenti (−30 % de Vitesse), 2 tours ».
+function effectLabel(stats, skill, entry) {
+  const def = EFFECTS[entry.id];
+  const value = effectValue(stats, skill, entry);
+  const turns = def.stun ? '' : `, ${entry.turns} tour${entry.turns > 1 ? 's' : ''}`;
+  if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
+  if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
+  if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
+  if (def.value === 'trap') return `${def.name} (~${value} dégâts à son prochain tour, puis ${def.desc.split(', et ')[1]?.replace(/\.$/, '') ?? 'effet'})`;
+  return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
+}
+
+/**
+ * Description complète d'une compétence pour un lanceur de stats `stats`
+ * (et une cible de stats `target` si fournie : sa défense est alors comptée).
+ * Ex. « 4 × ~9-12 dégâts physiques · Poison ~6/tour pendant 4 tours ».
+ */
+function skillEffectLabel(stats, skill, target = null) {
+  const parts = [];
+  const est = estimateSkill(stats, skill, target);
+  if (skill.kind === 'damage') {
+    let text = `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
+    if (skill.alwaysCrit) text += ' (critique garanti)';
+    if (skill.critBonus) text += ` (+${skill.critBonus} % de critique)`;
+    if (skill.executePct) text += ` (+${skill.executePct} % sous 30 % de PV)`;
+    parts.push(text);
+  } else if (skill.kind === 'heal') {
+    parts.push(`Soin +${range(est)} PV`);
+  } else if (skill.kind === 'revive') {
+    parts.push(`Relève avec ${Math.round(skill.power * 100)} % des PV`);
+  }
+  for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
+  for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
+  if (skill.cleanse) parts.push('Retire tous les effets négatifs');
+  if (skill.resourceGain) parts.push(`+${skill.resourceGain} de ressource`);
+  if (skill.oncePerCombat) parts.push('une fois par combat');
+  if (skill.comboGain) parts.push(`+${skill.comboGain} point de combo`);
+  const who = TARGET_LABELS[skill.target];
+  const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+  // Finisher : valeurs données par point de combo, ou pour les points dépensés.
+  if (!skill.finisher) return text;
+  if (!skill.comboPoints) return `Finisher, par point de combo : ${text}`;
+  return `Finisher avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo : ${text}`;
+}
+
+// Estimation courte pour un bouton : « ~12-15 », « 4 × ~9-12 », « +23 PV », « 🛡️ 30 »…
+function skillShortEstimate(stats, skill, target = null) {
+  const est = estimateSkill(stats, skill, target);
+  if (skill.kind === 'damage') return `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)}`;
+  if (skill.kind === 'heal') return `+${range(est)} PV`;
+  if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
+  const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
+  if (!main) return skill.resourceGain ? `+${skill.resourceGain}` : '';
+  const def = EFFECTS[main.id];
+  const value = effectValue(stats, skill, main);
+  if (def.value === 'shield') return `🛡️ ${value}`;
+  if (def.value === 'hot') return `+${value}/tour`;
+  if (def.value === 'dot') return `~${value}/tour`;
+  if (def.value === 'trap') return `🪤 ~${value}`;
+  return def.name;
+}
+
+// Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).
+function consumableEstimate(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  const stats = getStats(hero);
+  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
+  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
+  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
+  if (effect.cure || effect.cleanse) {
+    const names = statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure.includes(s.key))).map((s) => s.name);
+    return `retire ${names.join(', ')}`;
+  }
+  return '';
+}
+
+return { skillEffectLabel, skillShortEstimate, consumableEstimate };
+})();
+
+// ---- src/ui/screens/talents.js
+__modules["src/ui/screens/talents.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
+const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+const { TALENT_RULES, XP } = __modules["src/config.js"];
+// Maître des compétences : arbres de talents de chaque héros.
+
+
+
+
+
+
+
+
+
+// État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
+const view = { heroIndex: 0, confirmReset: false, flash: null };
+
+const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
+
+function openTalents(heroIndex = view.heroIndex) {
+  Object.assign(view, { heroIndex, confirmReset: false, flash: null });
+  goTo('talents');
+}
+
+function renderTalents(app) {
+  const hero = state.party[view.heroIndex];
+  const cls = getClass(hero);
+  const flash = view.flash;
+  view.flash = null;
+  const available = pointsAvailable(hero);
+  const cost = resetCost(hero);
+
+  app.innerHTML = `
+    <div class="hero"><h1>📖 Maître des compétences</h1><p>Or : ${state.gold}</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    <div class="hero-tabs">
+      ${state.party.map((h, i) => `
+        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
+          ${getClass(h).icon} ${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}
+        </button>`).join('')}
+    </div>
+    <div class="card talent-summary" style="--c:${cls.color}">
+      <div>
+        <b>${cls.icon} ${esc(hero.name)}</b> — ${cls.name} niveau ${hero.level}
+        <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
+      </div>
+      <div class="points ${available ? 'has' : ''}">Points disponibles : <b>${available}</b> / ${pointsTotal(hero)}</div>
+      <button id="reset" class="${view.confirmReset ? 'danger' : ''}" ${pointsSpent(hero) && state.gold >= cost ? '' : 'disabled'}
+        ${tip(`Rend tous les points de talent de ${hero.name} contre ${cost} pièces d'or.`)}>
+        ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
+      </button>
+    </div>
+    <p class="hint">Chaque niveau rapporte 1 point, soit ${XP.maxLevel} points au niveau maximum (${XP.maxLevel}) : de quoi compléter une seule orientation. Un palier se débloque en investissant des points dans la même orientation : ${TALENT_RULES.tierPoints} points par palier, jusqu'à la compétence signature du palier 9 (${tierRequirement(9)} points).</p>
+    <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+
+  app.querySelectorAll('[data-hero]').forEach((btn) => {
+    btn.onclick = () => openTalents(Number(btn.dataset.hero));
+  });
+  app.querySelectorAll('[data-learn]').forEach((btn) => {
+    btn.onclick = () => {
+      if (learn(hero, btn.dataset.learn)) view.flash = `${hero.name} apprend ${btn.dataset.name}.`;
+      view.confirmReset = false;
+      goTo('talents');
+    };
+  });
+  app.querySelector('#reset').onclick = () => {
+    if (!view.confirmReset) view.confirmReset = true;
+    else {
+      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
+      view.confirmReset = false;
+    }
+    goTo('talents');
+  };
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Arbres de talents d'un héros en lecture seule (aperçu à la création d'équipe).
+function talentTreesPreview(hero) {
+  return `<div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b, true)).join('')}</div>`;
+}
+
+function branchCard(hero, branch, readOnly = false) {
+  const invested = pointsInBranch(hero, branch);
+  return `
+    <div class="card branch">
+      <h3>${branch.icon} ${branch.name}${readOnly ? '' : ` <small>${invested} pt${invested > 1 ? 's' : ''}</small>`}</h3>
+      <p class="hint">${branch.desc}</p>
+      ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
+        const locked = !readOnly && invested < tierRequirement(tier);
+        return `
+        <div class="tier-group ${locked ? 'locked' : ''}">
+          <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
+          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n, readOnly)).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function nodeCard(hero, branch, node, readOnly = false) {
+  const rank = rankOf(hero, node.id);
+  const reason = cannotLearnReason(hero, node.id);
+  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
+  const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
+  let body = esc(node.desc);
+  if (node.skill) {
+    const s = node.skill;
+    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
+  }
+  const action = readOnly ? '' : reason
+    ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
+    : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
+  return `
+    <div class="talent ${node.kind} ${status}">
+      <div class="talent-head">
+        <b>${esc(node.name)}</b>
+        <span class="kind">${KIND_LABELS[node.kind]}</span>
+        <span class="rank">${readOnly ? `${node.ranks} rang${node.ranks > 1 ? 's' : ''}` : `${rank}/${node.ranks}`}</span>
+      </div>
+      <div class="talent-body">${body}</div>
+      ${action}
+    </div>`;
+}
+
+return { openTalents, renderTalents, talentTreesPreview };
+})();
+
 // ---- src/ui/screens/create.js
 __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -2738,10 +3318,17 @@ const { PARTY_ORDER, CLASS_ORDER } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { TALENTS } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats } = __modules["src/game/party.js"];
+const { createParty, createHero, getStats, getSkills } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
+const { statsList } = __modules["src/ui/heroStats.js"];
+const { itemCard } = __modules["src/ui/items.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { talentTreesPreview } = __modules["src/ui/screens/talents.js"];
 const { goTo } = __modules["src/ui/router.js"];
 // Création de l'équipe : quatre héros, chacun d'une classe au choix (doublons permis).
+// Le bouton « Détails » d'un héros ouvre sa fiche de départ (stats de base,
+// équipement, compétences) et l'aperçu de ses arbres de talents.
 
 
 
@@ -2752,8 +3339,14 @@ const { goTo } = __modules["src/ui/router.js"];
 
 
 
-// Choix en cours (classes et noms), conservés quand on change une classe.
-const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name) };
+
+
+
+
+
+// Choix en cours (classes et noms), conservés quand on change une classe ;
+// fiche de détails ouverte : { slot, tab: 'stats' | 'talents' } ou null.
+const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), details: null };
 
 function renderCreate(app) {
   app.innerHTML = `
@@ -2762,6 +3355,7 @@ function renderCreate(app) {
     <div class="slots">
       ${draft.classes.map((key, i) => classCard(key, i)).join('')}
     </div>
+    ${draft.details ? detailsPanel() : ''}
     <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
   `;
 
@@ -2776,8 +3370,30 @@ function renderCreate(app) {
       renderCreate(app);
     };
   });
+  app.querySelectorAll('[data-details]').forEach((btn) => {
+    btn.onclick = () => {
+      const slot = Number(btn.dataset.details);
+      readNames(app);
+      draft.details = draft.details?.slot === slot ? null : { slot, tab: 'stats' };
+      renderCreate(app);
+      app.querySelector('#classDetails')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  });
+  app.querySelectorAll('[data-details-tab]').forEach((btn) => {
+    btn.onclick = () => {
+      readNames(app);
+      draft.details.tab = btn.dataset.detailsTab;
+      renderCreate(app);
+    };
+  });
+  app.querySelector('#closeDetails')?.addEventListener('click', () => {
+    readNames(app);
+    draft.details = null;
+    renderCreate(app);
+  });
   app.querySelector('#startBtn').onclick = () => {
     readNames(app);
+    draft.details = null;
     state.party = createParty(draft.names, draft.classes);
     goTo('hub');
   };
@@ -2789,24 +3405,79 @@ function readNames(app) {
 
 function classCard(key, i) {
   const cls = CLASSES[key];
-  const stats = getStats(createHero(key)); // avec l'équipement de départ
-  const phys = cls.skills.some((s) => s.kind === 'damage' && !s.magic);
-  const magic = cls.skills.some((s) => s.magic || s.kind === 'heal');
-  const power = [phys ? `Puissance ${stats.physPower}` : '', magic ? `Magie ${stats.magPower}` : ''].filter(Boolean).join(' · ');
   const branches = TALENTS[key].map((b) => `${b.icon} ${b.name}`).join(', ');
+  const open = draft.details?.slot === i;
   return `
-    <div class="card slot" style="--c:${cls.color}">
+    <div class="card slot ${open ? 'selected' : ''}" style="--c:${cls.color}">
       <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
       <div class="cname">${cls.name}</div>
       <div class="class-picker" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].name)}>${CLASSES[k].icon}</button>`).join('')}
       </div>
       <div class="role">Ressource : ${cls.resource.name} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''}</div>
-      <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
       <div class="role">${branches}</div>
       <p class="class-desc">${esc(cls.desc)}</p>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
+      <button class="full" data-details="${i}">${open ? '✖ Fermer les détails' : '📋 Détails'}</button>
     </div>`;
+}
+
+// Fiche de la classe choisie pour le héros `draft.details.slot` : héros de niveau 1
+// avec son équipement de départ.
+function detailsPanel() {
+  const { slot, tab } = draft.details;
+  const key = draft.classes[slot];
+  const cls = CLASSES[key];
+  const hero = createHero(key, draft.names[slot]);
+  const tabs = [['stats', '📊 Stats, équipement et sorts'], ['talents', '📖 Arbres de talents']];
+  return `
+    <div id="classDetails" class="card class-details" style="--c:${cls.color}">
+      <div class="details-head">
+        <h2>${cls.icon} ${esc(hero.name)} — ${cls.name}</h2>
+        <button id="closeDetails">✖ Fermer</button>
+      </div>
+      <div class="hero-tabs">
+        ${tabs.map(([id, label]) => `<button data-details-tab="${id}" class="${id === tab ? 'selected' : ''}" style="--c:${cls.color}">${label}</button>`).join('')}
+      </div>
+      ${tab === 'talents' ? talentsTab(hero) : statsTab(hero)}
+    </div>`;
+}
+
+function statsTab(hero) {
+  const cls = CLASSES[hero.classKey];
+  const stats = getStats(hero);
+  const r = cls.resource;
+  const resourceText = r.multiAction
+    ? `${r.name} : ${r.max} au maximum, pleine au début de chaque combat, +${r.regen} au début de chaque tour. Chaque action en coûte (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}) : plusieurs actions par tour.`
+    : r.onHitTaken
+      ? `${r.name} : ${r.max} au maximum, commence à ${r.start}. +${r.regen} par tour, +${r.onAttack} par attaque simple, +${r.onHitTaken} par coup encaissé.`
+      : `${r.name} : ${r.max} au maximum, +${r.regen} au début de chaque tour.`;
+  return `
+    <div class="details-grid">
+      <div>
+        <h3>Stats de base (niveau 1, équipement compris)</h3>
+        <div class="stats sheet">${statsList(hero)}</div>
+        <p class="hint">${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
+      </div>
+      <div>
+        <h3>Compétences de départ</h3>
+        <div class="skillbox">
+          ${getSkills(hero).map((s) => `
+            <div class="skill-line">
+              <b>${esc(s.name)}</b> — ${s.cost} ${r.name}<br>
+              ${esc(s.desc)}.<br><small>${esc(skillEffectLabel(stats, s))}</small>
+            </div>`).join('')}
+        </div>
+        <h3>Équipement de départ</h3>
+        <div class="details-items">${equippedItems(hero).map(itemCard).join('')}</div>
+      </div>
+    </div>`;
+}
+
+function talentsTab(hero) {
+  return `
+    <p class="hint">1 point par niveau (50 au niveau maximum). Chaque orientation a 10 paliers et se termine par une compétence signature ; au niveau 50, on en complète une seule.</p>
+    ${talentTreesPreview(hero)}`;
 }
 
 return { renderCreate };
@@ -3450,140 +4121,6 @@ function atCombo(skill, points) {
 return { isMultiAction, actionCost, canPay, comboMax, comboOf, gainCombo, atCombo };
 })();
 
-// ---- src/game/formulas.js
-__modules["src/game/formulas.js"] = (() => {
-const { COMBAT, VARIANCE } = __modules["src/config.js"];
-const { EFFECTS } = __modules["src/data/effects.js"];
-const { rand, random } = __modules["src/game/rng.js"];
-// Formules de dégâts et de soins, et leurs estimations affichées au joueur.
-// Les estimations utilisent exactement les mêmes calculs que les jets réels.
-//
-// Un coup : puissance du lanceur × multiplicateur × variance [× critique] × facteur de défense.
-// Puissance physique (arme + Force/Agilité) contre la Défense, ou puissance magique
-// (Intelligence) contre la Défense magique.
-// `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
-
-
-
-
-
-// Options d'un coup : { power, variance, magic, alwaysCrit, critBonus, aoe, executePct }
-const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false, critBonus: 0 };
-const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false, critBonus: 0 };
-
-function skillHitOptions(skill) {
-  return {
-    power: skill.power,
-    variance: skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero,
-    magic: !!skill.magic,
-    alwaysCrit: !!skill.alwaysCrit,
-    critBonus: skill.critBonus ?? 0,
-    aoe: skill.target === 'allEnemies',
-    executePct: skill.executePct ?? 0,
-  };
-}
-
-function defenseFactor(defense) {
-  return COMBAT.defenseK / (COMBAT.defenseK + Math.max(0, defense));
-}
-
-function critMultiplier(stats) {
-  return 1 + stats.critDmg / 100;
-}
-
-// Probabilité (0-1) plafonnée d'une stat en %, ex. chance(stats, 'esquive').
-function chance(stats, stat) {
-  return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
-}
-
-function powerOf(attacker, magic) {
-  return magic ? attacker.magPower : attacker.physPower;
-}
-
-function hitMultiplier(attacker, opts, defender, crit) {
-  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
-  // Talents : bonus aux compétences de zone.
-  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
-  if (defender) {
-    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
-    // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
-    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
-    // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
-    const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
-    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
-  }
-  return mult;
-}
-
-// Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
-// Sans `defender`, la défense de la cible n'est pas prise en compte.
-function estimateHit(attacker, opts, defender = null) {
-  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
-  const [lo, hi] = opts.variance;
-  return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
-}
-
-function rollHit(attacker, opts, defender) {
-  const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
-  const crit = opts.alwaysCrit || random() < critChance;
-  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
-  const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
-}
-
-// Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
-// puissance physique pour une compétence `physHeal` (Paladin Templier, Force).
-function healAmount(stats, power, phys = false) {
-  return Math.round((phys ? stats.physPower : stats.magPower) * power * (1 + (stats.healPct ?? 0) / 100));
-}
-
-// Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
-// puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
-function dotTick(stats, power, magic) {
-  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
-}
-
-// Soins par tour (Régénération) : puissance magique × power.
-function hotTick(stats, power, phys = false) {
-  return Math.max(1, healAmount(stats, power, phys));
-}
-
-// Dégâts d'un piège : puissance du lanceur × power, + bonus des talents (trapPct).
-function trapDamage(stats, power, magic) {
-  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.trapPct ?? 0) / 100)));
-}
-
-// Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
-function shieldAmount(stats, power, magic) {
-  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.shieldPct ?? 0) / 100)));
-}
-
-// Valeur d'un effet appliqué par `skill` (entrée { id, turns, power }) : dégâts ou
-// soins par tour, points de bouclier ; undefined pour un effet sans valeur.
-function effectValue(stats, skill, entry) {
-  switch (EFFECTS[entry.id].value) {
-    case 'dot': return dotTick(stats, entry.power, skill.magic);
-    case 'hot': return hotTick(stats, entry.power, skill.physHeal);
-    case 'trap': return trapDamage(stats, entry.power, skill.magic);
-    case 'shield': return shieldAmount(stats, entry.power, skill.magic);
-    default: return undefined;
-  }
-}
-
-// Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,
-// soin (exact), ou null si la compétence n'inflige ni dégâts ni soin directs.
-function estimateSkill(attacker, skill, defender = null) {
-  if (skill.kind === 'heal') {
-    const amount = healAmount(attacker, skill.power, skill.physHeal);
-    return { lo: amount, hi: amount };
-  }
-  if (skill.kind !== 'damage') return null;
-  return estimateHit(attacker, skillHitOptions(skill), defender);
-}
-
-return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, trapDamage, shieldAmount, effectValue, estimateSkill };
-})();
-
 // ---- src/game/combat.js
 __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
@@ -4201,208 +4738,6 @@ function finish() {
 return { lastFloor, startFloor, playerAction };
 })();
 
-// ---- src/ui/items.js
-__modules["src/ui/items.js"] = (() => {
-const { STATS } = __modules["src/data/stats.js"];
-const { RARITIES, SLOTS } = __modules["src/data/items.js"];
-const { CLASSES } = __modules["src/data/classes.js"];
-const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-// Affichage des objets et des stats.
-
-
-
-
-
-
-
-// « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
-function formatStat(key, value, { sign = true } = {}) {
-  const def = STATS[key];
-  const prefix = sign && value >= 0 ? '+' : '';
-  return `${prefix}${value}${def.suffix ? ` ${def.suffix}` : ''} ${def.label}`;
-}
-
-// Nom avec niveau d'amélioration, ex. « Épée du Faucon +2 » (texte brut, non échappé).
-function itemName(item) {
-  return item.plus ? `${item.name} +${item.plus}` : item.name;
-}
-
-function itemMeta(item) {
-  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
-}
-
-// Texte brut multi-lignes (infobulles).
-function itemTooltipText(item) {
-  const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
-  if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
-  return lines.join('\n');
-}
-
-// Nom coloré par rareté, avec infobulle détaillée.
-function itemChip(item) {
-  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
-}
-
-// Fiche complète d'un objet.
-function itemCard(item) {
-  const statLines = itemStatLines(item).map((l) =>
-    `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}</li>`);
-  return `
-    <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
-      <div class="item-name">${esc(itemName(item))}</div>
-      <div class="item-rarity">${RARITIES[item.rarity].label}</div>
-      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
-      <ul class="item-stats">${statLines.join('')}</ul>
-      ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
-    </div>`;
-}
-
-function slotLabel(slot) {
-  return SLOTS[slot].label;
-}
-
-return { formatStat, itemName, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
-})();
-
-// ---- src/game/equipment.js
-__modules["src/game/equipment.js"] = (() => {
-const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
-const { isTwoHanded } = __modules["src/game/items.js"];
-const { getClass, clampToStats } = __modules["src/game/party.js"];
-// Règles d'équipement : qui peut porter quoi, où, et échanges avec le sac.
-//
-// hero.equipment : { [slotKey]: item } (emplacement absent = vide)
-// bag            : tableau d'objets partagé par toute l'équipe
-
-
-
-
-
-// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
-// l'emplacement), ou null s'il le peut.
-function cannotEquipReason(hero, item) {
-  const cls = getClass(hero);
-  if (item.legendary && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
-  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `${cls.name} ne porte pas ce type d'armure`;
-  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `${cls.name} ne manie pas le bouclier`;
-  if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
-    return `${cls.name} ne manie pas ce type d'arme`;
-  }
-  return null;
-}
-
-// Emplacements où le héros peut placer cet objet (vide si aucun).
-function slotsFor(hero, item) {
-  if (cannotEquipReason(hero, item)) return [];
-  const gear = getClass(hero).gear;
-  return SLOT_ORDER.filter((slot) => {
-    if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
-    if (item.slotType !== 'arme') return true;
-    if (slot === 'mainDroite') return gear.weapons.includes(item.weaponType);
-    // Main gauche : arme à une main seulement, si la classe est ambidextre pour ce type.
-    return !WEAPON_TYPES[item.weaponType].twoHanded && gear.offHand.includes(item.weaponType);
-  });
-}
-
-function equippedItems(hero) {
-  return SLOT_ORDER.map((slot) => hero.equipment[slot]).filter(Boolean);
-}
-
-/**
- * Équipe `item` (présent dans `bag`) sur `slot`. Les objets déplacés retournent au sac :
- * l'ancien objet de l'emplacement, et l'autre main si une arme à deux mains est en jeu.
- * Retourne false sans rien modifier si l'opération est impossible.
- */
-function equip(hero, bag, item, slot) {
-  const index = bag.indexOf(item);
-  if (index === -1 || !slotsFor(hero, item).includes(slot)) return false;
-
-  bag.splice(index, 1);
-  const displaced = [hero.equipment[slot]];
-  if (slot === 'mainDroite' && isTwoHanded(item)) {
-    displaced.push(hero.equipment.mainGauche);
-    delete hero.equipment.mainGauche;
-  }
-  if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) {
-    displaced.push(hero.equipment.mainDroite);
-    delete hero.equipment.mainDroite;
-  }
-  hero.equipment[slot] = item;
-  bag.push(...displaced.filter(Boolean));
-  clampToStats(hero);
-  return true;
-}
-
-function unequip(hero, bag, slot) {
-  const item = hero.equipment[slot];
-  if (!item) return false;
-  delete hero.equipment[slot];
-  bag.push(item);
-  clampToStats(hero);
-  return true;
-}
-
-// Aperçu : copie du héros avec l'objet équipé (pour comparer les stats).
-function previewEquip(hero, item, slot) {
-  const copy = { ...hero, equipment: { ...hero.equipment } };
-  const bag = [item];
-  return equip(copy, bag, item, slot) ? copy : null;
-}
-
-return { cannotEquipReason, slotsFor, equippedItems, equip, unequip, previewEquip };
-})();
-
-// ---- src/ui/heroStats.js
-__modules["src/ui/heroStats.js"] = (() => {
-const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
-const { COMBAT } = __modules["src/config.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
-const { tip } = __modules["src/ui/html.js"];
-// Tableau des stats finales d'un héros (feuilles de personnage, écran d'équipement).
-
-
-
-
-
-
-const STAT_TIPS = {
-  atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
-  critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
-  critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
-  def: 'Réduit les dégâts physiques subis.',
-  defMag: 'Réduit les dégâts magiques subis.',
-  esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
-  blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
-};
-
-function row(label, value, tipText) {
-  const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
-  return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
-}
-
-function statsList(hero) {
-  const cls = getClass(hero);
-  const stats = getStats(hero);
-  const phys = STATS[cls.physStat].label;
-  const rows = STAT_ORDER.map((k) => {
-    const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
-    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
-    return row(label, value, STAT_TIPS[k]);
-  });
-  // Puissances dérivées, juste après les stats principales.
-  rows.splice(STAT_ORDER.indexOf('atq'), 0,
-    row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
-      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
-    row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
-      'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
-  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
-  return rows.join('');
-}
-
-return { statsList };
-})();
-
 // ---- src/ui/screens/equipment.js
 __modules["src/ui/screens/equipment.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -4760,238 +5095,6 @@ function decraftSection(item) {
 }
 
 return { openForge, renderForge };
-})();
-
-// ---- src/ui/format.js
-__modules["src/ui/format.js"] = (() => {
-const { estimateSkill, effectValue } = __modules["src/game/formulas.js"];
-const { getStats, getClass } = __modules["src/game/party.js"];
-const { statusesOf } = __modules["src/game/statuses.js"];
-const { EFFECTS } = __modules["src/data/effects.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { range } = __modules["src/ui/html.js"];
-// Libellés partagés entre plusieurs écrans : description et estimation des compétences.
-// Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
-
-
-
-
-
-
-
-
-const TARGET_LABELS = {
-  allEnemies: 'tous les ennemis',
-  allAllies: "toute l'équipe",
-  self: 'soi-même',
-  deadAlly: 'un allié tombé',
-};
-
-// « Poison ~6/tour, 4 tours », « Bouclier de 30, 2 tours », « Ralenti (−30 % de Vitesse), 2 tours ».
-function effectLabel(stats, skill, entry) {
-  const def = EFFECTS[entry.id];
-  const value = effectValue(stats, skill, entry);
-  const turns = def.stun ? '' : `, ${entry.turns} tour${entry.turns > 1 ? 's' : ''}`;
-  if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
-  if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
-  if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
-  if (def.value === 'trap') return `${def.name} (~${value} dégâts à son prochain tour, puis ${def.desc.split(', et ')[1]?.replace(/\.$/, '') ?? 'effet'})`;
-  return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
-}
-
-/**
- * Description complète d'une compétence pour un lanceur de stats `stats`
- * (et une cible de stats `target` si fournie : sa défense est alors comptée).
- * Ex. « 4 × ~9-12 dégâts physiques · Poison ~6/tour pendant 4 tours ».
- */
-function skillEffectLabel(stats, skill, target = null) {
-  const parts = [];
-  const est = estimateSkill(stats, skill, target);
-  if (skill.kind === 'damage') {
-    let text = `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
-    if (skill.alwaysCrit) text += ' (critique garanti)';
-    if (skill.critBonus) text += ` (+${skill.critBonus} % de critique)`;
-    if (skill.executePct) text += ` (+${skill.executePct} % sous 30 % de PV)`;
-    parts.push(text);
-  } else if (skill.kind === 'heal') {
-    parts.push(`Soin +${range(est)} PV`);
-  } else if (skill.kind === 'revive') {
-    parts.push(`Relève avec ${Math.round(skill.power * 100)} % des PV`);
-  }
-  for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
-  for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
-  if (skill.cleanse) parts.push('Retire tous les effets négatifs');
-  if (skill.resourceGain) parts.push(`+${skill.resourceGain} de ressource`);
-  if (skill.oncePerCombat) parts.push('une fois par combat');
-  if (skill.comboGain) parts.push(`+${skill.comboGain} point de combo`);
-  const who = TARGET_LABELS[skill.target];
-  const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
-  // Finisher : valeurs données par point de combo, ou pour les points dépensés.
-  if (!skill.finisher) return text;
-  if (!skill.comboPoints) return `Finisher, par point de combo : ${text}`;
-  return `Finisher avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo : ${text}`;
-}
-
-// Estimation courte pour un bouton : « ~12-15 », « 4 × ~9-12 », « +23 PV », « 🛡️ 30 »…
-function skillShortEstimate(stats, skill, target = null) {
-  const est = estimateSkill(stats, skill, target);
-  if (skill.kind === 'damage') return `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)}`;
-  if (skill.kind === 'heal') return `+${range(est)} PV`;
-  if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
-  const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
-  if (!main) return skill.resourceGain ? `+${skill.resourceGain}` : '';
-  const def = EFFECTS[main.id];
-  const value = effectValue(stats, skill, main);
-  if (def.value === 'shield') return `🛡️ ${value}`;
-  if (def.value === 'hot') return `+${value}/tour`;
-  if (def.value === 'dot') return `~${value}/tour`;
-  if (def.value === 'trap') return `🪤 ~${value}`;
-  return def.name;
-}
-
-// Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).
-function consumableEstimate(key, hero) {
-  const { effect } = CONSUMABLES[key];
-  const stats = getStats(hero);
-  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
-  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
-  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
-  if (effect.cure || effect.cleanse) {
-    const names = statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure.includes(s.key))).map((s) => s.name);
-    return `retire ${names.join(', ')}`;
-  }
-  return '';
-}
-
-return { skillEffectLabel, skillShortEstimate, consumableEstimate };
-})();
-
-// ---- src/ui/screens/talents.js
-__modules["src/ui/screens/talents.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
-const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
-const { esc, tip, bar } = __modules["src/ui/html.js"];
-const { skillEffectLabel } = __modules["src/ui/format.js"];
-const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
-const { TALENT_RULES, XP } = __modules["src/config.js"];
-// Maître des compétences : arbres de talents de chaque héros.
-
-
-
-
-
-
-
-
-
-// État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
-const view = { heroIndex: 0, confirmReset: false, flash: null };
-
-const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
-
-function openTalents(heroIndex = view.heroIndex) {
-  Object.assign(view, { heroIndex, confirmReset: false, flash: null });
-  goTo('talents');
-}
-
-function renderTalents(app) {
-  const hero = state.party[view.heroIndex];
-  const cls = getClass(hero);
-  const flash = view.flash;
-  view.flash = null;
-  const available = pointsAvailable(hero);
-  const cost = resetCost(hero);
-
-  app.innerHTML = `
-    <div class="hero"><h1>📖 Maître des compétences</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    <div class="hero-tabs">
-      ${state.party.map((h, i) => `
-        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
-          ${getClass(h).icon} ${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}
-        </button>`).join('')}
-    </div>
-    <div class="card talent-summary" style="--c:${cls.color}">
-      <div>
-        <b>${cls.icon} ${esc(hero.name)}</b> — ${cls.name} niveau ${hero.level}
-        <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
-      </div>
-      <div class="points ${available ? 'has' : ''}">Points disponibles : <b>${available}</b> / ${pointsTotal(hero)}</div>
-      <button id="reset" class="${view.confirmReset ? 'danger' : ''}" ${pointsSpent(hero) && state.gold >= cost ? '' : 'disabled'}
-        ${tip(`Rend tous les points de talent de ${hero.name} contre ${cost} pièces d'or.`)}>
-        ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
-      </button>
-    </div>
-    <p class="hint">Chaque niveau rapporte 1 point, soit ${XP.maxLevel} points au niveau maximum (${XP.maxLevel}) : de quoi compléter une seule orientation. Un palier se débloque en investissant des points dans la même orientation : ${TALENT_RULES.tierPoints} points par palier, jusqu'à la compétence signature du palier 9 (${tierRequirement(9)} points).</p>
-    <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
-
-  app.querySelectorAll('[data-hero]').forEach((btn) => {
-    btn.onclick = () => openTalents(Number(btn.dataset.hero));
-  });
-  app.querySelectorAll('[data-learn]').forEach((btn) => {
-    btn.onclick = () => {
-      if (learn(hero, btn.dataset.learn)) view.flash = `${hero.name} apprend ${btn.dataset.name}.`;
-      view.confirmReset = false;
-      goTo('talents');
-    };
-  });
-  app.querySelector('#reset').onclick = () => {
-    if (!view.confirmReset) view.confirmReset = true;
-    else {
-      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
-      view.confirmReset = false;
-    }
-    goTo('talents');
-  };
-  app.querySelector('#backHub').onclick = () => goBack();
-}
-
-function branchCard(hero, branch) {
-  const invested = pointsInBranch(hero, branch);
-  return `
-    <div class="card branch">
-      <h3>${branch.icon} ${branch.name} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
-      <p class="hint">${branch.desc}</p>
-      ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
-        const locked = invested < tierRequirement(tier);
-        return `
-        <div class="tier-group ${locked ? 'locked' : ''}">
-          <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
-          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n)).join('')}
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-
-function nodeCard(hero, branch, node) {
-  const rank = rankOf(hero, node.id);
-  const reason = cannotLearnReason(hero, node.id);
-  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
-  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
-  let body = esc(node.desc);
-  if (node.skill) {
-    const s = node.skill;
-    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
-  }
-  const action = reason
-    ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
-    : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
-  return `
-    <div class="talent ${node.kind} ${status}">
-      <div class="talent-head">
-        <b>${esc(node.name)}</b>
-        <span class="kind">${KIND_LABELS[node.kind]}</span>
-        <span class="rank">${rank}/${node.ranks}</span>
-      </div>
-      <div class="talent-body">${body}</div>
-      ${action}
-    </div>`;
-}
-
-return { openTalents, renderTalents };
 })();
 
 // ---- src/game/merchant.js

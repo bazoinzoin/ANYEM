@@ -65,3 +65,10 @@ button.full { width: 100%; margin-top: 12px; }
 /* Tableau de stats */
 .stat-row { display: flex; justify-content: space-between; gap: 8px; }
 .stat-row small { color: var(--dim); }
+.slot.selected { outline: 2px solid var(--gold); }
+.class-details { border-top: 3px solid var(--c); margin: 14px 0 20px; }
+.class-details .details-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.class-details h2 { font-size: 20px; margin: 0; }
+.class-details h3 { font-size: 15px; margin: 12px 0 6px; }
+.details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.details-items { display: flex; flex-wrap: wrap; gap: 10px; }

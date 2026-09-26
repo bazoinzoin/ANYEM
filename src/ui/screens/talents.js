@@ -75,34 +75,39 @@ export function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
-function branchCard(hero, branch) {
+// Arbres de talents d'un héros en lecture seule (aperçu à la création d'équipe).
+export function talentTreesPreview(hero) {
+  return `<div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b, true)).join('')}</div>`;
+}
+
+function branchCard(hero, branch, readOnly = false) {
   const invested = pointsInBranch(hero, branch);
   return `
     <div class="card branch">
-      <h3>${branch.icon} ${branch.name} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
+      <h3>${branch.icon} ${branch.name}${readOnly ? '' : ` <small>${invested} pt${invested > 1 ? 's' : ''}</small>`}</h3>
       <p class="hint">${branch.desc}</p>
       ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
-        const locked = invested < tierRequirement(tier);
+        const locked = !readOnly && invested < tierRequirement(tier);
         return `
         <div class="tier-group ${locked ? 'locked' : ''}">
           <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
-          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n)).join('')}
+          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n, readOnly)).join('')}
         </div>`;
       }).join('')}
     </div>`;
 }
 
-function nodeCard(hero, branch, node) {
+function nodeCard(hero, branch, node, readOnly = false) {
   const rank = rankOf(hero, node.id);
   const reason = cannotLearnReason(hero, node.id);
   const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
-  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
+  const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
   let body = esc(node.desc);
   if (node.skill) {
     const s = node.skill;
     body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
   }
-  const action = reason
+  const action = readOnly ? '' : reason
     ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
     : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
   return `
@@ -110,7 +115,7 @@ function nodeCard(hero, branch, node) {
       <div class="talent-head">
         <b>${esc(node.name)}</b>
         <span class="kind">${KIND_LABELS[node.kind]}</span>
-        <span class="rank">${rank}/${node.ranks}</span>
+        <span class="rank">${readOnly ? `${node.ranks} rang${node.ranks > 1 ? 's' : ''}` : `${rank}/${node.ranks}`}</span>
       </div>
       <div class="talent-body">${body}</div>
       ${action}

@@ -1,7 +1,7 @@
 /* Styles propres à chaque écran. */
 
 /* ---- Statistiques ---- */
-.slot .stats.sheet { text-align: left; line-height: 1.7; }
+.slot .stats.sheet, .class-details .stats.sheet { text-align: left; line-height: 1.7; }
 .boosted { color: var(--r-legendaire); font-size: 12px; }
 .equipped-list { gap: 4px 12px; }
 .skill-line { width: 100%; font-size: 13px; color: var(--dim); margin-bottom: 6px; text-align: left; }
