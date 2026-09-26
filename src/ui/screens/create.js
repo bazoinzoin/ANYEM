@@ -6,9 +6,11 @@ import { state } from '../../state.js';
 import { PARTY_ORDER, CLASS_ORDER } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
+import { LEGENDARIES, RARITIES, SLOTS, WEAPON_TYPES, JEWELS } from '../../data/items.js';
 import { TALENTS } from '../../data/talents.js';
 import { createParty, createHero, getStats, getSkills } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
+import { itemTypeLabel } from '../../game/items.js';
 import { esc, tip } from '../html.js';
 import { statsList } from '../heroStats.js';
 import { itemCard } from '../items.js';
@@ -17,7 +19,7 @@ import { talentTreesPreview } from './talents.js';
 import { goTo } from '../router.js';
 
 // Choix en cours (classes et noms), conservés quand on change une classe ;
-// fiche de détails ouverte : { slot, tab: 'stats' | 'talents' } ou null.
+// fiche de détails ouverte : { slot, tab: 'stats' | 'talents' | 'legendaries' } ou null.
 const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), details: null };
 
 export function renderCreate(app) {
@@ -101,7 +103,7 @@ function detailsPanel() {
   const key = draft.classes[slot];
   const cls = CLASSES[key];
   const hero = createHero(key, draft.names[slot]);
-  const tabs = [['stats', '📊 Stats, équipement et sorts'], ['talents', '📖 Arbres de talents']];
+  const tabs = [['stats', '📊 Stats, équipement et sorts'], ['talents', '📖 Arbres de talents'], ['legendaries', '🌟 Équipement légendaire']];
   return `
     <div id="classDetails" class="card class-details" style="--c:${cls.color}">
       <div class="details-head">
@@ -111,7 +113,7 @@ function detailsPanel() {
       <div class="hero-tabs">
         ${tabs.map(([id, label]) => `<button data-details-tab="${id}" class="${id === tab ? 'selected' : ''}" style="--c:${cls.color}">${label}</button>`).join('')}
       </div>
-      ${tab === 'talents' ? talentsTab(hero) : statsTab(hero)}
+      ${tab === 'talents' ? talentsTab(hero) : tab === 'legendaries' ? legendariesTab(hero) : statsTab(hero)}
     </div>`;
 }
 
@@ -150,4 +152,38 @@ function talentsTab(hero) {
   return `
     <p class="hint">1 point par niveau (50 au niveau maximum). Chaque orientation a 10 paliers et se termine par une compétence signature ; au niveau 50, on en complète une seule.</p>
     ${talentTreesPreview(hero)}`;
+}
+
+// Légendaires de la classe : pièce, stat principale, passif unique et compétence
+// renforcée (de départ, ou de talent avec son orientation et son palier).
+function legendariesTab(hero) {
+  const key = hero.classKey;
+  const list = Object.values(LEGENDARIES).filter((l) => l.classKey === key);
+  const cards = list.map((leg) => {
+    const piece = leg.slotType === 'arme' ? WEAPON_TYPES[leg.weaponType].name
+      : leg.slotType === 'bouclier' ? 'Bouclier'
+        : JEWELS[leg.slotType] ? JEWELS[leg.slotType].name : SLOTS[leg.slotType].label;
+    const type = itemTypeLabel(leg);
+    return `
+      <div class="item-card" style="--rc:${RARITIES.legendaire.color}">
+        <div class="item-name">${esc(leg.name)}</div>
+        <div class="item-rarity">${RARITIES.legendaire.label}</div>
+        <div class="item-meta">${esc(type.startsWith(piece) ? type : `${piece} · ${type}`)} · ${STATS[leg.primary].label}</div>
+        <div class="item-legendary">Unique : ${esc(leg.desc)}</div>
+        <div class="item-meta">${esc(skillSource(key, leg.passive.skill))}</div>
+      </div>`;
+  });
+  return `
+    <p class="hint">Chaque orientation a son objet légendaire. Il tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires, et seulement pour une classe présente dans l'équipe. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
+    <div class="details-items">${cards.join('')}</div>`;
+}
+
+function skillSource(classKey, skillId) {
+  const base = CLASSES[classKey].skills.find((s) => s.id === skillId);
+  if (base) return `Renforce ${base.name} (compétence de départ).`;
+  for (const branch of TALENTS[classKey]) {
+    const node = branch.nodes.find((n) => n.skill?.id === skillId);
+    if (node) return `Renforce ${node.skill.name} (${branch.icon} ${branch.name}, palier ${node.tier}).`;
+  }
+  return '';
 }
