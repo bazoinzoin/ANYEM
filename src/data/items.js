@@ -111,7 +111,8 @@ export const SECONDARY_STATS = {
   critDmg: { base: 3, perLevel: 0.3 },
   def: { base: 1, perLevel: 0.4 },
   defMag: { base: 1, perLevel: 0.4 },
-  // L'esquive (coup entièrement évité) est plus rare et plus faible que le blocage.
+  // Chaque secondaire a la même chance de sortir ; à niveau et rareté égaux, l'esquive
+  // (coup entièrement évité) vaut moins que le blocage (moitié des dégâts évitée).
   esquive: { base: 0.5, perLevel: 0.04 },
   blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },

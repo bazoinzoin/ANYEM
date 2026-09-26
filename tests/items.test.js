@@ -146,3 +146,18 @@ test("l'Armure compte à la fois comme Défense et comme Défense magique ; Déf
   assert.equal(getStats(guerrier).defMag - naked.defMag, helm.stats.armure + 5);
   assert.ok('def' in SECONDARY_STATS && 'defMag' in SECONDARY_STATS);
 });
+
+test("esquive et blocage : même chance de sortir en secondaire, mais l'esquive vaut moins", () => {
+  const seen = { esquive: 0, blocage: 0 };
+  let n = 0;
+  setRandomSource(() => ((n++ * 0.6180339) % 1));
+  for (let i = 0; i < 600; i++) {
+    const it = generateItem({ level: 20, rarity: 'rare', slotType: 'casque', armorType: 'moyenne', primary: 'force' });
+    for (const k of Object.keys(seen)) if (it.bonus[k]) seen[k]++;
+  }
+  assert.ok(Math.abs(seen.esquive - seen.blocage) < 60, JSON.stringify(seen));
+  const { esquive, blocage } = SECONDARY_STATS;
+  for (const level of [1, 10, 30, 50]) {
+    assert.ok(esquive.base + esquive.perLevel * level < blocage.base + blocage.perLevel * level, `niveau ${level}`);
+  }
+});
