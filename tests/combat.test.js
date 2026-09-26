@@ -188,6 +188,16 @@ test("la puissance physique du voleur dépend de l'Agilité, celle du guerrier d
   const { cb } = newCombat();
   const v = getStats(cb.party[voleur]);
   const g = getStats(cb.party[guerrier]);
-  assert.equal(v.physPower, v.atq + Math.round(v.agilite * 0.5));
+  assert.equal(v.physPower, v.atq + Math.round(v.agilite * 0.6));
   assert.equal(g.physPower, g.atq + Math.round(g.force * 0.5));
+});
+
+test("à stat principale et arme égales, le voleur frappe plus fort que le guerrier", () => {
+  const { cb } = newCombat();
+  const [g, v] = [cb.party[guerrier], cb.party[voleur]];
+  for (const hero of [g, v]) hero.equipment = { anneau1: { stats: { force: 40, agilite: 40 }, mandatory: [] } };
+  const gs = getStats(g);
+  const vs = getStats(v);
+  assert.ok(vs.physFromStat > gs.physFromStat);
+  assert.ok(vs.physPower - vs.atq > gs.physPower - gs.atq);
 });

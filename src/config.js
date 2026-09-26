@@ -11,9 +11,10 @@ export const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
   bleedDamage: 6,         // dégâts d'un saignement par fin de round
-  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor
+  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor[stat]
+  // (l'Agilité rapporte un peu plus que la Force : à stat égale, un voleur frappe plus fort)
   // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
-  physStatFactor: 0.5,
+  physStatFactor: { force: 0.5, agilite: 0.6 },
   magicPerInt: 2,
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts

@@ -241,9 +241,10 @@ const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
   bleedDamage: 6,         // dégâts d'un saignement par fin de round
-  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor
+  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor[stat]
+  // (l'Agilité rapporte un peu plus que la Force : à stat égale, un voleur frappe plus fort)
   // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
-  physStatFactor: 0.5,
+  physStatFactor: { force: 0.5, agilite: 0.6 },
   magicPerInt: 2,
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
@@ -1015,7 +1016,7 @@ function getStats(hero) {
       total[stat] += Math.round(value * factor);
     }
   }
-  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor);
+  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
   return {
     ...total,
     physPower: total.atq + physFromStat,
@@ -1912,7 +1913,7 @@ function statsList(hero) {
   // Puissances dérivées, juste après les stats principales.
   rows.splice(STAT_ORDER.indexOf('atq'), 0,
     row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
-      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${COMBAT.physStatFactor} × ${phys}.`),
+      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));

@@ -36,7 +36,7 @@ export function getStats(hero) {
       total[stat] += Math.round(value * factor);
     }
   }
-  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor);
+  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
   return {
     ...total,
     physPower: total.atq + physFromStat,

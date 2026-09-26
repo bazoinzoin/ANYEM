@@ -32,7 +32,7 @@ export function statsList(hero) {
   // Puissances dérivées, juste après les stats principales.
   rows.splice(STAT_ORDER.indexOf('atq'), 0,
     row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
-      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${COMBAT.physStatFactor} × ${phys}.`),
+      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));

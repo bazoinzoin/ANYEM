@@ -41,7 +41,7 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 
 ## Dégâts physiques et magiques
 
-- **Puissance physique** = Attaque (armes et bonus d'objets) + 0,5 × stat physique de la classe : Force (Guerrier), Agilité (Voleur), **Force par défaut pour les classes magiques** (Prêtre, Mage). Utilisée par l'attaque de base de toutes les classes et par les compétences non magiques ; réduite par la Défense de la cible.
+- **Puissance physique** = Attaque (armes et bonus d'objets) + stat physique de la classe × coefficient : **Force × 0,5** (Guerrier, et par défaut les classes magiques Prêtre et Mage), **Agilité × 0,6** (Voleur). À stat principale égale, un voleur fait donc un peu plus mal qu'un guerrier. Utilisée par l'attaque de base de toutes les classes et par les compétences non magiques ; réduite par la Défense de la cible.
 - **Puissance magique** = 2 × Intelligence. Utilisée par les sorts (compétences `magic: true` : Boule de Feu, Éclair, Éclat de Lumière) et par tous les soins ; réduite par la Défense magique de la cible. Elle ne compte jamais pour une attaque à l'arme : un Mage qui tape au bâton fait peu de dégâts.
 - Les éléments (feu, glace, foudre, lumière…) viendront plus tard sur les sorts.
 - Coefficients dans `src/config.js` (`COMBAT.physStatFactor`, `COMBAT.magicPerInt`) ; stat physique par classe dans `src/data/classes.js` (`physStat`).
