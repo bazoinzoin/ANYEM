@@ -3,7 +3,8 @@
 //
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
-// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
+// le combat est terminé et cb.result vaut 'victory', 'defeat' ou 'escape'
+// (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant.
@@ -18,7 +19,7 @@ import {
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
 import { addStatus, hasStatus, consumeStun, tickStatuses } from './statuses.js';
-import { applyConsumable, countOf, isValidTarget } from './consumables.js';
+import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { pick, random } from './rng.js';
 
@@ -74,6 +75,10 @@ export function nextTurn(cb) {
       cb.qIndex++;
       continue;
     }
+    if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
+      cb.qIndex++;
+      continue;
+    }
     cb.acting = turn;
     if (turn.side === 'hero') startHeroTurn(turn.unit);
     return turn;
@@ -112,6 +117,18 @@ function endRound(cb) {
   }
 }
 
+// Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
+function confusedHeroStrikes(cb, hero) {
+  const allies = cb.party.filter((h) => h.alive && h !== hero);
+  if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
+  const victim = pick(allies);
+  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
+  const { taken, fell } = damage(victim, hit.amount);
+  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
+  if (fell) logFall(cb, victim);
+  return true;
+}
+
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
@@ -138,7 +155,9 @@ function aliveAt(list, index) {
  */
 export function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
-  if (action.type === 'item') return { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  if (action.type === 'item') {
+    return isUntargeted(action.item) ? null : { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  }
   if (action.type !== 'skill') return null;
   const skill = getSkills(cb.acting.unit)[action.skill];
   if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
@@ -149,7 +168,8 @@ export function targetsFor(cb, action) {
 
 // Un consommable est-il utilisable maintenant (en stock, cible possible) ?
 export function canUseItem(cb, key) {
-  return countOf(cb.consumables, key) > 0 && cb.party.some((h) => isValidTarget(key, h));
+  if (!CONSUMABLES[key] || !usableIn(key, 'combat') || countOf(cb.consumables, key) <= 0) return false;
+  return isUntargeted(key) || cb.party.some((h) => isValidTarget(key, h));
 }
 
 // Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
@@ -164,7 +184,7 @@ export function canUseSkill(cb, hero, skill) {
  * action : { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
- *        | { type: 'item', item: cléConsommable, target: indexAllié }
+ *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 export function heroAct(cb, action) {
@@ -189,12 +209,18 @@ export function heroAct(cb, action) {
     if (fell) logFall(cb, target);
     gainResource(hero, getClass(hero).resource.onAttack);
   } else if (action.type === 'item') {
-    const target = cb.party[action.target];
-    if (!CONSUMABLES[action.item] || !target || !canUseItem(cb, action.item)) return false;
-    const result = applyConsumable(action.item, target);
-    if (result === null) return false;
+    if (!canUseItem(cb, action.item)) return false;
+    const def = CONSUMABLES[action.item];
+    if (def.effect.escape) {
+      cb.result = 'escape';
+      log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
+    } else {
+      const target = cb.party[action.target];
+      const result = target ? applyConsumable(action.item, target) : null;
+      if (result === null) return false;
+      log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
+    }
     cb.consumables[action.item]--;
-    log(cb, `${hero.name} utilise ${CONSUMABLES[action.item].name} sur ${target.name} (${result}).`, true);
   } else if (action.type === 'skill') {
     const skill = getSkills(hero)[action.skill];
     if (!skill || !canUseSkill(cb, hero, skill)) return false;

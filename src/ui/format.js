@@ -2,7 +2,10 @@
 // Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
 
 import { estimateSkill, dotTick, hotTick, shieldAmount } from '../game/formulas.js';
+import { getStats, getClass } from '../game/party.js';
+import { statusesOf } from '../game/statuses.js';
 import { STATS } from '../data/stats.js';
+import { CONSUMABLES } from '../data/consumables.js';
 import { range } from './html.js';
 
 const TARGET_LABELS = {
@@ -63,4 +66,18 @@ export function skillShortEstimate(stats, skill, target = null) {
   if (skill.hot) return `+${hotTick(stats, skill)}/tour`;
   if (skill.dot) return `~${dotTick(stats, skill)}/tour`;
   return skill.status?.name ?? skill.selfStatus?.name ?? '';
+}
+
+// Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).
+export function consumableEstimate(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  const stats = getStats(hero);
+  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
+  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
+  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
+  if (effect.cure || effect.cleanse) {
+    const names = statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure.includes(s.key))).map((s) => s.name);
+    return `retire ${names.join(', ')}`;
+  }
+  return '';
 }

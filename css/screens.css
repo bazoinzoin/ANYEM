@@ -154,3 +154,8 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .expedition-info b { color: var(--gold); }
 .expedition .actions { margin-bottom: 10px; }
 .boss-btn { border-color: var(--danger); background: #3a1c17; }
+
+/* ---- Objets (donjon, Marchand) ---- */
+.map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.map-items button.selected { outline: 2px solid var(--gold); }
+.shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }

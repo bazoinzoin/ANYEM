@@ -274,6 +274,11 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .expedition-info b { color: var(--gold); }
 .expedition .actions { margin-bottom: 10px; }
 .boss-btn { border-color: var(--danger); background: #3a1c17; }
+
+/* ---- Objets (donjon, Marchand) ---- */
+.map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.map-items button.selected { outline: 2px solid var(--gold); }
+.shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
 </style>
 
 </head>
@@ -847,40 +852,111 @@ return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingF
 // ---- src/data/consumables.js
 __modules["src/data/consumables.js"] = (() => {
 
-// Consommables vendus par le Marchand et utilisables en combat (action « Objet »).
-// Données pures. Effets (voir game/consumables.js) :
-//   healPct      soigne ce % des PV max de la cible
-//   resourcePct  rend ce % de la ressource max (Rage, Énergie, Mana)
-//   cleanse      retire les effets négatifs (poison, ralentissement…)
-//   revivePct    relève un allié tombé avec ce % de ses PV
-// target : 'ally' (allié en vie) ou 'deadAlly' (allié tombé).
+// Consommables vendus par le Marchand. Données pures (effets : game/consumables.js).
+//
+// category : 'soin' | 'remede' | 'utilitaire' (regroupement à l'affichage)
+// use      : où l'objet s'utilise : 'combat' (action « Objet ») et/ou 'map'
+//            (entre deux étages d'un donjon)
+// target   : 'ally' (allié en vie), 'deadAlly' (allié tombé), 'party' (toute
+//            l'équipe, sans ciblage) ou 'none' (effet global, sans ciblage)
+// effect :
+//   healPct         soigne ce % des PV max de la cible
+//   resourcePct     rend ce % de la ressource max (Rage, Énergie, Mana)
+//   cure            retire les effets négatifs de ces clés (voir DEBUFF_KEYS)
+//   cleanse         retire tous les effets négatifs
+//   revivePct       relève un allié tombé avec ce % de ses PV
+//   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
+//   escape          quitte le donjon et ramène l'équipe au village, sans perte
 
 const CONSUMABLES = {
+  // ---- Soins ----
   potion: {
-    name: 'Potion de soin', icon: '🧪', price: 20, target: 'ally',
+    name: 'Potion de soin', icon: '🧪', price: 20, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 30 }, desc: 'Rend 30 % des PV max à un allié.',
   },
   grandePotion: {
-    name: 'Grande potion de soin', icon: '⚗️', price: 50, target: 'ally',
+    name: 'Grande potion de soin', icon: '⚗️', price: 50, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 60 }, desc: 'Rend 60 % des PV max à un allié.',
   },
   elixir: {
-    name: 'Élixir', icon: '💧', price: 35, target: 'ally',
+    name: 'Élixir', icon: '💧', price: 35, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { resourcePct: 50 }, desc: 'Rend 50 % de sa ressource (Rage, Énergie ou Mana) à un allié.',
   },
-  remede: {
-    name: 'Remède', icon: '🌿', price: 25, target: 'ally',
-    effect: { cleanse: true }, desc: 'Retire tous les effets négatifs (poison, ralentissement, confusion…) d\'un allié.',
-  },
   plumeDePhenix: {
-    name: 'Plume de phénix', icon: '🪶', price: 100, target: 'deadAlly',
+    name: 'Plume de phénix', icon: '🪶', price: 100, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
     effect: { revivePct: 30 }, desc: 'Relève un allié tombé avec 30 % de ses PV.',
+  },
+
+  // ---- Remèdes : un remède bon marché par effet négatif, et le Remède universel.
+  // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
+  antidote: {
+    name: 'Antidote', icon: '🧴', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['poison', 'peste'] }, desc: 'Guérit le poison.',
+  },
+  bandage: {
+    name: 'Bandage', icon: '🩹', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['saignement'] }, desc: 'Arrête un saignement.',
+  },
+  onguent: {
+    name: 'Onguent', icon: '🫙', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['brulure'] }, desc: 'Soigne une brûlure.',
+  },
+  selsRevigorants: {
+    name: 'Sels revigorants', icon: '🧂', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['etourdi'] }, desc: "Réveille un allié étourdi (il pourra jouer à son prochain tour).",
+  },
+  tisaneDeClarte: {
+    name: 'Tisane de clarté', icon: '🍵', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['confus'] }, desc: "Dissipe la confusion d'un allié.",
+  },
+  tonique: {
+    name: 'Tonique', icon: '🥤', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['ralenti'] }, desc: 'Annule un ralentissement.',
+  },
+  fortifiant: {
+    name: 'Fortifiant', icon: '🍖', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement.',
+  },
+  potionDeCourage: {
+    name: 'Potion de courage', icon: '🦁', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['terreur'] }, desc: 'Chasse la terreur.',
+  },
+  eauBenite: {
+    name: 'Eau bénite', icon: '⛲', price: 18, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['maudit', 'douleur', 'fleau'] }, desc: 'Lève une malédiction et purifie les ténèbres.',
+  },
+  remede: {
+    name: 'Remède universel', icon: '🌿', price: 60, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",
+  },
+
+  // ---- Utilitaires ----
+  corde: {
+    name: "Corde d'évasion", icon: '🪢', price: 150, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
+    effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
+  },
+  tente: {
+    name: 'Tente', icon: '⛺', price: 100, category: 'utilitaire', use: ['map'], target: 'party',
+    effect: { restorePartyPct: 100 }, desc: "Entre deux étages : restaure entièrement les PV et la ressource de toute l'équipe (sauf les héros tombés).",
   },
 };
 
 const CONSUMABLE_ORDER = Object.keys(CONSUMABLES);
 
-return { CONSUMABLES, CONSUMABLE_ORDER };
+const CONSUMABLE_CATEGORIES = {
+  soin: 'Soins',
+  remede: 'Remèdes',
+  utilitaire: 'Utilitaires',
+};
+
+// Clés des effets négatifs du jeu (statuts et effets sur la durée), pour vérifier
+// que chacun a un remède dédié (voir tests/consumables.test.js).
+const DEBUFF_KEYS = [
+  'poison', 'peste', 'saignement', 'brulure', 'douleur', 'fleau',
+  'ralenti', 'etourdi', 'confus', 'affaibli', 'maudit', 'terreur',
+];
+
+return { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES, DEBUFF_KEYS };
 })();
 
 // ---- src/data/classes.js
@@ -1775,6 +1851,7 @@ const { getStats, gainResource } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
+// Utilisation en combat : combat.js (action « Objet ») ; entre deux étages : useOnMap().
 
 
 
@@ -1797,10 +1874,29 @@ function addConsumable(inventory, key, amount = 1) {
   return true;
 }
 
-// La cible est-elle valable pour ce consommable ?
+function usableIn(key, place) {
+  return CONSUMABLES[key].use.includes(place);
+}
+
+// Sans cible individuelle (toute l'équipe, ou effet global comme la Corde).
+function isUntargeted(key) {
+  return ['party', 'none'].includes(CONSUMABLES[key].target);
+}
+
+// Effets négatifs du héros que ce consommable retirerait.
+function curedStatuses(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  return statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure?.includes(s.key)));
+}
+
+// La cible est-elle valable ? Un remède ne vise que les héros qui ont un effet
+// qu'il guérit (pour ne pas le gaspiller).
 function isValidTarget(key, target) {
   const def = CONSUMABLES[key];
-  return def.target === 'deadAlly' ? !target.alive : target.alive;
+  if (def.target === 'deadAlly') return !target.alive;
+  if (def.target !== 'ally' || !target.alive) return false;
+  if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
+  return true;
 }
 
 /**
@@ -1824,15 +1920,52 @@ function applyConsumable(key, target) {
     gainResource(target, Math.round(stats.resMax * effect.resourcePct / 100));
     parts.push(`+${target.res - before} ressource`);
   }
-  if (effect.cleanse) {
-    const removed = statusesOf(target).filter((s) => s.kind === 'debuff').length;
-    target.statuses = statusesOf(target).filter((s) => s.kind !== 'debuff');
-    parts.push(removed ? `${removed} effet${removed > 1 ? 's' : ''} négatif${removed > 1 ? 's' : ''} retiré${removed > 1 ? 's' : ''}` : 'aucun effet négatif');
+  if (effect.cure || effect.cleanse) {
+    const removed = curedStatuses(key, target);
+    target.statuses = statusesOf(target).filter((s) => !removed.includes(s));
+    parts.push(`${removed.map((s) => s.name).join(', ')} retiré${removed.length > 1 ? 's' : ''}`);
   }
   return parts.join(', ');
 }
 
-return { startingConsumables, countOf, addConsumable, isValidTarget, applyConsumable };
+// Tente : PV et ressource restaurés pour chaque héros en vie.
+function restoreParty(party, pct) {
+  for (const hero of party.filter((h) => h.alive)) {
+    const stats = getStats(hero);
+    hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
+    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+  }
+}
+
+/**
+ * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
+ * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
+ * Retourne { ok, message, escaped } ; ok = false si l'utilisation est impossible.
+ */
+function useOnMap(game, key, targetIndex) {
+  const def = CONSUMABLES[key];
+  if (!def || !game.expedition || !usableIn(key, 'map') || countOf(game.consumables, key) <= 0) return { ok: false };
+  let message;
+  let escaped = false;
+  if (def.effect.escape) {
+    game.expedition = null; // équivalent de escapeExpedition (game/dungeon.js), sans dépendance circulaire
+    escaped = true;
+    message = `${def.name} : l'équipe regagne le village sans encombre.`;
+  } else if (def.effect.restorePartyPct) {
+    if (!game.party.some((h) => h.alive)) return { ok: false };
+    restoreParty(game.party, def.effect.restorePartyPct);
+    message = `${def.name} : l'équipe se repose. PV et ressources restaurés.`;
+  } else {
+    const target = game.party[targetIndex];
+    const result = target ? applyConsumable(key, target) : null;
+    if (result === null) return { ok: false };
+    message = `${def.name} sur ${target.name} : ${result}.`;
+  }
+  game.consumables[key]--;
+  return { ok: true, message, escaped };
+}
+
+return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, useOnMap };
 })();
 
 // ---- src/state.js
@@ -2050,6 +2183,7 @@ __modules["src/data/enemies.js"] = (() => {
 const bleed = (power, turns = 3) => ({ key: 'saignement', name: 'Saignement', power, turns });
 const poison = (power, turns = 3) => ({ key: 'poison', name: 'Poison', icon: '🧪', power, turns });
 const slow = (turns = 2) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
+const confus = (turns) => ({ key: 'confus', name: 'Confus', icon: '🌀', kind: 'debuff', turns, confuse: true });
 const stun = { key: 'etourdi', name: 'Étourdi', icon: '💫', kind: 'debuff', turns: 1, stun: true };
 
 const ENEMIES = {
@@ -2113,6 +2247,7 @@ const ENEMIES = {
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
       { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, dot: bleed(0.2) } },
+      { chance: 0.15, skill: { name: 'Pollen hallucinogène', kind: 'support', target: 'hero', status: confus(2) } },
       { chance: 0.2, skill: { name: 'Malédiction', kind: 'support', target: 'allHeroes', status: { key: 'maudit', name: 'Maudit', icon: '🪦', kind: 'debuff', turns: 3, mods: { physPower: -20, magPower: -20 } } } },
       { chance: 0.2, skill: { name: 'Régénération', kind: 'support', target: 'self', hot: { key: 'regeneration', name: 'Régénération', power: 0.8, turns: 3 } } },
     ],
@@ -2171,6 +2306,7 @@ const ENEMIES = {
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
       { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, status: { key: 'terreur', name: 'Terreur', icon: '😨', kind: 'debuff', turns: 2, mods: { def: -30, defMag: -30 } } } },
+      { chance: 0.2, skill: { name: 'Murmures déments', kind: 'support', target: 'hero', status: confus(2) } },
       { chance: 0.2, skill: { name: 'Voile spectral', kind: 'support', target: 'self', status: { key: 'voile', name: 'Voile', icon: '🌫️', kind: 'buff', turns: 2, mods: { def: 50, defMag: 50 } } } },
     ],
   },
@@ -2420,13 +2556,18 @@ function loseExpedition(game) {
   return applyDefeat(game);
 }
 
+// Fuite par la Corde d'évasion : fin de l'expédition sans perte.
+function escapeExpedition(game) {
+  game.expedition = null;
+}
+
 function leaveExpedition(game) {
   if (!game.expedition?.canLeave) return false;
   game.expedition = null;
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, escapeExpedition, leaveExpedition };
 })();
 
 // ---- src/game/enemies.js
@@ -2598,7 +2739,7 @@ const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
 const { rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses } = __modules["src/game/statuses.js"];
-const { applyConsumable, countOf, isValidTarget } = __modules["src/game/consumables.js"];
+const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { pick, random } = __modules["src/game/rng.js"];
 // Moteur de combat tour par tour. Logique pure : pas de DOM, pas de timers.
@@ -2606,7 +2747,8 @@ const { pick, random } = __modules["src/game/rng.js"];
 //
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
-// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
+// le combat est terminé et cb.result vaut 'victory', 'defeat' ou 'escape'
+// (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant.
@@ -2674,6 +2816,10 @@ function nextTurn(cb) {
       cb.qIndex++;
       continue;
     }
+    if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
+      cb.qIndex++;
+      continue;
+    }
     cb.acting = turn;
     if (turn.side === 'hero') startHeroTurn(turn.unit);
     return turn;
@@ -2712,6 +2858,18 @@ function endRound(cb) {
   }
 }
 
+// Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
+function confusedHeroStrikes(cb, hero) {
+  const allies = cb.party.filter((h) => h.alive && h !== hero);
+  if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
+  const victim = pick(allies);
+  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
+  const { taken, fell } = damage(victim, hit.amount);
+  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
+  if (fell) logFall(cb, victim);
+  return true;
+}
+
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
@@ -2738,7 +2896,9 @@ function aliveAt(list, index) {
  */
 function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
-  if (action.type === 'item') return { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  if (action.type === 'item') {
+    return isUntargeted(action.item) ? null : { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  }
   if (action.type !== 'skill') return null;
   const skill = getSkills(cb.acting.unit)[action.skill];
   if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
@@ -2749,7 +2909,8 @@ function targetsFor(cb, action) {
 
 // Un consommable est-il utilisable maintenant (en stock, cible possible) ?
 function canUseItem(cb, key) {
-  return countOf(cb.consumables, key) > 0 && cb.party.some((h) => isValidTarget(key, h));
+  if (!CONSUMABLES[key] || !usableIn(key, 'combat') || countOf(cb.consumables, key) <= 0) return false;
+  return isUntargeted(key) || cb.party.some((h) => isValidTarget(key, h));
 }
 
 // Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
@@ -2764,7 +2925,7 @@ function canUseSkill(cb, hero, skill) {
  * action : { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
- *        | { type: 'item', item: cléConsommable, target: indexAllié }
+ *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 function heroAct(cb, action) {
@@ -2789,12 +2950,18 @@ function heroAct(cb, action) {
     if (fell) logFall(cb, target);
     gainResource(hero, getClass(hero).resource.onAttack);
   } else if (action.type === 'item') {
-    const target = cb.party[action.target];
-    if (!CONSUMABLES[action.item] || !target || !canUseItem(cb, action.item)) return false;
-    const result = applyConsumable(action.item, target);
-    if (result === null) return false;
+    if (!canUseItem(cb, action.item)) return false;
+    const def = CONSUMABLES[action.item];
+    if (def.effect.escape) {
+      cb.result = 'escape';
+      log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
+    } else {
+      const target = cb.party[action.target];
+      const result = target ? applyConsumable(action.item, target) : null;
+      if (result === null) return false;
+      log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
+    }
     cb.consumables[action.item]--;
-    log(cb, `${hero.name} utilise ${CONSUMABLES[action.item].name} sur ${target.name} (${result}).`, true);
   } else if (action.type === 'skill') {
     const skill = getSkills(hero)[action.skill];
     if (!skill || !canUseSkill(cb, hero, skill)) return false;
@@ -2969,7 +3136,7 @@ __modules["src/ui/encounter.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
-const { floorCombat, winFloor, loseExpedition } = __modules["src/game/dungeon.js"];
+const { floorCombat, winFloor, loseExpedition, escapeExpedition } = __modules["src/game/dungeon.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
 // Orchestration d'un combat d'étage : enchaîne les tours du moteur (game/combat.js),
@@ -3021,6 +3188,11 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  if (cb.result === 'escape') {
+    escapeExpedition(state);
+    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
+    return;
+  }
   if (cb.result !== 'victory') {
     showHub(loseExpedition(state).message);
     return;
@@ -3604,10 +3776,16 @@ return { openForge, renderForge };
 // ---- src/ui/format.js
 __modules["src/ui/format.js"] = (() => {
 const { estimateSkill, dotTick, hotTick, shieldAmount } = __modules["src/game/formulas.js"];
+const { getStats, getClass } = __modules["src/game/party.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
 const { STATS } = __modules["src/data/stats.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { range } = __modules["src/ui/html.js"];
 // Libellés partagés entre plusieurs écrans : description et estimation des compétences.
 // Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
+
+
+
 
 
 
@@ -3673,7 +3851,21 @@ function skillShortEstimate(stats, skill, target = null) {
   return skill.status?.name ?? skill.selfStatus?.name ?? '';
 }
 
-return { skillEffectLabel, skillShortEstimate };
+// Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).
+function consumableEstimate(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  const stats = getStats(hero);
+  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
+  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
+  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
+  if (effect.cure || effect.cleanse) {
+    const names = statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure.includes(s.key))).map((s) => s.name);
+    return `retire ${names.join(', ')}`;
+  }
+  return '';
+}
+
+return { skillEffectLabel, skillShortEstimate, consumableEstimate };
 })();
 
 // ---- src/ui/screens/talents.js
@@ -3869,7 +4061,7 @@ return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyC
 __modules["src/ui/screens/merchant.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { MERCHANT } = __modules["src/config.js"];
-const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES } = __modules["src/data/consumables.js"];
 const { RARITIES } = __modules["src/data/items.js"];
 const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } = __modules["src/game/merchant.js"];
 const { countOf } = __modules["src/game/consumables.js"];
@@ -3913,8 +4105,10 @@ function renderMerchant(app) {
       <div>
         <div class="card shop-section">
           <h3>Consommables</h3>
-          <p class="hint">Utilisables en combat avec l'action « Objet » (maximum ${MERCHANT.maxConsumable} de chaque).</p>
-          ${CONSUMABLE_ORDER.map(consumableRow).join('')}
+          <p class="hint">En combat avec l'action « Objet », et pour certains entre deux étages d'un donjon (maximum ${MERCHANT.maxConsumable} de chaque).</p>
+          ${Object.entries(CONSUMABLE_CATEGORIES).map(([cat, label]) => `
+            <h4 class="shop-cat">${label}</h4>
+            ${CONSUMABLE_ORDER.filter((k) => CONSUMABLES[k].category === cat).map(consumableRow).join('')}`).join('')}
         </div>
         <div class="card shop-section">
           <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
@@ -3988,7 +4182,7 @@ function consumableRow(key) {
     <div class="shop-row">
       <div class="shop-info">
         <b>${c.icon} ${c.name}</b> <small>possédé : ${owned}/${MERCHANT.maxConsumable}</small>
-        <div class="hint">${c.desc}</div>
+        <div class="hint">${c.desc} <i>${c.use.includes('map') ? (c.use.includes('combat') ? 'Combat et donjon.' : 'Entre deux étages.') : 'En combat.'}</i></div>
       </div>
       <button data-buy-consumable="${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${c.price} or</button>
     </div>`;
@@ -4217,9 +4411,10 @@ const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { isBossFloor, floorLevel, leaveExpedition, progressOf } = __modules["src/game/dungeon.js"];
-const { countOf } = __modules["src/game/consumables.js"];
+const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } = __modules["src/game/consumables.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { itemChip } = __modules["src/ui/items.js"];
+const { consumableEstimate } = __modules["src/ui/format.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
 const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
@@ -4241,11 +4436,17 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 
 
 
+
+// État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
+const view = { pendingItem: null, flash: null };
+
 function renderDungeon(app) {
   const exp = state.expedition;
   const d = DUNGEONS[exp.dungeonKey];
-  const { message, loot } = lastFloor;
+  const message = view.flash ?? lastFloor.message;
+  const loot = view.flash ? [] : lastFloor.loot;
   Object.assign(lastFloor, { message: null, loot: [] });
+  view.flash = null;
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
   const allDown = state.party.every((h) => !h.alive);
 
@@ -4257,8 +4458,8 @@ function renderDungeon(app) {
     <div class="card section expedition">
       <div class="expedition-info">
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
-        <div class="hint">Consommables : ${CONSUMABLE_ORDER.filter((k) => countOf(state.consumables, k)).map((k) => `${CONSUMABLES[k].icon} ${countOf(state.consumables, k)}`).join(' · ') || 'aucun'}</div>
       </div>
+      ${itemPanel()}
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${allDown ? 'disabled' : ''}>
           ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
@@ -4277,7 +4478,22 @@ function renderDungeon(app) {
     </div>
   `;
 
-  app.querySelector('#nextFloor').onclick = () => startFloor();
+  app.querySelector('#nextFloor').onclick = () => {
+    view.pendingItem = null;
+    startFloor();
+  };
+  app.querySelectorAll('[data-map-item]').forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.mapItem;
+      if (isUntargeted(key) && view.pendingItem !== key) view.pendingItem = key; // demande confirmation
+      else if (!isUntargeted(key)) view.pendingItem = view.pendingItem === key ? null : key;
+      else return useItem(key);
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-item-target]').forEach((btn) => {
+    btn.onclick = () => useItem(view.pendingItem, Number(btn.dataset.itemTarget));
+  });
   app.querySelector('#leave').onclick = () => {
     const d2 = DUNGEONS[exp.dungeonKey];
     const { gold, xp, items } = exp.gains;
@@ -4288,6 +4504,39 @@ function renderDungeon(app) {
   app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
   app.querySelector('#stats').onclick = () => goTo('stats');
+}
+
+function useItem(key, targetIndex) {
+  const dungeonName = DUNGEONS[state.expedition.dungeonKey].name;
+  const r = useOnMap(state, key, targetIndex);
+  view.pendingItem = null;
+  if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
+  if (r.ok) view.flash = r.message;
+  goTo('dungeon');
+}
+
+// Objets utilisables entre deux étages (soins, plume, tente, corde).
+function itemPanel() {
+  const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
+  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
+  const pending = view.pendingItem;
+  let targets = '';
+  if (pending && isUntargeted(pending)) {
+    targets = `<button data-map-item="${pending}" class="danger">Confirmer : ${esc(CONSUMABLES[pending].name)} — ${esc(CONSUMABLES[pending].desc)}</button>`;
+  } else if (pending) {
+    const valid = state.party.map((h, i) => [h, i]).filter(([h]) => isValidTarget(pending, h));
+    targets = valid.length
+      ? valid.map(([h, i]) => `<button data-item-target="${i}">${h.alive ? 'Cibler' : 'Relever'} ${esc(h.name)} · ${consumableEstimate(pending, h)}</button>`).join('')
+      : '<span class="hint">Aucune cible possible.</span>';
+  }
+  return `
+    <div class="map-items">
+      <div class="hint">Objets utilisables ici :</div>
+      <div class="actions">
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(CONSUMABLES[k].desc)}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+      </div>
+      ${targets ? `<div class="target-zone">${targets}</div>` : ''}
+    </div>`;
 }
 
 // Frise des étages du palier en cours : étages passés, prochain étage, boss.
@@ -4323,15 +4572,15 @@ __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getSkills, getStats } = __modules["src/game/party.js"];
+const { getClass, getSkills } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
-const { countOf } = __modules["src/game/consumables.js"];
+const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
 const { targetsFor, canUseSkill, canUseItem } = __modules["src/game/combat.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
-const { skillEffectLabel, skillShortEstimate } = __modules["src/ui/format.js"];
+const { skillEffectLabel, skillShortEstimate, consumableEstimate } = __modules["src/ui/format.js"];
 const { playerAction } = __modules["src/ui/encounter.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
@@ -4427,7 +4676,7 @@ function actionPanel(hero) {
       <div class="actions">
         <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
-        <button id="actItem" ${tip("Utilise un consommable du sac (potion, élixir…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
+        <button id="actItem" ${tip("Utilise un consommable (potion, remède, corde…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
@@ -4459,8 +4708,10 @@ function wireActions(app, hero) {
   const chooseTarget = (action) => {
     const targets = targetsFor(cb, action);
     if (!targets) {
-      const skill = getSkills(hero)[action.skill];
-      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(skill.name)} — ${esc(skillEffectLabel(stats, skill))}</button>`;
+      const label = action.type === 'item'
+        ? `${CONSUMABLES[action.item].name} — ${CONSUMABLES[action.item].desc}`
+        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, getSkills(hero)[action.skill])}`;
+      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
       zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
       return;
     }
@@ -4477,7 +4728,7 @@ function wireActions(app, hero) {
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
   app.querySelector('#actItem').onclick = () => {
-    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0).map((k) => {
+    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];
       return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;
     }).join('');
@@ -4490,16 +4741,6 @@ function wireActions(app, hero) {
   });
 }
 
-// Effet prévu d'un consommable sur un héros (« +45 PV », « +30 ressource »…).
-function consumableEstimate(key, hero) {
-  const { effect } = CONSUMABLES[key];
-  const stats = getStats(hero);
-  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
-  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
-  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
-  if (effect.cleanse) return 'retire les effets négatifs';
-  return '';
-}
 
 return { renderCombat };
 })();

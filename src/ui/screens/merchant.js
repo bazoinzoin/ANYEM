@@ -2,7 +2,7 @@
 
 import { state } from '../../state.js';
 import { MERCHANT } from '../../config.js';
-import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
+import { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES } from '../../data/consumables.js';
 import { RARITIES } from '../../data/items.js';
 import { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } from '../../game/merchant.js';
 import { countOf } from '../../game/consumables.js';
@@ -35,8 +35,10 @@ export function renderMerchant(app) {
       <div>
         <div class="card shop-section">
           <h3>Consommables</h3>
-          <p class="hint">Utilisables en combat avec l'action « Objet » (maximum ${MERCHANT.maxConsumable} de chaque).</p>
-          ${CONSUMABLE_ORDER.map(consumableRow).join('')}
+          <p class="hint">En combat avec l'action « Objet », et pour certains entre deux étages d'un donjon (maximum ${MERCHANT.maxConsumable} de chaque).</p>
+          ${Object.entries(CONSUMABLE_CATEGORIES).map(([cat, label]) => `
+            <h4 class="shop-cat">${label}</h4>
+            ${CONSUMABLE_ORDER.filter((k) => CONSUMABLES[k].category === cat).map(consumableRow).join('')}`).join('')}
         </div>
         <div class="card shop-section">
           <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
@@ -110,7 +112,7 @@ function consumableRow(key) {
     <div class="shop-row">
       <div class="shop-info">
         <b>${c.icon} ${c.name}</b> <small>possédé : ${owned}/${MERCHANT.maxConsumable}</small>
-        <div class="hint">${c.desc}</div>
+        <div class="hint">${c.desc} <i>${c.use.includes('map') ? (c.use.includes('combat') ? 'Combat et donjon.' : 'Entre deux étages.') : 'En combat.'}</i></div>
       </div>
       <button data-buy-consumable="${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${c.price} or</button>
     </div>`;

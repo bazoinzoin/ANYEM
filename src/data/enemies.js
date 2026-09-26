@@ -15,6 +15,7 @@
 const bleed = (power, turns = 3) => ({ key: 'saignement', name: 'Saignement', power, turns });
 const poison = (power, turns = 3) => ({ key: 'poison', name: 'Poison', icon: '🧪', power, turns });
 const slow = (turns = 2) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
+const confus = (turns) => ({ key: 'confus', name: 'Confus', icon: '🌀', kind: 'debuff', turns, confuse: true });
 const stun = { key: 'etourdi', name: 'Étourdi', icon: '💫', kind: 'debuff', turns: 1, stun: true };
 
 export const ENEMIES = {
@@ -78,6 +79,7 @@ export const ENEMIES = {
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
       { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, dot: bleed(0.2) } },
+      { chance: 0.15, skill: { name: 'Pollen hallucinogène', kind: 'support', target: 'hero', status: confus(2) } },
       { chance: 0.2, skill: { name: 'Malédiction', kind: 'support', target: 'allHeroes', status: { key: 'maudit', name: 'Maudit', icon: '🪦', kind: 'debuff', turns: 3, mods: { physPower: -20, magPower: -20 } } } },
       { chance: 0.2, skill: { name: 'Régénération', kind: 'support', target: 'self', hot: { key: 'regeneration', name: 'Régénération', power: 0.8, turns: 3 } } },
     ],
@@ -136,6 +138,7 @@ export const ENEMIES = {
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
       { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, status: { key: 'terreur', name: 'Terreur', icon: '😨', kind: 'debuff', turns: 2, mods: { def: -30, defMag: -30 } } } },
+      { chance: 0.2, skill: { name: 'Murmures déments', kind: 'support', target: 'hero', status: confus(2) } },
       { chance: 0.2, skill: { name: 'Voile spectral', kind: 'support', target: 'self', status: { key: 'voile', name: 'Voile', icon: '🌫️', kind: 'buff', turns: 2, mods: { def: 50, defMag: 50 } } } },
     ],
   },

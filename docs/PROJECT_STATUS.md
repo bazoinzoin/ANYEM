@@ -61,9 +61,14 @@ Contenu dans `src/data/dungeons.js` et `src/data/enemies.js`, logique dans `src/
 
 Réglages dans `src/config.js` (`MERCHANT`), consommables dans `src/data/consumables.js`, logique dans `src/game/merchant.js` et `src/game/consumables.js`.
 - **Revente** : uniquement les objets du sac. Prix = (5 + 2 × niveau) × rareté (commun ×1, peu commun ×2, rare ×4, épique ×8, légendaire ×16) × (1 + 20 % par amélioration). Confirmation pour un objet épique ou légendaire ; bouton « vendre tous les communs » avec confirmation.
-- **Consommables** : Potion de soin (30 % des PV max, 20 or), Grande potion (60 %, 50 or), Élixir (50 % de la ressource, 35 or), Remède (retire les effets négatifs, 25 or), Plume de phénix (relève un allié à 30 % des PV, 100 or). 9 maximum de chaque. L'équipe part avec 2 potions. Ils ne sont pas perdus en cas de défaite.
+- **Consommables** (`src/data/consumables.js`, 9 maximum de chaque ; l'équipe part avec 2 potions ; jamais perdus en cas de défaite) :
+  - Soins (combat et entre deux étages) : Potion de soin (30 % des PV max, 20 or), Grande potion (60 %, 50 or), Élixir (50 % de la ressource, 35 or), Plume de phénix (relève à 30 % des PV, 100 or).
+  - Remèdes (combat seulement, car les effets négatifs disparaissent à la fin de chaque combat) : un remède bon marché par effet — Antidote (poison), Bandage (saignement), Onguent (brûlure), Sels revigorants (étourdissement), Tisane de clarté (confusion), Tonique (ralentissement), Fortifiant (affaiblissement), Potion de courage (terreur), Eau bénite (malédiction, ténèbres), 12 à 18 or — et le Remède universel (tous les effets, 60 or). Un remède ne peut viser qu'un héros qui a l'effet qu'il guérit. Un test vérifie que chaque effet négatif du jeu a un remède dédié.
+  - Utilitaires : Corde d'évasion (150 or, en combat ou entre deux étages : retour au village sans perte, progression au dernier boss vaincu) ; Tente (100 or, entre deux étages : PV et ressource restaurés pour les héros en vie).
+- **Confusion des héros** : la Banshee et la Reine sylvestre peuvent rendre un héros confus ; à son tour, il a une chance sur deux de frapper un allié au lieu de jouer.
 - **Équipement en vente** : 4 objets du niveau du donjon (commun 55 %, peu commun 35 %, rare 10 %), renouvelés à chaque nouveau niveau de donjon ; prix d'achat = 4 × prix de revente.
-- **Action « Objet » en combat** (DESIGN_DOC §2) : utiliser un consommable prend le tour du héros ; cible toujours choisie, avec l'effet prévu affiché (ex. « Cibler Mage · +28 PV »). La Plume de phénix ne propose que les alliés tombés.
+- **Action « Objet » en combat** (DESIGN_DOC §2) : utiliser un consommable prend le tour du héros ; cible toujours choisie, avec l'effet prévu affiché (ex. « Cibler Mage · +28 PV », « retire Poison ») ; la Corde demande une confirmation. La Plume de phénix ne propose que les alliés tombés.
+- **Objets entre deux étages** : l'écran d'expédition liste les objets utilisables sur place (soins, Plume, Tente, Corde).
 
 ## Forge (choix d'implémentation)
 

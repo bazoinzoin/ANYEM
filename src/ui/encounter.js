@@ -5,7 +5,7 @@
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFloor, loseExpedition } from '../game/dungeon.js';
+import { floorCombat, winFloor, loseExpedition, escapeExpedition } from '../game/dungeon.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 
@@ -47,6 +47,11 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  if (cb.result === 'escape') {
+    escapeExpedition(state);
+    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
+    return;
+  }
   if (cb.result !== 'victory') {
     showHub(loseExpedition(state).message);
     return;

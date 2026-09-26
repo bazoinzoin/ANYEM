@@ -7,19 +7,25 @@ import { DUNGEONS } from '../../data/dungeons.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats } from '../../game/party.js';
 import { isBossFloor, floorLevel, leaveExpedition, progressOf } from '../../game/dungeon.js';
-import { countOf } from '../../game/consumables.js';
+import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } from '../../game/consumables.js';
 import { esc, tip, bar } from '../html.js';
 import { itemChip } from '../items.js';
+import { consumableEstimate } from '../format.js';
 import { goTo, showHub } from '../router.js';
 import { startFloor, lastFloor } from '../encounter.js';
 import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 
+// État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
+const view = { pendingItem: null, flash: null };
+
 export function renderDungeon(app) {
   const exp = state.expedition;
   const d = DUNGEONS[exp.dungeonKey];
-  const { message, loot } = lastFloor;
+  const message = view.flash ?? lastFloor.message;
+  const loot = view.flash ? [] : lastFloor.loot;
   Object.assign(lastFloor, { message: null, loot: [] });
+  view.flash = null;
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
   const allDown = state.party.every((h) => !h.alive);
 
@@ -31,8 +37,8 @@ export function renderDungeon(app) {
     <div class="card section expedition">
       <div class="expedition-info">
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
-        <div class="hint">Consommables : ${CONSUMABLE_ORDER.filter((k) => countOf(state.consumables, k)).map((k) => `${CONSUMABLES[k].icon} ${countOf(state.consumables, k)}`).join(' · ') || 'aucun'}</div>
       </div>
+      ${itemPanel()}
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${allDown ? 'disabled' : ''}>
           ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
@@ -51,7 +57,22 @@ export function renderDungeon(app) {
     </div>
   `;
 
-  app.querySelector('#nextFloor').onclick = () => startFloor();
+  app.querySelector('#nextFloor').onclick = () => {
+    view.pendingItem = null;
+    startFloor();
+  };
+  app.querySelectorAll('[data-map-item]').forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.mapItem;
+      if (isUntargeted(key) && view.pendingItem !== key) view.pendingItem = key; // demande confirmation
+      else if (!isUntargeted(key)) view.pendingItem = view.pendingItem === key ? null : key;
+      else return useItem(key);
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-item-target]').forEach((btn) => {
+    btn.onclick = () => useItem(view.pendingItem, Number(btn.dataset.itemTarget));
+  });
   app.querySelector('#leave').onclick = () => {
     const d2 = DUNGEONS[exp.dungeonKey];
     const { gold, xp, items } = exp.gains;
@@ -62,6 +83,39 @@ export function renderDungeon(app) {
   app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
   app.querySelector('#stats').onclick = () => goTo('stats');
+}
+
+function useItem(key, targetIndex) {
+  const dungeonName = DUNGEONS[state.expedition.dungeonKey].name;
+  const r = useOnMap(state, key, targetIndex);
+  view.pendingItem = null;
+  if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
+  if (r.ok) view.flash = r.message;
+  goTo('dungeon');
+}
+
+// Objets utilisables entre deux étages (soins, plume, tente, corde).
+function itemPanel() {
+  const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
+  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
+  const pending = view.pendingItem;
+  let targets = '';
+  if (pending && isUntargeted(pending)) {
+    targets = `<button data-map-item="${pending}" class="danger">Confirmer : ${esc(CONSUMABLES[pending].name)} — ${esc(CONSUMABLES[pending].desc)}</button>`;
+  } else if (pending) {
+    const valid = state.party.map((h, i) => [h, i]).filter(([h]) => isValidTarget(pending, h));
+    targets = valid.length
+      ? valid.map(([h, i]) => `<button data-item-target="${i}">${h.alive ? 'Cibler' : 'Relever'} ${esc(h.name)} · ${consumableEstimate(pending, h)}</button>`).join('')
+      : '<span class="hint">Aucune cible possible.</span>';
+  }
+  return `
+    <div class="map-items">
+      <div class="hint">Objets utilisables ici :</div>
+      <div class="actions">
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(CONSUMABLES[k].desc)}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+      </div>
+      ${targets ? `<div class="target-zone">${targets}</div>` : ''}
+    </div>`;
 }
 
 // Frise des étages du palier en cours : étages passés, prochain étage, boss.

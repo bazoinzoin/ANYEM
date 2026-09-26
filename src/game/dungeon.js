@@ -114,6 +114,11 @@ export function loseExpedition(game) {
   return applyDefeat(game);
 }
 
+// Fuite par la Corde d'évasion : fin de l'expédition sans perte.
+export function escapeExpedition(game) {
+  game.expedition = null;
+}
+
 export function leaveExpedition(game) {
   if (!game.expedition?.canLeave) return false;
   game.expedition = null;

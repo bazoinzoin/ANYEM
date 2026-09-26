@@ -5,15 +5,15 @@
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { getClass, getSkills, getStats } from '../../game/party.js';
+import { getClass, getSkills } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
-import { countOf } from '../../game/consumables.js';
+import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
 import { targetsFor, canUseSkill, canUseItem } from '../../game/combat.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, tip, bar, range } from '../html.js';
-import { skillEffectLabel, skillShortEstimate } from '../format.js';
+import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
 import { playerAction } from '../encounter.js';
 
 export function renderCombat(app) {
@@ -92,7 +92,7 @@ function actionPanel(hero) {
       <div class="actions">
         <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
-        <button id="actItem" ${tip("Utilise un consommable du sac (potion, élixir…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
+        <button id="actItem" ${tip("Utilise un consommable (potion, remède, corde…). Prend le tour du héros.")} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet (${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)})</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
@@ -124,8 +124,10 @@ function wireActions(app, hero) {
   const chooseTarget = (action) => {
     const targets = targetsFor(cb, action);
     if (!targets) {
-      const skill = getSkills(hero)[action.skill];
-      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(skill.name)} — ${esc(skillEffectLabel(stats, skill))}</button>`;
+      const label = action.type === 'item'
+        ? `${CONSUMABLES[action.item].name} — ${CONSUMABLES[action.item].desc}`
+        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, getSkills(hero)[action.skill])}`;
+      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
       zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
       return;
     }
@@ -142,7 +144,7 @@ function wireActions(app, hero) {
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
   app.querySelector('#actItem').onclick = () => {
-    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0).map((k) => {
+    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];
       return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;
     }).join('');
@@ -155,13 +157,3 @@ function wireActions(app, hero) {
   });
 }
 
-// Effet prévu d'un consommable sur un héros (« +45 PV », « +30 ressource »…).
-function consumableEstimate(key, hero) {
-  const { effect } = CONSUMABLES[key];
-  const stats = getStats(hero);
-  if (effect.revivePct) return `${Math.max(1, Math.round(stats.pv * effect.revivePct / 100))} PV`;
-  if (effect.healPct) return `+${Math.min(stats.pv - hero.hp, Math.round(stats.pv * effect.healPct / 100))} PV`;
-  if (effect.resourcePct) return `+${Math.min(stats.resMax - hero.res, Math.round(stats.resMax * effect.resourcePct / 100))} ${getClass(hero).resource.name}`;
-  if (effect.cleanse) return 'retire les effets négatifs';
-  return '';
-}
