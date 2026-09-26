@@ -12,7 +12,7 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 ## Ce qui est déjà fonctionnel
 
 - **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
-- **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Marchand et Forge (placeholders "bientôt disponible"), écran de statistiques détaillées par personnage.
+- **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Forge, Marchand (placeholder "bientôt disponible"), écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
 - **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
@@ -66,7 +66,7 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 - Arbres de compétences (nodes principaux/secondaires par orientation de classe)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
 - Donjons à étages multiples avec boss tous les x étages, plusieurs donjons de niveau croissant
-- Marchand et Forge fonctionnels
+- Marchand fonctionnel
 - Banque, maître de compétences
 - Vrais sprites visuels (actuellement : emojis et couleurs CSS en guise de placeholders)
 - Village explorable avec déplacement libre du personnage (actuellement un simple menu/hub)
