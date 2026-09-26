@@ -81,7 +81,7 @@ export const WEAPON_TYPES = {
 
 export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
-// Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
+// Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
 export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
