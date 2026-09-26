@@ -1,6 +1,6 @@
 // Création de l'équipe : quatre héros, chacun d'une classe au choix (doublons permis).
-// Le bouton « Détails » d'un héros ouvre sa fiche de départ (stats de base,
-// équipement, compétences) et l'aperçu de ses arbres de talents.
+// Un seul bouton « Détails » ouvre deux onglets : le détail des classes (stats,
+// équipement et sorts de départ, arbres de talents) et tous les légendaires.
 
 import { state } from '../../state.js';
 import { PARTY_ORDER, CLASS_ORDER } from '../../config.js';
@@ -18,8 +18,8 @@ import { skillEffectLabel } from '../format.js';
 import { talentTreesPreview } from './talents.js';
 import { goTo } from '../router.js';
 
-// Choix en cours (classes et noms), conservés quand on change une classe ;
-// fiche de détails ouverte : { slot, tab: 'stats' | 'talents' | 'legendaries' } ou null.
+// Choix en cours (classes et noms), conservés quand on change une classe.
+// Détails ouverts : { tab: 'classes' | 'legendaries', classKey } ou null.
 const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), details: null };
 
 export function renderCreate(app) {
@@ -29,41 +29,35 @@ export function renderCreate(app) {
     <div class="slots">
       ${draft.classes.map((key, i) => classCard(key, i)).join('')}
     </div>
+    <div class="center">
+      <button id="detailsBtn">${draft.details ? '✖ Fermer les détails' : '📋 Détails des classes et légendaires'}</button>
+    </div>
     ${draft.details ? detailsPanel() : ''}
     <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
   `;
 
-  app.querySelectorAll('[data-class-slot]').forEach((btn) => {
-    btn.onclick = () => {
-      const i = Number(btn.dataset.classSlot);
-      const before = draft.classes[i];
-      readNames(app);
-      // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
-      if (draft.names[i] === CLASSES[before].name) draft.names[i] = CLASSES[btn.dataset.class].name;
-      draft.classes[i] = btn.dataset.class;
-      renderCreate(app);
-    };
-  });
-  app.querySelectorAll('[data-details]').forEach((btn) => {
-    btn.onclick = () => {
-      const slot = Number(btn.dataset.details);
-      readNames(app);
-      draft.details = draft.details?.slot === slot ? null : { slot, tab: 'stats' };
-      renderCreate(app);
-      app.querySelector('#classDetails')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-  });
-  app.querySelectorAll('[data-details-tab]').forEach((btn) => {
-    btn.onclick = () => {
-      readNames(app);
-      draft.details.tab = btn.dataset.detailsTab;
-      renderCreate(app);
-    };
-  });
-  app.querySelector('#closeDetails')?.addEventListener('click', () => {
+  const rerender = (change) => () => {
     readNames(app);
-    draft.details = null;
+    change();
     renderCreate(app);
+  };
+  app.querySelectorAll('[data-class-slot]').forEach((btn) => {
+    btn.onclick = rerender(() => {
+      const i = Number(btn.dataset.classSlot);
+      // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
+      if (draft.names[i] === CLASSES[draft.classes[i]].name) draft.names[i] = CLASSES[btn.dataset.class].name;
+      draft.classes[i] = btn.dataset.class;
+    });
+  });
+  app.querySelector('#detailsBtn').onclick = () => {
+    rerender(() => { draft.details = draft.details ? null : { tab: 'classes', classKey: draft.classes[0] }; })();
+    app.querySelector('#classDetails')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  app.querySelectorAll('[data-details-tab]').forEach((btn) => {
+    btn.onclick = rerender(() => { draft.details.tab = btn.dataset.detailsTab; });
+  });
+  app.querySelectorAll('[data-details-class]').forEach((btn) => {
+    btn.onclick = rerender(() => { draft.details.classKey = btn.dataset.detailsClass; });
   });
   app.querySelector('#startBtn').onclick = () => {
     readNames(app);
@@ -80,9 +74,8 @@ function readNames(app) {
 function classCard(key, i) {
   const cls = CLASSES[key];
   const branches = TALENTS[key].map((b) => `${b.icon} ${b.name}`).join(', ');
-  const open = draft.details?.slot === i;
   return `
-    <div class="card slot ${open ? 'selected' : ''}" style="--c:${cls.color}">
+    <div class="card slot" style="--c:${cls.color}">
       <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
       <div class="cname">${cls.name}</div>
       <div class="class-picker" role="group" aria-label="Classe du héros ${i + 1}">
@@ -92,29 +85,36 @@ function classCard(key, i) {
       <div class="role">${branches}</div>
       <p class="class-desc">${esc(cls.desc)}</p>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
-      <button class="full" data-details="${i}">${open ? '✖ Fermer les détails' : '📋 Détails'}</button>
     </div>`;
 }
 
-// Fiche de la classe choisie pour le héros `draft.details.slot` : héros de niveau 1
-// avec son équipement de départ.
 function detailsPanel() {
-  const { slot, tab } = draft.details;
-  const key = draft.classes[slot];
-  const cls = CLASSES[key];
-  const hero = createHero(key, draft.names[slot]);
-  const tabs = [['stats', '📊 Stats, équipement et sorts'], ['talents', '📖 Arbres de talents'], ['legendaries', '🌟 Équipement légendaire']];
+  const { tab } = draft.details;
+  const tabs = [['classes', '📊 Détail des classes'], ['legendaries', '🌟 Légendaires']];
   return `
-    <div id="classDetails" class="card class-details" style="--c:${cls.color}">
-      <div class="details-head">
-        <h2>${cls.icon} ${esc(hero.name)} — ${cls.name}</h2>
-        <button id="closeDetails">✖ Fermer</button>
-      </div>
+    <div id="classDetails" class="card class-details">
       <div class="hero-tabs">
-        ${tabs.map(([id, label]) => `<button data-details-tab="${id}" class="${id === tab ? 'selected' : ''}" style="--c:${cls.color}">${label}</button>`).join('')}
+        ${tabs.map(([id, label]) => `<button data-details-tab="${id}" class="${id === tab ? 'selected' : ''}">${label}</button>`).join('')}
       </div>
-      ${tab === 'talents' ? talentsTab(hero) : tab === 'legendaries' ? legendariesTab(hero) : statsTab(hero)}
+      ${tab === 'legendaries' ? legendariesTab() : classesTab()}
     </div>`;
+}
+
+// Détail d'une classe : héros de niveau 1 avec son équipement de départ, puis ses
+// arbres de talents.
+function classesTab() {
+  const key = draft.details.classKey;
+  const cls = CLASSES[key];
+  const hero = createHero(key);
+  return `
+    <div class="class-picker details-classes" role="group" aria-label="Classe à détailler">
+      ${CLASS_ORDER.map((k) => `<button data-details-class="${k}" class="${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}">${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
+    </div>
+    <h2 style="--c:${cls.color}">${cls.icon} ${cls.name}</h2>
+    <p class="hint">${esc(cls.desc)}</p>
+    ${statsTab(hero)}
+    <h3>📖 Arbres de talents</h3>
+    ${talentsTab(hero)}`;
 }
 
 function statsTab(hero) {
@@ -154,28 +154,33 @@ function talentsTab(hero) {
     ${talentTreesPreview(hero)}`;
 }
 
-// Légendaires de la classe : pièce, stat principale, passif unique et compétence
-// renforcée (de départ, ou de talent avec son orientation et son palier).
-function legendariesTab(hero) {
-  const key = hero.classKey;
-  const list = Object.values(LEGENDARIES).filter((l) => l.classKey === key);
-  const cards = list.map((leg) => {
+// Tous les légendaires, classés par classe puis neutres ; ceux d'une classe portent
+// son symbole. Pièce, stat principale, passif unique et compétence renforcée.
+function legendariesTab() {
+  const entries = Object.values(LEGENDARIES);
+  const order = (l) => (l.classKey ? CLASS_ORDER.indexOf(l.classKey) : CLASS_ORDER.length);
+  const cards = [...entries].sort((a, b) => order(a) - order(b)).map((leg) => {
     const piece = leg.slotType === 'arme' ? WEAPON_TYPES[leg.weaponType].name
       : leg.slotType === 'bouclier' ? 'Bouclier'
         : JEWELS[leg.slotType] ? JEWELS[leg.slotType].name : SLOTS[leg.slotType].label;
     const type = itemTypeLabel(leg);
+    const cls = leg.classKey ? CLASSES[leg.classKey] : null;
+    const badge = cls
+      ? `<span class="leg-class" style="--c:${cls.color}" ${tip(`Réservé au ${cls.name}`)}>${cls.icon}</span>`
+      : `<span class="leg-class" ${tip('Utilisable par toutes les classes')}>✦</span>`;
+    const source = cls && leg.passive?.skill ? skillSource(leg.classKey, leg.passive.skill) : '';
     return `
       <div class="item-card" style="--rc:${RARITIES.legendaire.color}">
-        <div class="item-name">${esc(leg.name)}</div>
+        <div class="item-name">${badge} ${esc(leg.name)}</div>
         <div class="item-rarity">${RARITIES.legendaire.label}</div>
-        <div class="item-meta">${esc(type.startsWith(piece) ? type : `${piece} · ${type}`)} · ${STATS[leg.primary].label}</div>
+        <div class="item-meta">${esc(type.startsWith(piece) ? type : `${piece} · ${type}`)} · ${leg.primary ? STATS[leg.primary].label : 'stat principale au hasard'}</div>
         <div class="item-legendary">Unique : ${esc(leg.desc)}</div>
-        <div class="item-meta">${esc(skillSource(key, leg.passive.skill))}</div>
+        ${source ? `<div class="item-meta">${esc(source)}</div>` : ''}
       </div>`;
   });
   return `
-    <p class="hint">Chaque orientation a son objet légendaire. Il tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires, et seulement pour une classe présente dans l'équipe. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
-    <div class="details-items">${cards.join('')}</div>`;
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Le symbole indique la classe à laquelle il est réservé (${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(', ')}) : il ne tombe que si cette classe est dans l'équipe. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
+    <div class="details-items legendaries">${cards.join('')}</div>`;
 }
 
 function skillSource(classKey, skillId) {

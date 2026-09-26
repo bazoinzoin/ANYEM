@@ -144,7 +144,8 @@ export function generateItem(opts = {}) {
   if (legendaryKey) rarity = 'legendaire';
   if (rarity === 'legendaire' && !legendaryKey) {
     const all = Object.keys(LEGENDARIES);
-    const forParty = opts.classKeys ? all.filter((k) => opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
+    // Légendaires neutres (sans classe) ou réservés à une classe de l'équipe.
+    const forParty = opts.classKeys ? all.filter((k) => !LEGENDARIES[k].classKey || opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
     legendaryKey = pick(forParty.length ? forParty : all);
   }
   const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;

@@ -31,8 +31,14 @@ export function itemMeta(item) {
 // Texte brut multi-lignes (infobulles).
 export function itemTooltipText(item) {
   const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => formatStat(l.stat, l.value))];
-  if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
+  if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
   return lines.join('\n');
+}
+
+// « (⚔️ Guerrier) » pour un légendaire réservé à une classe, rien s'il est neutre.
+function legendaryOwner(item) {
+  const cls = CLASSES[item.legendary.classKey];
+  return cls ? ` (${cls.icon} ${cls.name})` : '';
 }
 
 // Nom coloré par rareté, avec infobulle détaillée.
@@ -51,7 +57,7 @@ export function itemCard(item) {
       <div class="item-meta">Niveau ${item.level} · ${item.slotType === 'arme' ? `${WEAPON_TYPES[item.weaponType].name} · ` : ''}${itemTypeLabel(item)}</div>
       ${weaponLine(item) ? `<div class="item-meta">${weaponLine(item)}</div>` : ''}
       <ul class="item-stats">${statLines.join('')}</ul>
-      ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
+      ${item.legendary ? `<div class="item-legendary">Unique${legendaryOwner(item)} : ${esc(item.legendary.desc)}</div>` : ''}
     </div>`;
 }
 

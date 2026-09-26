@@ -159,3 +159,12 @@ test("la Vitesse est multipliée par le coefficient de vitesse d'attaque des arm
   delete guerrier.equipment.mainDroite;
   assert.equal(getStats(guerrier).vit, base, 'sans arme : coefficient 1');
 });
+
+test("un légendaire sans classe (neutre) est équipable par toutes les classes", () => {
+  for (const hero of createParty([], ['guerrier', 'paladin'])) {
+    const ring = item({ slotType: 'anneau' });
+    ring.rarity = 'legendaire';
+    ring.legendary = { key: 'neutre', desc: 'Effet neutre' };
+    assert.equal(cannotEquipReason(hero, ring), null, hero.classKey);
+  }
+});
