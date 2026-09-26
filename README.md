@@ -11,6 +11,13 @@ npm start        # puis ouvrir http://localhost:8000
 Le jeu utilise des modules ES : il doit être servi en HTTP, il ne s'ouvre pas en double-cliquant sur `index.html` (`file://`).
 N'importe quel serveur statique convient (`python3 -m http.server 8000` par exemple).
 
+## Jouer en ligne (GitHub Pages)
+
+Le jeu est un site statique : il peut être publié tel quel avec GitHub Pages.
+Dans le dépôt GitHub : **Settings → Pages → Build and deployment**, Source « Deploy from a branch »,
+branche `main`, dossier `/ (root)`, puis **Save**. Après une ou deux minutes, le jeu est jouable à
+l'adresse `https://<utilisateur>.github.io/<dépôt>/`.
+
 ## Tests
 
 ```sh
