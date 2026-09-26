@@ -8,7 +8,7 @@ import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats } from '../../game/party.js';
 import { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
-import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } from '../../game/consumables.js';
+import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
 import {
   currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable,
 } from '../../game/events.js';
@@ -20,6 +20,7 @@ import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
 import { consumableEstimate } from '../format.js';
 import { goTo, showHub } from '../router.js';
 import { startFloor, lastFloor } from '../encounter.js';
+import { victorySummary, lastCombatLog } from '../combatLog.js';
 import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 
@@ -31,14 +32,17 @@ export function renderDungeon(app) {
   const d = DUNGEONS[exp.dungeonKey];
   const message = view.flash ?? lastFloor.message;
   const loot = view.flash ? view.flashLoot : lastFloor.loot;
-  Object.assign(lastFloor, { message: null, loot: [] });
+  const summary = view.flash ? null : lastFloor.summary;
+  Object.assign(lastFloor, { message: null, loot: [], summary: null });
   view.flash = null;
   view.flashLoot = [];
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
     <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
-    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
+    ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${lastCombatLog(state.lastCombat)}
     <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
@@ -135,7 +139,7 @@ function useItem(key, targetIndex) {
   const r = useOnMap(state, key, targetIndex);
   view.pendingItem = null;
   if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
-  if (r.ok) view.flash = r.message;
+  if (r.ok || r.message) view.flash = r.message;
   goTo('dungeon');
 }
 
@@ -157,7 +161,7 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(CONSUMABLES[k].desc)}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;

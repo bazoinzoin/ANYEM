@@ -166,7 +166,7 @@ export const CLASSES = {
     gear: {
       weapons: ['arc'],
       offHand: [],
-      armor: ['moyenne'],
+      armor: ['moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
@@ -191,7 +191,7 @@ export const CLASSES = {
     gear: {
       weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
-      armor: ['lourde', 'legere'],
+      armor: ['lourde', 'moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },

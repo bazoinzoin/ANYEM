@@ -30,7 +30,7 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Niveau maximum 50** (`XP.maxLevel`) : 1 point de talent par niveau, donc 50 points au maximum.
 - **Structure** : chaque orientation a **10 paliers (0 à 9) et 50 rangs** : au niveau 50, on complète exactement une orientation (on peut mélanger, mais alors pas de signature). Le palier t demande 5 × t points investis dans l'orientation (palier 9 : 45 points). Modèle commun : 12 nœuds secondaires (bonus à plusieurs rangs), 3 nouvelles compétences (paliers 1, 4, 7), 3 passifs (paliers 3, 6, 8) et la **compétence signature** au palier 9.
 - **Réinitialisation** au Maître des compétences contre 10 × niveau du héros en or.
-- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
+- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 80 + 40 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
 - **Passifs disponibles** (voir l'en-tête de `data/talents.js`) : berserk, vol de vie, exécution (bonus sous 30 % de PV), bonus contre cible affaiblie, bonus de zone, garde renforcée, boucliers renforcés, soins, dégâts sur la durée, ressource max / régénération, Rage par coup, combo sur critique, Énergie rendue par les finishers. Compétences : `cleanse` (retire les effets négatifs), `resourceGain` + `oncePerCombat`, `executePct`.
 - **Compétences par orientation** (palier 1 / 4 / 7 / signature 9 — passifs 3 / 6 / 8) :
   - Gardien : Provocation / Coup de bouclier (étourdit) / Mur de boucliers / **Dernier rempart** (Bouclier + Protection sur l'équipe, provocation) — Rempart, Garde de fer, Cri de défi.
@@ -61,6 +61,13 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Points de combo** (inspiré de WoW), 5 max, remis à zéro à chaque combat : les **générateurs** (Coup Vicieux, Taillade, Lame empoisonnée) en donnent 1 ; les **finishers** (Éviscération, Lacération, Déluge de lames, Fiole de peste) les dépensent tous et exigent au moins 1 point. Puissance et valeur des effets d'un finisher sont données **par point de combo** (`finisher: true`, voir `game/combo.js`, `atCombo`).
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
+
+## Combat : règles de défense et journal (choix d'implémentation)
+
+- **Esquive** (rare, max 50 %) : annule entièrement un coup direct, quel qu'il soit (attaque simple ou compétence, physique ou magique, dans les deux camps). **Blocage** (plus fréquent, boucliers, max 50 %) : réduit un coup direct de 50 %. **Riposte** : renvoie des dégâts au corps à corps. Les dégâts sur la durée ne s'esquivent pas.
+- **Effets sur la durée** (poison, régénération…) : appliqués et décomptés **à la fin du tour de l'unité** qui les porte (un effet posé sur soi pendant son tour n'est pas décompté ce tour-là).
+- **Journal** : chaque coup indique critique / bloqué / esquivé ; le calcul détaillé apparaît au survol (puissance × compétence × critique × défense × variation, puis blocage, garde, bouclier). Le journal du dernier combat reste consultable après le combat ; un résumé de victoire détaille or, XP, équipement, matéria, consommables et montées de niveau.
+- **Tente** : 30 % des PV et de la ressource, une fois par palier de 5 étages, 300 or. Prix des consommables doublés. XP : niveau L → L+1 demande 80 + 40 × L.
 
 ## Événements d'expédition (choix d'implémentation)
 

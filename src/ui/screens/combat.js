@@ -19,6 +19,7 @@ import { statusesOf } from '../../game/statuses.js';
 import { esc, tip, bar, range } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
 import { playerAction } from '../encounter.js';
+import { logLines } from '../combatLog.js';
 
 export function renderCombat(app) {
   const cb = state.combat;
@@ -37,7 +38,7 @@ export function renderCombat(app) {
         ${cb.enemies.map((e) => enemyUnit(e, e === acting?.unit)).join('')}
       </div>
     </div>
-    <div class="log">${cb.log.map((l) => `<div class="${l.hit ? 'hit' : ''}">${esc(l.text)}</div>`).join('')}</div>
+    <div class="log">${logLines(cb.log)}</div>
     ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
   `;
 

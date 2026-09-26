@@ -336,6 +336,18 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .event-choice ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
 .event-stock .bag-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
 .event-stock .bag-row button { margin-left: auto; }
+
+/* ---- Journal et résumé de victoire ---- */
+.log div.crit { color: #ffcf6b; font-weight: 600; }
+.log .has-detail { cursor: help; }
+.log .has-detail .why { color: var(--dim); font-size: 11px; }
+.log .tooltip::after { width: 340px; }
+.last-log summary { cursor: pointer; color: var(--gold); }
+.last-log .log { height: 200px; }
+.victory-summary h3 { margin: 0 0 6px; }
+.victory-summary table { border-collapse: collapse; }
+.victory-summary th { text-align: left; padding: 3px 12px 3px 0; font-weight: 400; color: var(--dim); white-space: nowrap; vertical-align: top; }
+.victory-summary td { padding: 3px 0; }
 </style>
 
 </head>
@@ -435,8 +447,8 @@ const EVENT_RULES = {
 const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 40,
-  toNextPerLevel: 20,
+  toNextBase: 80,
+  toNextPerLevel: 40,
   maxLevel: 50,
 };
 
@@ -616,8 +628,9 @@ const SECONDARY_STATS = {
   critDmg: { base: 3, perLevel: 0.3 },
   def: { base: 1, perLevel: 0.4 },
   defMag: { base: 1, perLevel: 0.4 },
-  esquive: { base: 1, perLevel: 0.08 },
-  blocage: { base: 1, perLevel: 0.1 },
+  // L'esquive (coup entièrement évité) est plus rare et plus faible que le blocage.
+  esquive: { base: 0.5, perLevel: 0.04 },
+  blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
 };
 
@@ -983,6 +996,47 @@ function upgrade(game, item) {
 return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
 })();
 
+// ---- src/data/dungeons.js
+__modules["src/data/dungeons.js"] = (() => {
+
+// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
+// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
+// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
+// Terminer un donjon débloque le suivant (ordre ci-dessous).
+//
+// pool   : ennemis des étages ordinaires (tirés au hasard)
+// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
+
+const DUNGEONS = {
+  foretMaudite: {
+    name: 'Forêt Maudite',
+    icon: '🌲',
+    desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 1,
+    maxLevel: 20,
+    pool: ['gobelin', 'loup', 'araignee'],
+    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
+  },
+  catacombes: {
+    name: 'Catacombes oubliées',
+    icon: '⚰️',
+    desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 20,
+    maxLevel: 30,
+    pool: ['squelette', 'zombie', 'spectre'],
+    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
+  },
+};
+
+const DUNGEON_ORDER = Object.keys(DUNGEONS);
+
+return { DUNGEONS, DUNGEON_ORDER };
+})();
+
 // ---- src/data/effects.js
 __modules["src/data/effects.js"] = (() => {
 
@@ -1066,6 +1120,7 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   cleanse         retire tous les effets négatifs
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
+//   oncePerTier     utilisable une seule fois par palier du donjon (entre deux boss)
 //   escape          quitte le donjon et ramène l'équipe au village, sans perte
 
 
@@ -1073,77 +1128,77 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 const CONSUMABLES = {
   // ---- Soins ----
   potion: {
-    name: 'Potion de soin', icon: '🧪', price: 20, drop: 30, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Potion de soin', icon: '🧪', price: 40, drop: 30, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 30 }, desc: 'Rend 30 % des PV max à un allié.',
   },
   grandePotion: {
-    name: 'Grande potion de soin', icon: '⚗️', price: 50, drop: 8, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Grande potion de soin', icon: '⚗️', price: 100, drop: 8, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 60 }, desc: 'Rend 60 % des PV max à un allié.',
   },
   elixir: {
-    name: 'Élixir', icon: '💧', price: 35, drop: 12, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Élixir', icon: '💧', price: 70, drop: 12, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { resourcePct: 50 }, desc: 'Rend 50 % de sa ressource (Rage, Énergie ou Mana) à un allié.',
   },
   plumeDePhenix: {
-    name: 'Plume de phénix', icon: '🪶', price: 100, drop: 3, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
+    name: 'Plume de phénix', icon: '🪶', price: 200, drop: 3, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
     effect: { revivePct: 30 }, desc: 'Relève un allié tombé avec 30 % de ses PV.',
   },
 
   // ---- Remèdes : un remède bon marché par effet négatif, et le Remède universel.
   // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
   antidote: {
-    name: 'Antidote', icon: '🧴', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Antidote', icon: '🧴', price: 24, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['poison'] }, desc: 'Guérit le poison.',
   },
   bandage: {
-    name: 'Bandage', icon: '🩹', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Bandage', icon: '🩹', price: 24, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['saignement'] }, desc: 'Arrête un saignement.',
   },
   onguent: {
-    name: 'Onguent', icon: '🫙', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Onguent', icon: '🫙', price: 24, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['brulure'] }, desc: 'Soigne une brûlure.',
   },
   selsRevigorants: {
-    name: 'Sels revigorants', icon: '🧂', price: 15, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Sels revigorants', icon: '🧂', price: 30, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['etourdi'] }, desc: "Réveille un allié étourdi (il pourra jouer à son prochain tour).",
   },
   tisaneDeClarte: {
-    name: 'Tisane de clarté', icon: '🍵', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tisane de clarté', icon: '🍵', price: 30, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['confus'] }, desc: "Dissipe la confusion d'un allié.",
   },
   tonique: {
-    name: 'Tonique', icon: '🥤', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tonique', icon: '🥤', price: 24, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['ralenti'] }, desc: 'Annule un ralentissement.',
   },
   fortifiant: {
-    name: 'Fortifiant', icon: '🍖', price: 12, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Fortifiant', icon: '🍖', price: 24, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement (dont les malédictions).',
   },
   potionDeCourage: {
-    name: 'Potion de courage', icon: '🦁', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Potion de courage', icon: '🦁', price: 30, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['terreur'] }, desc: 'Chasse la terreur.',
   },
   eauBenite: {
-    name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Eau bénite', icon: '⛲', price: 36, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
   outilsDeDesamorcage: {
-    name: 'Outils de désamorçage', icon: '🔧', price: 15, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Outils de désamorçage', icon: '🔧', price: 30, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['piege', 'piegeDeGivre'] }, desc: "Désamorce les pièges posés sur un allié.",
   },
   remede: {
-    name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Remède universel', icon: '🌿', price: 120, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",
   },
 
   // ---- Utilitaires ----
   corde: {
-    name: "Corde d'évasion", icon: '🪢', price: 150, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
+    name: "Corde d'évasion", icon: '🪢', price: 300, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
     effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
   },
   tente: {
-    name: 'Tente', icon: '⛺', price: 100, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
-    effect: { restorePartyPct: 100 }, desc: "Entre deux étages : restaure entièrement les PV et la ressource de toute l'équipe (sauf les héros tombés).",
+    name: 'Tente', icon: '⛺', price: 300, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
+    effect: { restorePartyPct: 30, oncePerTier: true }, desc: "Entre deux étages : rend 30 % des PV et de la ressource à toute l'équipe (sauf les héros tombés). Une seule fois par palier de 5 étages.",
   },
 };
 
@@ -1333,7 +1388,7 @@ const CLASSES = {
     gear: {
       weapons: ['arc'],
       offHand: [],
-      armor: ['moyenne'],
+      armor: ['moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
@@ -1358,7 +1413,7 @@ const CLASSES = {
     gear: {
       weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
-      armor: ['lourde', 'legere'],
+      armor: ['lourde', 'moyenne', 'legere'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },
@@ -2428,8 +2483,8 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //
 // Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
 //   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
-//   dot      dégâts infligés à chaque fin de round (poison, saignement, brûlure…)
-//   hot      soins reçus à chaque fin de round
+//   dot      dégâts subis à la fin de chaque tour de l'unité (poison, saignement, brûlure…)
+//   hot      soins reçus à la fin de chaque tour de l'unité
 //   shield   points de bouclier : absorbent les dégâts avant les PV
 //   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt    les ennemis doivent attaquer cette unité
@@ -2437,7 +2492,7 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   redirect % des dégâts reportés sur status.source (Intercession)
 //   trap     dégâts d'un piège, déclenché au début du prochain tour de l'unité
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
-// Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+// Les durées (sauf étourdissement) baissent d'un à la fin de chaque tour de l'unité.
 
 
 
@@ -2505,11 +2560,15 @@ function consumeStun(unit) {
   return true;
 }
 
-// Fin de round : liste des effets périodiques à appliquer, puis décompte des durées.
+// Fin du tour de l'unité : liste des effets périodiques à appliquer, puis décompte des durées.
 // Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
+// Un statut posé pendant le tour même de l'unité (`fresh`) n'est pas décompté à
+// la fin de ce tour-là : un effet de 2 tours couvre bien 2 tours de l'unité.
 function tickStatuses(unit) {
-  const ticks = statusesOf(unit).filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
-  for (const s of statusesOf(unit)) if (!s.stun) s.turns--;
+  const due = statusesOf(unit).filter((s) => !s.fresh);
+  for (const s of statusesOf(unit)) delete s.fresh;
+  const ticks = due.filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+  for (const s of due) if (!s.stun) s.turns--;
   unit.statuses = statusesOf(unit).filter((s) => s.stun || s.turns > 0);
   return ticks;
 }
@@ -2596,6 +2655,7 @@ return { isHero, isAlive, statsOf, damage, heal };
 
 // ---- src/game/consumables.js
 __modules["src/game/consumables.js"] = (() => {
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MERCHANT } = __modules["src/config.js"];
 const { getStats, gainResource } = __modules["src/game/party.js"];
@@ -2603,6 +2663,7 @@ const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
 // Utilisation en combat : combat.js (action « Objet ») ; entre deux étages : useOnMap().
+
 
 
 
@@ -2688,6 +2749,17 @@ function restoreParty(party, pct) {
   }
 }
 
+// Palier du donjon de l'étage à venir (0 = étages 1 à 5…), sans dépendre de game/dungeon.js.
+function tierIndex(exp) {
+  return Math.floor((exp.floor - 1) / DUNGEONS[exp.dungeonKey].bossEvery);
+}
+
+// Un consommable « une fois par palier » déjà utilisé dans le palier en cours ?
+function usedThisTier(game, key) {
+  const exp = game.expedition;
+  return !!(exp && CONSUMABLES[key]?.effect.oncePerTier && exp.usedPerTier?.[key] === tierIndex(exp));
+}
+
 /**
  * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
  * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
@@ -2704,8 +2776,13 @@ function useOnMap(game, key, targetIndex) {
     message = `${def.name} : l'équipe regagne le village sans encombre.`;
   } else if (def.effect.restorePartyPct) {
     if (!game.party.some((h) => h.alive)) return { ok: false };
+    if (def.effect.oncePerTier) {
+      const tier = tierIndex(game.expedition);
+      if (game.expedition.usedPerTier?.[key] === tier) return { ok: false, message: `${def.name} : déjà utilisée dans ce palier.` };
+      game.expedition.usedPerTier = { ...game.expedition.usedPerTier, [key]: tier };
+    }
     restoreParty(game.party, def.effect.restorePartyPct);
-    message = `${def.name} : l'équipe se repose. PV et ressources restaurés.`;
+    message = `${def.name} : l'équipe se repose (+${def.effect.restorePartyPct} % de PV et de ressource).`;
   } else {
     const target = game.party[targetIndex];
     const result = target ? applyConsumable(key, target) : null;
@@ -2716,7 +2793,7 @@ function useOnMap(game, key, targetIndex) {
   return { ok: true, message, escaped };
 }
 
-return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, useOnMap };
+return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, usedThisTier, useOnMap };
 })();
 
 // ---- src/state.js
@@ -2744,6 +2821,7 @@ const state = {
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
+  lastCombat: null,     // { title, log } du dernier combat (journal consultable après coup)
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
 };
@@ -2938,6 +3016,20 @@ const STAT_TIPS = {
   vit: "Ordre de jeu en combat. Multipliée par le coefficient de vitesse d'attaque de l'arme (armes lourdes lentes, dagues rapides).",
 };
 
+// Bonus apportés par les talents : [clé de getStats, libellé, suffixe, explication].
+const BONUS_ROWS = [
+  ['healPct', 'Bonus de soins', ' %', 'Augmente les soins donnés par ce héros (soins directs et Régénération) : soin = puissance magique × puissance du sort × (1 + bonus).'],
+  ['dotPct', 'Bonus dégâts sur la durée', ' %', 'Augmente les dégâts de poison, saignement, brûlure et ténèbres infligés.'],
+  ['shieldPct', 'Bonus de boucliers', ' %', 'Augmente la valeur des boucliers donnés.'],
+  ['trapPct', 'Bonus de pièges', ' %', 'Augmente les dégâts des pièges posés.'],
+  ['aoePct', 'Bonus de zone', ' %', 'Augmente les dégâts des compétences qui touchent tous les ennemis.'],
+  ['vsDebuffedPct', 'Bonus contre cible affaiblie', ' %', "Dégâts directs en plus contre une cible qui subit un effet négatif."],
+  ['executePct', 'Bonus d\'exécution', ' %', 'Dégâts directs en plus contre une cible sous 30 % de PV.'],
+  ['lifestealPct', 'Vol de vie', ' %', 'Part des dégâts directs infligés rendue en PV.'],
+  ['resRegen', 'Régénération de ressource', ' / tour', 'Ressource regagnée en plus au début de chaque tour.'],
+  ['berserk', 'Berserk', ' % / 10 % PV manquants', 'Puissance physique en plus par tranche de 10 % de PV manquants.'],
+];
+
 function row(label, value, tipText) {
   const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
   return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
@@ -2960,6 +3052,10 @@ function statsList(hero) {
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  // Bonus des talents (n'apparaissent que s'ils existent).
+  for (const [key, label, suffix, tipText] of BONUS_ROWS) {
+    if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));
+  }
   return rows.join('');
 }
 
@@ -3121,19 +3217,28 @@ function powerOf(attacker, magic) {
   return magic ? attacker.magPower : attacker.physPower;
 }
 
-function hitMultiplier(attacker, opts, defender, crit) {
-  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+// Facteurs multiplicateurs d'un coup, détaillés pour le journal de combat :
+// [{ label, value }] (puissance de la compétence, critique, défense, bonus…).
+function hitFactors(attacker, opts, defender, crit) {
+  const factors = [];
+  if (opts.power !== 1) factors.push({ label: 'compétence', value: opts.power });
+  if (crit) factors.push({ label: 'critique', value: critMultiplier(attacker) });
   // Talents : bonus aux compétences de zone.
-  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
+  if (opts.aoe && attacker.aoePct) factors.push({ label: 'zone', value: 1 + attacker.aoePct / 100 });
   if (defender) {
-    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+    const def = opts.magic ? defender.defMag : defender.def;
+    factors.push({ label: `${opts.magic ? 'défense magique' : 'défense'} ${def}`, value: defenseFactor(def) });
     // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
-    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+    if (defender.debuffed && attacker.vsDebuffedPct) factors.push({ label: 'cible affaiblie', value: 1 + attacker.vsDebuffedPct / 100 });
     // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
     const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
-    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
+    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) factors.push({ label: 'exécution', value: 1 + execute / 100 });
   }
-  return mult;
+  return factors;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  return hitFactors(attacker, opts, defender, crit).reduce((m, f) => m * f.value, 1);
 }
 
 // Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
@@ -3144,12 +3249,19 @@ function estimateHit(attacker, opts, defender = null) {
   return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
 }
 
+// Jet d'un coup. `detail` explique le calcul (affiché au survol du journal) :
+// « Puissance physique 22 × 1,5 (critique) × 0,91 (défense 10) × 1,04 (variation) = 31 ».
 function rollHit(attacker, opts, defender) {
   const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
   const crit = opts.alwaysCrit || random() < critChance;
-  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
+  const power = powerOf(attacker, opts.magic);
+  const factors = hitFactors(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
+  const roll = rand(lo, hi);
+  const amount = Math.max(1, Math.round(power * factors.reduce((m, f) => m * f.value, 1) * roll));
+  const num = (v) => String(+v.toFixed(2)).replace('.', ',');
+  const detail = [`Puissance ${opts.magic ? 'magique' : 'physique'} ${power}`, ...factors.map((f) => `× ${num(f.value)} (${f.label})`), `× ${num(roll)} (variation) = ${amount}`].join(' ');
+  return { amount, crit, detail };
 }
 
 // Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
@@ -3655,47 +3767,6 @@ function skillSource(classKey, skillId) {
 }
 
 return { renderCreate };
-})();
-
-// ---- src/data/dungeons.js
-__modules["src/data/dungeons.js"] = (() => {
-
-// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
-// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
-// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
-// Terminer un donjon débloque le suivant (ordre ci-dessous).
-//
-// pool   : ennemis des étages ordinaires (tirés au hasard)
-// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
-
-const DUNGEONS = {
-  foretMaudite: {
-    name: 'Forêt Maudite',
-    icon: '🌲',
-    desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 1,
-    maxLevel: 20,
-    pool: ['gobelin', 'loup', 'araignee'],
-    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
-  },
-  catacombes: {
-    name: 'Catacombes oubliées',
-    icon: '⚰️',
-    desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 20,
-    maxLevel: 30,
-    pool: ['squelette', 'zombie', 'spectre'],
-    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
-  },
-};
-
-const DUNGEON_ORDER = Object.keys(DUNGEONS);
-
-return { DUNGEONS, DUNGEON_ORDER };
 })();
 
 // ---- src/data/events.js
@@ -4771,7 +4842,8 @@ const { pick, random } = __modules["src/game/rng.js"];
 // (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
-// passe au combattant suivant.
+// passe au combattant suivant. Les effets sur la durée (poison, régénération…)
+// s'appliquent et se décomptent à la fin du tour de chaque unité.
 //
 // Classes à Énergie (game/combo.js) : après une action, le héros garde la main
 // (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
@@ -4816,8 +4888,10 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
   return cb;
 }
 
-function log(cb, text, hit = false) {
-  cb.log.unshift({ text, hit });
+// Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
+// affichée au survol (calcul des dégâts), `crit` = coup critique.
+function log(cb, text, hit = false, detail = null, crit = false) {
+  cb.log.unshift({ text, hit, detail, crit });
   if (cb.log.length > COMBAT.logMax) cb.log.pop();
 }
 
@@ -4836,8 +4910,6 @@ function nextTurn(cb) {
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
-      if (cb.round > 0) endRound(cb);
-      if (checkOutcome(cb)) break;
       startRound(cb);
       continue;
     }
@@ -4853,10 +4925,12 @@ function nextTurn(cb) {
     }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
     if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
@@ -4894,10 +4968,11 @@ function startRound(cb) {
   cb.round++;
 }
 
-// Fin de round : effets sur la durée (dégâts, soins), puis décompte des statuts.
-function endRound(cb) {
-  for (const unit of [...cb.party, ...cb.enemies]) {
-    if (!unit.alive) continue;
+// Fin du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent,
+// puis la durée de ses statuts baisse d'un tour.
+function endUnitTurn(cb, unit) {
+  if (!unit.alive) return;
+  {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
@@ -4918,10 +4993,10 @@ function confusedHeroStrikes(cb, hero) {
   const allies = cb.party.filter((h) => h.alive && h !== hero);
   if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
   const victim = pick(allies);
-  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
-  const { taken, fell } = hurt(cb, victim, hit.amount);
-  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
-  if (fell) logFall(cb, victim);
+  const r = strike(cb, hero, victim, BASIC_ATTACK);
+  if (r.dodged) log(cb, `${hero.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+  else log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+  if (r.fell) logFall(cb, victim);
   return true;
 }
 
@@ -4932,8 +5007,14 @@ function startHeroTurn(hero) {
 }
 
 function endTurn(cb) {
+  if (cb.acting) endUnitTurn(cb, cb.acting.unit);
   cb.qIndex++;
   cb.acting = null;
+}
+
+// Pose un statut ; posé sur l'unité qui joue, il ne sera pas décompté à la fin de ce tour.
+function applyStatus(cb, unit, status) {
+  addStatus(unit, cb.acting?.unit === unit ? { ...status, fresh: true } : status);
 }
 
 function logFall(cb, unit) {
@@ -5033,16 +5114,17 @@ function heroAct(cb, action) {
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, makeStatus('bouclier', 2, amount));
+      applyStatus(cb, hero, makeStatus('bouclier', 2, amount));
       log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
     if (!target || !canDoAction(cb, hero, 'attack')) return false;
     hero.res -= actionCost(hero, 'attack');
-    const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const { taken, fell } = damage(target, hit.amount);
-    log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
+    const r = strike(cb, hero, target, BASIC_ATTACK);
+    const { taken, fell } = r;
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${hero.name} !`, true, r.detail);
+    else log(cb, `${hero.name} attaque ${target.name} pour ${taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
     if (fell) logFall(cb, target);
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
@@ -5094,6 +5176,41 @@ function heroAct(cb, action) {
   return true;
 }
 
+/**
+ * Coup direct (attaque simple ou compétence de dégâts) de `attacker` sur `target` :
+ * esquive (tout le coup évité), jet de dégâts, blocage (une partie évitée), garde,
+ * boucliers, Intercession. Retourne { dodged, blocked, crit, taken, fell, detail }.
+ * Un héros touché qui survit gagne sa Rage d'encaissement.
+ */
+function strike(cb, attacker, target, opts) {
+  const ts = statsOf(target);
+  if (random() < chance(ts, 'esquive')) {
+    return { dodged: true, blocked: false, crit: false, taken: 0, fell: false, detail: `${target.name} esquive (${Math.round(chance(ts, 'esquive') * 100)} % de chance)` };
+  }
+  const hit = rollHit(statsOf(attacker), opts, ts);
+  let dmg = hit.amount;
+  const notes = [hit.detail];
+  const blocked = random() < chance(ts, 'blocage');
+  if (blocked) {
+    dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
+    notes.push(`bloqué (−${Math.round(COMBAT.blockReduction * 100)} %) → ${dmg}`);
+  }
+  if (target.guard) {
+    dmg = guarded(target, dmg);
+    notes.push(`en garde → ${dmg}`);
+  }
+  const r = hurt(cb, target, dmg);
+  if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
+  if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
+  if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
+  return { dodged: false, blocked, crit: hit.crit, taken: r.taken, fell: r.fell, detail: notes.join(' ; '), redirect: redirectText(r) };
+}
+
+// « (critique !) (bloqué) (12 encaissés par Aldric) »
+function strikeNotes(r) {
+  return `${r.crit ? ' (critique !)' : ''}${r.blocked ? ' (bloqué)' : ''}${r.redirect ?? ''}`;
+}
+
 // Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
 function hurt(cb, unit, amount) {
   const r = damage(unit, amount);
@@ -5139,15 +5256,12 @@ function onHitTaken(hero) {
   gainResource(hero, (getClass(hero).resource.onHitTaken ?? 0) + (statsOf(hero).resOnHitTaken ?? 0));
 }
 
-function critText(hit) {
-  return hit.crit ? ' (critique !)' : '';
-}
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  const notes = hits.map((h) => h.note ?? '').join('');
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
-  const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
+  const notes = hits.map((h) => `${h.blocked ? ' (bloqué)' : ''}${h.note ?? ''}`).join('');
+  if (hits.length === 1) return hits[0].dodged ? 'esquivé' : `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
+  const text = hits.map((h) => (h.dodged ? 'esquivé' : `${h.amount}${h.crit ? '*' : ''}`)).join(' + ');
   return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
@@ -5177,6 +5291,7 @@ function targetLabel(skill, targets) {
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  const details = [];
   let crit = false;
   let dealt = 0;
 
@@ -5184,15 +5299,12 @@ function useSkill(cb, caster, skill, targets) {
     if (skill.kind === 'damage') {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
-        const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        hit.amount = guarded(target, hit.amount);
-        const r = hurt(cb, target, hit.amount);
-        const { taken, fell } = r;
-        hits.push({ ...hit, amount: taken, note: redirectText(r) });
-        dealt += taken;
-        crit ||= hit.crit;
-        if (fell) logFall(cb, target);
-        else if (isHero(target) && !isHero(caster)) onHitTaken(target);
+        const r = strike(cb, caster, target, skillHitOptions(skill));
+        hits.push({ ...r, amount: r.taken, note: r.redirect });
+        details.push(`${target.name} : ${r.detail}`);
+        dealt += r.taken;
+        crit ||= r.crit;
+        if (r.fell) logFall(cb, target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -5217,11 +5329,11 @@ function useSkill(cb, caster, skill, targets) {
         if (target === caster) continue; // on ne s'intercède pas pour soi-même
         status.source = caster;
       }
-      addStatus(target, status);
+      applyStatus(cb, target, status);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
@@ -5229,7 +5341,7 @@ function useSkill(cb, caster, skill, targets) {
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true, details.join('\n') || null, crit);
   if (isHero(caster)) lifesteal(cb, caster, dealt);
   return { crit };
 }
@@ -5270,7 +5382,7 @@ function pickAbility(enemy) {
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
 // (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
-// (esquive / blocage / garde / boucliers possibles).
+// (esquive / blocage / garde / boucliers possibles, sur tous les coups directs).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
@@ -5278,10 +5390,10 @@ function enemyAct(cb) {
   const others = cb.enemies.filter((e) => e.alive && e !== enemy);
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
-    const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = hurt(cb, victim, hit.amount);
-    log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
-    if (fell) logFall(cb, victim);
+    const r = strike(cb, enemy, victim, ENEMY_ATTACK);
+    if (r.dodged) log(cb, `${enemy.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+    else log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, victim);
     endTurn(cb);
     return;
   }
@@ -5297,25 +5409,11 @@ function enemyAct(cb) {
 
   const target = enemyTarget(cb);
   if (target) {
-    const targetStats = statsOf(target);
-    if (random() < chance(targetStats, 'esquive')) {
-      log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
-    } else {
-      const hit = rollHit(statsOf(enemy), { ...ENEMY_ATTACK, magic: enemy.magic }, targetStats);
-      let dmg = hit.amount;
-      const blocked = random() < chance(targetStats, 'blocage');
-      if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
-      dmg = guarded(target, dmg);
-      const r = hurt(cb, target, dmg);
-      const { taken, absorbed, fell } = r;
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
-      log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
-      if (fell) logFall(cb, target);
-      else {
-        onHitTaken(target);
-        if (!enemy.magic) riposte(cb, enemy, target);
-      }
-    }
+    const r = strike(cb, enemy, target, { ...ENEMY_ATTACK, magic: enemy.magic });
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true, r.detail);
+    else log(cb, `${enemy.name} attaque ${target.name} pour ${r.taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, target);
+    else if (!enemy.magic) riposte(cb, enemy, target);
   }
   endTurn(cb);
 }
@@ -5343,7 +5441,7 @@ const { render, showHub, goTo } = __modules["src/ui/router.js"];
 
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
-const lastFloor = { message: null, loot: [] };
+const lastFloor = { message: null, loot: [], summary: null };
 
 // Lance le combat de l'étage courant de l'expédition.
 function startFloor() {
@@ -5384,6 +5482,7 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
   if (cb.result === 'escape') {
     escapeExpedition(state);
     showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
@@ -5401,25 +5500,84 @@ function finish() {
     return;
   }
   const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
   goTo('dungeon');
 }
 
 return { lastFloor, startFloor, playerAction };
 })();
 
+// ---- src/ui/combatLog.js
+__modules["src/ui/combatLog.js"] = (() => {
+const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+// Journal de combat et résumé de victoire (partagés par les écrans de combat,
+// d'expédition et du village).
+
+
+
+
+
+
+// Lignes du journal : les coups critiques ressortent, et le calcul des dégâts
+// s'affiche au survol quand il est connu.
+function logLines(entries) {
+  return entries.map((l) => {
+    const cls = `${l.hit ? 'hit' : ''} ${l.crit ? 'crit' : ''}`;
+    if (!l.detail) return `<div class="${cls}">${l.crit ? '💥 ' : ''}${esc(l.text)}</div>`;
+    return `<div ${tip(l.detail, `${cls} has-detail`)}>${l.crit ? '💥 ' : ''}${esc(l.text)} <span class="why">ⓘ</span></div>`;
+  }).join('');
+}
+
+// Journal du dernier combat, repliable (après la fin du combat).
+function lastCombatLog(last) {
+  if (!last?.log?.length) return '';
+  return `
+    <details class="card last-log">
+      <summary>📜 Journal du dernier combat (${esc(last.title)})</summary>
+      <div class="log">${logLines(last.log)}</div>
+    </details>`;
+}
+
+// Résumé détaillé d'une victoire (résultat de applyVictory / winFloor).
+function victorySummary(r) {
+  if (!r) return '';
+  const rows = [
+    ['💰 Or', `+${r.gold}`],
+    ['⭐ Expérience', `+${r.xp} XP pour chaque héros`],
+  ];
+  if (r.levelUps?.length) rows.push(['🎉 Niveau supérieur', r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
+  rows.push(['🎒 Équipement', r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
+  rows.push(['💎 Matéria', r.materia?.length
+    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${MATERIA_KINDS[m.kind].icon} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
+    : '<span class="hint">aucune</span>']);
+  rows.push(['🧪 Consommables', r.consumables?.length ? r.consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', ') : '<span class="hint">aucun</span>']);
+  return `
+    <div class="victory-summary">
+      <h3>Victoire !</h3>
+      <table>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    </div>`;
+}
+
+return { logLines, lastCombatLog, victorySummary };
+})();
+
 // ---- src/ui/screens/equipment.js
 __modules["src/ui/screens/equipment.js"] = (() => {
 const { state } = __modules["src/state.js"];
+const { isTwoHanded } = __modules["src/game/items.js"];
 const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
 const { STAT_ORDER } = __modules["src/data/stats.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
-const { esc } = __modules["src/ui/html.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
+
 
 
 
@@ -5515,6 +5673,15 @@ function isSelected(sel) {
 function slotRow(hero, slot) {
   const item = hero.equipment[slot];
   const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
+  // Une arme à deux mains occupe aussi la main gauche.
+  const twoHand = hero.equipment.mainDroite;
+  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
+    return `
+    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
+    </button>`;
+  }
   if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
@@ -6116,6 +6283,7 @@ const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
+const { lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
@@ -6123,6 +6291,7 @@ const { openMerchant } = __modules["src/ui/screens/merchant.js"];
 const { openInn } = __modules["src/ui/screens/inn.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
 
 
 
@@ -6148,6 +6317,7 @@ function renderHub(app) {
   app.innerHTML = `
     <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${message ? lastCombatLog(state.lastCombat) : ''}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
@@ -6309,7 +6479,7 @@ const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
-const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } = __modules["src/game/consumables.js"];
+const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } = __modules["src/game/consumables.js"];
 const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
 const { EVENTS } = __modules["src/data/events.js"];
 const { RARITIES } = __modules["src/data/items.js"];
@@ -6319,11 +6489,13 @@ const { itemChip, itemName, itemMeta, itemTooltipText } = __modules["src/ui/item
 const { consumableEstimate } = __modules["src/ui/format.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
 const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
+const { victorySummary, lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 // Expédition : entre deux étages d'un donjon. On y voit la progression et l'état
 // de l'équipe, et on choisit de descendre à l'étage suivant ou (après un boss)
 // de rentrer au village.
+
 
 
 
@@ -6352,14 +6524,17 @@ function renderDungeon(app) {
   const d = DUNGEONS[exp.dungeonKey];
   const message = view.flash ?? lastFloor.message;
   const loot = view.flash ? view.flashLoot : lastFloor.loot;
-  Object.assign(lastFloor, { message: null, loot: [] });
+  const summary = view.flash ? null : lastFloor.summary;
+  Object.assign(lastFloor, { message: null, loot: [], summary: null });
   view.flash = null;
   view.flashLoot = [];
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
     <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
-    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
+    ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${lastCombatLog(state.lastCombat)}
     <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
@@ -6456,7 +6631,7 @@ function useItem(key, targetIndex) {
   const r = useOnMap(state, key, targetIndex);
   view.pendingItem = null;
   if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
-  if (r.ok) view.flash = r.message;
+  if (r.ok || r.message) view.flash = r.message;
   goTo('dungeon');
 }
 
@@ -6478,7 +6653,7 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(CONSUMABLES[k].desc)}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;
@@ -6591,11 +6766,13 @@ const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
 const { skillEffectLabel, skillShortEstimate, consumableEstimate } = __modules["src/ui/format.js"];
 const { playerAction } = __modules["src/ui/encounter.js"];
+const { logLines } = __modules["src/ui/combatLog.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
 // reste qu'une seule cible possible ; une compétence de zone, de groupe ou
 // personnelle demande une confirmation qui montre qui sera touché.
 // Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
 // tout héros peut passer son tour.
+
 
 
 
@@ -6630,7 +6807,7 @@ function renderCombat(app) {
         ${cb.enemies.map((e) => enemyUnit(e, e === acting?.unit)).join('')}
       </div>
     </div>
-    <div class="log">${cb.log.map((l) => `<div class="${l.hit ? 'hit' : ''}">${esc(l.text)}</div>`).join('')}</div>
+    <div class="log">${logLines(cb.log)}</div>
     ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
   `;
 

@@ -133,12 +133,14 @@ test('chaque légendaire vise une compétence de sa classe (de base ou de talent
   }
 });
 
-test('Paladin : armes au corps à corps (toute stat principale), bouclier, armures lourde et légère ; Chasseur : arc et armure moyenne', () => {
+test('Paladin : armes au corps à corps, bouclier, toutes les armures ; Chasseur : arc, armures moyenne et légère', () => {
   const [paladin, chasseur] = createParty([], ['paladin', 'chasseur']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'masse', primary: 'intelligence' })), ['mainDroite']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'bouclier' })), ['mainGauche']);
   assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), null);
-  assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })));
+  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })), null, 'qui peut le plus peut le moins');
+  assert.equal(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'legere' })), null);
+  assert.ok(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'lourde' })));
   assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'arc' })));
   assert.equal(chasseur.equipment.mainDroite.weaponType, 'arc');
   assert.ok(cannotEquipReason(chasseur, item({ slotType: 'arme', weaponType: 'dague' })));

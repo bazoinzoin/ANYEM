@@ -111,8 +111,9 @@ export const SECONDARY_STATS = {
   critDmg: { base: 3, perLevel: 0.3 },
   def: { base: 1, perLevel: 0.4 },
   defMag: { base: 1, perLevel: 0.4 },
-  esquive: { base: 1, perLevel: 0.08 },
-  blocage: { base: 1, perLevel: 0.1 },
+  // L'esquive (coup entièrement évité) est plus rare et plus faible que le blocage.
+  esquive: { base: 0.5, perLevel: 0.04 },
+  blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
 };
 

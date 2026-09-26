@@ -1,11 +1,12 @@
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
 
 import { state } from '../../state.js';
+import { isTwoHanded } from '../../game/items.js';
 import { SLOT_ORDER, RARITY_ORDER, RARITIES } from '../../data/items.js';
 import { STAT_ORDER } from '../../data/stats.js';
 import { getClass, getStats } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
-import { esc } from '../html.js';
+import { esc, tip } from '../html.js';
 import { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } from '../items.js';
 import { goTo, goBack, backLabel } from '../router.js';
 import { statsList } from '../heroStats.js';
@@ -94,6 +95,15 @@ function isSelected(sel) {
 function slotRow(hero, slot) {
   const item = hero.equipment[slot];
   const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
+  // Une arme à deux mains occupe aussi la main gauche.
+  const twoHand = hero.equipment.mainDroite;
+  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
+    return `
+    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
+    </button>`;
+  }
   if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">

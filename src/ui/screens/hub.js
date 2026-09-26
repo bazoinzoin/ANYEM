@@ -8,6 +8,7 @@ import { esc, tip, bar } from '../html.js';
 import { goTo } from '../router.js';
 import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
+import { lastCombatLog } from '../combatLog.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
 import { openTalents } from './talents.js';
@@ -24,6 +25,7 @@ export function renderHub(app) {
   app.innerHTML = `
     <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${message ? lastCombatLog(state.lastCombat) : ''}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>

@@ -10,7 +10,7 @@ import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
-export const lastFloor = { message: null, loot: [] };
+export const lastFloor = { message: null, loot: [], summary: null };
 
 // Lance le combat de l'étage courant de l'expédition.
 export function startFloor() {
@@ -51,6 +51,7 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
   if (cb.result === 'escape') {
     escapeExpedition(state);
     showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
@@ -68,6 +69,6 @@ function finish() {
     return;
   }
   const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
   goTo('dungeon');
 }

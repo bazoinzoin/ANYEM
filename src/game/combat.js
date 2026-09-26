@@ -7,7 +7,8 @@
 // (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
-// passe au combattant suivant.
+// passe au combattant suivant. Les effets sur la durée (poison, régénération…)
+// s'appliquent et se décomptent à la fin du tour de chaque unité.
 //
 // Classes à Énergie (game/combo.js) : après une action, le héros garde la main
 // (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
@@ -55,8 +56,10 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
   return cb;
 }
 
-export function log(cb, text, hit = false) {
-  cb.log.unshift({ text, hit });
+// Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
+// affichée au survol (calcul des dégâts), `crit` = coup critique.
+export function log(cb, text, hit = false, detail = null, crit = false) {
+  cb.log.unshift({ text, hit, detail, crit });
   if (cb.log.length > COMBAT.logMax) cb.log.pop();
 }
 
@@ -75,8 +78,6 @@ export function nextTurn(cb) {
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
-      if (cb.round > 0) endRound(cb);
-      if (checkOutcome(cb)) break;
       startRound(cb);
       continue;
     }
@@ -92,10 +93,12 @@ export function nextTurn(cb) {
     }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
     if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
+      endUnitTurn(cb, turn.unit);
       cb.qIndex++;
       continue;
     }
@@ -133,10 +136,11 @@ function startRound(cb) {
   cb.round++;
 }
 
-// Fin de round : effets sur la durée (dégâts, soins), puis décompte des statuts.
-function endRound(cb) {
-  for (const unit of [...cb.party, ...cb.enemies]) {
-    if (!unit.alive) continue;
+// Fin du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent,
+// puis la durée de ses statuts baisse d'un tour.
+function endUnitTurn(cb, unit) {
+  if (!unit.alive) return;
+  {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
@@ -157,10 +161,10 @@ function confusedHeroStrikes(cb, hero) {
   const allies = cb.party.filter((h) => h.alive && h !== hero);
   if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
   const victim = pick(allies);
-  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
-  const { taken, fell } = hurt(cb, victim, hit.amount);
-  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
-  if (fell) logFall(cb, victim);
+  const r = strike(cb, hero, victim, BASIC_ATTACK);
+  if (r.dodged) log(cb, `${hero.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+  else log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+  if (r.fell) logFall(cb, victim);
   return true;
 }
 
@@ -171,8 +175,14 @@ function startHeroTurn(hero) {
 }
 
 function endTurn(cb) {
+  if (cb.acting) endUnitTurn(cb, cb.acting.unit);
   cb.qIndex++;
   cb.acting = null;
+}
+
+// Pose un statut ; posé sur l'unité qui joue, il ne sera pas décompté à la fin de ce tour.
+function applyStatus(cb, unit, status) {
+  addStatus(unit, cb.acting?.unit === unit ? { ...status, fresh: true } : status);
 }
 
 function logFall(cb, unit) {
@@ -272,16 +282,17 @@ export function heroAct(cb, action) {
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, makeStatus('bouclier', 2, amount));
+      applyStatus(cb, hero, makeStatus('bouclier', 2, amount));
       log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
     if (!target || !canDoAction(cb, hero, 'attack')) return false;
     hero.res -= actionCost(hero, 'attack');
-    const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const { taken, fell } = damage(target, hit.amount);
-    log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
+    const r = strike(cb, hero, target, BASIC_ATTACK);
+    const { taken, fell } = r;
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${hero.name} !`, true, r.detail);
+    else log(cb, `${hero.name} attaque ${target.name} pour ${taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
     if (fell) logFall(cb, target);
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
@@ -333,6 +344,41 @@ export function heroAct(cb, action) {
   return true;
 }
 
+/**
+ * Coup direct (attaque simple ou compétence de dégâts) de `attacker` sur `target` :
+ * esquive (tout le coup évité), jet de dégâts, blocage (une partie évitée), garde,
+ * boucliers, Intercession. Retourne { dodged, blocked, crit, taken, fell, detail }.
+ * Un héros touché qui survit gagne sa Rage d'encaissement.
+ */
+function strike(cb, attacker, target, opts) {
+  const ts = statsOf(target);
+  if (random() < chance(ts, 'esquive')) {
+    return { dodged: true, blocked: false, crit: false, taken: 0, fell: false, detail: `${target.name} esquive (${Math.round(chance(ts, 'esquive') * 100)} % de chance)` };
+  }
+  const hit = rollHit(statsOf(attacker), opts, ts);
+  let dmg = hit.amount;
+  const notes = [hit.detail];
+  const blocked = random() < chance(ts, 'blocage');
+  if (blocked) {
+    dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
+    notes.push(`bloqué (−${Math.round(COMBAT.blockReduction * 100)} %) → ${dmg}`);
+  }
+  if (target.guard) {
+    dmg = guarded(target, dmg);
+    notes.push(`en garde → ${dmg}`);
+  }
+  const r = hurt(cb, target, dmg);
+  if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
+  if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
+  if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
+  return { dodged: false, blocked, crit: hit.crit, taken: r.taken, fell: r.fell, detail: notes.join(' ; '), redirect: redirectText(r) };
+}
+
+// « (critique !) (bloqué) (12 encaissés par Aldric) »
+function strikeNotes(r) {
+  return `${r.crit ? ' (critique !)' : ''}${r.blocked ? ' (bloqué)' : ''}${r.redirect ?? ''}`;
+}
+
 // Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
 function hurt(cb, unit, amount) {
   const r = damage(unit, amount);
@@ -378,15 +424,12 @@ function onHitTaken(hero) {
   gainResource(hero, (getClass(hero).resource.onHitTaken ?? 0) + (statsOf(hero).resOnHitTaken ?? 0));
 }
 
-function critText(hit) {
-  return hit.crit ? ' (critique !)' : '';
-}
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  const notes = hits.map((h) => h.note ?? '').join('');
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
-  const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
+  const notes = hits.map((h) => `${h.blocked ? ' (bloqué)' : ''}${h.note ?? ''}`).join('');
+  if (hits.length === 1) return hits[0].dodged ? 'esquivé' : `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
+  const text = hits.map((h) => (h.dodged ? 'esquivé' : `${h.amount}${h.crit ? '*' : ''}`)).join(' + ');
   return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
@@ -416,6 +459,7 @@ function targetLabel(skill, targets) {
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  const details = [];
   let crit = false;
   let dealt = 0;
 
@@ -423,15 +467,12 @@ function useSkill(cb, caster, skill, targets) {
     if (skill.kind === 'damage') {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
-        const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        hit.amount = guarded(target, hit.amount);
-        const r = hurt(cb, target, hit.amount);
-        const { taken, fell } = r;
-        hits.push({ ...hit, amount: taken, note: redirectText(r) });
-        dealt += taken;
-        crit ||= hit.crit;
-        if (fell) logFall(cb, target);
-        else if (isHero(target) && !isHero(caster)) onHitTaken(target);
+        const r = strike(cb, caster, target, skillHitOptions(skill));
+        hits.push({ ...r, amount: r.taken, note: r.redirect });
+        details.push(`${target.name} : ${r.detail}`);
+        dealt += r.taken;
+        crit ||= r.crit;
+        if (r.fell) logFall(cb, target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -456,11 +497,11 @@ function useSkill(cb, caster, skill, targets) {
         if (target === caster) continue; // on ne s'intercède pas pour soi-même
         status.source = caster;
       }
-      addStatus(target, status);
+      applyStatus(cb, target, status);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
@@ -468,7 +509,7 @@ function useSkill(cb, caster, skill, targets) {
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true, details.join('\n') || null, crit);
   if (isHero(caster)) lifesteal(cb, caster, dealt);
   return { crit };
 }
@@ -509,7 +550,7 @@ function pickAbility(enemy) {
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
 // (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
-// (esquive / blocage / garde / boucliers possibles).
+// (esquive / blocage / garde / boucliers possibles, sur tous les coups directs).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 export function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
@@ -517,10 +558,10 @@ export function enemyAct(cb) {
   const others = cb.enemies.filter((e) => e.alive && e !== enemy);
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
-    const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = hurt(cb, victim, hit.amount);
-    log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
-    if (fell) logFall(cb, victim);
+    const r = strike(cb, enemy, victim, ENEMY_ATTACK);
+    if (r.dodged) log(cb, `${enemy.name}, confus, s'en prend à ${victim.name}, qui esquive !`, true, r.detail);
+    else log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${r.taken} dégâts${strikeNotes(r)} !`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, victim);
     endTurn(cb);
     return;
   }
@@ -536,25 +577,11 @@ export function enemyAct(cb) {
 
   const target = enemyTarget(cb);
   if (target) {
-    const targetStats = statsOf(target);
-    if (random() < chance(targetStats, 'esquive')) {
-      log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
-    } else {
-      const hit = rollHit(statsOf(enemy), { ...ENEMY_ATTACK, magic: enemy.magic }, targetStats);
-      let dmg = hit.amount;
-      const blocked = random() < chance(targetStats, 'blocage');
-      if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
-      dmg = guarded(target, dmg);
-      const r = hurt(cb, target, dmg);
-      const { taken, absorbed, fell } = r;
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
-      log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
-      if (fell) logFall(cb, target);
-      else {
-        onHitTaken(target);
-        if (!enemy.magic) riposte(cb, enemy, target);
-      }
-    }
+    const r = strike(cb, enemy, target, { ...ENEMY_ATTACK, magic: enemy.magic });
+    if (r.dodged) log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true, r.detail);
+    else log(cb, `${enemy.name} attaque ${target.name} pour ${r.taken} dégâts${strikeNotes(r)}.`, true, r.detail, r.crit);
+    if (r.fell) logFall(cb, target);
+    else if (!enemy.magic) riposte(cb, enemy, target);
   }
   endTurn(cb);
 }

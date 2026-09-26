@@ -4,8 +4,8 @@
 //
 // Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
 //   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
-//   dot      dégâts infligés à chaque fin de round (poison, saignement, brûlure…)
-//   hot      soins reçus à chaque fin de round
+//   dot      dégâts subis à la fin de chaque tour de l'unité (poison, saignement, brûlure…)
+//   hot      soins reçus à la fin de chaque tour de l'unité
 //   shield   points de bouclier : absorbent les dégâts avant les PV
 //   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt    les ennemis doivent attaquer cette unité
@@ -13,7 +13,7 @@
 //   redirect % des dégâts reportés sur status.source (Intercession)
 //   trap     dégâts d'un piège, déclenché au début du prochain tour de l'unité
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
-// Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+// Les durées (sauf étourdissement) baissent d'un à la fin de chaque tour de l'unité.
 
 import { EFFECTS } from '../data/effects.js';
 
@@ -81,11 +81,15 @@ export function consumeStun(unit) {
   return true;
 }
 
-// Fin de round : liste des effets périodiques à appliquer, puis décompte des durées.
+// Fin du tour de l'unité : liste des effets périodiques à appliquer, puis décompte des durées.
 // Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
+// Un statut posé pendant le tour même de l'unité (`fresh`) n'est pas décompté à
+// la fin de ce tour-là : un effet de 2 tours couvre bien 2 tours de l'unité.
 export function tickStatuses(unit) {
-  const ticks = statusesOf(unit).filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
-  for (const s of statusesOf(unit)) if (!s.stun) s.turns--;
+  const due = statusesOf(unit).filter((s) => !s.fresh);
+  for (const s of statusesOf(unit)) delete s.fresh;
+  const ticks = due.filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+  for (const s of due) if (!s.stun) s.turns--;
   unit.statuses = statusesOf(unit).filter((s) => s.stun || s.turns > 0);
   return ticks;
 }

@@ -84,8 +84,8 @@ export const EVENT_RULES = {
 export const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 40,
-  toNextPerLevel: 20,
+  toNextBase: 80,
+  toNextPerLevel: 40,
   maxLevel: 50,
 };
 

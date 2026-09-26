@@ -198,3 +198,15 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .event-choice ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
 .event-stock .bag-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
 .event-stock .bag-row button { margin-left: auto; }
+
+/* ---- Journal et résumé de victoire ---- */
+.log div.crit { color: #ffcf6b; font-weight: 600; }
+.log .has-detail { cursor: help; }
+.log .has-detail .why { color: var(--dim); font-size: 11px; }
+.log .tooltip::after { width: 340px; }
+.last-log summary { cursor: pointer; color: var(--gold); }
+.last-log .log { height: 200px; }
+.victory-summary h3 { margin: 0 0 6px; }
+.victory-summary table { border-collapse: collapse; }
+.victory-summary th { text-align: left; padding: 3px 12px 3px 0; font-weight: 400; color: var(--dim); white-space: nowrap; vertical-align: top; }
+.victory-summary td { padding: 3px 0; }

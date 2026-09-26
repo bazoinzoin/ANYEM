@@ -18,6 +18,7 @@ export const state = {
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
   expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
+  lastCombat: null,     // { title, log } du dernier combat (journal consultable après coup)
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
 };

@@ -43,19 +43,28 @@ export function powerOf(attacker, magic) {
   return magic ? attacker.magPower : attacker.physPower;
 }
 
-function hitMultiplier(attacker, opts, defender, crit) {
-  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+// Facteurs multiplicateurs d'un coup, détaillés pour le journal de combat :
+// [{ label, value }] (puissance de la compétence, critique, défense, bonus…).
+function hitFactors(attacker, opts, defender, crit) {
+  const factors = [];
+  if (opts.power !== 1) factors.push({ label: 'compétence', value: opts.power });
+  if (crit) factors.push({ label: 'critique', value: critMultiplier(attacker) });
   // Talents : bonus aux compétences de zone.
-  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
+  if (opts.aoe && attacker.aoePct) factors.push({ label: 'zone', value: 1 + attacker.aoePct / 100 });
   if (defender) {
-    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+    const def = opts.magic ? defender.defMag : defender.def;
+    factors.push({ label: `${opts.magic ? 'défense magique' : 'défense'} ${def}`, value: defenseFactor(def) });
     // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
-    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+    if (defender.debuffed && attacker.vsDebuffedPct) factors.push({ label: 'cible affaiblie', value: 1 + attacker.vsDebuffedPct / 100 });
     // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
     const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
-    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
+    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) factors.push({ label: 'exécution', value: 1 + execute / 100 });
   }
-  return mult;
+  return factors;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  return hitFactors(attacker, opts, defender, crit).reduce((m, f) => m * f.value, 1);
 }
 
 // Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
@@ -66,12 +75,19 @@ export function estimateHit(attacker, opts, defender = null) {
   return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
 }
 
+// Jet d'un coup. `detail` explique le calcul (affiché au survol du journal) :
+// « Puissance physique 22 × 1,5 (critique) × 0,91 (défense 10) × 1,04 (variation) = 31 ».
 export function rollHit(attacker, opts, defender) {
   const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
   const crit = opts.alwaysCrit || random() < critChance;
-  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
+  const power = powerOf(attacker, opts.magic);
+  const factors = hitFactors(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
+  const roll = rand(lo, hi);
+  const amount = Math.max(1, Math.round(power * factors.reduce((m, f) => m * f.value, 1) * roll));
+  const num = (v) => String(+v.toFixed(2)).replace('.', ',');
+  const detail = [`Puissance ${opts.magic ? 'magique' : 'physique'} ${power}`, ...factors.map((f) => `× ${num(f.value)} (${f.label})`), `× ${num(roll)} (variation) = ${amount}`].join(' ');
+  return { amount, crit, detail };
 }
 
 // Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
