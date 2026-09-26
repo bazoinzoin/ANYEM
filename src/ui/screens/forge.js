@@ -1,13 +1,13 @@
 // Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
 
 import { state } from '../../state.js';
-import { RARITIES, RARITY_ORDER, MATERIA_KINDS } from '../../data/items.js';
+import { RARITIES, MATERIA_KINDS } from '../../data/items.js';
 import { getClass } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { itemStats } from '../../game/items.js';
 import { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } from '../../game/forge.js';
 import { esc } from '../html.js';
-import { itemCard, itemMeta, itemName, formatStat } from '../items.js';
+import { itemCard, itemMeta, itemName, formatStat, materiaTable } from '../items.js';
 import { goTo } from '../router.js';
 
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
@@ -30,7 +30,7 @@ export function renderForge(app) {
   app.innerHTML = `
     <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
     ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    <div class="card materia">${materiaTable()}</div>
+    <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -112,17 +112,6 @@ function rangeYieldText({ kind, rarity, min, max }) {
 
 function yieldText(gain) {
   return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
-}
-
-function materiaTable() {
-  return `
-    <table>
-      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
-      <tbody>
-        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
-          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${state.materia[kind][r] ? '' : 'zero'}">${state.materia[kind][r]}</td>`).join('')}</tr>`).join('')}
-      </tbody>
-    </table>`;
 }
 
 function itemRow(item) {

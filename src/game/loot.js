@@ -27,17 +27,16 @@ function addMateria(list, kind, rarity, amount) {
  * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
  * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
-// classKeys : classes de l'équipe (les légendaires tirés leur sont réservés).
-export function rollLoot(level, enemies, { final = false, classKeys = null } = {}) {
+export function rollLoot(level, enemies, { final = false } = {}) {
   const loot = { items: [], materia: [], consumables: [] };
   const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
     if (enemy.boss) {
       const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights), classKeys }));
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
       addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
     } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, classKeys }));
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
       if (random() < LOOT.materiaChance) {
         addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
       }

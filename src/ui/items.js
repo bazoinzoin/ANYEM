@@ -1,7 +1,8 @@
 // Affichage des objets et des stats.
 
 import { STATS } from '../data/stats.js';
-import { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } from '../data/items.js';
+import { RARITIES, RARITY_ORDER, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } from '../data/items.js';
+import { CONSUMABLES, CONSUMABLE_ORDER } from '../data/consumables.js';
 import { CLASSES } from '../data/classes.js';
 import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
@@ -64,3 +65,29 @@ export function itemCard(item) {
 export function slotLabel(slot) {
   return SLOTS[slot].label;
 }
+
+// Tableau des matéria { kind: { rareté: n } }. `cell(kind, rarity, n)` peut
+// remplacer le contenu d'une case (ex. boutons de la banque).
+export function materiaTable(materia, cell = (kind, rarity, n) => `${n}`) {
+  return `
+    <table class="materia-table">
+      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
+          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// Consommables possédés : « 🧪 Potion de soin ×3 · … ».
+export function consumablesLine(inventory) {
+  const owned = CONSUMABLE_ORDER.filter((k) => inventory[k] > 0);
+  return owned.length ? owned.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} ×${inventory[k]}`).join(' · ') : 'Aucun';
+}
+
+// Texte d'infobulle : équipement porté par un héros.
+export function equipmentTooltip(hero) {
+  const lines = SLOT_ORDER_FOR_TIP.map((slot) => hero.equipment[slot] && `${SLOTS[slot].label} : ${itemName(hero.equipment[slot])} (${RARITIES[hero.equipment[slot].rarity].label})`).filter(Boolean);
+  return lines.length ? `Équipement de ${hero.name} :\n${lines.join('\n')}` : `${hero.name} ne porte aucun équipement.`;
+}
+const SLOT_ORDER_FOR_TIP = Object.keys(SLOTS);

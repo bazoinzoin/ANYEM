@@ -5,10 +5,12 @@ import { emptyMateria } from './game/forge.js';
 import { startingConsumables } from './game/consumables.js';
 
 export const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat'
-  party: [],
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
+  party: [],            // l'équipe : 4 héros
+  reserve: [],          // compagnons au repos à l'auberge (voir game/roster.js)
+  bank: null,           // coffre de la banque : { gold, items, consumables, materia } (voir game/bank.js)
   bag: [],              // objets non équipés, partagés par l'équipe
-  materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
+  materia: emptyMateria(), // matéria du sac : { arme: { commun: n, … }, armure: { … } }
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,

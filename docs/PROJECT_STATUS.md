@@ -62,6 +62,13 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Village : auberge et banque (choix d'implémentation)
+
+- **Auberge** (`game/roster.js`, écran `inn`) : repos gratuit ; **recrutement** d'un compagnon de n'importe quelle classe, au niveau 1 avec l'équipement de départ, à la place d'un membre de l'équipe ; le héros remplacé part **à l'auberge** (`state.reserve`) avec son équipement et ses talents, et n'y gagne pas d'XP. On peut échanger à tout moment un héros de l'équipe avec un héros de l'auberge (au village uniquement). Survoler un héros affiche l'équipement qu'il porte.
+- **Banque** (`game/bank.js`, écran `bank`) : dépôt et retrait d'or, d'objets, de consommables et de matéria. Ce qui est à la banque ne se perd pas lors d'une défaite. Fermée pendant une expédition. Le sac reste limité à 9 exemplaires par consommable ; la banque n'a pas de limite.
+- **Sac du joueur** : objets, consommables et matéria (visibles dans l'écran Équipement ; la Forge ne fait que les utiliser).
+- **Butin** : n'importe quel légendaire peut tomber, quelle que soit l'équipe (on peut recruter la classe correspondante).
+
 ## Corps à corps / distance (choix d'implémentation)
 
 - **Position** de chaque héros choisie au village (bouton **Stratégie**, `hero.position`) ; par défaut Guerrier, Voleur, Paladin au corps à corps, Prêtre, Mage, Chasseur à distance. Chaque combat repart de cette position (`unit.row`).
@@ -126,7 +133,7 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
 - **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère), Chasseur (arc, armure moyenne), Paladin (armes 1M/2M de corps à corps, bouclier, armure lourde/légère).
 - **Armes** (de la plus lente à la plus rapide) : masse à deux mains, hache à deux mains, épée à deux mains, bâton, arc, masse, hache, épée, dague. **Coefficient de vitesse d'attaque** (0,8 à 1,12) : il multiplie la Vitesse du héros (moyenne des deux armes en ambidextrie) ; les armes lentes frappent plus fort. **Toute arme peut sortir en Force, Agilité ou Intelligence.** Arc = seule arme à distance ; toutes les autres sont de corps à corps. Les boucliers peuvent porter Force ou Intelligence.
-- **Légendaires** (consultables à la création : bouton Détails, onglet Légendaires, avec le symbole de la classe ; un légendaire sans classe serait neutre et équipable par tous) : un par orientation (14), chacun renforce une compétence de cette orientation (voir `LEGENDARIES`). Un légendaire tiré est réservé à une classe présente dans l'équipe.
+- **Légendaires** (consultables à la création : bouton Détails, onglet Légendaires, avec le symbole de la classe ; un légendaire sans classe serait neutre et équipable par tous) : un par orientation (14), chacun renforce une compétence de cette orientation (voir `LEGENDARIES`). N'importe quel légendaire peut tomber, quelle que soit l'équipe.
 - **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Le Voleur utilise des points de combo (voir plus haut).
 
 ## Dégâts physiques et magiques

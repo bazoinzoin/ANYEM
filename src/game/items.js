@@ -134,20 +134,16 @@ function secondaryValue(stat, level, range) {
 
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
- * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES),
- *          classKeys (légendaire tiré parmi ceux de ces classes) }
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ * Un légendaire tiré au hasard peut être celui de n'importe quelle classe (on peut
+ * recruter la classe voulue à l'auberge).
  */
 export function generateItem(opts = {}) {
   const level = Math.max(1, opts.level ?? 1);
   let rarity = opts.rarity ?? rollRarity();
   let legendaryKey = opts.legendary ?? null;
   if (legendaryKey) rarity = 'legendaire';
-  if (rarity === 'legendaire' && !legendaryKey) {
-    const all = Object.keys(LEGENDARIES);
-    // Légendaires neutres (sans classe) ou réservés à une classe de l'équipe.
-    const forParty = opts.classKeys ? all.filter((k) => !LEGENDARIES[k].classKey || opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
-    legendaryKey = pick(forParty.length ? forParty : all);
-  }
+  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
   const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
 
   const base = legendary

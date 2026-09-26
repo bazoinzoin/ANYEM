@@ -42,7 +42,7 @@ button:hover { background: #3a2c1c; }
 button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 button:disabled { opacity: .4; cursor: not-allowed; }
 
-input[type=text] {
+input[type=text], input[type=number] {
   font-family: var(--font-body); font-size: 16px; background: #100c07; border: 1px solid var(--line);
   color: var(--cream); padding: 8px 10px; border-radius: 4px; width: 100%;
 }
@@ -225,11 +225,11 @@ button.full { width: 100%; margin-top: 12px; }
 
 /* ---- Forge ---- */
 .card.materia { margin-bottom: 14px; overflow-x: auto; }
-.materia table { border-collapse: collapse; width: 100%; font-size: 14px; }
-.materia th, .materia td { padding: 4px 8px; text-align: center; white-space: nowrap; }
-.materia thead th { color: var(--rc); font-weight: 600; }
-.materia tbody th { text-align: left; font-weight: 400; color: var(--dim); }
-.materia td.zero { color: var(--dim); opacity: .5; }
+.materia table, table.materia-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.materia th, .materia td, .materia-table th, .materia-table td { padding: 4px 8px; text-align: center; white-space: nowrap; }
+.materia thead th, .materia-table thead th { color: var(--rc); font-weight: 600; }
+.materia tbody th, .materia-table tbody th { text-align: left; font-weight: 400; color: var(--dim); }
+.materia td.zero, .materia-table td.zero { color: var(--dim); opacity: .5; }
 .forge-list h3 { font-size: 16px; margin-bottom: 8px; }
 .forge-list .bag-title { margin-top: 16px; }
 .forge-hero { font-size: 13px; color: var(--dim); margin: 8px 0 4px; border-left: 3px solid var(--c); padding-left: 6px; }
@@ -314,6 +314,19 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .pos-choice button { flex: 1; }
 .pos-choice button.selected { background: #3a2c1c; outline: 2px solid var(--gold); }
 .slot .warn { color: #e6a59a; font-size: 13px; margin: 6px 0 0; }
+
+/* ---- Auberge et banque ---- */
+.roster { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 170px; border-left: 4px solid var(--c); text-align: left; }
+.hero-tile .icon { font-size: 22px; }
+.hero-tile:disabled { opacity: 1; cursor: default; }
+.hero-tile.clickable:not(:disabled):hover, .hero-tile.selected { outline: 2px solid var(--gold); background: #3a2c1c; }
+.card:has(> .materia-table) { overflow-x: auto; }
+.bank-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.bank-table td, .bank-table th { padding: 4px 8px; text-align: center; }
+.bank-table th:first-child { text-align: left; }
+.materia-table button.mini { padding: 0 6px; font-size: 12px; }
+#goldAmount { width: 110px; }
 </style>
 
 </head>
@@ -824,20 +837,16 @@ function secondaryValue(stat, level, range) {
 
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
- * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES),
- *          classKeys (légendaire tiré parmi ceux de ces classes) }
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ * Un légendaire tiré au hasard peut être celui de n'importe quelle classe (on peut
+ * recruter la classe voulue à l'auberge).
  */
 function generateItem(opts = {}) {
   const level = Math.max(1, opts.level ?? 1);
   let rarity = opts.rarity ?? rollRarity();
   let legendaryKey = opts.legendary ?? null;
   if (legendaryKey) rarity = 'legendaire';
-  if (rarity === 'legendaire' && !legendaryKey) {
-    const all = Object.keys(LEGENDARIES);
-    // Légendaires neutres (sans classe) ou réservés à une classe de l'équipe.
-    const forParty = opts.classKeys ? all.filter((k) => !LEGENDARIES[k].classKey || opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
-    legendaryKey = pick(forParty.length ? forParty : all);
-  }
+  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
   const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
 
   const base = legendary
@@ -2702,10 +2711,12 @@ const { startingConsumables } = __modules["src/game/consumables.js"];
 
 
 const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat'
-  party: [],
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
+  party: [],            // l'équipe : 4 héros
+  reserve: [],          // compagnons au repos à l'auberge (voir game/roster.js)
+  bank: null,           // coffre de la banque : { gold, items, consumables, materia } (voir game/bank.js)
   bag: [],              // objets non équipés, partagés par l'équipe
-  materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
+  materia: emptyMateria(), // matéria du sac : { arme: { commun: n, … }, armure: { … } }
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,
@@ -2938,11 +2949,13 @@ return { statsList };
 // ---- src/ui/items.js
 __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
-const { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } = __modules["src/data/items.js"];
+const { RARITIES, RARITY_ORDER, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 // Affichage des objets et des stats.
+
 
 
 
@@ -3009,7 +3022,33 @@ function slotLabel(slot) {
   return SLOTS[slot].label;
 }
 
-return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
+// Tableau des matéria { kind: { rareté: n } }. `cell(kind, rarity, n)` peut
+// remplacer le contenu d'une case (ex. boutons de la banque).
+function materiaTable(materia, cell = (kind, rarity, n) => `${n}`) {
+  return `
+    <table class="materia-table">
+      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
+          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// Consommables possédés : « 🧪 Potion de soin ×3 · … ».
+function consumablesLine(inventory) {
+  const owned = CONSUMABLE_ORDER.filter((k) => inventory[k] > 0);
+  return owned.length ? owned.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} ×${inventory[k]}`).join(' · ') : 'Aucun';
+}
+
+// Texte d'infobulle : équipement porté par un héros.
+function equipmentTooltip(hero) {
+  const lines = SLOT_ORDER_FOR_TIP.map((slot) => hero.equipment[slot] && `${SLOTS[slot].label} : ${itemName(hero.equipment[slot])} (${RARITIES[hero.equipment[slot].rarity].label})`).filter(Boolean);
+  return lines.length ? `Équipement de ${hero.name} :\n${lines.join('\n')}` : `${hero.name} ne porte aucun équipement.`;
+}
+const SLOT_ORDER_FOR_TIP = Object.keys(SLOTS);
+
+return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel, materiaTable, consumablesLine, equipmentTooltip };
 })();
 
 // ---- src/game/formulas.js
@@ -3581,7 +3620,7 @@ function legendariesTab() {
       </div>`;
   });
   return `
-    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Le symbole indique la classe à laquelle il est réservé (${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(', ')}) : il ne tombe que si cette classe est dans l'équipe. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Le symbole indique la classe à laquelle il est réservé (${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(', ')}) ; n'importe quel légendaire peut tomber, et l'auberge permet de recruter la classe qui en profite. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
     <div class="details-items legendaries">${cards.join('')}</div>`;
 }
 
@@ -3842,17 +3881,16 @@ function addMateria(list, kind, rarity, amount) {
  * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
  * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
-// classKeys : classes de l'équipe (les légendaires tirés leur sont réservés).
-function rollLoot(level, enemies, { final = false, classKeys = null } = {}) {
+function rollLoot(level, enemies, { final = false } = {}) {
   const loot = { items: [], materia: [], consumables: [] };
   const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
     if (enemy.boss) {
       const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights), classKeys }));
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
       addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
     } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, classKeys }));
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
       if (random() < LOOT.materiaChance) {
         addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
       }
@@ -3920,7 +3958,7 @@ function materiaText(materia) {
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, classKeys: game.party.map((h) => h.classKey) });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
@@ -4988,7 +5026,7 @@ const { STAT_ORDER } = __modules["src/data/stats.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
 const { esc } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat, slotLabel } = __modules["src/ui/items.js"];
+const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
@@ -5035,6 +5073,10 @@ function renderEquipment(app) {
         <div class="card bag">
           <h3>Sac</h3>
           ${bagList(hero)}
+          <h3>Matéria</h3>
+          ${materiaTable(state.materia)}
+          <h3>Consommables</h3>
+          <p class="hint">${consumablesLine(state.consumables)}</p>
         </div>
       </div>
     </div>
@@ -5147,13 +5189,13 @@ return { openEquipment, renderEquipment };
 // ---- src/ui/screens/forge.js
 __modules["src/ui/screens/forge.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { RARITIES, RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
 const { getClass } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemStats } = __modules["src/game/items.js"];
 const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } = __modules["src/game/forge.js"];
 const { esc } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
+const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
 const { goTo } = __modules["src/ui/router.js"];
 // Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
 
@@ -5187,7 +5229,7 @@ function renderForge(app) {
   app.innerHTML = `
     <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
     ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    <div class="card materia">${materiaTable()}</div>
+    <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -5269,17 +5311,6 @@ function rangeYieldText({ kind, rarity, min, max }) {
 
 function yieldText(gain) {
   return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
-}
-
-function materiaTable() {
-  return `
-    <table>
-      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
-      <tbody>
-        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
-          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${state.materia[kind][r] ? '' : 'zero'}">${state.materia[kind][r]}</td>`).join('')}</tr>`).join('')}
-      </tbody>
-    </table>`;
 }
 
 function itemRow(item) {
@@ -5564,21 +5595,211 @@ function sellRow(item) {
 return { openMerchant, renderMerchant };
 })();
 
+// ---- src/game/roster.js
+__modules["src/game/roster.js"] = (() => {
+const { CLASSES } = __modules["src/data/classes.js"];
+const { createHero, restoreFully } = __modules["src/game/party.js"];
+// Auberge : recrutement de compagnons et gestion de l'équipe.
+//
+// L'équipe (game.party) compte toujours 4 héros. Recruter un compagnon (niveau 1,
+// équipement de départ de sa classe) le fait entrer à la place d'un membre de
+// l'équipe, qui part se reposer à l'auberge (game.reserve) avec son équipement et
+// ses talents. Les héros de l'auberge ne gagnent pas d'XP (seule l'équipe combat).
+// Tout se fait au village, jamais pendant une expédition.
+
+
+
+
+function reserveOf(game) {
+  if (!game.reserve) game.reserve = [];
+  return game.reserve;
+}
+
+// Raison pour laquelle l'équipe ne peut pas être modifiée maintenant, ou null.
+function rosterLockedReason(game) {
+  return game.expedition ? "Impossible pendant une expédition : revenez d'abord au village." : null;
+}
+
+/**
+ * Recrute un compagnon de classe `classKey` à la place du héros `replaceIndex`
+ * de l'équipe ; le héros remplacé part à l'auberge. Retourne le nouveau héros, ou
+ * null si c'est impossible.
+ */
+function recruit(game, classKey, name, replaceIndex) {
+  if (rosterLockedReason(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
+  const hero = createHero(classKey, name?.trim());
+  const [leaving] = game.party.splice(replaceIndex, 1, hero);
+  restoreFully(leaving);
+  reserveOf(game).push(leaving);
+  return hero;
+}
+
+// Échange le héros `partyIndex` de l'équipe avec le héros `reserveIndex` de l'auberge.
+function swapWithReserve(game, partyIndex, reserveIndex) {
+  const reserve = reserveOf(game);
+  if (rosterLockedReason(game) || !game.party[partyIndex] || !reserve[reserveIndex]) return false;
+  const leaving = game.party[partyIndex];
+  restoreFully(leaving);
+  game.party[partyIndex] = reserve[reserveIndex];
+  reserve[reserveIndex] = leaving;
+  return true;
+}
+
+return { reserveOf, rosterLockedReason, recruit, swapWithReserve };
+})();
+
+// ---- src/ui/screens/inn.js
+__modules["src/ui/screens/inn.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { CLASS_ORDER } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { restAtInn } = __modules["src/game/progression.js"];
+const { recruit, swapWithReserve, reserveOf, rosterLockedReason } = __modules["src/game/roster.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { equipmentTooltip } = __modules["src/ui/items.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Auberge : repos, recrutement de compagnons et gestion de l'équipe (4 héros ;
+// les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
+
+
+
+
+
+
+
+
+
+
+
+// État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
+// pour un échange, message.
+const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, flash: null };
+
+function openInn() {
+  Object.assign(view, { selectedReserve: null, flash: null });
+  goTo('inn');
+}
+
+function renderInn(app) {
+  const flash = view.flash;
+  view.flash = null;
+  const locked = rosterLockedReason(state);
+  const reserve = reserveOf(state);
+  const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
+
+  app.innerHTML = `
+    <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    ${locked ? `<div class="card notice">${esc(locked)}</div>` : ''}
+    <div class="card">
+      <button id="rest" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Se reposer (gratuit)</button>
+    </div>
+
+    <div class="card">
+      <h2>Équipe</h2>
+      <p class="hint">${picking ? `Choisis le membre de l'équipe qui laisse sa place à <b>${esc(picking.name)}</b>.` : "Survole un héros pour voir l'équipement qu'il porte."}</p>
+      <div class="roster">${state.party.map((h, i) => heroTile(h, { partyIndex: i, picking: !!picking })).join('')}</div>
+    </div>
+
+    <div class="card">
+      <h2>À l'auberge (${reserve.length})</h2>
+      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe.</p>
+      <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
+    </div>
+
+    <div class="card">
+      <h2>Recruter un compagnon</h2>
+      <p class="hint">Un nouveau compagnon arrive au niveau 1 avec l'équipement de départ de sa classe. Il prend la place d'un membre de l'équipe, qui part se reposer à l'auberge.</p>
+      <div class="class-picker">
+        ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
+      </div>
+      <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+      <div class="actions">
+        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${locked ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+
+  const readName = () => { view.recruitName = app.querySelector('#recruitName').value; };
+  app.querySelector('#rest').onclick = () => {
+    view.flash = restAtInn(state).message;
+    goTo('inn');
+  };
+  app.querySelectorAll('[data-recruit-class]').forEach((btn) => {
+    btn.onclick = () => {
+      readName();
+      if (view.recruitName === CLASSES[view.recruitClass].name) view.recruitName = '';
+      view.recruitClass = btn.dataset.recruitClass;
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-recruit-replace]').forEach((btn) => {
+    btn.onclick = () => {
+      readName();
+      const leaving = state.party[Number(btn.dataset.recruitReplace)];
+      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace));
+      if (hero) {
+        view.flash = `${hero.name} (${getClass(hero).name}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+        view.recruitName = '';
+      }
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-reserve]').forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.reserve);
+      view.selectedReserve = view.selectedReserve === i ? null : i;
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-party]').forEach((btn) => {
+    btn.onclick = () => {
+      if (view.selectedReserve === null) return;
+      const joining = reserve[view.selectedReserve];
+      const leaving = state.party[Number(btn.dataset.party)];
+      if (swapWithReserve(state, Number(btn.dataset.party), view.selectedReserve)) {
+        view.flash = `${joining.name} rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+      }
+      view.selectedReserve = null;
+      goTo('inn');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Vignette d'un héros ; l'infobulle montre son équipement.
+function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = false }) {
+  const cls = getClass(hero);
+  const attr = partyIndex !== undefined ? `data-party="${partyIndex}"` : `data-reserve="${reserveIndex}"`;
+  const clickable = reserveIndex !== undefined || picking;
+  return `
+    <button ${attr} ${tip(equipmentTooltip(hero), `hero-tile ${selected ? 'selected' : ''} ${clickable ? 'clickable' : ''}`)} style="--c:${cls.color}" ${clickable && !rosterLockedReason(state) ? '' : 'disabled'}>
+      <span class="icon">${cls.icon}</span>
+      <b>${esc(hero.name)}</b>
+      <small>${cls.name} · niv. ${hero.level} · PV ${hero.hp}/${getStats(hero).pv}</small>
+    </button>`;
+}
+
+return { openInn, renderInn };
+})();
+
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } = __modules["src/game/dungeon.js"];
 const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
-const { restAtInn } = __modules["src/game/progression.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
-const { goTo, showHub } = __modules["src/ui/router.js"];
+const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 const { openMerchant } = __modules["src/ui/screens/merchant.js"];
+const { openInn } = __modules["src/ui/screens/inn.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
 
@@ -5615,7 +5836,8 @@ function renderHub(app) {
     <div class="card section">
       <h2>Services</h2>
       <div class="services">
-        <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
+        <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
+        <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
         <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
@@ -5631,7 +5853,8 @@ function renderHub(app) {
       if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
     };
   });
-  app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
+  app.querySelector('#inn').onclick = () => openInn();
+  app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
@@ -6220,6 +6443,194 @@ function heroCard(hero, i) {
 return { renderStrategy };
 })();
 
+// ---- src/game/bank.js
+__modules["src/game/bank.js"] = (() => {
+const { MERCHANT } = __modules["src/config.js"];
+const { emptyMateria } = __modules["src/game/forge.js"];
+const { countOf } = __modules["src/game/consumables.js"];
+// Banque du village : met à l'abri l'or, les objets, les consommables et les
+// matéria (le sac, lui, peut être perdu en partie lors d'une défaite).
+//
+// game.bank = { gold, items: [objets], consumables: { clé: n }, materia: { kind: { rareté: n } } }
+// Dépôts et retraits au village uniquement (jamais pendant une expédition).
+// Le sac ne peut pas porter plus de MERCHANT.maxConsumable exemplaires d'un
+// consommable ; la banque n'a pas de limite.
+
+
+
+
+
+function bankOf(game) {
+  if (!game.bank) game.bank = { gold: 0, items: [], consumables: {}, materia: emptyMateria() };
+  return game.bank;
+}
+
+const closed = (game) => !!game.expedition;
+
+// Or : `amount` pièces du sac vers la banque (négatif : retrait).
+function moveGold(game, amount) {
+  const bank = bankOf(game);
+  const n = Math.trunc(amount);
+  if (closed(game) || !n || (n > 0 && n > game.gold) || (n < 0 && -n > bank.gold)) return false;
+  game.gold -= n;
+  bank.gold += n;
+  return true;
+}
+
+function depositItem(game, itemId) {
+  const i = game.bag.findIndex((it) => it.id === itemId);
+  if (closed(game) || i < 0) return false;
+  bankOf(game).items.push(...game.bag.splice(i, 1));
+  return true;
+}
+
+function withdrawItem(game, itemId) {
+  const bank = bankOf(game);
+  const i = bank.items.findIndex((it) => it.id === itemId);
+  if (closed(game) || i < 0) return false;
+  game.bag.push(...bank.items.splice(i, 1));
+  return true;
+}
+
+// Consommables : `amount` exemplaires du sac vers la banque (négatif : retrait,
+// limité par la place dans le sac).
+function moveConsumable(game, key, amount) {
+  const bank = bankOf(game);
+  const inBag = countOf(game.consumables, key);
+  const inBank = countOf(bank.consumables, key);
+  if (closed(game) || !amount) return false;
+  if (amount > 0 && amount > inBag) return false;
+  if (amount < 0 && (-amount > inBank || inBag - amount > MERCHANT.maxConsumable)) return false;
+  game.consumables[key] = inBag - amount;
+  bank.consumables[key] = inBank + amount;
+  return true;
+}
+
+// Matéria : `amount` du sac vers la banque (négatif : retrait).
+function moveMateria(game, kind, rarity, amount) {
+  const bank = bankOf(game);
+  const inBag = game.materia[kind]?.[rarity] ?? 0;
+  const inBank = bank.materia[kind]?.[rarity] ?? 0;
+  if (closed(game) || !amount || (amount > 0 && amount > inBag) || (amount < 0 && -amount > inBank)) return false;
+  game.materia[kind][rarity] = inBag - amount;
+  bank.materia[kind][rarity] = inBank + amount;
+  return true;
+}
+
+return { bankOf, moveGold, depositItem, withdrawItem, moveConsumable, moveMateria };
+})();
+
+// ---- src/ui/screens/bank.js
+__modules["src/ui/screens/bank.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES, RARITY_ORDER } = __modules["src/data/items.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { bankOf, moveGold, depositItem, withdrawItem, moveConsumable, moveMateria } = __modules["src/game/bank.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemName, itemMeta, itemTooltipText, materiaTable } = __modules["src/ui/items.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Banque : met à l'abri l'or, les objets, les consommables et les matéria du sac
+// (en cas de défaite, une partie du sac et de l'or porté peut être perdue).
+
+
+
+
+
+
+
+
+
+function renderBank(app) {
+  const bank = bankOf(state);
+  app.innerHTML = `
+    <div class="hero"><h1>🏦 Banque</h1><p>Ce qui est à la banque ne peut pas être perdu en cas de défaite</p></div>
+    ${state.expedition ? '<div class="card notice">La banque est fermée pendant une expédition.</div>' : ''}
+    <div class="card">
+      <h2>Or</h2>
+      <p>Sur toi : <b>${state.gold}</b> · À la banque : <b>${bank.gold}</b></p>
+      <div class="actions">
+        <input type="number" id="goldAmount" min="1" value="${Math.max(1, state.gold)}">
+        <button id="depositGold">Déposer</button>
+        <button id="withdrawGold">Retirer</button>
+        <button id="depositAllGold">Tout déposer</button>
+        <button id="withdrawAllGold">Tout retirer</button>
+      </div>
+    </div>
+    <div class="bank-layout">
+      <div class="card">
+        <h2>🎒 Sac (${state.bag.length})</h2>
+        ${itemList(state.bag, 'deposit')}
+      </div>
+      <div class="card">
+        <h2>🏦 Coffre (${bank.items.length})</h2>
+        ${itemList(bank.items, 'withdraw')}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Consommables</h2>
+      <table class="bank-table">
+        <thead><tr><th></th><th>Sac</th><th></th><th>Banque</th></tr></thead>
+        <tbody>
+          ${CONSUMABLE_ORDER.filter((k) => state.consumables[k] > 0 || bank.consumables[k] > 0).map((k) => `
+            <tr>
+              <th>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}</th>
+              <td>${state.consumables[k] ?? 0}</td>
+              <td>
+                <button data-consumable="${k}" data-amount="1" ${tip('Déposer 1')}>→</button>
+                <button data-consumable="${k}" data-amount="-1" ${tip('Retirer 1')}>←</button>
+              </td>
+              <td>${bank.consumables[k] ?? 0}</td>
+            </tr>`).join('') || '<tr><td colspan="4" class="hint">Aucun consommable.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    <div class="bank-layout">
+      <div class="card">
+        <h2>Matéria du sac</h2>
+        ${materiaTable(state.materia, (kind, rarity, n) => (n ? `<button class="mini" data-materia="${kind}:${rarity}" data-amount="${n}" ${tip(`Déposer ${n}`)}>${n} →</button>` : '0'))}
+      </div>
+      <div class="card">
+        <h2>Matéria à la banque</h2>
+        ${materiaTable(bank.materia, (kind, rarity, n) => (n ? `<button class="mini" data-materia="${kind}:${rarity}" data-amount="${-n}" ${tip(`Retirer ${n}`)}>← ${n}</button>` : '0'))}
+      </div>
+    </div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+
+  const refresh = () => goTo('bank');
+  const amount = () => Number(app.querySelector('#goldAmount').value) || 0;
+  app.querySelector('#depositGold').onclick = () => { moveGold(state, Math.min(amount(), state.gold)); refresh(); };
+  app.querySelector('#withdrawGold').onclick = () => { moveGold(state, -Math.min(amount(), bank.gold)); refresh(); };
+  app.querySelector('#depositAllGold').onclick = () => { moveGold(state, state.gold); refresh(); };
+  app.querySelector('#withdrawAllGold').onclick = () => { moveGold(state, -bank.gold); refresh(); };
+  app.querySelectorAll('[data-deposit]').forEach((btn) => { btn.onclick = () => { depositItem(state, btn.dataset.deposit); refresh(); }; });
+  app.querySelectorAll('[data-withdraw]').forEach((btn) => { btn.onclick = () => { withdrawItem(state, btn.dataset.withdraw); refresh(); }; });
+  app.querySelectorAll('[data-consumable]').forEach((btn) => {
+    btn.onclick = () => { moveConsumable(state, btn.dataset.consumable, Number(btn.dataset.amount)); refresh(); };
+  });
+  app.querySelectorAll('[data-materia]').forEach((btn) => {
+    btn.onclick = () => {
+      const [kind, rarity] = btn.dataset.materia.split(':');
+      moveMateria(state, kind, rarity, Number(btn.dataset.amount));
+      refresh();
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function itemList(items, action) {
+  if (!items.length) return '<p class="hint">Vide.</p>';
+  const sorted = [...items].sort((a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level);
+  return sorted.map((item) => `
+    <button class="bag-row" data-${action}="${item.id}" ${tip(itemTooltipText(item))}>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${action === 'withdraw' ? '← ' : ''}${esc(itemName(item))}${action === 'deposit' ? ' →' : ''}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`).join('');
+}
+
+return { renderBank };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -6233,7 +6644,11 @@ const { renderMerchant } = __modules["src/ui/screens/merchant.js"];
 const { renderDungeon } = __modules["src/ui/screens/dungeon.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
 const { renderStrategy } = __modules["src/ui/screens/strategy.js"];
+const { renderInn } = __modules["src/ui/screens/inn.js"];
+const { renderBank } = __modules["src/ui/screens/bank.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
+
 
 
 
@@ -6258,6 +6673,8 @@ registerScreens({
   dungeon: renderDungeon,
   combat: renderCombat,
   strategy: renderStrategy,
+  inn: renderInn,
+  bank: renderBank,
 });
 
 render();

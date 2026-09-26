@@ -87,11 +87,11 @@
 
 /* ---- Forge ---- */
 .card.materia { margin-bottom: 14px; overflow-x: auto; }
-.materia table { border-collapse: collapse; width: 100%; font-size: 14px; }
-.materia th, .materia td { padding: 4px 8px; text-align: center; white-space: nowrap; }
-.materia thead th { color: var(--rc); font-weight: 600; }
-.materia tbody th { text-align: left; font-weight: 400; color: var(--dim); }
-.materia td.zero { color: var(--dim); opacity: .5; }
+.materia table, table.materia-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.materia th, .materia td, .materia-table th, .materia-table td { padding: 4px 8px; text-align: center; white-space: nowrap; }
+.materia thead th, .materia-table thead th { color: var(--rc); font-weight: 600; }
+.materia tbody th, .materia-table tbody th { text-align: left; font-weight: 400; color: var(--dim); }
+.materia td.zero, .materia-table td.zero { color: var(--dim); opacity: .5; }
 .forge-list h3 { font-size: 16px; margin-bottom: 8px; }
 .forge-list .bag-title { margin-top: 16px; }
 .forge-hero { font-size: 13px; color: var(--dim); margin: 8px 0 4px; border-left: 3px solid var(--c); padding-left: 6px; }
@@ -176,3 +176,16 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .pos-choice button { flex: 1; }
 .pos-choice button.selected { background: #3a2c1c; outline: 2px solid var(--gold); }
 .slot .warn { color: #e6a59a; font-size: 13px; margin: 6px 0 0; }
+
+/* ---- Auberge et banque ---- */
+.roster { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 170px; border-left: 4px solid var(--c); text-align: left; }
+.hero-tile .icon { font-size: 22px; }
+.hero-tile:disabled { opacity: 1; cursor: default; }
+.hero-tile.clickable:not(:disabled):hover, .hero-tile.selected { outline: 2px solid var(--gold); background: #3a2c1c; }
+.card:has(> .materia-table) { overflow-x: auto; }
+.bank-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.bank-table td, .bank-table th { padding: 4px 8px; text-align: center; }
+.bank-table th:first-child { text-align: left; }
+.materia-table button.mini { padding: 0 6px; font-size: 12px; }
+#goldAmount { width: 110px; }

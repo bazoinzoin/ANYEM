@@ -85,10 +85,11 @@ test('la victoire range matéria et consommables ; au-delà du maximum, le conso
   assert.match(r2.message, /faute de place/);
 });
 
-test("un légendaire tiré est réservé à une classe de l'équipe", () => {
-  for (let i = 0; i < 30; i++) {
-    setRandomSource(() => (i + 0.5) / 30);
-    const item = generateItem({ rarity: 'legendaire', classKeys: ['chasseur', 'paladin'] });
-    assert.ok(['chasseur', 'paladin'].includes(item.legendary.classKey), item.name);
+test("n'importe quel légendaire peut tomber, quelle que soit l'équipe", () => {
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) {
+    setRandomSource(() => (i + 0.5) / 60);
+    seen.add(generateItem({ rarity: 'legendaire' }).legendary.classKey);
   }
+  assert.deepEqual([...seen].sort(), ['chasseur', 'guerrier', 'mage', 'paladin', 'pretre', 'voleur']);
 });

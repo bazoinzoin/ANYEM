@@ -179,7 +179,7 @@ function legendariesTab() {
       </div>`;
   });
   return `
-    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Le symbole indique la classe à laquelle il est réservé (${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(', ')}) : il ne tombe que si cette classe est dans l'équipe. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Le symbole indique la classe à laquelle il est réservé (${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(', ')}) ; n'importe quel légendaire peut tomber, et l'auberge permet de recruter la classe qui en profite. Son passif renforce une compétence : il faut l'avoir apprise pour en profiter.</p>
     <div class="details-items legendaries">${cards.join('')}</div>`;
 }
 
