@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<!-- Fichier généré par tools/build.mjs (npm run build) : ne pas modifier à la main. -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Anyem</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* css/base.css */
+/* Variables, reset et éléments de base. */
+
+:root {
+  --bg: #161009; --panel: #241b12; --panel2: #2e2216; --line: #4a3a26;
+  --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
+  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a;
+  --danger: #a33; --good: #5a8a5a;
+  --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a;
+  --font-title: 'Cinzel', serif;
+  --font-body: 'EB Garamond', serif;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); height: 100%; }
+body {
+  height: 100%; margin: 0; background: var(--bg); color: var(--cream);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.5;
+  background-image: radial-gradient(ellipse at top, #2a1f14 0%, #161009 60%);
+}
+
+h1, h2, h3, .title { font-family: var(--font-title); letter-spacing: .02em; color: var(--gold); margin: 0; }
+#app { max-width: 900px; margin: 0 auto; padding: 24px 16px 40px; }
+
+button {
+  font-family: var(--font-body); font-size: 16px; cursor: pointer; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--cream);
+  padding: 10px 16px; transition: background .15s;
+}
+button:hover { background: #3a2c1c; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+input[type=text] {
+  font-family: var(--font-body); font-size: 16px; background: #100c07; border: 1px solid var(--line);
+  color: var(--cream); padding: 8px 10px; border-radius: 4px; width: 100%;
+}
+
+/* Utilitaires */
+.hidden { display: none !important; }
+.center { text-align: center; }
+.hint { color: var(--dim); align-self: center; }
+</style>
+<style>
+/* css/components.css */
+/* Composants réutilisés sur plusieurs écrans. */
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+.card.section { margin-top: 14px; }
+.card.notice { margin-bottom: 16px; border-color: var(--gold); }
+.card.waiting { text-align: center; color: var(--dim); }
+
+.btn-primary { font-family: var(--font-title); padding: 12px 28px; }
+
+/* En-tête d'écran */
+.hero { text-align: center; margin-bottom: 28px; }
+.hero h1 { font-size: clamp(28px, 6vw, 42px); }
+.hero p { color: var(--dim); margin-top: 4px; }
+
+/* Barres de PV / ressource */
+.barwrap { background: #100c07; border-radius: 3px; height: 8px; overflow: hidden; margin-top: 4px; }
+.bar { height: 100%; }
+
+/* Grille de cartes de personnage (création, statistiques) */
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.slot { border-top: 3px solid var(--c, var(--line)); }
+.slot .icon { font-size: 34px; }
+.slot .cname { font-family: var(--font-title); font-size: 15px; margin: 6px 0 2px; }
+.slot .role { color: var(--dim); font-size: 13px; margin-bottom: 8px; }
+.slot .stats { font-size: 13px; color: var(--dim); margin: 8px 0; }
+
+.skillbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* Infobulles : <x class="tooltip" data-tip="..."> */
+.tooltip { position: relative; cursor: help; border-bottom: 1px dotted var(--dim); }
+button.tooltip { border-bottom: 1px solid var(--line); cursor: pointer; }
+button.tooltip:disabled { cursor: not-allowed; }
+.tooltip:hover::after, .tooltip:focus-visible::after {
+  content: attr(data-tip); position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 9px);
+  background: #0c0904; border: 1px solid var(--line); color: var(--cream); padding: 9px 11px; border-radius: 5px;
+  font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: pre-line; text-align: left;
+}
+.tooltip:hover::before, .tooltip:focus-visible::before {
+  content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%;
+  border: 6px solid transparent; border-top-color: var(--line); z-index: 30;
+}
+
+button.full { width: 100%; margin-top: 12px; }
+
+/* Objets */
+.rarity-text { color: var(--rc); }
+.item-chip { color: var(--rc); border-bottom-color: var(--rc); font-size: 14px; }
+.item-card { border-left: 3px solid var(--rc); padding: 4px 0 4px 12px; margin-bottom: 12px; }
+.item-card .item-name { font-family: var(--font-title); color: var(--rc); font-size: 16px; }
+.item-card .item-meta { color: var(--dim); font-size: 13px; }
+.item-stats { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
+.item-stats li.secondary { color: var(--r-peu-commun); }
+.item-legendary { color: var(--r-legendaire); font-size: 14px; margin-top: 6px; font-style: italic; }
+
+/* Tableau de stats */
+.stat-row { display: flex; justify-content: space-between; gap: 8px; }
+.stat-row small { color: var(--dim); }
+</style>
+<style>
+/* css/screens.css */
+/* Styles propres à chaque écran. */
+
+/* ---- Statistiques ---- */
+.slot .stats.sheet { text-align: left; line-height: 1.7; }
+.boosted { color: var(--r-legendaire); font-size: 12px; }
+.equipped-list { gap: 4px 12px; }
+.skill-line { width: 100%; font-size: 13px; color: var(--dim); margin-bottom: 6px; text-align: left; }
+.skill-line b { color: var(--cream); }
+
+/* ---- Village ---- */
+.notice .loot { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.portals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+button.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
+button.portal:hover { background: var(--panel2); }
+.portal h3 { font-size: 16px; }
+.portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
+.services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.party-strip { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 10px; }
+.pmini { min-width: 120px; text-align: center; padding: 10px; border-top: 3px solid var(--c, var(--line)); }
+.pmini .icon { font-size: 24px; }
+.pmini.dead { opacity: .5; }
+
+/* ---- Combat ---- */
+.combatants { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+@media (max-width: 600px) { .combatants { grid-template-columns: 1fr; } }
+.side-title { font-size: 14px; color: var(--dim); margin-bottom: 6px; }
+.unit {
+  padding: 10px; border-radius: 5px; background: var(--panel2); border-left: 3px solid var(--c, var(--line));
+  margin-bottom: 8px; transition: opacity .3s;
+}
+.unit.dead { opacity: .35; }
+.unit .row1 { display: flex; justify-content: space-between; align-items: baseline; }
+.unit .row1 b { font-family: var(--font-title); font-size: 14px; }
+.unit small { color: var(--dim); }
+.unit .status { font-size: 12px; color: var(--gold); margin-top: 4px; }
+.active-turn { outline: 2px solid var(--gold); }
+.hero-name { color: var(--c); }
+
+.log {
+  background: #100c07; border: 1px solid var(--line); border-radius: 4px; padding: 10px;
+  font-size: 14px; height: 110px; overflow-y: auto; margin: 12px 0;
+}
+.log div { margin-bottom: 3px; color: var(--dim); }
+.log div.hit { color: var(--cream); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.target-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* ---- Équipement ---- */
+.hero-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.hero-tabs button { border-top: 3px solid var(--c); }
+.hero-tabs button.selected { background: #3a2c1c; outline: 1px solid var(--gold); }
+.equip-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 20px; }
+@media (max-width: 700px) { .equip-layout { grid-template-columns: minmax(0, 1fr); } }
+.slot-list { border-top: 3px solid var(--c); }
+.slot-list h3 { font-size: 16px; margin-bottom: 8px; }
+.slot-list h3 small { color: var(--dim); font-family: var(--font-body); }
+.slot-row, .bag-row {
+  display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 10px; margin-bottom: 4px; font-size: 14px; background: var(--panel2);
+}
+.slot-row.empty { color: var(--dim); border: 1px dashed var(--line); border-radius: 5px; }
+.slot-name { color: var(--dim); }
+.bag-row { flex-direction: column; gap: 0; }
+.bag-row small { color: var(--dim); font-size: 12px; }
+.bag-row.unusable { opacity: .5; }
+.slot-row.selected, .bag-row.selected { outline: 2px solid var(--gold); }
+.equip-stats { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 14px; line-height: 1.7; }
+.card.detail, .card.bag { margin-bottom: 14px; }
+.card.bag h3 { font-size: 16px; margin-bottom: 8px; }
+.equip-option { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.equip-option small { color: var(--dim); margin-left: 8px; }
+.diff { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 14px; }
+.diff .up { color: var(--r-peu-commun); }
+.diff .down { color: #e06a5a; }
+.warning { color: #e06a5a; }
+</style>
+
+</head>
+<body>
+<div id="app">
+  <div class="card center">Chargement…</div>
+</div>
+<script>
+"use strict";
+const __modules = {};
+// ---- src/config.js
+__modules["src/config.js"] = (() => {
+
+// Constantes d'équilibrage et de rythme. Tout réglage chiffré « global » vit ici
+// plutôt qu'en dur dans la logique.
+
+const START_GOLD = 50;
+const START_DUNGEON_LEVEL = 1;
+
+// Ordre d'affichage et de création de l'équipe.
+const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
+
+const COMBAT = {
+  logMax: 40,
+  guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
+  bleedDamage: 6,         // dégâts d'un saignement par fin de round
+  mainStatFactor: 0.5,    // attaque gagnée par point de stat principale
+  defenseK: 100,          // dégâts × K / (K + défense)
+  blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
+  offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
+  caps: { critChance: 75, esquive: 50, blocage: 50 }, // plafonds en %
+};
+
+// Génération des objets. budget(L) = budgetBase + budgetPerLevel × L
+const ITEM = {
+  budgetBase: 3,
+  budgetPerLevel: 1,
+  weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
+  armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
+  shieldDef: 1.8,
+  shieldBlock: { base: 5, perLevel: 0.2 },
+  jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
+  primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
+};
+
+const LOOT = {
+  dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
+  rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
+  categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
+  defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+};
+
+// Fourchettes de variance des dégâts [min, max].
+const VARIANCE = {
+  hero: [0.9, 1.15],
+  aoe: [0.9, 1.1],
+  enemy: [0.85, 1.15],
+};
+
+const REWARDS = {
+  goldBase: 20,
+  goldPerLevel: 10,
+  victoryHealPct: 0.15,   // soin des survivants après une victoire
+  defeatGoldLossPct: 0.2,
+  defeatHpPct: 0.5,       // PV avec lesquels l'équipe revient au village
+};
+
+// Délais des tours ennemis (ms) : ils ne doivent jamais être instantanés.
+const TIMING = {
+  enemyThinkMs: 800,
+  enemyAfterMs: 500,
+};
+
+return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, VARIANCE, REWARDS, TIMING };
+})();
+
+// ---- src/state.js
+__modules["src/state.js"] = (() => {
+const { START_GOLD, START_DUNGEON_LEVEL } = __modules["src/config.js"];
+// État global du jeu (source de vérité unique, lue par l'interface).
+
+
+
+const state = {
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'combat'
+  party: [],
+  bag: [],              // objets non équipés, partagés par l'équipe
+  gold: START_GOLD,
+  dungeonLvl: START_DUNGEON_LEVEL,
+  combat: null,
+  hubMessage: null,     // message affiché une seule fois à l'arrivée au village
+  hubLoot: [],          // objets obtenus, affichés avec ce message
+};
+
+return { state };
+})();
+
+// ---- src/ui/router.js
+__modules["src/ui/router.js"] = (() => {
+const { state } = __modules["src/state.js"];
+// Navigation entre écrans. Chaque écran est une fonction (app) => void qui
+// remplit #app et branche ses propres événements.
+
+
+
+const screens = {};
+
+function registerScreens(map) {
+  Object.assign(screens, map);
+}
+
+function render() {
+  const app = document.getElementById('app');
+  const screen = screens[state.screen];
+  if (!screen) throw new Error(`Écran inconnu : ${state.screen}`);
+  screen(app);
+}
+
+function goTo(screen) {
+  state.screen = screen;
+  render();
+}
+
+function showHub(message = null, loot = []) {
+  state.hubMessage = message;
+  state.hubLoot = loot;
+  goTo('hub');
+}
+
+return { registerScreens, render, goTo, showHub };
+})();
+
+// ---- src/data/classes.js
+__modules["src/data/classes.js"] = (() => {
+
+// Définition des classes jouables. Données pures : aucune logique ici.
+//
+// mainStat    stat principale (voir data/stats.js) : augmente l'attaque
+// base        stats de base, avant équipement (stats absentes = 0)
+// resource :
+//   regen       gain au début de chaque tour du héros
+//   onAttack    gain après une attaque de base (Rage)
+//   onHitTaken  gain quand le héros encaisse un coup et survit (Rage)
+// gear        ce que la classe peut équiper :
+//   weapons     types d'armes en main droite
+//   offHand     types d'armes ou 'bouclier' en main gauche
+//   armor       types d'armure (bijoux : toujours autorisés)
+// starterKit  équipement commun de niveau 1 donné à la création
+//
+// skills[] :
+//   id        identifiant stable (référencé par les légendaires)
+//   kind      'damage' | 'heal'
+//   target    'enemy' | 'ally' | 'allEnemies'
+//   power     multiplicateur appliqué à l'attaque du lanceur
+//   magic     dégâts magiques (réduits par la défense magique)
+//   bleed     nombre de tours de saignement infligés (optionnel)
+//   alwaysCrit  coup critique garanti (optionnel)
+
+const CLASSES = {
+  guerrier: {
+    name: 'Guerrier',
+    icon: '⚔️',
+    color: 'var(--guerrier)',
+    mainStat: 'force',
+    desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
+    base: { pv: 130, atq: 7, vit: 7, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
+    gear: {
+      weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'moyenne'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'epee', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+    ],
+    skills: [
+      { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, desc: 'Coup lourd sur un ennemi' },
+      { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
+    ],
+  },
+  voleur: {
+    name: 'Voleur',
+    icon: '🗡️',
+    color: 'var(--voleur)',
+    mainStat: 'agilite',
+    desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
+    base: { pv: 95, atq: 7, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
+    gear: {
+      weapons: ['epee', 'hache', 'marteau', 'dague'],
+      offHand: ['epee', 'hache', 'marteau', 'dague'],
+      armor: ['moyenne'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'dague', primary: 'agilite' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
+    ],
+    skills: [
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
+      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, bleed: 3, desc: 'Saignement sur 3 tours' },
+    ],
+  },
+  pretre: {
+    name: 'Prêtre',
+    icon: '✨',
+    color: 'var(--pretre)',
+    mainStat: 'intelligence',
+    desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
+    base: { pv: 88, atq: 0, vit: 9, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
+    gear: {
+      weapons: ['baton', 'dague'],
+      offHand: [],
+      armor: ['legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+      { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
+    ],
+    skills: [
+      { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.7, desc: 'Soigne fortement un allié' },
+      { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 1.0, magic: true, desc: 'Dégâts de lumière' },
+    ],
+  },
+  mage: {
+    name: 'Mage',
+    icon: '🔥',
+    color: 'var(--mage)',
+    mainStat: 'intelligence',
+    desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
+    base: { pv: 78, atq: 6, vit: 10, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    resource: { name: 'Mana', max: 90, start: 90, regen: 10 },
+    gear: {
+      weapons: ['baton'],
+      offHand: [],
+      armor: ['legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+      { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
+    ],
+    skills: [
+      { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.3, magic: true, desc: 'Dégâts de feu' },
+      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.8, magic: true, desc: 'Dégâts de foudre' },
+    ],
+  },
+};
+
+return { CLASSES };
+})();
+
+// ---- src/data/items.js
+__modules["src/data/items.js"] = (() => {
+
+// Données d'équipement (voir DESIGN_DOC §2 « Les Equipements »).
+
+// Emplacements d'un héros. `accepts` : types d'emplacement d'objet acceptés.
+const SLOTS = {
+  casque: { label: 'Casque', accepts: ['casque'] },
+  epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
+  plastron: { label: 'Plastron', accepts: ['plastron'] },
+  gants: { label: 'Gants', accepts: ['gants'] },
+  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
+  bottes: { label: 'Bottes', accepts: ['bottes'] },
+  collier: { label: 'Collier', accepts: ['collier'] },
+  anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
+  anneau2: { label: 'Anneau 2', accepts: ['anneau'] },
+  mainDroite: { label: 'Main droite', accepts: ['arme'] },
+  mainGauche: { label: 'Main gauche', accepts: ['arme', 'bouclier'] },
+};
+
+const SLOT_ORDER = Object.keys(SLOTS);
+
+// Rareté. secondaries : nombre de stats secondaires aléatoires.
+// mult : multiplicateur des stats obligatoire et principale.
+// range : fourchette (× valeur unitaire) des stats secondaires.
+const RARITIES = {
+  commun: { label: 'Commun', color: 'var(--r-commun)', secondaries: 0, mult: 1.0, range: [0, 0] },
+  peuCommun: { label: 'Peu commun', color: 'var(--r-peu-commun)', secondaries: 1, mult: 1.1, range: [0.5, 1.0] },
+  rare: { label: 'Rare', color: 'var(--r-rare)', secondaries: 2, mult: 1.25, range: [0.9, 1.5] },
+  epique: { label: 'Épique', color: 'var(--r-epique)', secondaries: 3, mult: 1.4, range: [1.4, 2.1] },
+  legendaire: { label: 'Légendaire', color: 'var(--r-legendaire)', secondaries: 4, mult: 1.6, range: [2.0, 2.8] },
+};
+
+const RARITY_ORDER = Object.keys(RARITIES);
+
+// Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+const ARMOR_PIECES = {
+  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
+};
+
+const ARMOR_TYPES = {
+  lourde: {
+    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
+    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
+  },
+  moyenne: {
+    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
+    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
+  },
+  legere: {
+    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
+    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
+  },
+};
+
+// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
+// twoHanded : occupe les deux mains.
+const WEAPON_TYPES = {
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
+  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
+  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
+  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
+  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
+  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
+  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
+};
+
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
+
+const JEWELS = {
+  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
+  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
+};
+
+// Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
+const PRIMARY_SUFFIX = {
+  force: "de l'Ours",
+  agilite: 'du Faucon',
+  intelligence: 'du Sage',
+};
+
+// Stats secondaires pouvant apparaître, avec leur valeur unitaire au niveau L :
+// unit = base + perLevel × L (puis multipliée par la fourchette de rareté).
+const SECONDARY_STATS = {
+  pv: { base: 3, perLevel: 1.2 },
+  atq: { base: 1, perLevel: 0.25 },
+  vit: { base: 1, perLevel: 0.05 },
+  critChance: { base: 1, perLevel: 0.1 },
+  critDmg: { base: 3, perLevel: 0.3 },
+  def: { base: 1, perLevel: 0.4 },
+  defMag: { base: 1, perLevel: 0.4 },
+  esquive: { base: 1, perLevel: 0.08 },
+  blocage: { base: 1, perLevel: 0.1 },
+};
+
+// Objets légendaires : liés à une classe, avec un passif unique qui modifie
+// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
+const LEGENDARIES = {
+  colereAncestrale: {
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
+  },
+  rempartDeKaldor: {
+    name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
+    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
+  },
+  crocSanglant: {
+    name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
+    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+  },
+  murmureDeLOmbre: {
+    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
+  },
+  benedictionDAube: {
+    name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
+  },
+  etoleDuPelerin: {
+    name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
+  },
+  coeurDeBrasier: {
+    name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
+  },
+  couronneDOrage: {
+    name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
+  },
+};
+
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+})();
+
+// ---- src/data/stats.js
+__modules["src/data/stats.js"] = (() => {
+
+// Catalogue des statistiques (voir DESIGN_DOC §2).
+// suffix '%' : la valeur est un pourcentage.
+
+const STATS = {
+  // Principales
+  force: { label: 'Force' },
+  agilite: { label: 'Agilité' },
+  intelligence: { label: 'Intelligence' },
+  // Secondaires offensives
+  atq: { label: 'Attaque' },
+  vit: { label: 'Vitesse' },
+  critChance: { label: 'Taux critique', suffix: '%' },
+  critDmg: { label: 'Dégâts critiques', suffix: '%' },
+  // Secondaires défensives
+  pv: { label: 'PV' },
+  def: { label: 'Défense' },
+  defMag: { label: 'Défense magique' },
+  esquive: { label: 'Esquive', suffix: '%' },
+  blocage: { label: 'Blocage', suffix: '%' },
+};
+
+const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
+
+// Ordre d'affichage sur les feuilles de personnage.
+const STAT_ORDER = [
+  'force', 'agilite', 'intelligence',
+  'atq', 'vit', 'critChance', 'critDmg',
+  'pv', 'def', 'defMag', 'esquive', 'blocage',
+];
+
+function zeroStats() {
+  return Object.fromEntries(Object.keys(STATS).map((k) => [k, 0]));
+}
+
+return { STATS, PRIMARY_STATS, STAT_ORDER, zeroStats };
+})();
+
+// ---- src/game/rng.js
+__modules["src/game/rng.js"] = (() => {
+
+// Source d'aléatoire unique du jeu, remplaçable pour les tests (ou pour un futur seed).
+
+let source = Math.random;
+
+function setRandomSource(fn) {
+  source = fn ?? Math.random;
+}
+
+function random() {
+  return source();
+}
+
+function rand(min, max) {
+  return min + source() * (max - min);
+}
+
+function pick(list) {
+  return list[Math.floor(source() * list.length)];
+}
+
+return { setRandomSource, random, rand, pick };
+})();
+
+// ---- src/game/items.js
+__modules["src/game/items.js"] = (() => {
+const { ITEM, LOOT } = __modules["src/config.js"];
+const { RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
+const { rand, pick, random } = __modules["src/game/rng.js"];
+// Génération des objets d'équipement.
+//
+// Un objet est une donnée figée à sa création :
+// { id, name, level, rarity, slotType, weaponType?, armorType?, primary,
+//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
+// slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
+
+
+
+
+
+let nextId = 1;
+
+function budget(level) {
+  return ITEM.budgetBase + ITEM.budgetPerLevel * level;
+}
+
+function isWeapon(item) {
+  return item.slotType === 'arme';
+}
+
+function isTwoHanded(item) {
+  return isWeapon(item) && !!WEAPON_TYPES[item.weaponType].twoHanded;
+}
+
+// Libellé du type, ex. « Armure lourde · Plastron », « Arme à deux mains ».
+function itemTypeLabel(item) {
+  if (isWeapon(item)) return WEAPON_TYPES[item.weaponType].label;
+  if (item.slotType === 'bouclier') return SHIELD.label;
+  if (JEWELS[item.slotType]) return JEWELS[item.slotType].label;
+  return ARMOR_TYPES[item.armorType].label;
+}
+
+function weightedPick(weights) {
+  const entries = Object.entries(weights);
+  let roll = random() * entries.reduce((sum, [, w]) => sum + w, 0);
+  for (const [key, w] of entries) {
+    roll -= w;
+    if (roll < 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
+function rollRarity() {
+  return weightedPick(LOOT.rarityWeights);
+}
+
+// Tire une base d'objet aléatoire (hors légendaires).
+function rollBase() {
+  const category = weightedPick(LOOT.categoryWeights);
+  if (category === 'weapon') return { slotType: 'arme', weaponType: pick(Object.keys(WEAPON_TYPES)) };
+  if (category === 'shield') return { slotType: 'bouclier' };
+  if (category === 'jewel') return { slotType: pick(Object.keys(JEWELS)) };
+  return { slotType: pick(Object.keys(ARMOR_PIECES)), armorType: pick(Object.keys(ARMOR_TYPES)) };
+}
+
+function primaryOptions(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].primaries;
+  if (base.slotType === 'bouclier') return SHIELD.primaries;
+  if (JEWELS[base.slotType]) return ['force', 'agilite', 'intelligence'];
+  return ARMOR_TYPES[base.armorType].primaries;
+}
+
+function baseName(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].name;
+  if (base.slotType === 'bouclier') return SHIELD.name;
+  if (JEWELS[base.slotType]) return JEWELS[base.slotType].name;
+  return ARMOR_TYPES[base.armorType].names[base.slotType];
+}
+
+// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
+// (bouclier), défense magique (bijou).
+function mandatoryStats(base, level, mult) {
+  const b = budget(level);
+  if (base.slotType === 'arme') {
+    const w = WEAPON_TYPES[base.weaponType];
+    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
+    if (w.vit) stats.vit = w.vit;
+    return stats;
+  }
+  if (base.slotType === 'bouclier') {
+    return {
+      def: Math.round(b * ITEM.shieldDef * mult),
+      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
+    };
+  }
+  if (JEWELS[base.slotType]) {
+    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
+  }
+  const weight = ARMOR_PIECES[base.slotType];
+  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
+}
+
+function primaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
+  if (base.slotType === 'bouclier') return 0.8;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_PIECES[base.slotType];
+}
+
+function secondaryValue(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return Math.max(1, Math.round(unit * rand(range[0], range[1])));
+}
+
+/**
+ * Crée un objet. Tout paramètre omis est tiré au hasard.
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ */
+function generateItem(opts = {}) {
+  const level = Math.max(1, opts.level ?? 1);
+  let rarity = opts.rarity ?? rollRarity();
+  let legendaryKey = opts.legendary ?? null;
+  if (legendaryKey) rarity = 'legendaire';
+  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
+  const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
+
+  const base = legendary
+    ? { slotType: legendary.slotType, weaponType: legendary.weaponType, armorType: legendary.armorType }
+    : opts.slotType ? { slotType: opts.slotType, weaponType: opts.weaponType, armorType: opts.armorType } : rollBase();
+  const primary = legendary?.primary ?? opts.primary ?? pick(primaryOptions(base));
+  const r = RARITIES[rarity];
+
+  const stats = mandatoryStats(base, level, r.mult);
+  const mandatory = Object.keys(stats);
+  stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
+
+  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
+  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
+  const secondaries = [];
+  for (let i = 0; i < r.secondaries && pool.length; i++) {
+    const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
+    stats[stat] = secondaryValue(stat, level, r.range);
+    secondaries.push(stat);
+  }
+
+  let name = legendary ? legendary.name : baseName(base);
+  if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
+
+  const item = { id: `it${nextId++}`, name, level, rarity, ...base, primary, stats, mandatory, secondaries };
+  for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
+  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
+  return item;
+}
+
+return { budget, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
+})();
+
+// ---- src/game/party.js
+__modules["src/game/party.js"] = (() => {
+const { CLASSES } = __modules["src/data/classes.js"];
+const { SLOT_ORDER } = __modules["src/data/items.js"];
+const { zeroStats } = __modules["src/data/stats.js"];
+const { PARTY_ORDER, COMBAT } = __modules["src/config.js"];
+const { generateItem } = __modules["src/game/items.js"];
+// Héros et équipe.
+//
+// Un héros ne stocke que son état variable (PV, ressource, statuts, équipement).
+// Ses stats sont toujours calculées par getStats() et ses compétences par
+// getSkills() : ce sont les points d'extension pour l'équipement, les arbres de
+// compétences et les buffs.
+
+
+
+
+
+
+
+function getClass(hero) {
+  return CLASSES[hero.classKey];
+}
+
+function wornItems(hero) {
+  return SLOT_ORDER.map((slot) => [slot, hero.equipment[slot]]).filter(([, item]) => item);
+}
+
+/**
+ * Stats finales du héros (base de classe + équipement).
+ * atq inclut le bonus de stat principale (atqFromMain) ; resMax vient de la classe.
+ */
+function getStats(hero) {
+  const cls = getClass(hero);
+  const total = { ...zeroStats(), ...cls.base };
+  for (const [slot, item] of wornItems(hero)) {
+    for (const [stat, value] of Object.entries(item.stats)) {
+      // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
+      const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
+      total[stat] += Math.round(value * factor);
+    }
+  }
+  const atqFromMain = Math.round(total[cls.mainStat] * COMBAT.mainStatFactor);
+  return { ...total, atq: total.atq + atqFromMain, atqFromMain, resMax: cls.resource.max };
+}
+
+// Compétences du héros, modifiées par les passifs des objets légendaires portés.
+function getSkills(hero) {
+  const passives = wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean);
+  return getClass(hero).skills.map((skill) => {
+    const mods = passives.filter((p) => p.skill === skill.id);
+    if (!mods.length) return skill;
+    const s = { ...skill, boosted: true };
+    for (const p of mods) {
+      if (p.powerPct) s.power = +(s.power * (1 + p.powerPct / 100)).toFixed(3);
+      if (p.costDelta) s.cost = Math.max(0, s.cost + p.costDelta);
+      if (p.bleedDelta) s.bleed = (s.bleed ?? 0) + p.bleedDelta;
+    }
+    return s;
+  });
+}
+
+function createHero(classKey, name) {
+  const cls = CLASSES[classKey];
+  const hero = {
+    classKey,
+    name: name || cls.name,
+    hp: 0,
+    res: cls.resource.start,
+    alive: true,
+    guard: false,
+    bleed: 0,
+    equipment: {},
+  };
+  for (const piece of cls.starterKit) {
+    const item = generateItem({ level: 1, rarity: 'commun', ...piece });
+    hero.equipment[piece.slotType === 'arme' ? 'mainDroite' : piece.slotType] = item;
+  }
+  hero.hp = getStats(hero).pv;
+  return hero;
+}
+
+function createParty(names = []) {
+  return PARTY_ORDER.map((key, i) => createHero(key, names[i]?.trim()));
+}
+
+function gainResource(hero, amount) {
+  if (!amount) return;
+  hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
+}
+
+// Ramène PV et ressource sous leurs maximums (après un changement d'équipement).
+function clampToStats(hero) {
+  const stats = getStats(hero);
+  hero.hp = Math.min(hero.hp, stats.pv);
+  hero.res = Math.min(hero.res, stats.resMax);
+}
+
+// Soin complet, ressource pleine, statuts retirés, héros ramené à la vie.
+function restoreFully(hero) {
+  const stats = getStats(hero);
+  hero.alive = true;
+  hero.hp = stats.pv;
+  hero.res = stats.resMax;
+  hero.guard = false;
+  hero.bleed = 0;
+}
+
+return { getClass, getStats, getSkills, createHero, createParty, gainResource, clampToStats, restoreFully };
+})();
+
+// ---- src/ui/html.js
+__modules["src/ui/html.js"] = (() => {
+
+// Petits utilitaires de rendu HTML.
+
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
+}
+
+// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
+function tip(text, extraClass = '') {
+  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
+}
+
+function bar(value, max, color) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
+}
+
+function range({ lo, hi }) {
+  return lo === hi ? `${lo}` : `${lo}-${hi}`;
+}
+
+return { esc, tip, bar, range };
+})();
+
+// ---- src/ui/screens/create.js
+__modules["src/ui/screens/create.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { PARTY_ORDER } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { createParty } = __modules["src/game/party.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Création de l'équipe.
+
+
+
+
+
+
+
+
+function renderCreate(app) {
+  app.innerHTML = `
+    <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
+    <div class="slots">
+      ${PARTY_ORDER.map((key, i) => classCard(key, i)).join('')}
+    </div>
+    <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
+  `;
+
+  app.querySelector('#startBtn').onclick = () => {
+    const names = PARTY_ORDER.map((_, i) => app.querySelector(`#name${i}`).value);
+    state.party = createParty(names);
+    goTo('hub');
+  };
+}
+
+function classCard(key, i) {
+  const cls = CLASSES[key];
+  return `
+    <div class="card slot" style="--c:${cls.color}">
+      <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
+      <div class="cname">${cls.name}</div>
+      <div class="role">Ressource : ${cls.resource.name}</div>
+      <div class="stats">PV ${cls.base.pv} · Attaque ${cls.base.atq} · Vitesse ${cls.base.vit}</div>
+      <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(cls.name)}" maxlength="24">
+    </div>`;
+}
+
+return { renderCreate };
+})();
+
+// ---- src/data/dungeons.js
+__modules["src/data/dungeons.js"] = (() => {
+
+// Donjons accessibles depuis les portails du village.
+// encounter : liste des clés d'ennemis (voir enemies.js) composant un combat.
+
+const DUNGEONS = {
+  foretMaudite: {
+    name: 'Forêt Maudite',
+    icon: '🌲',
+    desc: 'Un groupe de gobelins garde le passage.',
+    encounter: ['gobelin', 'gobelin'],
+  },
+};
+
+return { DUNGEONS };
+})();
+
+// ---- src/game/units.js
+__modules["src/game/units.js"] = (() => {
+const { getStats } = __modules["src/game/party.js"];
+// Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
+
+
+
+const isHero = (unit) => 'classKey' in unit;
+const isAlive = (unit) => unit.alive;
+
+function statsOf(unit) {
+  return isHero(unit) ? getStats(unit) : unit.stats;
+}
+
+// Inflige des dégâts ; retourne true si l'unité vient de tomber.
+function damage(unit, amount) {
+  unit.hp = Math.max(0, unit.hp - amount);
+  if (unit.hp === 0 && unit.alive) {
+    unit.alive = false;
+    return true;
+  }
+  return false;
+}
+
+function heal(unit, amount) {
+  unit.hp = Math.min(statsOf(unit).pv, unit.hp + amount);
+}
+
+return { isHero, isAlive, statsOf, damage, heal };
+})();
+
+// ---- src/game/loot.js
+__modules["src/game/loot.js"] = (() => {
+const { LOOT } = __modules["src/config.js"];
+const { generateItem } = __modules["src/game/items.js"];
+const { random } = __modules["src/game/rng.js"];
+// Butin de fin de combat.
+
+
+
+
+
+// Chaque ennemi vaincu a une chance de laisser un objet du niveau du donjon.
+function rollLoot(level, enemiesDefeated) {
+  const loot = [];
+  for (let i = 0; i < enemiesDefeated; i++) {
+    if (random() < LOOT.dropChance) loot.push(generateItem({ level }));
+  }
+  return loot;
+}
+
+return { rollLoot };
+})();
+
+// ---- src/game/progression.js
+__modules["src/game/progression.js"] = (() => {
+const { REWARDS, LOOT } = __modules["src/config.js"];
+const { getStats, restoreFully } = __modules["src/game/party.js"];
+const { heal } = __modules["src/game/units.js"];
+const { rollLoot } = __modules["src/game/loot.js"];
+const { random } = __modules["src/game/rng.js"];
+// Conséquences d'un combat et services du village sur l'état global du jeu.
+// Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
+// { message, loot? }.
+
+
+
+
+
+
+
+function applyVictory(game, { enemiesDefeated = 0 } = {}) {
+  const gold = REWARDS.goldBase + game.dungeonLvl * REWARDS.goldPerLevel;
+  const loot = rollLoot(game.dungeonLvl, enemiesDefeated);
+  game.gold += gold;
+  game.bag.push(...loot);
+  game.dungeonLvl++;
+  for (const hero of game.party) {
+    if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
+  }
+  const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
+  return { message: `Victoire ! Vous rapportez ${gold} pièces d'or.${lootText} Le prochain passage est plus dangereux.`, loot };
+}
+
+// Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
+function applyDefeat(game) {
+  const loss = Math.round(game.gold * REWARDS.defeatGoldLossPct);
+  game.gold -= loss;
+  const lost = game.bag.filter(() => random() < LOOT.defeatBagLossChance);
+  game.bag = game.bag.filter((item) => !lost.includes(item));
+  for (const hero of game.party) {
+    restoreFully(hero);
+    hero.hp = Math.round(getStats(hero).pv * REWARDS.defeatHpPct);
+  }
+  const lostText = lost.length ? ` et ${lost.length} objet${lost.length > 1 ? 's' : ''} du sac` : '';
+  return { message: `Votre équipe est vaincue et regagne le village de justesse, ayant perdu ${loss} pièces d'or${lostText}.` };
+}
+
+// Auberge : soin complet de toute l'équipe, héros tombés compris.
+function restAtInn(game) {
+  game.party.forEach(restoreFully);
+  return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
+}
+
+return { applyVictory, applyDefeat, restAtInn };
+})();
+
+// ---- src/data/enemies.js
+__modules["src/data/enemies.js"] = (() => {
+
+// Bestiaire. Les stats évoluent avec le niveau du donjon :
+// valeur = base + perLevel * niveau ; la vitesse est tirée dans [min, max].
+// Stats non précisées (critique, esquive, blocage…) : 0.
+
+const ENEMIES = {
+  gobelin: {
+    name: 'Gobelin',
+    icon: '👹',
+    pv: { base: 40, perLevel: 8 },
+    atq: { base: 8, perLevel: 2 },
+    def: { base: 2, perLevel: 1 },
+    defMag: { base: 0, perLevel: 1 },
+    vit: { min: 6, max: 11 },
+  },
+};
+
+return { ENEMIES };
+})();
+
+// ---- src/game/enemies.js
+__modules["src/game/enemies.js"] = (() => {
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { zeroStats } = __modules["src/data/stats.js"];
+const { rand } = __modules["src/game/rng.js"];
+
+
+
+
+const scaled = (def, level) => (def ? def.base + def.perLevel * level : 0);
+
+function createEnemy(key, level, label) {
+  const def = ENEMIES[key];
+  const pv = scaled(def.pv, level);
+  return {
+    enemyKey: key,
+    name: label ? `${def.name} ${label}` : def.name,
+    icon: def.icon,
+    hp: pv,
+    stats: {
+      ...zeroStats(),
+      critDmg: 50,
+      pv,
+      atq: scaled(def.atq, level),
+      def: scaled(def.def, level),
+      defMag: scaled(def.defMag, level),
+      vit: Math.round(rand(def.vit.min, def.vit.max)),
+    },
+    alive: true,
+    guard: false,
+    bleed: 0,
+  };
+}
+
+return { createEnemy };
+})();
+
+// ---- src/game/formulas.js
+__modules["src/game/formulas.js"] = (() => {
+const { COMBAT, VARIANCE } = __modules["src/config.js"];
+const { rand, random } = __modules["src/game/rng.js"];
+// Formules de dégâts et de soins, et leurs estimations affichées au joueur.
+// Les estimations utilisent exactement les mêmes calculs que les jets réels.
+//
+// Un coup : attaque × puissance × variance [× critique] × facteur de défense.
+// `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
+
+
+
+
+// Options d'un coup : { power, variance, magic, alwaysCrit }
+const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false };
+const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false };
+
+function skillHitOptions(skill) {
+  return {
+    power: skill.power,
+    variance: skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero,
+    magic: !!skill.magic,
+    alwaysCrit: !!skill.alwaysCrit,
+  };
+}
+
+function defenseFactor(defense) {
+  return COMBAT.defenseK / (COMBAT.defenseK + Math.max(0, defense));
+}
+
+function critMultiplier(stats) {
+  return 1 + stats.critDmg / 100;
+}
+
+// Probabilité (0-1) plafonnée d'une stat en %, ex. chance(stats, 'esquive').
+function chance(stats, stat) {
+  return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+  if (defender) mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+  return mult;
+}
+
+// Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
+// Sans `defender`, la défense de la cible n'est pas prise en compte.
+function estimateHit(attacker, opts, defender = null) {
+  const mult = hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
+  const [lo, hi] = opts.variance;
+  return {
+    lo: Math.max(1, Math.round(attacker.atq * mult * lo)),
+    hi: Math.max(1, Math.round(attacker.atq * mult * hi)),
+  };
+}
+
+function rollHit(attacker, opts, defender) {
+  const crit = opts.alwaysCrit || random() < chance(attacker, 'critChance');
+  const mult = hitMultiplier(attacker, opts, defender, crit);
+  const [lo, hi] = opts.variance;
+  return { amount: Math.max(1, Math.round(attacker.atq * mult * rand(lo, hi))), crit };
+}
+
+function healAmount(atq, power) {
+  return Math.round(atq * power);
+}
+
+// Estimation {lo, hi} de l'effet d'une compétence (soin exact, ou dégâts).
+function estimateSkill(attacker, skill, defender = null) {
+  if (skill.kind === 'heal') {
+    const amount = healAmount(attacker.atq, skill.power);
+    return { lo: amount, hi: amount };
+  }
+  return estimateHit(attacker, skillHitOptions(skill), defender);
+}
+
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, estimateHit, rollHit, healAmount, estimateSkill };
+})();
+
+// ---- src/game/combat.js
+__modules["src/game/combat.js"] = (() => {
+const { COMBAT } = __modules["src/config.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { createEnemy } = __modules["src/game/enemies.js"];
+const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
+const { rollHit, healAmount, skillHitOptions, chance, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
+const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
+const { pick, random } = __modules["src/game/rng.js"];
+// Moteur de combat tour par tour. Logique pure : pas de DOM, pas de timers.
+// Le rythme (délais des tours ennemis) et l'affichage sont gérés par ui/encounter.js.
+//
+// Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
+// puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
+// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
+
+
+
+
+
+
+
+
+
+function createCombat({ dungeonKey, level, party }) {
+  const dungeon = DUNGEONS[dungeonKey];
+  const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
+  party.forEach((hero) => {
+    hero.guard = false;
+    hero.bleed = 0;
+  });
+  const cb = { dungeonKey, level, party, enemies, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
+  log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
+  return cb;
+}
+
+function log(cb, text, hit = false) {
+  cb.log.unshift({ text, hit });
+  if (cb.log.length > COMBAT.logMax) cb.log.pop();
+}
+
+function checkOutcome(cb) {
+  if (!cb.result) {
+    if (cb.party.every((h) => !h.alive)) cb.result = 'defeat';
+    else if (cb.enemies.every((e) => !e.alive)) cb.result = 'victory';
+  }
+  return cb.result;
+}
+
+// Avance jusqu'au prochain combattant vivant et prépare son tour.
+function nextTurn(cb) {
+  cb.acting = null;
+  while (!checkOutcome(cb)) {
+    if (cb.qIndex >= cb.queue.length) {
+      if (cb.round > 0) endRound(cb);
+      if (checkOutcome(cb)) break;
+      startRound(cb);
+      continue;
+    }
+    const turn = cb.queue[cb.qIndex];
+    if (!turn.unit.alive) {
+      cb.qIndex++;
+      continue;
+    }
+    cb.acting = turn;
+    if (turn.side === 'hero') startHeroTurn(turn.unit);
+    return turn;
+  }
+  return null;
+}
+
+// Ordre de jeu : vitesse décroissante (tri stable : à égalité, les héros d'abord).
+function startRound(cb) {
+  const units = [
+    ...cb.party.filter(isAlive).map((unit) => ({ side: 'hero', unit })),
+    ...cb.enemies.filter(isAlive).map((unit) => ({ side: 'enemy', unit })),
+  ];
+  units.sort((a, b) => statsOf(b.unit).vit - statsOf(a.unit).vit);
+  cb.queue = units;
+  cb.qIndex = 0;
+  cb.round++;
+}
+
+function endRound(cb) {
+  for (const unit of [...cb.party, ...cb.enemies]) {
+    if (!unit.alive || unit.bleed <= 0) continue;
+    unit.bleed--;
+    const fell = damage(unit, COMBAT.bleedDamage);
+    log(cb, `${unit.name} souffre d'un saignement (-${COMBAT.bleedDamage} PV).`, true);
+    if (fell) logFall(cb, unit);
+  }
+}
+
+function startHeroTurn(hero) {
+  hero.guard = false; // la garde dure jusqu'au prochain tour du héros
+  gainResource(hero, getClass(hero).resource.regen);
+}
+
+function endTurn(cb) {
+  cb.qIndex++;
+  cb.acting = null;
+}
+
+function logFall(cb, unit) {
+  log(cb, isHero(unit) ? `${unit.name} s'effondre !` : `${unit.name} est vaincu !`, true);
+}
+
+function aliveAt(list, index) {
+  const unit = list[index];
+  return unit && unit.alive ? unit : null;
+}
+
+// Liste des cibles valides d'une action du héros actif (indices dans cb.enemies / cb.party).
+function targetsFor(cb, action) {
+  if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
+  if (action.type === 'skill') {
+    const skill = getSkills(cb.acting.unit)[action.skill];
+    if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
+    if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
+  }
+  return null; // pas de ciblage (défense, compétence de zone)
+}
+
+/**
+ * Résout l'action du héros actif.
+ * action : { type: 'defend' }
+ *        | { type: 'attack', target: indexEnnemi }
+ *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
+ * Retourne false (sans rien modifier) si l'action est invalide.
+ */
+function heroAct(cb, action) {
+  if (!cb.acting || cb.acting.side !== 'hero') return false;
+  const hero = cb.acting.unit;
+
+  if (action.type === 'defend') {
+    hero.guard = true;
+    log(cb, `${hero.name} se met en garde.`, true);
+  } else if (action.type === 'attack') {
+    const target = aliveAt(cb.enemies, action.target);
+    if (!target) return false;
+    const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
+    const fell = damage(target, hit.amount);
+    log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
+    if (fell) logFall(cb, target);
+    gainResource(hero, getClass(hero).resource.onAttack);
+  } else if (action.type === 'skill') {
+    const skill = getSkills(hero)[action.skill];
+    if (!skill || hero.res < skill.cost) return false;
+    if (!useSkill(cb, hero, skill, action.target)) return false;
+  } else {
+    return false;
+  }
+  endTurn(cb);
+  return true;
+}
+
+function critText(hit) {
+  return hit.crit ? ' (critique !)' : '';
+}
+
+function useSkill(cb, hero, skill, targetIndex) {
+  const stats = statsOf(hero);
+  const opts = skillHitOptions(skill);
+
+  if (skill.target === 'ally') {
+    const target = aliveAt(cb.party, targetIndex);
+    if (!target) return false;
+    hero.res -= skill.cost;
+    const amount = healAmount(stats.atq, skill.power);
+    heal(target, amount);
+    log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} (+${amount} PV).`, true);
+    return true;
+  }
+
+  if (skill.target === 'allEnemies') {
+    hero.res -= skill.cost;
+    log(cb, `${hero.name} utilise ${skill.name}, frappant tous les ennemis !`, true);
+    for (const enemy of cb.enemies.filter(isAlive)) {
+      if (damage(enemy, rollHit(stats, opts, statsOf(enemy)).amount)) logFall(cb, enemy);
+    }
+    return true;
+  }
+
+  const target = aliveAt(cb.enemies, targetIndex);
+  if (!target) return false;
+  hero.res -= skill.cost;
+  const hit = rollHit(stats, opts, statsOf(target));
+  const fell = damage(target, hit.amount);
+  if (skill.bleed && !fell) target.bleed = skill.bleed;
+  log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
+  if (fell) logFall(cb, target);
+  return true;
+}
+
+// IA ennemie : attaque un héros vivant au hasard.
+// Le héros peut esquiver (aucun dégât) ou bloquer (dégâts réduits).
+function enemyAct(cb) {
+  if (!cb.acting || cb.acting.side !== 'enemy') return;
+  const enemy = cb.acting.unit;
+  const target = pick(cb.party.filter(isAlive));
+  if (target) {
+    const targetStats = statsOf(target);
+    if (random() < chance(targetStats, 'esquive')) {
+      log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
+    } else {
+      const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, targetStats);
+      let dmg = hit.amount;
+      const blocked = random() < chance(targetStats, 'blocage');
+      if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
+      if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
+      const fell = damage(target, dmg);
+      log(cb, `${enemy.name} attaque ${target.name} pour ${dmg} dégâts${critText(hit)}${blocked ? ' (bloqué)' : ''}.`, true);
+      if (fell) logFall(cb, target);
+      else gainResource(target, getClass(target).resource.onHitTaken);
+    }
+  }
+  endTurn(cb);
+}
+
+return { createCombat, log, checkOutcome, nextTurn, targetsFor, heroAct, enemyAct };
+})();
+
+// ---- src/ui/encounter.js
+__modules["src/ui/encounter.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { TIMING } = __modules["src/config.js"];
+const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
+const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { render, showHub } = __modules["src/ui/router.js"];
+// Orchestration d'un combat : enchaîne les tours du moteur (game/combat.js),
+// rythme les tours ennemis et déclenche le rendu.
+
+
+
+
+
+
+
+function startEncounter(dungeonKey) {
+  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party });
+  state.screen = 'combat';
+  advance();
+}
+
+function playerAction(action) {
+  if (heroAct(state.combat, action)) advance();
+}
+
+function advance() {
+  const cb = state.combat;
+  const turn = nextTurn(cb);
+  if (!turn) return finish();
+
+  if (turn.side === 'hero') {
+    render();
+    return;
+  }
+
+  // Tour ennemi : jamais instantané, l'unité active est mise en évidence.
+  log(cb, `${turn.unit.name} se prépare à agir...`);
+  render();
+  setTimeout(() => {
+    enemyAct(cb);
+    render();
+    if (checkOutcome(cb)) return finish();
+    setTimeout(advance, TIMING.enemyAfterMs);
+  }, TIMING.enemyThinkMs);
+}
+
+function finish() {
+  const cb = state.combat;
+  const outcome = cb.result === 'victory'
+    ? applyVictory(state, { enemiesDefeated: cb.enemies.length })
+    : applyDefeat(state);
+  state.combat = null;
+  showHub(outcome.message, outcome.loot);
+}
+
+return { startEncounter, playerAction };
+})();
+
+// ---- src/ui/items.js
+__modules["src/ui/items.js"] = (() => {
+const { STATS } = __modules["src/data/stats.js"];
+const { RARITIES, SLOTS } = __modules["src/data/items.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { itemTypeLabel } = __modules["src/game/items.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+// Affichage des objets et des stats.
+
+
+
+
+
+
+
+// « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
+function formatStat(key, value, { sign = true } = {}) {
+  const def = STATS[key];
+  const prefix = sign && value >= 0 ? '+' : '';
+  return `${prefix}${value}${def.suffix ? ` ${def.suffix}` : ''} ${def.label}`;
+}
+
+function itemStatKeys(item) {
+  const primary = item.mandatory.includes(item.primary) ? [] : [item.primary];
+  return [...item.mandatory, ...primary, ...item.secondaries];
+}
+
+function itemMeta(item) {
+  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
+}
+
+// Texte brut multi-lignes (infobulles).
+function itemTooltipText(item) {
+  const lines = [item.name, itemMeta(item), ...itemStatKeys(item).map((k) => formatStat(k, item.stats[k]))];
+  if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
+  return lines.join('\n');
+}
+
+// Nom coloré par rareté, avec infobulle détaillée.
+function itemChip(item) {
+  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>`;
+}
+
+// Fiche complète d'un objet.
+function itemCard(item) {
+  const statLines = itemStatKeys(item).map((k) => {
+    const cls = item.secondaries.includes(k) ? 'secondary' : 'main';
+    return `<li class="${cls}">${formatStat(k, item.stats[k])}</li>`;
+  });
+  return `
+    <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
+      <div class="item-name">${esc(item.name)}</div>
+      <div class="item-meta">${itemMeta(item)}</div>
+      <ul class="item-stats">${statLines.join('')}</ul>
+      ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
+    </div>`;
+}
+
+function slotLabel(slot) {
+  return SLOTS[slot].label;
+}
+
+return { formatStat, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
+})();
+
+// ---- src/game/equipment.js
+__modules["src/game/equipment.js"] = (() => {
+const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { isTwoHanded } = __modules["src/game/items.js"];
+const { getClass, clampToStats } = __modules["src/game/party.js"];
+// Règles d'équipement : qui peut porter quoi, où, et échanges avec le sac.
+//
+// hero.equipment : { [slotKey]: item } (emplacement absent = vide)
+// bag            : tableau d'objets partagé par toute l'équipe
+
+
+
+
+
+// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
+// l'emplacement), ou null s'il le peut.
+function cannotEquipReason(hero, item) {
+  const cls = getClass(hero);
+  if (item.legendary && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
+  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `${cls.name} ne porte pas ce type d'armure`;
+  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `${cls.name} ne manie pas le bouclier`;
+  if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
+    return `${cls.name} ne manie pas ce type d'arme`;
+  }
+  return null;
+}
+
+// Emplacements où le héros peut placer cet objet (vide si aucun).
+function slotsFor(hero, item) {
+  if (cannotEquipReason(hero, item)) return [];
+  const gear = getClass(hero).gear;
+  return SLOT_ORDER.filter((slot) => {
+    if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
+    if (item.slotType !== 'arme') return true;
+    if (slot === 'mainDroite') return gear.weapons.includes(item.weaponType);
+    // Main gauche : arme à une main seulement, si la classe est ambidextre pour ce type.
+    return !WEAPON_TYPES[item.weaponType].twoHanded && gear.offHand.includes(item.weaponType);
+  });
+}
+
+function equippedItems(hero) {
+  return SLOT_ORDER.map((slot) => hero.equipment[slot]).filter(Boolean);
+}
+
+/**
+ * Équipe `item` (présent dans `bag`) sur `slot`. Les objets déplacés retournent au sac :
+ * l'ancien objet de l'emplacement, et l'autre main si une arme à deux mains est en jeu.
+ * Retourne false sans rien modifier si l'opération est impossible.
+ */
+function equip(hero, bag, item, slot) {
+  const index = bag.indexOf(item);
+  if (index === -1 || !slotsFor(hero, item).includes(slot)) return false;
+
+  bag.splice(index, 1);
+  const displaced = [hero.equipment[slot]];
+  if (slot === 'mainDroite' && isTwoHanded(item)) {
+    displaced.push(hero.equipment.mainGauche);
+    delete hero.equipment.mainGauche;
+  }
+  if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) {
+    displaced.push(hero.equipment.mainDroite);
+    delete hero.equipment.mainDroite;
+  }
+  hero.equipment[slot] = item;
+  bag.push(...displaced.filter(Boolean));
+  clampToStats(hero);
+  return true;
+}
+
+function unequip(hero, bag, slot) {
+  const item = hero.equipment[slot];
+  if (!item) return false;
+  delete hero.equipment[slot];
+  bag.push(item);
+  clampToStats(hero);
+  return true;
+}
+
+// Aperçu : copie du héros avec l'objet équipé (pour comparer les stats).
+function previewEquip(hero, item, slot) {
+  const copy = { ...hero, equipment: { ...hero.equipment } };
+  const bag = [item];
+  return equip(copy, bag, item, slot) ? copy : null;
+}
+
+return { cannotEquipReason, slotsFor, equippedItems, equip, unequip, previewEquip };
+})();
+
+// ---- src/ui/heroStats.js
+__modules["src/ui/heroStats.js"] = (() => {
+const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
+const { COMBAT } = __modules["src/config.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { tip } = __modules["src/ui/html.js"];
+// Tableau des stats finales d'un héros (feuilles de personnage, écran d'équipement).
+
+
+
+
+
+
+const STAT_TIPS = {
+  atq: "Base des dégâts et des soins. Comprend le bonus de la stat principale.",
+  critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
+  critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
+  def: 'Réduit les dégâts physiques subis.',
+  defMag: 'Réduit les dégâts magiques subis.',
+  esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
+  blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
+};
+
+function statsList(hero) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const rows = STAT_ORDER.map((k) => {
+    let label = STATS[k].label;
+    if (k === cls.mainStat) label += ' ★';
+    let value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    if (k === 'atq') value += ` <small>(dont +${stats.atqFromMain} ${STATS[cls.mainStat].label})</small>`;
+    const labelHtml = STAT_TIPS[k] ? `<span ${tip(STAT_TIPS[k])}>${label}</span>` : label;
+    return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+  });
+  rows.splice(STAT_ORDER.indexOf('pv'), 0,
+    `<div class="stat-row"><span>${cls.resource.name}</span><span>${hero.res}/${stats.resMax}</span></div>`);
+  return rows.join('');
+}
+
+return { statsList };
+})();
+
+// ---- src/ui/screens/equipment.js
+__modules["src/ui/screens/equipment.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
+const { STAT_ORDER } = __modules["src/data/stats.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, formatStat, slotLabel } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+const { statsList } = __modules["src/ui/heroStats.js"];
+// Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran (pas de l'état de jeu).
+const view = { heroIndex: 0, selected: null }; // selected : { from: 'bag', id } | { from: 'slot', slot }
+
+function openEquipment(heroIndex = view.heroIndex) {
+  view.heroIndex = heroIndex;
+  view.selected = null;
+  goTo('equipment');
+}
+
+function renderEquipment(app) {
+  const hero = state.party[view.heroIndex];
+  const cls = getClass(hero);
+
+  app.innerHTML = `
+    <div class="hero"><h1>Équipement</h1><p>Sac de l'équipe : ${state.bag.length} objet${state.bag.length > 1 ? 's' : ''}</p></div>
+    <div class="hero-tabs">
+      ${state.party.map((h, i) => `
+        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
+          ${getClass(h).icon} ${esc(h.name)}
+        </button>`).join('')}
+    </div>
+    <div class="equip-layout">
+      <div class="card slot-list" style="--c:${cls.color}">
+        <h3>${cls.icon} ${esc(hero.name)} <small>— ${cls.name}</small></h3>
+        ${SLOT_ORDER.map((slot) => slotRow(hero, slot)).join('')}
+        <div class="equip-stats">${statsList(hero)}</div>
+      </div>
+      <div>
+        <div class="card detail">${detailPanel(hero)}</div>
+        <div class="card bag">
+          <h3>Sac</h3>
+          ${bagList(hero)}
+        </div>
+      </div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-hero]').forEach((btn) => {
+    btn.onclick = () => openEquipment(Number(btn.dataset.hero));
+  });
+  app.querySelectorAll('[data-slot]').forEach((row) => {
+    row.onclick = () => select({ from: 'slot', slot: row.dataset.slot });
+  });
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => select({ from: 'bag', id: row.dataset.item });
+  });
+  app.querySelectorAll('[data-equip]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = selectedItem(hero);
+      if (equip(hero, state.bag, item, btn.dataset.equip)) select({ from: 'slot', slot: btn.dataset.equip });
+    };
+  });
+  app.querySelector('#unequip')?.addEventListener('click', () => {
+    const item = selectedItem(hero);
+    if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function select(selection) {
+  view.selected = selection;
+  goTo('equipment');
+}
+
+function selectedItem(hero) {
+  const sel = view.selected;
+  if (!sel) return null;
+  if (sel.from === 'slot') return hero.equipment[sel.slot] ?? null;
+  return state.bag.find((item) => item.id === sel.id) ?? null;
+}
+
+function isSelected(sel) {
+  const cur = view.selected;
+  return !!cur && cur.from === sel.from && (cur.slot ?? cur.id) === (sel.slot ?? sel.id);
+}
+
+function slotRow(hero, slot) {
+  const item = hero.equipment[slot];
+  const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
+  if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
+  return `
+    <button class="slot-row ${selected}" data-slot="${slot}">
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+    </button>`;
+}
+
+function bagList(hero) {
+  if (!state.bag.length) return '<p class="hint">Le sac est vide. Le butin des donjons arrive ici.</p>';
+  const sorted = [...state.bag].sort((a, b) =>
+    RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level);
+  return sorted.map((item) => {
+    const usable = !cannotEquipReason(hero, item);
+    const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
+    return `
+      <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+        <small>${itemMeta(item)}</small>
+      </button>`;
+  }).join('');
+}
+
+function detailPanel(hero) {
+  const item = selectedItem(hero);
+  if (!item) return '<p class="hint">Sélectionne un objet équipé ou un objet du sac pour voir ses détails et le comparer.</p>';
+
+  if (view.selected.from === 'slot') {
+    return `${itemCard(item)}<div class="actions"><button id="unequip">Retirer (vers le sac)</button></div>`;
+  }
+
+  const reason = cannotEquipReason(hero, item);
+  if (reason) return `${itemCard(item)}<p class="warning">${esc(hero.name)} ne peut pas l'équiper : ${reason}.</p>`;
+
+  const options = slotsFor(hero, item).map((slot) => {
+    const current = hero.equipment[slot];
+    return `
+      <div class="equip-option">
+        <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
+        <small>${current ? `remplace ${esc(current.name)}` : 'emplacement vide'}</small>
+        ${statDiff(hero, previewEquip(hero, item, slot))}
+      </div>`;
+  });
+  return `${itemCard(item)}${options.join('')}`;
+}
+
+// Différence de stats du héros entre maintenant et après l'échange.
+function statDiff(hero, preview) {
+  if (!preview) return '';
+  const before = getStats(hero);
+  const after = getStats(preview);
+  const changes = STAT_ORDER
+    .map((k) => [k, after[k] - before[k]])
+    .filter(([, d]) => d !== 0)
+    .map(([k, d]) => `<span class="${d > 0 ? 'up' : 'down'}">${formatStat(k, d)}</span>`);
+  return `<div class="diff">${changes.length ? changes.join('') : '<span>Aucun changement de stats</span>'}</div>`;
+}
+
+return { openEquipment, renderEquipment };
+})();
+
+// ---- src/ui/screens/hub.js
+__modules["src/ui/screens/hub.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { restAtInn } = __modules["src/game/progression.js"];
+const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { goTo, showHub } = __modules["src/ui/router.js"];
+const { startEncounter } = __modules["src/ui/encounter.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+// Village : équipe, portails vers les donjons et services.
+
+
+
+
+
+
+
+
+
+
+
+function renderHub(app) {
+  const message = state.hubMessage;
+  const loot = state.hubLoot;
+  state.hubMessage = null;
+  state.hubLoot = [];
+
+  app.innerHTML = `
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Donjon actuel : niveau ${state.dungeonLvl}</p></div>
+    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    <div class="party-strip">${state.party.map(heroMini).join('')}</div>
+    <div class="card">
+      <h2>Portails</h2>
+      <div class="portals">
+        ${Object.entries(DUNGEONS).map(([key, d]) => `
+          <button class="card portal" data-dungeon="${key}">
+            <h3>${d.icon} ${d.name} — Niveau ${state.dungeonLvl}</h3><p>${d.desc}</p>
+          </button>`).join('')}
+      </div>
+    </div>
+    <div class="card section">
+      <h2>Services</h2>
+      <div class="services">
+        <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
+        <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
+        <button id="forge" ${tip('Décrafte et améliore ton équipement grâce aux matéria. Bientôt disponible.')}>🔨 Forge</button>
+        <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
+        <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+      </div>
+    </div>
+  `;
+
+  app.querySelectorAll('[data-dungeon]').forEach((btn) => {
+    btn.onclick = () => startEncounter(btn.dataset.dungeon);
+  });
+  app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
+  app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
+  app.querySelector('#forge').onclick = () => showHub('La forge est encore froide — bientôt disponible.');
+  app.querySelector('#equipBtn').onclick = () => openEquipment();
+  app.querySelector('#statsBtn').onclick = () => goTo('stats');
+}
+
+function heroMini(hero) {
+  const cls = getClass(hero);
+  const { pv } = getStats(hero);
+  return `
+    <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b></div>
+      <small>${hero.alive ? `PV ${hero.hp}/${pv}` : 'Tombé au combat'}</small>
+      ${bar(hero.hp, pv, cls.color)}
+    </div>`;
+}
+
+return { renderHub };
+})();
+
+// ---- src/ui/format.js
+__modules["src/ui/format.js"] = (() => {
+const { estimateSkill } = __modules["src/game/formulas.js"];
+const { range } = __modules["src/ui/html.js"];
+// Libellés partagés entre plusieurs écrans.
+
+
+
+
+// `stats` : stats du lanceur (getStats). Sans cible : défense ennemie non comptée.
+// Ex. « ~34-41 dégâts (zone) + saignement 3 tours » ou « Soin +23 PV ».
+function skillEffectLabel(stats, skill) {
+  const est = range(estimateSkill(stats, skill));
+  if (skill.kind === 'heal') return `Soin +${est} PV`;
+  let label = `~${est} dégâts${skill.magic ? ' magiques' : ''}`;
+  if (skill.alwaysCrit) label += ' (critique garanti)';
+  if (skill.target === 'allEnemies') label += ' (zone)';
+  if (skill.bleed) label += ` + saignement ${skill.bleed} tours`;
+  return label;
+}
+
+function skillShortEstimate(stats, skill) {
+  const est = range(estimateSkill(stats, skill));
+  return skill.kind === 'heal' ? `+${est} PV` : `~${est}`;
+}
+
+return { skillEffectLabel, skillShortEstimate };
+})();
+
+// ---- src/ui/screens/stats.js
+__modules["src/ui/screens/stats.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+const { statsList } = __modules["src/ui/heroStats.js"];
+const { goTo } = __modules["src/ui/router.js"];
+const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+// Feuilles de personnage.
+
+
+
+
+
+
+
+
+
+
+
+
+function renderStats(app) {
+  app.innerHTML = `
+    <div class="hero"><h1>Feuilles de personnage</h1><p>Statistiques actuelles de votre équipe</p></div>
+    <div class="slots">${state.party.map(sheet).join('')}</div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+  app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
+    btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function sheet(hero, index) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const items = equippedItems(hero);
+  return `
+    <div class="card slot" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div>
+      <div class="cname">${esc(hero.name)}</div>
+      <div class="role">${cls.name} · Stat principale : ${STATS[cls.mainStat].label} ★</div>
+      <div class="stats sheet">${statsList(hero)}</div>
+      <div class="skillbox">
+        ${getSkills(hero).map((s) => `
+          <div class="skill-line">
+            <b>${s.name}</b>${s.boosted ? ' <span class="boosted">★ légendaire</span>' : ''} — ${s.cost} ${cls.resource.name}<br>
+            ${skillEffectLabel(stats, s)}
+          </div>`).join('')}
+      </div>
+      <div class="skillbox equipped-list">
+        ${items.length ? items.map(itemChip).join('') : '<span class="hint">Aucun équipement</span>'}
+      </div>
+      <button class="full" data-equip-hero="${index}">🎒 Gérer l'équipement</button>
+    </div>`;
+}
+
+return { renderStats };
+})();
+
+// ---- src/ui/screens/combat.js
+__modules["src/ui/screens/combat.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { COMBAT } = __modules["src/config.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
+const { estimateHit, estimateSkill, skillHitOptions, BASIC_ATTACK } = __modules["src/game/formulas.js"];
+const { targetsFor } = __modules["src/game/combat.js"];
+const { statsOf } = __modules["src/game/units.js"];
+const { esc, tip, bar, range } = __modules["src/ui/html.js"];
+const { skillEffectLabel, skillShortEstimate } = __modules["src/ui/format.js"];
+const { playerAction } = __modules["src/ui/encounter.js"];
+// Écran de combat. Le ciblage est toujours demandé explicitement,
+// même s'il ne reste qu'une seule cible possible.
+
+
+
+
+
+
+
+
+
+
+
+
+function renderCombat(app) {
+  const cb = state.combat;
+  const acting = cb.acting;
+  const activeHero = acting?.side === 'hero' ? acting.unit : null;
+
+  app.innerHTML = `
+    <div class="hero"><h1>⚔️ Combat</h1><p>${DUNGEONS[cb.dungeonKey].name} — Niveau ${cb.level}</p></div>
+    <div class="combatants">
+      <div>
+        <h3 class="side-title">VOTRE ÉQUIPE</h3>
+        ${cb.party.map((h) => heroUnit(h, h === acting?.unit)).join('')}
+      </div>
+      <div>
+        <h3 class="side-title">ENNEMIS</h3>
+        ${cb.enemies.map((e) => enemyUnit(e, e === acting?.unit)).join('')}
+      </div>
+    </div>
+    <div class="log">${cb.log.map((l) => `<div class="${l.hit ? 'hit' : ''}">${esc(l.text)}</div>`).join('')}</div>
+    ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
+  `;
+
+  if (activeHero) wireActions(app, activeHero);
+}
+
+function heroUnit(hero, active) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const res = cls.resource.name;
+  return `
+    <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
+      <div class="row1"><b>${cls.icon} ${esc(hero.name)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
+      ${bar(hero.hp, stats.pv, cls.color)}
+      <small ${tip(`${res} : ressource dépensée pour lancer les compétences de ${cls.name}.`)}>${res}: ${hero.res}/${stats.resMax}</small>
+      ${bar(hero.res, stats.resMax, 'var(--gold)')}
+      ${statusTags(hero)}
+    </div>`;
+}
+
+function enemyUnit(enemy, active) {
+  return `
+    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:var(--danger)">
+      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
+      ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
+      ${statusTags(enemy)}
+    </div>`;
+}
+
+function statusTags(unit) {
+  if (!unit.alive) return '';
+  const tags = [];
+  if (unit.guard) tags.push('🛡️ En garde');
+  if (unit.bleed > 0) tags.push(`🩸 Saignement (${unit.bleed})`);
+  return tags.length ? `<div class="status">${tags.join(' · ')}</div>` : '';
+}
+
+function waitingPanel(acting) {
+  const text = acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
+  return `<div class="card waiting">${text}</div>`;
+}
+
+function actionPanel(hero) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const atkEst = range(estimateHit(stats, BASIC_ATTACK));
+  const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
+  return `
+    <div class="card">
+      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
+      <div class="actions">
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée. Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
+        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
+        <span class="hint">Compétences ↓</span>
+      </div>
+      <div class="skillbox">
+        ${getSkills(hero).map((s, i) => `
+          <button data-skill="${i}" ${tip(`${s.desc} — ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée par un objet légendaire.' : ''}`)} ${hero.res < s.cost ? 'disabled' : ''}>
+            ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(stats, s)}
+          </button>`).join('')}
+      </div>
+      <div id="targetZone" class="target-zone"></div>
+    </div>`;
+}
+
+function wireActions(app, hero) {
+  const cb = state.combat;
+  const zone = app.querySelector('#targetZone');
+
+  const stats = getStats(hero);
+
+  // Estimation affichée sur chaque cible (défense de la cible comprise).
+  const targetEstimate = (action, unit) => {
+    if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
+    const skill = getSkills(hero)[action.skill];
+    if (skill.kind === 'heal') return `+${range(estimateSkill(stats, skill))} PV`;
+    return `~${range(estimateHit(stats, skillHitOptions(skill), statsOf(unit)))}`;
+  };
+
+  // Affiche les cibles valides ; l'action n'est lancée qu'au clic sur une cible.
+  const chooseTarget = (action) => {
+    const targets = targetsFor(cb, action);
+    if (!targets) return playerAction(action);
+    const list = targets.side === 'enemy' ? cb.enemies : cb.party;
+    zone.innerHTML = targets.units
+      .map((u) => `<button data-target="${list.indexOf(u)}">Cibler ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
+      .join('');
+    zone.querySelectorAll('[data-target]').forEach((btn) => {
+      btn.onclick = () => playerAction({ ...action, target: Number(btn.dataset.target) });
+    });
+  };
+
+  app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
+  app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
+  app.querySelectorAll('[data-skill]').forEach((btn) => {
+    btn.onclick = () => chooseTarget({ type: 'skill', skill: Number(btn.dataset.skill) });
+  });
+}
+
+return { renderCombat };
+})();
+
+// ---- src/main.js
+__modules["src/main.js"] = (() => {
+const { registerScreens, render } = __modules["src/ui/router.js"];
+const { renderCreate } = __modules["src/ui/screens/create.js"];
+const { renderHub } = __modules["src/ui/screens/hub.js"];
+const { renderStats } = __modules["src/ui/screens/stats.js"];
+const { renderEquipment } = __modules["src/ui/screens/equipment.js"];
+const { renderCombat } = __modules["src/ui/screens/combat.js"];
+// Point d'entrée : enregistre les écrans et lance le premier rendu.
+
+
+
+
+
+
+
+
+registerScreens({
+  create: renderCreate,
+  hub: renderHub,
+  stats: renderStats,
+  equipment: renderEquipment,
+  combat: renderCombat,
+});
+
+render();
+
+return {  };
+})();
+</script>
+</body>
+</html>

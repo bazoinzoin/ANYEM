@@ -7,6 +7,8 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 
 - `npm start` — serveur local sur http://localhost:8000
 - `npm test` — tests unitaires (`node --test`)
+- `npm run build` — régénère `dist/anyem.html` (jeu en un seul fichier, jouable en double-clic). **À lancer et commiter après toute modification de `index.html`, `css/` ou `src/`** : un test vérifie qu'il est à jour. Le joueur utilise ce fichier, il n'a pas Node.
+- `tools/build.mjs` ne gère que `import { … } from '…'` et `export function|const|let|class` : s'en tenir à ces formes.
 
 ## Architecture : couches à respecter
 

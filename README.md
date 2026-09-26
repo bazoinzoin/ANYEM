@@ -2,7 +2,11 @@
 
 RPG tour par tour roguelite dans le navigateur, en JavaScript vanilla (aucune dépendance, aucun build).
 
-## Lancer le jeu
+## Jouer sans rien installer
+
+Télécharge le fichier **`dist/anyem.html`** et ouvre-le d'un double-clic : tout le jeu est dedans.
+
+## Lancer le jeu (développement)
 
 ```sh
 npm start        # puis ouvrir http://localhost:8000
@@ -17,6 +21,14 @@ Le jeu est un site statique : il peut être publié tel quel avec GitHub Pages.
 Dans le dépôt GitHub : **Settings → Pages → Build and deployment**, Source « Deploy from a branch »,
 branche `main`, dossier `/ (root)`, puis **Save**. Après une ou deux minutes, le jeu est jouable à
 l'adresse `https://<utilisateur>.github.io/<dépôt>/`.
+
+## Version en un seul fichier
+
+```sh
+npm run build    # régénère dist/anyem.html à partir de index.html, css/ et src/
+```
+
+À relancer après chaque modification (un test échoue si `dist/anyem.html` n'est pas à jour).
 
 ## Tests
 
@@ -39,6 +51,8 @@ src/
     screens/          un fichier par écran (create, hub, stats, combat)
 tests/                tests unitaires de src/game
 tools/serve.mjs       serveur de développement
+tools/build.mjs       assemble dist/anyem.html (jeu en un seul fichier)
+dist/anyem.html       version jouable d'un double-clic (générée, ne pas modifier à la main)
 assets/               sprites, tuiles, sons (à venir)
 docs/                 DESIGN_DOC.md (vision du jeu) · PROJECT_STATUS.md (état et feuille de route)
 ```
