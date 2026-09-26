@@ -6,7 +6,7 @@ import { STAT_ORDER } from '../../data/stats.js';
 import { getClass, getStats } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
 import { esc } from '../html.js';
-import { itemCard, itemMeta, itemName, formatStat, slotLabel } from '../items.js';
+import { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } from '../items.js';
 import { goTo, goBack, backLabel } from '../router.js';
 import { statsList } from '../heroStats.js';
 
@@ -42,6 +42,10 @@ export function renderEquipment(app) {
         <div class="card bag">
           <h3>Sac</h3>
           ${bagList(hero)}
+          <h3>Matéria</h3>
+          ${materiaTable(state.materia)}
+          <h3>Consommables</h3>
+          <p class="hint">${consumablesLine(state.consumables)}</p>
         </div>
       </div>
     </div>

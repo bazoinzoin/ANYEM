@@ -4,7 +4,9 @@
 export const START_GOLD = 50;
 export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Marchand)
 
-// Ordre d'affichage et de création de l'équipe.
+// Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
+// (4 héros, classes au choix, doublons permis).
+export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin'];
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
 export const COMBAT = {
@@ -19,7 +21,11 @@ export const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
-  caps: { critChance: 75, esquive: 50, blocage: 50 }, // plafonds en %
+  caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
+  meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
+  ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)
+  executeThreshold: 0.3,  // « exécution » : bonus de dégâts contre une cible sous ce % de PV
+  minGuardFactor: 0.2,    // la garde (talents compris) ne réduit jamais les dégâts à moins de 20 %
 };
 
 // Génération des objets. budget(L) = budgetBase + budgetPerLevel × L
@@ -27,25 +33,37 @@ export const ITEM = {
   budgetBase: 3,
   budgetPerLevel: 1,
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
-  armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
+  armorDef: 1.5,          // Armure = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
   shieldBlock: { base: 5, perLevel: 0.2 }, // blocage (%) obligatoire d'un bouclier
-  jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
 
+// Butin : pour chaque ennemi vaincu, trois tirages indépendants — équipement,
+// matéria et consommable. Un ennemi peut donc tout laisser, rien, ou un mélange.
 export const LOOT = {
-  dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
-  bossDrops: 1,           // objets garantis par boss (le boss final en donne un de plus)
+  dropChance: 0.4,        // chance d'un équipement par ennemi ordinaire
+  bossDrops: 1,           // équipements garantis par boss (le boss final en donne un de plus)
   bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
+  // Matéria : plus fréquentes et moins rares que l'équipement (comparer à rarityWeights).
+  materiaChance: 0.5,
+  materiaAmount: { min: 1, max: 2 },
+  materiaRarityWeights: { commun: 40, peuCommun: 32, rare: 18, epique: 8, legendaire: 2 },
+  bossMateriaAmount: { min: 2, max: 4 }, // garanties pour un boss
+  bossMateriaRarityWeights: { peuCommun: 30, rare: 40, epique: 23, legendaire: 7 },
+  // Consommables : tirés selon leur poids `drop` (data/consumables.js).
+  consumableChance: 0.2,
+  bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
-// Donjons : nombre d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…)
-// et nombre d'acolytes accompagnant un boss.
+// Donjons : régénération quand on choisit de continuer après un boss, nombre
+// d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
+// d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 export const DUNGEON = {
+  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
 };
@@ -57,14 +75,16 @@ export const XP = {
   xpPerLevel: 5,
   toNextBase: 40,
   toNextPerLevel: 20,
+  maxLevel: 50,
 };
 
-// Arbres de compétences : 1 point par niveau (dès le niveau 1) ; le palier t d'une
+// Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
+// maximum, de quoi compléter une seule orientation) ; le palier t (0 à 9) d'une
 // branche demande t × tierPoints points déjà investis dans cette branche.
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
 export const TALENT_RULES = {
   pointsPerLevel: 1,
-  tierPoints: 2,
+  tierPoints: 5,
   resetCostPerLevel: 10,
 };
 
@@ -105,7 +125,6 @@ export const VARIANCE = {
 export const REWARDS = {
   goldBase: 20,
   goldPerLevel: 10,
-  victoryHealPct: 0.15,   // soin des survivants après une victoire
   defeatGoldLossPct: 0.2,
   defeatHpPct: 0.5,       // PV avec lesquels l'équipe revient au village
 };

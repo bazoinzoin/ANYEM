@@ -30,14 +30,14 @@ test("l'auberge soigne et relève les héros tombés", () => {
 
 const goblins = (n, level) => createEnemies(Array(n).fill('gobelin'), level);
 
-test('victoire : or, plus haut niveau atteint et soin partiel des survivants', () => {
+test('victoire : or, plus haut niveau atteint, et aucun soin automatique', () => {
   const game = newGame();
   game.party[0].hp = 10;
   applyVictory(game, { level: 3, enemies: goblins(2, 3) });
   assert.equal(game.gold, 50 + 20 + 10 * 3);
   assert.equal(game.dungeonLvl, 3);
   assert.equal(game.party[0].level, 1);
-  assert.equal(game.party[0].hp, 10 + Math.round(130 * 0.15));
+  assert.equal(game.party[0].hp, 10, 'pas de régénération entre deux combats');
   applyVictory(game, { level: 2, enemies: goblins(2, 2) });
   assert.equal(game.dungeonLvl, 3, 'ne redescend pas');
 });

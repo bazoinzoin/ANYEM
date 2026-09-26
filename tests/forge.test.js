@@ -86,9 +86,9 @@ test('les améliorations augmentent les stats de l\'objet et du héros qui le po
   const hero = game.party[0];
   const item = hero.equipment.plastron;
   const before = getStats(hero).def;
-  const base = item.stats.def;
+  const base = item.stats.armure;
   item.plus = 3;
-  assert.equal(itemStats(item).def, Math.max(Math.round(base * 1.3), base + 3));
-  assert.equal(item.stats.def, base, 'les stats de base ne changent pas');
+  assert.equal(itemStats(item).armure, Math.max(Math.round(base * 1.3), base + 3));
+  assert.equal(item.stats.armure, base, 'les stats de base ne changent pas');
   assert.ok(getStats(hero).def > before);
 });

@@ -7,9 +7,10 @@
 // `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
 
 import { COMBAT, VARIANCE } from '../config.js';
+import { EFFECTS } from '../data/effects.js';
 import { rand, random } from './rng.js';
 
-// Options d'un coup : { power, variance, magic, alwaysCrit, critBonus }
+// Options d'un coup : { power, variance, magic, alwaysCrit, critBonus, aoe, executePct }
 export const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false, critBonus: 0 };
 export const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false, critBonus: 0 };
 
@@ -20,6 +21,8 @@ export function skillHitOptions(skill) {
     magic: !!skill.magic,
     alwaysCrit: !!skill.alwaysCrit,
     critBonus: skill.critBonus ?? 0,
+    aoe: skill.target === 'allEnemies',
+    executePct: skill.executePct ?? 0,
   };
 }
 
@@ -42,10 +45,15 @@ export function powerOf(attacker, magic) {
 
 function hitMultiplier(attacker, opts, defender, crit) {
   let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+  // Talents : bonus aux compétences de zone.
+  if (opts.aoe && attacker.aoePct) mult *= 1 + attacker.aoePct / 100;
   if (defender) {
     mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
-    // Talent « Opportuniste » : bonus contre une cible affaiblie (debuff actif).
+    // Talents « Opportuniste »… : bonus contre une cible affaiblie (debuff actif).
     if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+    // Exécution (compétence ou talent) : bonus contre une cible presque vaincue.
+    const execute = (opts.executePct ?? 0) + (attacker.executePct ?? 0);
+    if (execute && defender.hpPct !== undefined && defender.hpPct < COMBAT.executeThreshold) mult *= 1 + execute / 100;
   }
   return mult;
 }
@@ -66,32 +74,50 @@ export function rollHit(attacker, opts, defender) {
   return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
 }
 
-// Soins : toujours sur la puissance magique (+ bonus de soins des talents).
-export function healAmount(stats, power) {
-  return Math.round(stats.magPower * power * (1 + (stats.healPct ?? 0) / 100));
+// Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
+// puissance physique pour une compétence `physHeal` (Paladin Templier, Force).
+export function healAmount(stats, power, phys = false) {
+  return Math.round((phys ? stats.physPower : stats.magPower) * power * (1 + (stats.healPct ?? 0) / 100));
 }
 
-// Dégâts par round d'un effet sur la durée (poison, saignement, brûlure…) :
-// puissance du lanceur × dot.power, + bonus des talents. Ignore la défense.
-export function dotTick(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.dot.power * (1 + (stats.dotPct ?? 0) / 100)));
+// Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
+// puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
+export function dotTick(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
 }
 
-// Soins par round d'un soin sur la durée.
-export function hotTick(stats, skill) {
-  return Math.max(1, healAmount(stats, skill.hot.power));
+// Soins par tour (Régénération) : puissance magique × power.
+export function hotTick(stats, power, phys = false) {
+  return Math.max(1, healAmount(stats, power, phys));
 }
 
-// Points de bouclier : puissance du lanceur (magique ou physique) × shield.power.
-export function shieldAmount(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.shield.power));
+// Dégâts d'un piège : puissance du lanceur × power, + bonus des talents (trapPct).
+export function trapDamage(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.trapPct ?? 0) / 100)));
+}
+
+// Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
+export function shieldAmount(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.shieldPct ?? 0) / 100)));
+}
+
+// Valeur d'un effet appliqué par `skill` (entrée { id, turns, power }) : dégâts ou
+// soins par tour, points de bouclier ; undefined pour un effet sans valeur.
+export function effectValue(stats, skill, entry) {
+  switch (EFFECTS[entry.id].value) {
+    case 'dot': return dotTick(stats, entry.power, skill.magic);
+    case 'hot': return hotTick(stats, entry.power, skill.physHeal);
+    case 'trap': return trapDamage(stats, entry.power, skill.magic);
+    case 'shield': return shieldAmount(stats, entry.power, skill.magic);
+    default: return undefined;
+  }
 }
 
 // Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,
 // soin (exact), ou null si la compétence n'inflige ni dégâts ni soin directs.
 export function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
-    const amount = healAmount(attacker, skill.power);
+    const amount = healAmount(attacker, skill.power, skill.physHeal);
     return { lo: amount, hi: amount };
   }
   if (skill.kind !== 'damage') return null;

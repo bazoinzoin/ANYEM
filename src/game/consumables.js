@@ -1,4 +1,5 @@
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
+// Utilisation en combat : combat.js (action « Objet ») ; entre deux étages : useOnMap().
 
 import { CONSUMABLES } from '../data/consumables.js';
 import { MERCHANT } from '../config.js';
@@ -21,10 +22,29 @@ export function addConsumable(inventory, key, amount = 1) {
   return true;
 }
 
-// La cible est-elle valable pour ce consommable ?
+export function usableIn(key, place) {
+  return CONSUMABLES[key].use.includes(place);
+}
+
+// Sans cible individuelle (toute l'équipe, ou effet global comme la Corde).
+export function isUntargeted(key) {
+  return ['party', 'none'].includes(CONSUMABLES[key].target);
+}
+
+// Effets négatifs du héros que ce consommable retirerait.
+function curedStatuses(key, hero) {
+  const { effect } = CONSUMABLES[key];
+  return statusesOf(hero).filter((s) => s.kind === 'debuff' && (effect.cleanse || effect.cure?.includes(s.key)));
+}
+
+// La cible est-elle valable ? Un remède ne vise que les héros qui ont un effet
+// qu'il guérit (pour ne pas le gaspiller).
 export function isValidTarget(key, target) {
   const def = CONSUMABLES[key];
-  return def.target === 'deadAlly' ? !target.alive : target.alive;
+  if (def.target === 'deadAlly') return !target.alive;
+  if (def.target !== 'ally' || !target.alive) return false;
+  if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
+  return true;
 }
 
 /**
@@ -48,10 +68,47 @@ export function applyConsumable(key, target) {
     gainResource(target, Math.round(stats.resMax * effect.resourcePct / 100));
     parts.push(`+${target.res - before} ressource`);
   }
-  if (effect.cleanse) {
-    const removed = statusesOf(target).filter((s) => s.kind === 'debuff').length;
-    target.statuses = statusesOf(target).filter((s) => s.kind !== 'debuff');
-    parts.push(removed ? `${removed} effet${removed > 1 ? 's' : ''} négatif${removed > 1 ? 's' : ''} retiré${removed > 1 ? 's' : ''}` : 'aucun effet négatif');
+  if (effect.cure || effect.cleanse) {
+    const removed = curedStatuses(key, target);
+    target.statuses = statusesOf(target).filter((s) => !removed.includes(s));
+    parts.push(`${removed.map((s) => s.name).join(', ')} retiré${removed.length > 1 ? 's' : ''}`);
   }
   return parts.join(', ');
+}
+
+// Tente : PV et ressource restaurés pour chaque héros en vie.
+export function restoreParty(party, pct) {
+  for (const hero of party.filter((h) => h.alive)) {
+    const stats = getStats(hero);
+    hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
+    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+  }
+}
+
+/**
+ * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
+ * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
+ * Retourne { ok, message, escaped } ; ok = false si l'utilisation est impossible.
+ */
+export function useOnMap(game, key, targetIndex) {
+  const def = CONSUMABLES[key];
+  if (!def || !game.expedition || !usableIn(key, 'map') || countOf(game.consumables, key) <= 0) return { ok: false };
+  let message;
+  let escaped = false;
+  if (def.effect.escape) {
+    game.expedition = null; // équivalent de escapeExpedition (game/dungeon.js), sans dépendance circulaire
+    escaped = true;
+    message = `${def.name} : l'équipe regagne le village sans encombre.`;
+  } else if (def.effect.restorePartyPct) {
+    if (!game.party.some((h) => h.alive)) return { ok: false };
+    restoreParty(game.party, def.effect.restorePartyPct);
+    message = `${def.name} : l'équipe se repose. PV et ressources restaurés.`;
+  } else {
+    const target = game.party[targetIndex];
+    const result = target ? applyConsumable(key, target) : null;
+    if (result === null) return { ok: false };
+    message = `${def.name} sur ${target.name} : ${result}.`;
+  }
+  game.consumables[key]--;
+  return { ok: true, message, escaped };
 }

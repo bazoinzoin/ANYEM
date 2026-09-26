@@ -4,15 +4,15 @@ import { state } from '../../state.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../../data/dungeons.js';
 import { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } from '../../game/dungeon.js';
 import { getClass, getStats, xpToNext } from '../../game/party.js';
-import { restAtInn } from '../../game/progression.js';
 import { esc, tip, bar } from '../html.js';
-import { goTo, showHub } from '../router.js';
+import { goTo } from '../router.js';
 import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
 import { openTalents } from './talents.js';
 import { openMerchant } from './merchant.js';
+import { openInn } from './inn.js';
 import { pointsAvailable } from '../../game/talents.js';
 
 export function renderHub(app) {
@@ -33,12 +33,14 @@ export function renderHub(app) {
     <div class="card section">
       <h2>Services</h2>
       <div class="services">
-        <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
+        <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
+        <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
         <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
   `;
@@ -48,12 +50,14 @@ export function renderHub(app) {
       if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
     };
   });
-  app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
+  app.querySelector('#inn').onclick = () => openInn();
+  app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
+  app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
 }
 
 function heroMini(hero) {

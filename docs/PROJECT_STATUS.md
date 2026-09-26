@@ -11,9 +11,9 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 ## Ce qui est déjà fonctionnel
 
-- **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
+- **Création d'équipe** : 4 héros, chacun d'une classe au choix parmi 6 (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana, Chasseur/Énergie, Paladin/Mana ; doublons permis), avec nom personnalisable.
 - **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
-- **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
+- **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Objet/Compétence/Passer le tour (plusieurs actions par tour pour le Voleur), ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
 - **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
 - **Donjons à étages** (voir détail ci-dessous) : Forêt Maudite et Catacombes oubliées, 25 étages chacun, un boss tous les 5 étages, expéditions sans retour possible avant le boss, points de départ après chaque boss, ennemis et boss avec capacités.
@@ -27,43 +27,91 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglages dans `src/config.js` (`XP`, `TALENT_RULES`).
 - **Orientations** (DESIGN_DOC §1) : Guerrier → Gardien, Berserker ; Voleur → Assassin, Empoisonneur ; Prêtre → Clerc, Prêcheur, Profane ; Mage → Feu, Glace, Foudre.
-- **Structure** : chaque orientation a 5 paliers. Paliers 0 et 2 : nœud secondaire (petit bonus de stats, 3 rangs). Paliers 1, 3 et 4 : nœud principal (nouvelle compétence ou nouveau passif / amélioration d'une compétence, 1 rang). Une branche complète coûte 9 points.
-- **Points** : 1 par niveau, dès le niveau 1. Le palier t d'une orientation demande 2 × t points déjà investis dans cette orientation (palier 4 : 8 points). On peut mélanger les orientations, mais les points étant rares, il faut choisir.
+- **Niveau maximum 50** (`XP.maxLevel`) : 1 point de talent par niveau, donc 50 points au maximum.
+- **Structure** : chaque orientation a **10 paliers (0 à 9) et 50 rangs** : au niveau 50, on complète exactement une orientation (on peut mélanger, mais alors pas de signature). Le palier t demande 5 × t points investis dans l'orientation (palier 9 : 45 points). Modèle commun : 12 nœuds secondaires (bonus à plusieurs rangs), 3 nouvelles compétences (paliers 1, 4, 7), 3 passifs (paliers 3, 6, 8) et la **compétence signature** au palier 9.
 - **Réinitialisation** au Maître des compétences contre 10 × niveau du héros en or.
-- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP (environ 2 combats par niveau). Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
-- **Compétences par orientation** (palier 1 / 3 / 4) :
-  - Gardien : Provocation (les ennemis doivent l'attaquer, +30 % Défense) / Rempart (Défendre donne un bouclier) / Mur de boucliers (bouclier sur toute l'équipe).
-  - Berserker : Frappe sauvage (+25 % de critique) / Berserk (+3 % de puissance par 10 % de PV manquants) / Déchaînement (zone + Enragé).
-  - Assassin : Taillade (ralentit) / Opportuniste (+25 % contre une cible affaiblie) / Déluge de lames (4 coups).
-  - Empoisonneur : Lame empoisonnée (poison 4 tours) / Venin virulent (poison +50 % et affaiblit) / Fiole de peste (poison sur tous les ennemis).
-  - Clerc : Prière de soins (soin de groupe) / Grâce (Soin Majeur moins cher et plus fort) / Résurrection.
-  - Prêcheur : Rénovation (soin sur la durée) / Bouclier sacré / Bénédiction (+20 % puissance à toute l'équipe).
-  - Profane : Mot de douleur (ténèbres sur la durée) / Confusion (la cible peut frapper ses alliés) / Fléau (ténèbres sur la durée, zone).
-  - Feu : Immolation (brûlure) / Boule ardente (Boule de Feu enflamme) / Pluie de feu (zone + brûlure).
-  - Glace : Éclat de glace (ralentit) / Nova de givre (zone + ralentit) / Prison de glace (étourdit : la cible perd son tour).
-  - Foudre : Chaîne d'éclairs (zone) / Surcharge (+25 % puissance à un allié) / Tempête (énorme dégât direct).
-- **Statuts** (`src/game/statuses.js`) : durée en rounds, décomptée en fin de round (sauf l'étourdissement, consommé au tour perdu) ; les effets sur la durée ignorent la défense. Un statut de même nom se rafraîchit au lieu de se cumuler.
+- **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP. Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
+- **Passifs disponibles** (voir l'en-tête de `data/talents.js`) : berserk, vol de vie, exécution (bonus sous 30 % de PV), bonus contre cible affaiblie, bonus de zone, garde renforcée, boucliers renforcés, soins, dégâts sur la durée, ressource max / régénération, Rage par coup, combo sur critique, Énergie rendue par les finishers. Compétences : `cleanse` (retire les effets négatifs), `resourceGain` + `oncePerCombat`, `executePct`.
+- **Compétences par orientation** (palier 1 / 4 / 7 / signature 9 — passifs 3 / 6 / 8) :
+  - Gardien : Provocation / Coup de bouclier (étourdit) / Mur de boucliers / **Dernier rempart** (Bouclier + Protection sur l'équipe, provocation) — Rempart, Garde de fer, Cri de défi.
+  - Berserker : Frappe sauvage / Tourbillon (zone) / Exécution / **Carnage sanglant** (zone + Enragé) — Berserk, Frénésie, Sang bouillant.
+  - Assassin : Taillade (générateur) / Poussée d'adrénaline (Énergie, 1 fois par combat) / Déluge de lames (finisher) / **Marque de la mort** (finisher critique garanti) — Sceau du destin, Instinct du tueur, Rafale.
+  - Empoisonneur : Lame empoisonnée (générateur) / Gaz nauséabond (poison + Affaibli en zone) / Fiole de peste (finisher de zone) / **Mort lente** (finisher : poison énorme + Terreur) — Venin virulent, Hémorragie, Poison paralysant.
+  - Clerc : Prière de soins / Résurrection / Purification (retire les effets négatifs) / **Miracle** (grand soin de groupe, purification, Bouclier) — Grâce, Prière fervente, Résurrection supérieure.
+  - Prêcheur : Rénovation / Bouclier sacré / Jugement (lumière + Brûlure) / **Hymne divin** (Régénération, Bouclier, Puissance sur l'équipe) — Rénovation persistante, Bouclier de lumière, Égide supérieure.
+  - Profane : Mot de douleur / Confusion / Fléau / **Apocalypse** (zone, Ténèbres, Affaibli) — Douleur prolongée, Démence (Confusion + Terreur), Contagion.
+  - Feu (dégâts sur la durée) : Immolation / Mur de flammes / Pluie de feu / **Météore** — Boule ardente, Feu persistant, Embrasement.
+  - Glace (dégâts directs + ralentissements) : Éclat de glace / Nova de givre / Lance de glace / **Blizzard** — Givre persistant, Éclatement, Gel profond.
+  - Foudre (gros dégâts directs + étourdissement) : Chaîne d'éclairs / Onde de choc (étourdit) / Tempête / **Jugement céleste** (zone, étourdit) — Éclair renforcé, Électrocution, Paralysie.
+  - Œil de Faucon (Chasseur, gros tirs coûteux) : Tir perçant / Salve (zone) / Tir de l'aigle / **Tir fatal** (critique garanti, bonus d'exécution) — Tir ajusté, Calme du tireur (+Énergie), Flèche perforante.
+  - Traqueur (Chasseur, petits tirs, contrôle, pièges) : Piège à mâchoires / Tir incapacitant (ralentit) / Champ de givre (pièges de givre sur tous) / **Terrain piégé** — Flèches barbelées, Maître piégeur, Tir éclair.
+  - Templier (Paladin tank, Force) : Intercession (encaisse la moitié des dégâts d'un allié) / Sceau de vie (auto-soin sur la Force) / Aura de protection / **Sacrifice divin** — Vengeance sacrée (vol de vie), Garde du croisé, Martyr.
+  - Lumière (Paladin soigneur, Intelligence) : Lumière de l'aube (soin de groupe) / Épuration (retire les effets négatifs) / Sceau de protection / **Lumière divine** — Main de lumière, Lumière purifiante, Aura de guérison. Soins un peu moins forts que le Prêtre (Lumière sacrée 0,9 contre Soin Majeur 1,1 ; soin de groupe 0,45 contre 0,55), compensés par une meilleure survie et la purification.
+- **Effets (buffs / debuffs)** : un **catalogue unique** (`src/data/effects.js`). Un effet est défini une seule fois ; une compétence (héros ou ennemi) ne fait que l'appliquer via `effects` (à ses cibles) ou `selfEffects` (au lanceur), avec sa durée et, pour les effets à valeur, sa puissance. C'est la compétence qui décide qui est touché (un ennemi, un allié, toute l'équipe…), jamais l'effet.
+  - Buffs : **Bouclier** (absorbe des dégâts), **Régénération** (soin par tour), **Puissance** (+25 % puissance physique et magique), **Hâte** (+25 % Vitesse), **Protection** (+50 % Défense et Défense magique), **Provocation** (attire les attaques, +30 % Défense), **Enragé** (+30 % puissance physique, −20 % Défense).
+  - Debuffs : **Poison**, **Saignement**, **Brûlure**, **Ténèbres** (dégâts par tour), **Ralenti** (−30 % Vitesse), **Étourdi** (perd son prochain tour), **Confus** (1 chance sur 2 de frapper un allié), **Affaibli** (−20 % puissance physique et magique), **Terreur** (−30 % Défense et Défense magique).
+  - Exemples : Rempart (Défendre), Mur de boucliers (toute l'équipe), Bouclier sacré (un allié) et Mur d'os (ennemi) appliquent tous l'effet Bouclier ; Hymne divin et Cri de ralliement appliquent Puissance ; le Hurlement du Loup alpha applique Puissance + Hâte ; la Malédiction applique Affaibli.
+  - Durée en tours, décomptée en fin de tour (sauf l'étourdissement, consommé au tour perdu) ; les dégâts et soins par tour ignorent la défense. Le même effet appliqué deux fois se rafraîchit au lieu de se cumuler ; des effets différents cohabitent (Poison + Saignement).
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
+
+## Classes à Énergie : Voleur (choix d'implémentation)
+
+- **Plusieurs actions par tour** : chaque action coûte de l'Énergie — Attaquer 35, Défendre 20, Objet 20, compétences selon leur coût. Le Voleur garde la main tant qu'il peut payer une action ; bouton **« Finir le tour »** pour s'arrêter avant (l'Énergie restante est conservée). S'il ne peut plus rien payer, son tour se termine seul. Une seule garde par tour.
+- **Énergie** : 100 max, pleine au début de chaque combat, **+45 au début de chacun de ses tours** (pas une recharge complète : place pour des compétences/talents qui en rendent).
+- **Points de combo** (inspiré de WoW), 5 max, remis à zéro à chaque combat : les **générateurs** (Coup Vicieux, Taillade, Lame empoisonnée) en donnent 1 ; les **finishers** (Éviscération, Lacération, Déluge de lames, Fiole de peste) les dépensent tous et exigent au moins 1 point. Puissance et valeur des effets d'un finisher sont données **par point de combo** (`finisher: true`, voir `game/combo.js`, `atCombo`).
+- **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
+- Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
+
+## Village : auberge et banque (choix d'implémentation)
+
+- **Auberge** (`game/roster.js`, écran `inn`) : repos gratuit ; **recrutement** d'un compagnon de n'importe quelle classe, au niveau 1 avec l'équipement de départ, à la place d'un membre de l'équipe ; le héros remplacé part **à l'auberge** (`state.reserve`) avec son équipement et ses talents, et n'y gagne pas d'XP. On peut échanger à tout moment un héros de l'équipe avec un héros de l'auberge (au village uniquement). Survoler un héros affiche l'équipement qu'il porte.
+- **Banque** (`game/bank.js`, écran `bank`) : dépôt et retrait d'or, d'objets, de consommables et de matéria. Ce qui est à la banque ne se perd pas lors d'une défaite. Fermée pendant une expédition. Le sac reste limité à 9 exemplaires par consommable ; la banque n'a pas de limite.
+- **Sac du joueur** : objets, consommables et matéria (visibles dans l'écran Équipement ; la Forge ne fait que les utiliser).
+- **Butin** : n'importe quel légendaire peut tomber, quelle que soit l'équipe (on peut recruter la classe correspondante).
+
+## Corps à corps / distance (choix d'implémentation)
+
+- **Position** de chaque héros choisie au village (bouton **Stratégie**, `hero.position`) ; par défaut Guerrier, Voleur, Paladin au corps à corps, Prêtre, Mage, Chasseur à distance. Chaque combat repart de cette position (`unit.row`).
+- **Ciblage** : un héros au corps à corps a 3 fois plus de chances d'être ciblé (`COMBAT.meleeTargetWeight`) ; la Provocation reste prioritaire.
+- **Armes** : attaque simple et compétences physiques (« à l'arme ») impossibles si la position ne correspond pas à l'arme (arc : distance ; autres : corps à corps). Sorts, soins, pièges, objets : partout.
+- **Changer de position** (bouton en combat) : prend tout le tour ; pour le Voleur et le Chasseur, seulement avant d'avoir agi.
+- **Riposte** (nouvelle stat secondaire, max 50 %) : une unité au corps à corps frappée au corps à corps (attaque simple ou compétence physique sur une cible) peut contre-attaquer pour 50 % de sa puissance physique, réduite par la Défense. Guerrier 5 %, Voleur et Paladin 3 % de base ; certains ennemis en ont (Chevalier squelette 20 %…).
+- **Ennemis** : magiciens (Spectre, Reine sylvestre, Nécromancien, Banshee, Liche) à distance ; les autres au corps à corps.
+
+## Chasseur et Paladin (choix d'implémentation)
+
+- **Chasseur** : classe à Énergie comme le Voleur (plusieurs actions par tour, mêmes coûts d'actions de base), mais **sans points de combo** ; Agilité, arc, armure moyenne. Tir visé (45 Énergie) et Tir rapide (20).
+- **Pièges** (effets du catalogue `piege`, `piegeDeGivre`) : posés sur un ennemi, ils se déclenchent au début de son prochain tour (dégâts, puis Étourdi ou Ralenti). Remède : Outils de désamorçage.
+- **Paladin** : Mana, Force **et** Intelligence (+1 de chaque par niveau ; chaque orientation n'en utilise qu'une). Frappe du croisé (physique, Force) et Lumière sacrée (soin, Intelligence).
+- **Intercession** (effet `intercession`) : la moitié des dégâts subis par l'allié est encaissée par le Paladin qui l'a lancée (s'il est en vie).
+- **Soins sur la Force** (`physHeal`) : les auto-soins du Templier utilisent la puissance physique.
+- Simulation : le Chasseur Œil de Faucon est au niveau du Voleur (meilleurs DPS mono-cible) ; une équipe avec un Paladin (Templier) à la place du Guerrier termine les donjons actuels.
 
 ## Donjons (choix d'implémentation)
 
 Contenu dans `src/data/dungeons.js` et `src/data/enemies.js`, logique dans `src/game/dungeon.js`, réglages dans `src/config.js` (`DUNGEON`, `LOOT`).
 - **Donjons** : Forêt Maudite (niveaux 1 → 20) puis Catacombes oubliées (20 → 30), comme dans le design doc ; 25 étages chacun (le design doc citait 50 comme exemple : il suffit de changer `floors` et d'ajouter des boss). Terminer un donjon ouvre le suivant.
 - **Étages** : le niveau des ennemis monte régulièrement du premier au dernier étage. Étages ordinaires : 2 ennemis tirés du bestiaire du donjon (3 à partir du 3e palier). Étage 5, 10, 15… : un boss (différent à chaque palier), accompagné de 0 à 2 acolytes selon le palier.
-- **Expédition** (DESIGN_DOC §5) : on enchaîne les étages sans repasser par le village (petit soin de 15 % après chaque victoire, ressources conservées, héros tombés à terre jusqu'à une Plume de phénix ou une Résurrection). On ne peut rentrer qu'au départ ou juste après un boss ; sinon, on continue à ses risques et périls. Entre deux étages : équipement, talents et statistiques restent accessibles.
+- **Expédition** (DESIGN_DOC §5) : on enchaîne les étages sans repasser par le village. **Aucun soin automatique entre deux combats** : PV et ressources restent tels qu'à la fin du combat (seuls les potions, la Tente, les compétences de soin et l'auberge soignent) ; les héros tombés restent à terre jusqu'à une Plume de phénix ou une Résurrection. On ne peut rentrer qu'au départ ou juste après un boss ; sinon, on continue à ses risques et périls. Entre deux étages : objets, équipement, talents et statistiques restent accessibles.
+- **Après un boss : choix obligatoire** entre « Rentrer au village » (tout le butin est conservé) et « Continuer le donjon ». Continuer rend **40 % des PV et de la ressource** aux héros en vie (`DUNGEON.continueRegenPct`), une seule fois, puis il faut vaincre le boss suivant pour pouvoir rentrer.
 - **Points de passage** : chaque boss vaincu devient un point de départ (entrer à l'étage 1, 6, 11…). Une défaite fait perdre l'or et une partie du sac (règle existante) et ramène au village ; la progression reste au dernier boss vaincu. On peut toujours repartir d'un palier inférieur pour s'entraîner.
 - **Boss** : 4 à 6 fois plus d'or, 5 à 8 fois plus d'XP, et un objet garanti de rareté peu commune à légendaire (deux pour le boss final).
 - **Capacités ennemies** : les ennemis et surtout les boss utilisent des capacités (morsure qui fait saigner, crachat venimeux, cri de ralliement, étourdissement, soins, malédiction…), au même format que les compétences des héros ; la provocation du Gardien s'applique aussi à ces capacités.
-- **Simulation d'équilibrage** (joueur automatique simple, sans équipement trouvé, sans Forge ni potions) : la Forêt se termine en 0 à 7 défaites, surtout contre le boss final ; les Catacombes demandent plus d'entraînement (1 à 11 défaites). Les talents réduisent fortement le nombre de défaites. À affiner avec de vraies parties.
+- **Simulation d'équilibrage** (joueur automatique simple, sans équipement trouvé, sans Forge ni potions, qui rentre après chaque boss), sans soin automatique entre les combats : sans talents, la Forêt se termine en 4 à 10 défaites et les Catacombes en 16 à 23 ; avec talents, 1 à 2 et 4 à 6. À affiner avec de vraies parties.
 - `state.dungeonLvl` devient « plus haut niveau atteint » : il sert au stock du Marchand.
 
 ## Marchand (choix d'implémentation)
 
 Réglages dans `src/config.js` (`MERCHANT`), consommables dans `src/data/consumables.js`, logique dans `src/game/merchant.js` et `src/game/consumables.js`.
 - **Revente** : uniquement les objets du sac. Prix = (5 + 2 × niveau) × rareté (commun ×1, peu commun ×2, rare ×4, épique ×8, légendaire ×16) × (1 + 20 % par amélioration). Confirmation pour un objet épique ou légendaire ; bouton « vendre tous les communs » avec confirmation.
-- **Consommables** : Potion de soin (30 % des PV max, 20 or), Grande potion (60 %, 50 or), Élixir (50 % de la ressource, 35 or), Remède (retire les effets négatifs, 25 or), Plume de phénix (relève un allié à 30 % des PV, 100 or). 9 maximum de chaque. L'équipe part avec 2 potions. Ils ne sont pas perdus en cas de défaite.
+- **Consommables** (`src/data/consumables.js`, 9 maximum de chaque ; l'équipe part avec 2 potions ; jamais perdus en cas de défaite) :
+  - Soins (combat et entre deux étages) : Potion de soin (30 % des PV max, 20 or), Grande potion (60 %, 50 or), Élixir (50 % de la ressource, 35 or), Plume de phénix (relève à 30 % des PV, 100 or).
+  - Remèdes (combat seulement, car les effets négatifs disparaissent à la fin de chaque combat) : un remède bon marché par effet — Antidote (poison), Bandage (saignement), Onguent (brûlure), Sels revigorants (étourdissement), Tisane de clarté (confusion), Tonique (ralentissement), Fortifiant (affaiblissement), Potion de courage (terreur), Eau bénite (malédiction, ténèbres), 12 à 18 or — et le Remède universel (tous les effets, 60 or). Un remède ne peut viser qu'un héros qui a l'effet qu'il guérit. Un test vérifie que chaque effet négatif du jeu a un remède dédié.
+  - Utilitaires : Corde d'évasion (150 or, en combat ou entre deux étages : retour au village sans perte, progression au dernier boss vaincu) ; Tente (100 or, entre deux étages : PV et ressource restaurés pour les héros en vie).
+- **Confusion des héros** : la Banshee et la Reine sylvestre peuvent rendre un héros confus ; à son tour, il a une chance sur deux de frapper un allié au lieu de jouer.
 - **Équipement en vente** : 4 objets du niveau du donjon (commun 55 %, peu commun 35 %, rare 10 %), renouvelés à chaque nouveau niveau de donjon ; prix d'achat = 4 × prix de revente.
-- **Action « Objet » en combat** (DESIGN_DOC §2) : utiliser un consommable prend le tour du héros ; cible toujours choisie, avec l'effet prévu affiché (ex. « Cibler Mage · +28 PV »). La Plume de phénix ne propose que les alliés tombés.
+- **Action « Objet » en combat** (DESIGN_DOC §2) : utiliser un consommable prend le tour du héros ; cible toujours choisie, avec l'effet prévu affiché (ex. « Cibler Mage · +28 PV », « retire Poison ») ; la Corde demande une confirmation. La Plume de phénix ne propose que les alliés tombés.
+- **Objets entre deux étages** : l'écran d'expédition liste les objets utilisables sur place (soins, Plume, Tente, Corde).
 
 ## Forge (choix d'implémentation)
 
@@ -76,15 +124,17 @@ Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
 
 Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus dans `src/data/items.js`.
 - **Emplacements** : casque, épaulières, plastron, gants, ceinture, bottes, collier, anneau ×2, main droite, main gauche.
-- **Stat obligatoire** : Attaque (armes), Défense (armures), Défense magique (bijoux — choix non précisé par le design doc). **Exception : le bouclier a deux stats obligatoires, Défense et Blocage**, et le Blocage peut en plus ressortir en stat secondaire (il se cumule alors et s'affiche sur deux lignes).
+- **Trois catégories** : armes, armures (casque, épaulières, plastron, gants, bottes — plus de ceinture), bijoux (anneaux, collier).
+- **Stat obligatoire** : Attaque (armes), **Armure** (armures ; bouclier : Armure + Blocage), **aucune pour les bijoux**. L'Armure compte à la fois comme Défense et comme Défense magique ; Défense et Défense magique sont désormais des stats secondaires qui s'y ajoutent : un bijou commun n'a que sa stat principale, avec un coefficient plus élevé (anneau 1,8, collier 2,2 ; arme à deux mains 1,6, plastron 1). **Exception : le bouclier a deux stats obligatoires, Armure et Blocage**, et le Blocage peut en plus ressortir en stat secondaire (il se cumule alors et s'affiche sur deux lignes).
 - **Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale** (2 stats, 3 pour un bouclier). Les stats secondaires n'apparaissent qu'à partir de peu commun ; elles sont rangées à part dans `item.bonus`.
-- **Stat principale** cohérente avec le type : armure lourde = Force, moyenne = Force/Agilité, légère = Intelligence, bâton = Intelligence, dague = Agilité/Intelligence, armes 1M = Force/Agilité, 2M = Force, bijoux = au choix. (Voir « Dégâts physiques et magiques » ci-dessous pour leur effet.)
+- **Stat principale** : toute arme, toute armure (lourde, moyenne, légère) et tout bijou peut sortir en Force, Agilité ou Intelligence ; les boucliers en Force ou Intelligence. (Voir « Dégâts physiques et magiques » ci-dessous pour leur effet.)
 - **Raretés** : commun (gris, 0 secondaire), peu commun (vert, 1), rare (bleu, 2), épique (violet, 3), légendaire (orange, 4 + passif unique). Les stats obligatoire/principale sont aussi multipliées par la rareté.
 - **Niveau** : un objet a le niveau du donjon où il est trouvé ; ses stats en dépendent.
 - **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
-- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère).
-- **Légendaires** : 2 par classe, chacun modifie une compétence de base (puissance, coût ou durée du saignement). Pourront plus tard viser les compétences d'orientation.
-- **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Coup Vicieux est un critique garanti.
+- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère), Chasseur (arc, armure moyenne), Paladin (armes 1M/2M de corps à corps, bouclier, armure lourde/légère).
+- **Armes** (de la plus lente à la plus rapide) : masse à deux mains, hache à deux mains, épée à deux mains, bâton, arc, masse, hache, épée, dague. **Coefficient de vitesse d'attaque** (0,8 à 1,12) : il multiplie la Vitesse du héros (moyenne des deux armes en ambidextrie) ; les armes lentes frappent plus fort. **Toute arme peut sortir en Force, Agilité ou Intelligence.** Arc = seule arme à distance ; toutes les autres sont de corps à corps. Les boucliers peuvent porter Force ou Intelligence.
+- **Légendaires** (consultables à la création : bouton Détails, onglet Légendaires, avec le symbole de la classe ; un légendaire sans classe serait neutre et équipable par tous) : un par orientation (14), chacun renforce une compétence de cette orientation (voir `LEGENDARIES`). N'importe quel légendaire peut tomber, quelle que soit l'équipe.
+- **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Le Voleur utilise des points de combo (voir plus haut).
 
 ## Dégâts physiques et magiques
 
@@ -92,7 +142,11 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Puissance magique** = 2 × Intelligence. Utilisée par les sorts (compétences `magic: true` : Boule de Feu, Éclair, Éclat de Lumière) et par tous les soins ; réduite par la Défense magique de la cible. Elle ne compte jamais pour une attaque à l'arme : un Mage qui tape au bâton fait peu de dégâts.
 - Les éléments (feu, glace, foudre, lumière…) viendront plus tard sur les sorts.
 - Coefficients dans `src/config.js` (`COMBAT.physStatFactor`, `COMBAT.magicPerInt`) ; stat physique par classe dans `src/data/classes.js` (`physStat`).
-- **Butin** : 40 % de chance par ennemi vaincu (commun 50 %, peu commun 30 %, rare 14 %, épique 5 %, légendaire 1 %). En cas de défaite, chaque objet du sac a 50 % de chance d'être perdu ; l'équipement porté n'est jamais perdu.
+- **Butin** (`src/game/loot.js`, réglages `LOOT`) : pour chaque ennemi vaincu, **trois tirages indépendants** — un ennemi peut tout laisser, rien, ou un mélange :
+  - équipement : 40 % (commun 50 %, peu commun 30 %, rare 14 %, épique 5 %, légendaire 1 %) ; boss : garanti, peu commun à légendaire ;
+  - matéria (arme ou armure au hasard) : 50 %, 1 à 2, **moins rares que l'équipement** (commun 40 %, peu commun 32 %, rare 18 %, épique 8 %, légendaire 2 %) ; boss : 2 à 4 garanties, peu commune à légendaire ;
+  - consommable : 20 % (60 % pour un boss), tiré selon son poids `drop` (potions fréquentes, Plume, Tente et Corde rares). Un consommable trouvé au-delà du maximum transporté est perdu.
+- **Défaite** : chaque objet du sac a 50 % de chance d'être perdu ; l'équipement porté, les matéria et les consommables ne sont jamais perdus.
 - **Départ** : chaque héros commence avec une arme et un plastron communs ; les stats de base ont été ajustées pour garder la même puissance qu'avant l'équipement.
 
 ## Architecture actuelle (à connaître avant de modifier)

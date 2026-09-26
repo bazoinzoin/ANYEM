@@ -9,11 +9,12 @@ import {
 import { esc, tip, bar } from '../html.js';
 import { skillEffectLabel } from '../format.js';
 import { goTo, goBack, backLabel } from '../router.js';
+import { TALENT_RULES, XP } from '../../config.js';
 
 // État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
 const view = { heroIndex: 0, confirmReset: false, flash: null };
 
-const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif' };
+const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
 
 export function openTalents(heroIndex = view.heroIndex) {
   Object.assign(view, { heroIndex, confirmReset: false, flash: null });
@@ -48,7 +49,7 @@ export function renderTalents(app) {
         ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
       </button>
     </div>
-    <p class="hint">Chaque niveau rapporte 1 point. Un palier se débloque en investissant des points dans la même orientation (palier 1 : 2 points, palier 2 : 4, palier 3 : 6, palier 4 : 8).</p>
+    <p class="hint">Chaque niveau rapporte 1 point, soit ${XP.maxLevel} points au niveau maximum (${XP.maxLevel}) : de quoi compléter une seule orientation. Un palier se débloque en investissant des points dans la même orientation : ${TALENT_RULES.tierPoints} points par palier, jusqu'à la compétence signature du palier 9 (${tierRequirement(9)} points).</p>
     <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
@@ -74,36 +75,47 @@ export function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
-function branchCard(hero, branch) {
+// Arbres de talents d'un héros en lecture seule (aperçu à la création d'équipe).
+export function talentTreesPreview(hero) {
+  return `<div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b, true)).join('')}</div>`;
+}
+
+function branchCard(hero, branch, readOnly = false) {
   const invested = pointsInBranch(hero, branch);
   return `
     <div class="card branch">
-      <h3>${branch.icon} ${branch.name} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
+      <h3>${branch.icon} ${branch.name}${readOnly ? '' : ` <small>${invested} pt${invested > 1 ? 's' : ''}</small>`}</h3>
       <p class="hint">${branch.desc}</p>
-      ${branch.nodes.map((n) => nodeCard(hero, branch, n)).join('')}
+      ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
+        const locked = !readOnly && invested < tierRequirement(tier);
+        return `
+        <div class="tier-group ${locked ? 'locked' : ''}">
+          <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
+          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n, readOnly)).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
 }
 
-function nodeCard(hero, branch, node) {
+function nodeCard(hero, branch, node, readOnly = false) {
   const rank = rankOf(hero, node.id);
   const reason = cannotLearnReason(hero, node.id);
   const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
-  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
+  const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
   let body = esc(node.desc);
   if (node.skill) {
     const s = node.skill;
     body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
   }
-  const action = reason
+  const action = readOnly ? '' : reason
     ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
     : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
   return `
     <div class="talent ${node.kind} ${status}">
       <div class="talent-head">
-        <span class="tier">Palier ${node.tier}</span>
         <b>${esc(node.name)}</b>
         <span class="kind">${KIND_LABELS[node.kind]}</span>
-        <span class="rank">${rank}/${node.ranks}</span>
+        <span class="rank">${readOnly ? `${node.ranks} rang${node.ranks > 1 ? 's' : ''}` : `${rank}/${node.ranks}`}</span>
       </div>
       <div class="talent-body">${body}</div>
       ${action}

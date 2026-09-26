@@ -5,8 +5,11 @@
 import { REWARDS, LOOT, XP } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
-import { heal } from './units.js';
 import { rollLoot } from './loot.js';
+import { emptyMateria } from './forge.js';
+import { addConsumable } from './consumables.js';
+import { CONSUMABLES } from '../data/consumables.js';
+import { RARITIES, MATERIA_KINDS } from '../data/items.js';
 import { random } from './rng.js';
 
 const mult = (enemy, field) => ENEMIES[enemy.enemyKey]?.[field] ?? 1;
@@ -21,27 +24,42 @@ export function goldReward(level, enemies) {
   return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
 }
 
+// « 2 × Matéria d'arme rare, 1 × Matéria d'armure commun »
+function materiaText(materia) {
+  return materia.map((m) => `${m.amount} × ${MATERIA_KINDS[m.kind].label} ${RARITIES[m.rarity].label.toLowerCase()}`).join(', ');
+}
+
 /**
- * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
- * même XP pour chaque héros (tombés compris), petit soin des survivants.
- * Retourne { message, loot, gold, xp, levelUps }.
+ * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
+ * (équipement dans le sac, matéria, consommables — voir loot.js),
+ * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * restent tels qu'à la fin du combat.
+ * Un consommable trouvé alors qu'on en porte déjà le maximum est perdu.
+ * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps }.
  */
 export function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const loot = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
+  game.materia ??= emptyMateria();
+  for (const m of materia) game.materia[m.kind][m.rarity] += m.amount;
+  game.consumables ??= {};
+  const consumables = found.filter((key) => addConsumable(game.consumables, key));
+  const full = found.length - consumables.length;
   game.dungeonLvl = Math.max(game.dungeonLvl, level);
-  for (const hero of game.party) {
-    if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
-  }
-  const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
+  const parts = [];
+  if (loot.length) parts.push(`${loot.length} équipement${loot.length > 1 ? 's' : ''} (dans le sac)`);
+  if (materia.length) parts.push(materiaText(materia));
+  if (consumables.length) parts.push(consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', '));
+  if (full) parts.push(`${full} consommable${full > 1 ? 's' : ''} laissé${full > 1 ? 's' : ''} faute de place`);
+  const lootText = parts.length ? ` Butin : ${parts.join(' · ')}.` : ' Aucun butin.';
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, gold, xp, levelUps };
+  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).

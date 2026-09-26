@@ -3,23 +3,32 @@
 //
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
-// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
+// le combat est terminé et cb.result vaut 'victory', 'defeat' ou 'escape'
+// (Corde d'évasion : l'équipe quitte le donjon).
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant.
+//
+// Classes à Énergie (game/combo.js) : après une action, le héros garde la main
+// (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
+// { type: 'endTurn' } finit son tour. Les autres classes n'ont qu'une action par
+// tour, mais peuvent aussi passer leur tour.
 
 import { COMBAT } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
-import { getClass, getSkills, gainResource } from './party.js';
+import { getClass, getSkills, getStats, gainResource } from './party.js';
+import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
+import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
 import {
-  rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount,
+  rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor,
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { addStatus, hasStatus, consumeStun, tickStatuses } from './statuses.js';
-import { applyConsumable, countOf, isValidTarget } from './consumables.js';
+import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } from './statuses.js';
+import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
+import { EFFECTS } from '../data/effects.js';
 import { pick, random } from './rng.js';
 
 /**
@@ -32,6 +41,11 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
+    hero.combo = 0;
+    hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
+    hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
+    // L'Énergie est pleine au début de chaque combat.
+    if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
   const cb = {
     title, level, party, enemies: createEnemies(enemies, level), consumables,
@@ -56,6 +70,8 @@ export function checkOutcome(cb) {
 
 // Avance jusqu'au prochain combattant vivant (et non étourdi) et prépare son tour.
 export function nextTurn(cb) {
+  // Héros à Énergie qui n'a pas fini son tour : il garde la main.
+  if (cb.acting?.side === 'hero' && !checkOutcome(cb)) return cb.acting;
   cb.acting = null;
   while (!checkOutcome(cb)) {
     if (cb.qIndex >= cb.queue.length) {
@@ -69,8 +85,17 @@ export function nextTurn(cb) {
       cb.qIndex++;
       continue;
     }
+    triggerTraps(cb, turn.unit);
+    if (!turn.unit.alive) {
+      cb.qIndex++;
+      continue;
+    }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
+      cb.qIndex++;
+      continue;
+    }
+    if (turn.side === 'hero' && confusedHeroStrikes(cb, turn.unit)) {
       cb.qIndex++;
       continue;
     }
@@ -79,6 +104,21 @@ export function nextTurn(cb) {
     return turn;
   }
   return null;
+}
+
+// Pièges posés sur l'unité : ils se déclenchent au début de son tour (dégâts,
+// puis effets du piège, ex. étourdissement qui lui fait perdre ce tour).
+function triggerTraps(cb, unit) {
+  for (const trap of statusesOf(unit).filter((s) => s.trap)) {
+    unit.statuses = statusesOf(unit).filter((s) => s !== trap);
+    const { taken, fell } = hurt(cb, unit, trap.trap);
+    log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
+    if (fell) {
+      logFall(cb, unit);
+      return;
+    }
+    for (const e of EFFECTS[trap.key].trap.effects ?? []) addStatus(unit, makeStatus(e.id, e.turns));
+  }
 }
 
 // Ordre de jeu : vitesse décroissante (tri stable : à égalité, les héros d'abord).
@@ -100,7 +140,7 @@ function endRound(cb) {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
-        const { taken, fell } = damage(unit, tick.dot);
+        const { taken, fell } = hurt(cb, unit, tick.dot);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
@@ -112,8 +152,21 @@ function endRound(cb) {
   }
 }
 
+// Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
+function confusedHeroStrikes(cb, hero) {
+  const allies = cb.party.filter((h) => h.alive && h !== hero);
+  if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
+  const victim = pick(allies);
+  const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
+  const { taken, fell } = hurt(cb, victim, hit.amount);
+  log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
+  if (fell) logFall(cb, victim);
+  return true;
+}
+
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
+  hero.actedThisTurn = false;
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
 }
 
@@ -138,7 +191,9 @@ function aliveAt(list, index) {
  */
 export function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
-  if (action.type === 'item') return { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  if (action.type === 'item') {
+    return isUntargeted(action.item) ? null : { side: 'hero', units: cb.party.filter((h) => isValidTarget(action.item, h)) };
+  }
   if (action.type !== 'skill') return null;
   const skill = getSkills(cb.acting.unit)[action.skill];
   if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
@@ -147,66 +202,180 @@ export function targetsFor(cb, action) {
   return null;
 }
 
-// Un consommable est-il utilisable maintenant (en stock, cible possible) ?
+// Un consommable est-il utilisable maintenant (en stock, cible possible, Énergie
+// suffisante pour un héros à Énergie) ?
 export function canUseItem(cb, key) {
-  return countOf(cb.consumables, key) > 0 && cb.party.some((h) => isValidTarget(key, h));
+  if (!CONSUMABLES[key] || !usableIn(key, 'combat') || countOf(cb.consumables, key) <= 0) return false;
+  if (cb.acting?.side === 'hero' && !canPay(cb.acting.unit, 'item')) return false;
+  return isUntargeted(key) || cb.party.some((h) => isValidTarget(key, h));
 }
 
-// Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
+// Une compétence est-elle utilisable maintenant (ressource, cible possible, points
+// de combo pour un finisher) ?
 export function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
+  if (skill.finisher && comboOf(hero) < 1) return false;
+  if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
+  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
 
+// Action de base possible maintenant pour le héros actif ('attack' | 'defend').
+export function canDoAction(cb, hero, type) {
+  if (!canPay(hero, type)) return false;
+  if (type === 'attack') return canUseWeapon(hero) && cb.enemies.some(isAlive);
+  if (type === 'defend') return !(hero.guard && isMultiAction(hero)); // une seule garde par tour
+  return true;
+}
+
+// Le héros peut-il encore agir ce tour-ci (classes à Énergie) ?
+export function hasActionLeft(cb, hero) {
+  return canDoAction(cb, hero, 'attack') || canDoAction(cb, hero, 'defend')
+    || getSkills(hero).some((s) => canUseSkill(cb, hero, s))
+    || Object.keys(CONSUMABLES).some((k) => canUseItem(cb, k));
+}
+
 /**
  * Résout l'action du héros actif.
- * action : { type: 'defend' }
+ * action : { type: 'endTurn' }  (passer / finir son tour)
+ *        | { type: 'move' }     (changer de position : corps à corps ↔ distance, prend le tour)
+ *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
- *        | { type: 'item', item: cléConsommable, target: indexAllié }
+ *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 export function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
 
+  if (action.type === 'move') {
+    if (!canChangePosition(hero)) return false;
+    hero.row = otherRow(hero.row);
+    log(cb, `${hero.name} passe ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'}.`, true);
+    endTurn(cb); // changer de position prend toujours le tour
+    return true;
+  }
+
+  if (action.type === 'endTurn') {
+    log(cb, isMultiAction(hero) ? `${hero.name} termine son tour.` : `${hero.name} passe son tour.`);
+    endTurn(cb);
+    return true;
+  }
+
   if (action.type === 'defend') {
+    if (!canDoAction(cb, hero, 'defend')) return false;
+    hero.res -= actionCost(hero, 'defend');
     hero.guard = true;
     log(cb, `${hero.name} se met en garde.`, true);
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, { key: 'rempart', name: 'Rempart', icon: '🛡️', kind: 'buff', turns: 2, shield: amount });
-      log(cb, `${hero.name} lève un rempart (bouclier de ${amount}).`, true);
+      addStatus(hero, makeStatus('bouclier', 2, amount));
+      log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
-    if (!target) return false;
+    if (!target || !canDoAction(cb, hero, 'attack')) return false;
+    hero.res -= actionCost(hero, 'attack');
     const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const { fell } = damage(target, hit.amount);
+    const { taken, fell } = damage(target, hit.amount);
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
-    gainResource(hero, getClass(hero).resource.onAttack);
+    lifesteal(cb, hero, taken);
+    gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
+    if (!fell) riposte(cb, hero, target);
   } else if (action.type === 'item') {
-    const target = cb.party[action.target];
-    if (!CONSUMABLES[action.item] || !target || !canUseItem(cb, action.item)) return false;
-    const result = applyConsumable(action.item, target);
-    if (result === null) return false;
+    if (!canUseItem(cb, action.item)) return false;
+    const def = CONSUMABLES[action.item];
+    const cost = actionCost(hero, 'item');
+    if (def.effect.escape) {
+      cb.result = 'escape';
+      log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
+    } else {
+      const target = cb.party[action.target];
+      const result = target ? applyConsumable(action.item, target) : null;
+      if (result === null) return false;
+      log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
+    }
+    // Payé après l'effet : un Élixir rend de l'Énergie sur la ressource déjà dépensée.
+    hero.res = Math.max(0, hero.res - cost);
     cb.consumables[action.item]--;
-    log(cb, `${hero.name} utilise ${CONSUMABLES[action.item].name} sur ${target.name} (${result}).`, true);
   } else if (action.type === 'skill') {
-    const skill = getSkills(hero)[action.skill];
-    if (!skill || !canUseSkill(cb, hero, skill)) return false;
+    const base = getSkills(hero)[action.skill];
+    if (!base || !canUseSkill(cb, hero, base)) return false;
+    const skill = atCombo(base, comboOf(hero));
     const targets = skillTargets(cb, hero, skill, action.target);
     if (!targets) return false;
     hero.res -= skill.cost;
-    useSkill(cb, hero, skill, targets);
+    if (skill.finisher) hero.combo = 0;
+    if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
+    const { crit } = useSkill(cb, hero, skill, targets);
+    if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
+    // Talent « Implacable » : un finisher rend de l'Énergie par point de combo dépensé.
+    if (skill.finisher) gainResource(hero, skill.comboPoints * (statsOf(hero).finisherRefund ?? 0));
+    if (skill.comboGain) {
+      const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
+      if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
+    }
   } else {
     return false;
   }
+
+  hero.actedThisTurn = true;
+  if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
+    if (hasActionLeft(cb, hero)) return true; // le héros garde la main
+    const res = getClass(hero).resource.name;
+    log(cb, `${hero.name} n'a plus assez ${/^[AEIOUÉÈ]/.test(res) ? "d'" : 'de '}${res} : fin du tour.`);
+  }
   endTurn(cb);
   return true;
+}
+
+// Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
+function hurt(cb, unit, amount) {
+  const r = damage(unit, amount);
+  if (r.protector?.fell) logFall(cb, r.protector.unit);
+  return r;
+}
+
+// « (12 encaissés par Aldric) » quand une Intercession a pris une part des dégâts.
+function redirectText(r) {
+  return r.redirected ? ` (${r.redirected} encaissés par ${r.protector.unit.name})` : '';
+}
+
+// Riposte : `defender`, au corps à corps et frappé au corps à corps par
+// `attacker`, a une chance (stat Riposte) de contre-attaquer pour une part de sa
+// puissance physique, réduite par la Défense de l'attaquant.
+function riposte(cb, attacker, defender) {
+  if (!attacker.alive || !defender.alive || attacker.row !== 'melee' || defender.row !== 'melee') return;
+  const stats = statsOf(defender);
+  if (random() >= chance(stats, 'riposte')) return;
+  const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
+  const { taken, fell } = hurt(cb, attacker, amount);
+  log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
+  if (fell) logFall(cb, attacker);
+}
+
+// Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
+function lifesteal(cb, hero, dealt) {
+  const pct = statsOf(hero).lifestealPct;
+  if (!pct || !dealt || !hero.alive) return;
+  const healed = heal(hero, Math.round(dealt * pct / 100));
+  if (healed) log(cb, `${hero.name} vole ${healed} PV.`);
+}
+
+// Dégâts subis par une unité en garde (Défendre ; talents « guardBonus » en plus).
+function guarded(unit, amount) {
+  if (!unit.guard) return amount;
+  const factor = Math.max(COMBAT.minGuardFactor, COMBAT.guardFactor - (statsOf(unit).guardBonus ?? 0) / 100);
+  return Math.round(amount * factor);
+}
+
+// Rage gagnée par un héros touché qui survit (classe + talents).
+function onHitTaken(hero) {
+  gainResource(hero, (getClass(hero).resource.onHitTaken ?? 0) + (statsOf(hero).resOnHitTaken ?? 0));
 }
 
 function critText(hit) {
@@ -215,9 +384,10 @@ function critText(hit) {
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}`;
+  const notes = hits.map((h) => h.note ?? '').join('');
+  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
   const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
-  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}`;
+  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
 function skillTargets(cb, hero, skill, index) {
@@ -240,28 +410,32 @@ function targetLabel(skill, targets) {
   return ` sur ${targets[0].name}`;
 }
 
-// Applique une compétence (coût déjà payé) à ses cibles.
 // Applique une compétence (coût déjà payé) à ses cibles. `caster` peut être un
 // héros ou un ennemi (capacités ennemies) ; un héros touché profite de sa garde
-// et gagne de la Rage s'il survit.
+// et gagne de la Rage s'il survit. Retourne { crit } : au moins un coup critique.
 function useSkill(cb, caster, skill, targets) {
   const stats = statsOf(caster);
   const parts = [];
+  let crit = false;
+  let dealt = 0;
 
   for (const target of targets) {
     if (skill.kind === 'damage') {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
-        const { taken, fell } = damage(target, hit.amount);
-        hits.push({ ...hit, amount: taken });
+        hit.amount = guarded(target, hit.amount);
+        const r = hurt(cb, target, hit.amount);
+        const { taken, fell } = r;
+        hits.push({ ...hit, amount: taken, note: redirectText(r) });
+        dealt += taken;
+        crit ||= hit.crit;
         if (fell) logFall(cb, target);
-        else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
+        else if (isHero(target) && !isHero(caster)) onHitTaken(target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
-      const healed = heal(target, healAmount(stats, skill.power));
+      const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -271,30 +445,47 @@ function useSkill(cb, caster, skill, targets) {
     }
     if (!target.alive) continue;
 
-    if (skill.dot) {
-      addStatus(target, { key: skill.dot.key, name: skill.dot.name, icon: skill.dot.icon ?? '🩸', kind: 'debuff', turns: skill.dot.turns, dot: dotTick(stats, skill) });
+    if (skill.cleanse) {
+      const removed = statusesOf(target).filter((st) => st.kind === 'debuff');
+      target.statuses = statusesOf(target).filter((st) => st.kind !== 'debuff');
+      if (removed.length) parts.push(`${target.name} : ${removed.map((st) => st.name).join(', ')} dissipé${removed.length > 1 ? 's' : ''}`);
     }
-    if (skill.hot) {
-      addStatus(target, { key: skill.hot.key, name: skill.hot.name, icon: '💚', kind: 'buff', turns: skill.hot.turns, hot: hotTick(stats, skill) });
+    for (const entry of skill.effects ?? []) {
+      const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+      if (status.redirect) {
+        if (target === caster) continue; // on ne s'intercède pas pour soi-même
+        status.source = caster;
+      }
+      addStatus(target, status);
+      if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
-    if (skill.shield) {
-      const amount = shieldAmount(stats, skill);
-      addStatus(target, { key: skill.shield.key, name: skill.shield.name, icon: '🛡️', kind: 'buff', turns: skill.shield.turns, shield: amount });
-      parts.push(`${target.name} : bouclier de ${amount}`);
-    }
-    if (skill.status) addStatus(target, skill.status);
   }
-  if (skill.selfStatus) addStatus(caster, skill.selfStatus);
+  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  if (skill.resourceGain && isHero(caster)) {
+    gainResource(caster, skill.resourceGain);
+    parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
+  }
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
-  log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+  const combo = skill.comboPoints ? ` avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo` : '';
+  log(cb, `${caster.name} utilise ${skill.name}${combo}${targetLabel(skill, targets)}${detail}.`, true);
+  if (isHero(caster)) lifesteal(cb, caster, dealt);
+  return { crit };
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
+// Au corps à corps, un héros a plus de chances d'être ciblé qu'à distance.
 function enemyTarget(cb) {
   const alive = cb.party.filter(isAlive);
   const taunting = alive.filter((h) => hasStatus(h, 'taunt'));
-  return pick(taunting.length ? taunting : alive);
+  const pool = taunting.length ? taunting : alive;
+  if (!pool.length) return undefined;
+  let roll = random() * pool.reduce((sum, h) => sum + targetWeight(h), 0);
+  for (const hero of pool) {
+    roll -= targetWeight(hero);
+    if (roll < 0) return hero;
+  }
+  return pool[pool.length - 1];
 }
 
 // Cibles d'une capacité ennemie (point de vue de l'ennemi).
@@ -317,6 +508,7 @@ function pickAbility(enemy) {
 }
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
+// (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
 // (esquive / blocage / garde / boucliers possibles).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 export function enemyAct(cb) {
@@ -326,7 +518,7 @@ export function enemyAct(cb) {
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
     const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = damage(victim, hit.amount);
+    const { fell } = hurt(cb, victim, hit.amount);
     log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
     if (fell) logFall(cb, victim);
     endTurn(cb);
@@ -335,7 +527,9 @@ export function enemyAct(cb) {
 
   const ability = pickAbility(enemy);
   if (ability) {
-    useSkill(cb, enemy, ability, abilityTargets(cb, enemy, ability));
+    const targets = abilityTargets(cb, enemy, ability);
+    useSkill(cb, enemy, ability, targets);
+    if (ability.kind === 'damage' && !ability.magic && ability.target === 'hero' && targets[0]?.alive) riposte(cb, enemy, targets[0]);
     endTurn(cb);
     return;
   }
@@ -350,12 +544,16 @@ export function enemyAct(cb) {
       let dmg = hit.amount;
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
-      if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
-      const { taken, absorbed, fell } = damage(target, dmg);
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : ''].join('');
+      dmg = guarded(target, dmg);
+      const r = hurt(cb, target, dmg);
+      const { taken, absorbed, fell } = r;
+      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
-      else gainResource(target, getClass(target).resource.onHitTaken);
+      else {
+        onHitTaken(target);
+        if (!enemy.magic) riposte(cb, enemy, target);
+      }
     }
   }
   endTurn(cb);

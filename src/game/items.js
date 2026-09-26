@@ -100,8 +100,8 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat obligatoire : attaque (arme), défense (armure), défense magique (bijou) ;
-// exception : défense + blocage pour un bouclier.
+// Stat obligatoire : attaque (arme), Armure (armure : Défense et Défense magique), aucune (bijou) ;
+// exception : Armure + Blocage pour un bouclier.
 // Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
@@ -110,21 +110,19 @@ function mandatoryStats(base, level, mult) {
   }
   if (base.slotType === 'bouclier') {
     return {
-      def: Math.round(b * ITEM.shieldDef * mult),
+      armure: Math.round(b * ITEM.shieldDef * mult),
       blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
     };
   }
-  if (JEWELS[base.slotType]) {
-    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
-  }
+  if (JEWELS[base.slotType]) return {}; // bijou : aucune stat obligatoire
   const weight = ARMOR_PIECES[base.slotType];
-  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
+  return { armure: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
 }
 
 function primaryWeight(base) {
   if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
   if (base.slotType === 'bouclier') return 0.8;
-  if (JEWELS[base.slotType]) return 1;
+  if (JEWELS[base.slotType]) return JEWELS[base.slotType].weight;
   return ARMOR_PIECES[base.slotType];
 }
 
@@ -137,6 +135,8 @@ function secondaryValue(stat, level, range) {
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
  * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ * Un légendaire tiré au hasard peut être celui de n'importe quelle classe (on peut
+ * recruter la classe voulue à l'auberge).
  */
 export function generateItem(opts = {}) {
   const level = Math.max(1, opts.level ?? 1);

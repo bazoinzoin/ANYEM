@@ -5,7 +5,7 @@
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFloor, loseExpedition } from '../game/dungeon.js';
+import { floorCombat, winFloor, loseExpedition, escapeExpedition } from '../game/dungeon.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 
@@ -20,7 +20,11 @@ export function startFloor() {
 }
 
 export function playerAction(action) {
-  if (heroAct(state.combat, action)) advance();
+  const cb = state.combat;
+  if (!heroAct(cb, action)) return;
+  // Héros à Énergie : il garde la main tant qu'il n'a pas fini son tour.
+  if (cb.acting) render();
+  else advance();
 }
 
 function advance() {
@@ -47,6 +51,11 @@ function advance() {
 function finish() {
   const cb = state.combat;
   state.combat = null;
+  if (cb.result === 'escape') {
+    escapeExpedition(state);
+    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
+    return;
+  }
   if (cb.result !== 'victory') {
     showHub(loseExpedition(state).message);
     return;
@@ -58,7 +67,7 @@ function finish() {
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
     return;
   }
-  const bossText = r.boss ? ' Le boss est vaincu : vous pouvez rentrer au village sans rien perdre, ou continuer.' : '';
+  const bossText = r.boss ? ' Le boss est vaincu !' : '';
   Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
   goTo('dungeon');
 }

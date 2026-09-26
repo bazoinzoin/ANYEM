@@ -3,21 +3,23 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
-import { learn } from '../src/game/talents.js';
+import { learn, branchesOf } from '../src/game/talents.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
 import { statsOf, damage } from '../src/game/units.js';
-import { addStatus, tickStatuses } from '../src/game/statuses.js';
+import { addStatus, tickStatuses, makeStatus } from '../src/game/statuses.js';
 import { estimateHit, BASIC_ATTACK } from '../src/game/formulas.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
 
-// Crée un combat où le héros d'index `heroIndex` connaît les talents donnés,
-// et joue jusqu'à son tour.
-function setup(heroIndex, talents = []) {
+// Crée un combat où le héros d'index `heroIndex` (niveau 50) connaît tous les
+// talents de l'orientation `branchKey` jusqu'au palier `maxTier`, et joue jusqu'à son tour.
+function setup(heroIndex, branchKey, maxTier = 9) {
   const party = createParty();
   const hero = party[heroIndex];
-  hero.level = 20;
-  for (const id of talents) assert.ok(learn(hero, id), id);
+  hero.level = 50;
+  const branch = branchesOf(hero).find((b) => b.key === branchKey);
+  let learned = true;
+  while (learned) learned = branch.nodes.some((n) => n.tier <= maxTier && learn(hero, n.id));
   hero.res = 999;
   const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   for (let i = 0; i < 50; i++) {
@@ -26,7 +28,7 @@ function setup(heroIndex, talents = []) {
       hero.res = 999;
       return { cb, hero, party };
     }
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (turn.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     else enemyAct(cb);
   }
   throw new Error('héros jamais actif');
@@ -34,15 +36,6 @@ function setup(heroIndex, talents = []) {
 
 const skillIndex = (hero, id) => getSkills(hero).findIndex((s) => s.id === id);
 
-const PATH = {
-  gardien: ['peau-de-fer', 'peau-de-fer', 'peau-de-fer', 'provocation', 'maitrise-bouclier', 'maitrise-bouclier', 'maitrise-bouclier', 'rempart', 'mur-de-boucliers'],
-  berserker: ['soif-de-sang', 'soif-de-sang', 'soif-de-sang', 'frappe-sauvage', 'furie', 'furie', 'furie', 'berserk', 'dechainement'],
-  assassin: ['precision', 'precision', 'precision', 'taillade', 'lames-aiguisees', 'lames-aiguisees', 'lames-aiguisees', 'opportuniste', 'deluge-de-lames'],
-  clerc: ['devotion', 'devotion', 'devotion', 'priere-de-soins', 'meditation', 'meditation', 'meditation', 'grace', 'resurrection'],
-  profane: ['ombre', 'ombre', 'ombre', 'mot-de-douleur', 'esprit-sombre', 'esprit-sombre', 'esprit-sombre', 'confusion', 'fleau'],
-  glace: ['givre', 'givre', 'givre', 'eclat-de-glace', 'hiver', 'hiver', 'hiver', 'nova-de-givre', 'prison-de-glace'],
-  precheur: ['foi', 'foi', 'foi', 'renovation', 'lumiere-interieure', 'lumiere-interieure', 'lumiere-interieure', 'bouclier-sacre', 'benediction'],
-};
 
 test('bouclier : absorbe les dégâts avant les PV puis disparaît', () => {
   const [g] = createParty();
@@ -67,52 +60,74 @@ test('les statuts expirent après leur durée ; les modificateurs changent les s
 });
 
 test('Gardien : Provocation force les ennemis à attaquer le guerrier', () => {
-  const { cb, hero } = setup(0, PATH.gardien.slice(0, 4));
+  const { cb, hero } = setup(0, 'gardien', 1);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'provocation') }));
   const others = cb.party.filter((h) => h !== hero).map((h) => h.hp);
   for (let i = 0; i < 6; i++) {
     const turn = nextTurn(cb);
     if (!turn) break;
     if (turn.side === 'enemy') enemyAct(cb);
-    else heroAct(cb, { type: 'defend' });
+    else { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
   }
   assert.deepEqual(cb.party.filter((h) => h !== hero).map((h) => h.hp), others);
 });
 
 test('Gardien : Mur de boucliers protège toute l\'équipe', () => {
-  const { cb, hero } = setup(0, PATH.gardien);
+  const { cb, hero } = setup(0, 'gardien');
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'mur-de-boucliers') });
   cb.party.forEach((h) => assert.ok(h.statuses.some((s) => s.shield > 0), h.name));
 });
 
 test('Gardien : Rempart ajoute un bouclier en défendant', () => {
-  const { cb, hero } = setup(0, PATH.gardien.slice(0, 8));
+  const { cb, hero } = setup(0, 'gardien', 3);
   heroAct(cb, { type: 'defend' });
-  assert.equal(hero.statuses.find((s) => s.key === 'rempart').shield, Math.round(getStats(hero).pv * 0.15));
+  assert.equal(hero.statuses.find((s) => s.key === 'bouclier').shield, Math.round(getStats(hero).pv * 0.15));
 });
 
 test('Berserker : plus de PV manquants = plus de puissance physique', () => {
-  const { hero } = setup(0, PATH.berserker.slice(0, 8));
+  const { hero } = setup(0, 'berserker', 3);
   hero.hp = getStats(hero).pv;
   const full = statsOf(hero).physPower;
   hero.hp = Math.round(getStats(hero).pv * 0.3);
   assert.equal(statsOf(hero).physPower, Math.round(full * (1 + 0.03 * 7)));
 });
 
-test('Assassin : Déluge de lames frappe 4 fois ; Opportuniste renforce contre une cible ralentie', () => {
-  const { cb, hero } = setup(1, PATH.assassin);
+test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plus d\'Énergie', () => {
+  const { cb, hero } = setup(1, 'assassin');
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 });
-  assert.match(cb.log[0].text, /\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
+  assert.equal(getStats(hero).resMax, 150);
+  assert.equal(getStats(hero).resRegen, 21);
+  hero.combo = 3;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
+  assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
+});
+
+test('Assassin : Sceau du destin, un critique de générateur donne 1 point de combo de plus', () => {
+  const { cb, hero } = setup(1, 'assassin');
+  cb.enemies[0].hp = cb.enemies[0].stats.pv = 9999;
+  setRandomSource(() => 0); // tous les jets critiques
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'taillade'), target: 0 }));
+  assert.equal(hero.combo, 2);
+});
+
+test('Empoisonneur : Opportuniste renforce contre une cible affaiblie ; Fiole de peste empoisonne selon les combos', () => {
+  const { cb, hero } = setup(1, 'empoisonneur');
   const a = statsOf(hero);
-  const plain = { ...statsOf(target), debuffed: false };
+  const plain = { ...statsOf(cb.enemies[0]), debuffed: false };
   const slowed = { ...plain, debuffed: true };
   assert.ok(estimateHit(a, BASIC_ATTACK, slowed).lo > estimateHit(a, BASIC_ATTACK, plain).lo);
+  hero.combo = 4;
+  hero.res = 100;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'fiole-de-peste') }));
+  for (const e of cb.enemies.filter((x) => x.alive)) {
+    const poison = e.statuses.find((s) => s.key === 'poison');
+    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.56 * (1 + a.dotPct / 100))));
+  }
 });
 
 test('Clerc : Résurrection ramène un allié tombé, uniquement s\'il y en a un', () => {
-  const { cb, hero } = setup(2, PATH.clerc);
+  const { cb, hero } = setup(2, 'clerc');
   const idx = skillIndex(hero, 'resurrection');
   assert.equal(heroAct(cb, { type: 'skill', skill: idx, target: 0 }), false, 'personne à relever');
   const [g] = cb.party;
@@ -121,29 +136,29 @@ test('Clerc : Résurrection ramène un allié tombé, uniquement s\'il y en a un
   assert.deepEqual(targetsFor(cb, { type: 'skill', skill: idx }).units, [g]);
   assert.ok(heroAct(cb, { type: 'skill', skill: idx, target: 0 }));
   assert.equal(g.alive, true);
-  assert.equal(g.hp, Math.round(getStats(g).pv * 0.4));
+  assert.equal(g.hp, Math.round(getStats(g).pv * 0.7), 'Résurrection supérieure : 70 % des PV');
 });
 
 test('Clerc : Prière de soins soigne toute l\'équipe', () => {
-  const { cb, hero } = setup(2, PATH.clerc.slice(0, 4));
+  const { cb, hero } = setup(2, 'clerc', 1);
   cb.party.forEach((h) => { h.hp = 10; });
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'priere-de-soins') });
   cb.party.forEach((h) => assert.ok(h.hp > 10, h.name));
 });
 
 test('Prêcheur : Rénovation soigne à chaque fin de round', () => {
-  const { cb, hero } = setup(2, PATH.precheur.slice(0, 4));
+  const { cb, hero } = setup(2, 'precheur', 1);
   const [g] = cb.party;
   g.hp = 10;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'renovation'), target: 0 });
-  const hot = g.statuses.find((s) => s.key === 'renovation');
+  const hot = g.statuses.find((s) => s.key === 'regeneration');
   assert.ok(hot.hot > 0);
   tickStatuses(g);
-  assert.equal(g.statuses.find((s) => s.key === 'renovation').turns, 3);
+  assert.equal(g.statuses.find((s) => s.key === 'regeneration').turns, 3);
 });
 
 test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {
-  const { cb, hero } = setup(2, PATH.profane.slice(0, 8));
+  const { cb, hero } = setup(2, 'profane', 4);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'confusion'), target: 0 });
   const [confused, other] = cb.enemies;
   assert.ok(confused.statuses.some((s) => s.confuse));
@@ -155,17 +170,17 @@ test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {
   assert.match(cb.log[0].text, /confus/);
 });
 
-test('Glace : Prison de glace fait perdre son tour à la cible', () => {
-  const { cb, hero } = setup(3, PATH.glace);
+test('Foudre : Onde de choc fait perdre son tour à la cible', () => {
+  const { cb, hero } = setup(3, 'foudre', 4);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'prison-de-glace'), target: 0 });
+  heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'onde-de-choc'), target: 0 });
   assert.ok(target.statuses.some((s) => s.stun));
   let skipped = false;
   for (let i = 0; i < 12; i++) {
     const turn = nextTurn(cb);
     if (cb.log[0].text.includes('étourdi')) skipped = true;
-    if (turn.side === 'enemy') enemyAct(cb); else heroAct(cb, { type: 'defend' });
+    if (turn.side === 'enemy') enemyAct(cb); else { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
     if (skipped) break;
   }
   assert.ok(skipped);
@@ -173,9 +188,54 @@ test('Glace : Prison de glace fait perdre son tour à la cible', () => {
 });
 
 test('Glace : Éclat de glace ralentit la cible', () => {
-  const { cb, hero } = setup(3, PATH.glace.slice(0, 4));
+  const { cb, hero } = setup(3, 'glace', 1);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'eclat-de-glace'), target: 0 });
   assert.equal(statsOf(target).vit, Math.round(target.stats.vit * 0.7));
+});
+
+test('Berserker : vol de vie et Exécution (dégâts doublés sous 30 % de PV)', () => {
+  const { cb, hero } = setup(0, 'berserker');
+  const target = cb.enemies[0];
+  Object.assign(target.stats, { pv: 10000, def: 0 });
+  target.hp = 10000;
+  hero.hp = 50;
+  heroAct(cb, { type: 'attack', target: 0 });
+  assert.ok(hero.hp > 50, 'vol de vie');
+  assert.match(cb.log[0].text, /vole \d+ PV/);
+  const stats = statsOf(hero);
+  const idx = skillIndex(hero, 'execution');
+  const skill = getSkills(hero)[idx];
+  const opts = { ...BASIC_ATTACK, power: skill.power, executePct: skill.executePct };
+  const est = (hp, o) => { target.hp = hp; return estimateHit(stats, o, statsOf(target)).lo; };
+  assert.equal(est(9000, opts), est(9000, { ...opts, executePct: 0 }), 'au-dessus de 30 % : pas de bonus');
+  assert.ok(est(1000, opts) > est(1000, { ...opts, executePct: 0 }) * 1.7, 'sous 30 % : bonus d\'exécution');
+});
+
+test('Gardien : Garde de fer renforce la garde ; les boucliers donnés sont renforcés', () => {
+  const { cb, hero } = setup(0, 'gardien');
+  assert.equal(statsOf(hero).guardBonus, 15);
+  heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'mur-de-boucliers') });
+  const shield = cb.party[2].statuses.find((s) => s.key === 'bouclier').shield;
+  const base = Math.round(statsOf(hero).physPower * 0.9);
+  assert.ok(shield > base * 1.5, `boucliers renforcés par Bastion et Protecteur (${shield} > ${base})`);
+});
+
+test("Assassin : Poussée d'adrénaline rend de l'Énergie, une seule fois par combat", () => {
+  const { cb, hero } = setup(1, 'assassin');
+  hero.res = 20;
+  const idx = skillIndex(hero, 'poussee-d-adrenaline');
+  assert.ok(heroAct(cb, { type: 'skill', skill: idx }));
+  assert.equal(hero.res, 70);
+  assert.equal(heroAct(cb, { type: 'skill', skill: idx }), false);
+});
+
+test('Clerc : Purification retire les effets négatifs', () => {
+  const { cb, hero } = setup(2, 'clerc');
+  const [g] = cb.party;
+  addStatus(g, makeStatus('poison', 3, 5));
+  addStatus(g, makeStatus('puissance', 3));
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'purification'), target: 0 }));
+  assert.deepEqual(g.statuses.map((s) => s.key), ['puissance']);
 });

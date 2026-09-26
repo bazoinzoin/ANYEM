@@ -90,7 +90,7 @@ export function talentEffects(hero) {
       add(fx.pct, node.pct, rank);
       add(fx.passive, node.passive, rank);
       if (node.skill) fx.skills.push(node.skill);
-      if (node.skillMod) fx.skillMods.push(node.skillMod);
+      if (node.skillMod) fx.skillMods.push(...[].concat(node.skillMod));
     }
   }
   return fx;

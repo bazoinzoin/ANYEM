@@ -6,7 +6,6 @@ export const SLOTS = {
   epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
   plastron: { label: 'Plastron', accepts: ['plastron'] },
   gants: { label: 'Gants', accepts: ['gants'] },
-  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
   bottes: { label: 'Bottes', accepts: ['bottes'] },
   collier: { label: 'Collier', accepts: ['collier'] },
   anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
@@ -39,45 +38,60 @@ export const MATERIA_KINDS = {
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
 export const ARMOR_PIECES = {
-  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
+  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
 
 export const ARMOR_TYPES = {
   lourde: {
-    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
-    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
+    label: 'Armure lourde', defMult: 1.5, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', bottes: 'Solerets' },
   },
   moyenne: {
-    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
-    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
+    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', bottes: 'Bottes de cuir' },
   },
   legere: {
-    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
-    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
+    label: 'Armure légère', defMult: 0.6, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', bottes: 'Sandales' },
   },
 };
 
-// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
-// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
-// bonus de vitesse lié au type d'arme.)
+// Armes, de la plus lente à la plus rapide.
+//   atqMult    puissance relative (les armes lentes frappent plus fort)
+//   speed      coefficient de vitesse d'attaque : multiplie la Vitesse du héros
+//              (moyenne des deux armes en ambidextrie ; 1 sans arme)
+//   range      'melee' (corps à corps) ou 'ranged' (distance) : une arme ne sert
+//              que depuis la position correspondante (voir game/position.js)
+//   twoHanded  occupe les deux mains
+// Toute arme peut sortir en Force, Agilité ou Intelligence (stat principale) : une
+// épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
+// d'Intelligence au Paladin Lumière.
+const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
 export const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
 };
 
-// Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
-// peut en plus ressortir en stat secondaire (repeatableSecondaries).
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
+export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
+// Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
+// peut en plus ressortir en stat secondaire (repeatableSecondaries).
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
+
+// Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
+// stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
+// plus forte que sur les autres pièces (weight = poids de la stat principale ; une
+// arme à deux mains est à 1,6, un plastron à 1), puis les secondaires de la rareté.
 export const JEWELS = {
-  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
-  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
+  anneau: { name: 'Anneau', label: 'Bijou', weight: 1.8 },
+  collier: { name: 'Collier', label: 'Bijou', weight: 2.2 },
 };
 
 // Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
@@ -99,41 +113,74 @@ export const SECONDARY_STATS = {
   defMag: { base: 1, perLevel: 0.4 },
   esquive: { base: 1, perLevel: 0.08 },
   blocage: { base: 1, perLevel: 0.1 },
+  riposte: { base: 1, perLevel: 0.1 },
 };
 
-// Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
+// Objets légendaires : liés à une classe, avec un passif unique qui renforce une
+// compétence d'une orientation (même format que les skillMod des talents, voir
+// applySkillMod dans game/party.js : powerPct, costDelta, dotPowerPct,
+// effectTurnsDelta, effectPowerPct…). Un par orientation.
 export const LEGENDARIES = {
-  colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
-    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
-  },
+  // Guerrier
   rempartDeKaldor: {
     name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
-    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
+    passive: { skill: 'mur-de-boucliers', costDelta: -15, effectPowerPct: 20 }, desc: 'Gardien — Mur de boucliers coûte 15 Rage de moins et protège 20 % de plus.',
+  },
+  colereAncestrale: {
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'masse2m', primary: 'force',
+    passive: { skill: 'tourbillon', powerPct: 30 }, desc: 'Berserker — Tourbillon inflige 30 % de dégâts en plus.',
+  },
+  // Voleur
+  murmureDeLOmbre: {
+    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'deluge-de-lames', powerPct: 25 }, desc: 'Assassin — Déluge de lames inflige 25 % de dégâts en plus.',
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'lame-empoisonnee', dotTurnsDelta: 2 }, desc: 'Empoisonneur — le poison de Lame empoisonnée dure 2 tours de plus.',
   },
-  murmureDeLOmbre: {
-    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
-    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
-  },
+  // Prêtre
   benedictionDAube: {
     name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
+    passive: { skill: 'priere-de-soins', powerPct: 25 }, desc: 'Clerc — Prière de soins soigne 25 % de plus.',
   },
   etoleDuPelerin: {
     name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
+    passive: { skill: 'renovation', effectTurnsDelta: 2 }, desc: 'Prêcheur — Rénovation dure 2 tours de plus.',
   },
+  voileDuNeant: {
+    name: 'Voile du Néant', classKey: 'pretre', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'mot-de-douleur', dotPowerPct: 30 }, desc: 'Profane — Mot de douleur inflige 30 % de dégâts de ténèbres en plus.',
+  },
+  // Mage
   coeurDeBrasier: {
     name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
+    passive: { skill: 'immolation', dotPowerPct: 30 }, desc: 'Feu — Immolation brûle 30 % plus fort.',
+  },
+  larmeDeGlace: {
+    name: 'Larme de Glace éternelle', classKey: 'mage', slotType: 'collier', primary: 'intelligence',
+    passive: { skill: 'nova-de-givre', powerPct: 25, costDelta: -5 }, desc: 'Glace — Nova de givre inflige 25 % de dégâts en plus et coûte 5 Mana de moins.',
   },
   couronneDOrage: {
     name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
+    passive: { skill: 'tempete', costDelta: -15 }, desc: 'Foudre — Tempête coûte 15 Mana de moins.',
+  },
+  // Chasseur
+  serreDuFaucon: {
+    name: 'Serre du Faucon', classKey: 'chasseur', slotType: 'arme', weaponType: 'arc', primary: 'agilite',
+    passive: { skill: 'tir-percant', powerPct: 30 }, desc: 'Œil de Faucon — Tir perçant inflige 30 % de dégâts en plus.',
+  },
+  bottesDuTraqueur: {
+    name: 'Bottes du Traqueur', classKey: 'chasseur', slotType: 'bottes', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'piege-a-machoires', effectPowerPct: 40, costDelta: -5 }, desc: 'Traqueur — Piège à mâchoires inflige 40 % de dégâts en plus et coûte 5 Énergie de moins.',
+  },
+  // Paladin
+  egideDuCroise: {
+    name: 'Égide du Croisé', classKey: 'paladin', slotType: 'bouclier', primary: 'force',
+    passive: { skill: 'sceau-de-vie', powerPct: 30, effectPowerPct: 30 }, desc: 'Templier — Sceau de vie soigne 30 % de plus.',
+  },
+  masseDeLAurore: {
+    name: "Masse de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'masse', primary: 'intelligence',
+    passive: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 }, desc: 'Lumière — Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.',
   },
 };

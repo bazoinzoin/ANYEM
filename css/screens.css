@@ -1,7 +1,7 @@
 /* Styles propres à chaque écran. */
 
 /* ---- Statistiques ---- */
-.slot .stats.sheet { text-align: left; line-height: 1.7; }
+.slot .stats.sheet, .class-details .stats.sheet { text-align: left; line-height: 1.7; }
 .boosted { color: var(--r-legendaire); font-size: 12px; }
 .equipped-list { gap: 4px 12px; }
 .skill-line { width: 100%; font-size: 13px; color: var(--dim); margin-bottom: 6px; text-align: left; }
@@ -51,6 +51,9 @@
 .log div.hit { color: var(--cream); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.actions .end-turn { margin-left: auto; border-color: var(--gold); }
+.unit .combo { display: block; margin-top: 2px; }
+.unit .combo b { color: var(--gold); letter-spacing: 2px; }
 .target-zone { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 /* ---- Équipement ---- */
@@ -84,11 +87,11 @@
 
 /* ---- Forge ---- */
 .card.materia { margin-bottom: 14px; overflow-x: auto; }
-.materia table { border-collapse: collapse; width: 100%; font-size: 14px; }
-.materia th, .materia td { padding: 4px 8px; text-align: center; white-space: nowrap; }
-.materia thead th { color: var(--rc); font-weight: 600; }
-.materia tbody th { text-align: left; font-weight: 400; color: var(--dim); }
-.materia td.zero { color: var(--dim); opacity: .5; }
+.materia table, table.materia-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.materia th, .materia td, .materia-table th, .materia-table td { padding: 4px 8px; text-align: center; white-space: nowrap; }
+.materia thead th, .materia-table thead th { color: var(--rc); font-weight: 600; }
+.materia tbody th, .materia-table tbody th { text-align: left; font-weight: 400; color: var(--dim); }
+.materia td.zero, .materia-table td.zero { color: var(--dim); opacity: .5; }
 .forge-list h3 { font-size: 16px; margin-bottom: 8px; }
 .forge-list .bag-title { margin-top: 16px; }
 .forge-hero { font-size: 13px; color: var(--dim); margin: 8px 0 4px; border-left: 3px solid var(--c); padding-left: 6px; }
@@ -116,6 +119,10 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .branch > .hint { font-size: 13px; margin: 4px 0 10px; }
 .talent { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; background: var(--panel2); font-size: 14px; }
 .talent.skill, .talent.passive { border-left: 3px solid var(--gold); }
+.talent.signature { border: 1px solid var(--gold); border-left-width: 4px; background: #2e2414; }
+.tier-group { margin-bottom: 6px; }
+.tier-title { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 4px; }
+.tier-group.locked .tier-title { color: var(--dim); }
 .talent.locked { opacity: .5; }
 .talent.learned { border-color: #3f6b45; }
 .talent.maxed { border-color: #6cc15a; background: #1f2a1a; }
@@ -154,3 +161,31 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .expedition-info b { color: var(--gold); }
 .expedition .actions { margin-bottom: 10px; }
 .boss-btn { border-color: var(--danger); background: #3a1c17; }
+
+/* ---- Objets (donjon, Marchand) ---- */
+.map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.map-items button.selected { outline: 2px solid var(--gold); }
+.shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
+.boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
+.boss-choice p { margin: 0 0 10px; }
+
+/* ---- Positions ---- */
+.row-tag { font-size: 13px; margin-left: 2px; }
+.rules { margin: 0; padding-left: 20px; line-height: 1.6; }
+.pos-choice { display: flex; gap: 8px; margin: 10px 0; }
+.pos-choice button { flex: 1; }
+.pos-choice button.selected { background: #3a2c1c; outline: 2px solid var(--gold); }
+.slot .warn { color: #e6a59a; font-size: 13px; margin: 6px 0 0; }
+
+/* ---- Auberge et banque ---- */
+.roster { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 170px; border-left: 4px solid var(--c); text-align: left; }
+.hero-tile .icon { font-size: 22px; }
+.hero-tile:disabled { opacity: 1; cursor: default; }
+.hero-tile.clickable:not(:disabled):hover, .hero-tile.selected { outline: 2px solid var(--gold); background: #3a2c1c; }
+.card:has(> .materia-table) { overflow-x: auto; }
+.bank-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.bank-table td, .bank-table th { padding: 4px 8px; text-align: center; }
+.bank-table th:first-child { text-align: left; }
+.materia-table button.mini { padding: 0 6px; font-size: 12px; }
+#goldAmount { width: 110px; }

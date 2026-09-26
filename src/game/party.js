@@ -6,7 +6,8 @@
 // talents (les buffs de combat s'ajoutent ensuite dans units.statsOf).
 
 import { CLASSES } from '../data/classes.js';
-import { SLOT_ORDER } from '../data/items.js';
+import { SLOT_ORDER, WEAPON_TYPES } from '../data/items.js';
+import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
 import { generateItem, itemStats } from './items.js';
@@ -20,12 +21,20 @@ function wornItems(hero) {
   return SLOT_ORDER.map((slot) => [slot, hero.equipment[slot]]).filter(([, item]) => item);
 }
 
+// Coefficient de vitesse d'attaque des armes tenues (moyenne en ambidextrie, 1 sans arme).
+export function weaponSpeedOf(hero) {
+  const weapons = ['mainDroite', 'mainGauche'].map((slot) => hero.equipment[slot]).filter((it) => it?.slotType === 'arme');
+  if (!weapons.length) return 1;
+  return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
  *   resMax     maximum de la ressource de classe
+ *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 export function getStats(hero) {
   const cls = getClass(hero);
@@ -41,13 +50,21 @@ export function getStats(hero) {
     }
   }
   const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
+  const weaponSpeed = weaponSpeedOf(hero);
   const stats = {
     ...total,
+    // L'Armure (stat obligatoire des armures et boucliers) protège des deux types de dégâts.
+    def: total.def + total.armure,
+    defMag: total.defMag + total.armure,
+    // Vitesse d'attaque : la Vitesse est multipliée par le coefficient des armes.
+    vitBase: total.vit,
+    weaponSpeed,
+    vit: Math.round(total.vit * weaponSpeed),
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max,
-    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct).
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
@@ -56,22 +73,30 @@ export function getStats(hero) {
 
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
- *   powerPct       +% de puissance      costDelta     ± coût
- *   dotTurnsDelta  ± tours de l'effet sur la durée
- *   dotPowerPct    +% de dégâts de l'effet sur la durée
- *   set            champs remplacés ou ajoutés (ex. ajouter une brûlure)
+ *   powerPct        +% de puissance      costDelta     ± coût
+ *   critBonus       + % de chance de critique
+ *   dotTurnsDelta   ± tours des effets de dégâts sur la durée (poison, saignement…)
+ *   dotPowerPct     +% de dégâts de ces effets
+ *   effectTurnsDelta ± tours de tous les effets appliqués aux cibles
+ *   effectPowerPct  +% de valeur de tous les effets à valeur (soins/tour, boucliers…)
+ *   addEffects      effets supplémentaires appliqués aux cibles (ex. une brûlure)
+ *   addSelfEffects  effets supplémentaires appliqués au lanceur
+ *   cleanse         la compétence retire aussi les effets négatifs des cibles
  */
 function applySkillMod(skill, mod) {
-  const s = { ...skill, ...(mod.set ?? {}), boosted: true };
-  if (mod.powerPct) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
-  if (mod.costDelta) s.cost = Math.max(0, s.cost + mod.costDelta);
-  if (s.dot && (mod.dotTurnsDelta || mod.dotPowerPct)) {
-    s.dot = {
-      ...s.dot,
-      turns: s.dot.turns + (mod.dotTurnsDelta ?? 0),
-      power: +(s.dot.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
-    };
-  }
+  const s = { ...skill, boosted: true };
+  if (mod.powerPct && s.power) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
+  if (mod.costDelta) s.cost = Math.max(1, s.cost + mod.costDelta);
+  if (mod.critBonus) s.critBonus = (s.critBonus ?? 0) + mod.critBonus;
+  s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
+    const dot = EFFECTS[e.id].value === 'dot';
+    const turns = (mod.effectTurnsDelta ?? 0) + (dot ? mod.dotTurnsDelta ?? 0 : 0);
+    const pct = (mod.effectPowerPct ?? 0) + (dot ? mod.dotPowerPct ?? 0 : 0);
+    if (!turns && !(pct && e.power)) return e;
+    return { ...e, turns: e.turns + turns, ...(e.power ? { power: +(e.power * (1 + pct / 100)).toFixed(3) } : {}) };
+  });
+  if (mod.cleanse) s.cleanse = true;
+  if (mod.addSelfEffects) s.selfEffects = [...(skill.selfEffects ?? []), ...mod.addSelfEffects];
   return s;
 }
 
@@ -91,15 +116,17 @@ export function xpToNext(level) {
 // Ajoute de l'XP ; retourne le nombre de niveaux gagnés. PV et ressource
 // gagnés avec le niveau sont ajoutés aux valeurs actuelles.
 export function gainXp(hero, amount) {
+  if (hero.level >= XP.maxLevel) return 0;
   hero.xp += amount;
   let levels = 0;
-  while (hero.xp >= xpToNext(hero.level)) {
+  while (hero.level < XP.maxLevel && hero.xp >= xpToNext(hero.level)) {
     const before = getStats(hero).pv;
     hero.xp -= xpToNext(hero.level);
     hero.level++;
     levels++;
     if (hero.alive) hero.hp += getStats(hero).pv - before;
   }
+  if (hero.level >= XP.maxLevel) hero.xp = 0; // niveau maximum atteint
   return levels;
 }
 
@@ -115,6 +142,7 @@ export function createHero(classKey, name) {
     alive: true,
     guard: false,
     statuses: [],
+    position: cls.position ?? 'melee', // position de combat choisie (écran Stratégie)
     equipment: {},
     talents: {},
   };
@@ -126,8 +154,9 @@ export function createHero(classKey, name) {
   return hero;
 }
 
-export function createParty(names = []) {
-  return PARTY_ORDER.map((key, i) => createHero(key, names[i]?.trim()));
+// Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
+export function createParty(names = [], classes = PARTY_ORDER) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim()));
 }
 
 export function gainResource(hero, amount) {

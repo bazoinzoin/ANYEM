@@ -9,10 +9,13 @@ const STAT_TIPS = {
   atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
   critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
   critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
-  def: 'Réduit les dégâts physiques subis.',
-  defMag: 'Réduit les dégâts magiques subis.',
+  armure: 'Apportée par les armures et boucliers : compte à la fois comme Défense et comme Défense magique (déjà incluse dans les deux lignes suivantes).',
+  def: 'Réduit les dégâts physiques subis (Armure comprise).',
+  defMag: 'Réduit les dégâts magiques subis (Armure comprise).',
   esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
   blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
+  riposte: `Au corps à corps, chance de contre-attaquer quand on est frappé au corps à corps (${Math.round(COMBAT.ripostePower * 100)} % de la puissance physique, max ${COMBAT.caps.riposte} %).`,
+  vit: "Ordre de jeu en combat. Multipliée par le coefficient de vitesse d'attaque de l'arme (armes lourdes lentes, dagues rapides).",
 };
 
 function row(label, value, tipText) {
@@ -26,7 +29,8 @@ export function statsList(hero) {
   const phys = STATS[cls.physStat].label;
   const rows = STAT_ORDER.map((k) => {
     const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
-    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    let value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    if (k === 'vit' && stats.weaponSpeed !== 1) value += ` <small>(${stats.vitBase} × ${String(stats.weaponSpeed).replace('.', ',')} arme)</small>`;
     return row(label, value, STAT_TIPS[k]);
   });
   // Puissances dérivées, juste après les stats principales.

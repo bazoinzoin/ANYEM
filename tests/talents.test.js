@@ -15,23 +15,34 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 const newGame = () => ({ party: createParty(), bag: [], gold: 1000, dungeonLvl: 1 });
 
-test('chaque classe a ses orientations du design doc, avec 5 paliers', () => {
+test('chaque classe a ses orientations du design doc : 10 paliers, 50 rangs, une signature au palier 9', () => {
   const names = (k) => TALENTS[k].map((b) => b.key);
   assert.deepEqual(names('guerrier'), ['gardien', 'berserker']);
   assert.deepEqual(names('voleur'), ['assassin', 'empoisonneur']);
   assert.deepEqual(names('pretre'), ['clerc', 'precheur', 'profane']);
   assert.deepEqual(names('mage'), ['feu', 'glace', 'foudre']);
+  assert.deepEqual(names('chasseur'), ['oeilDeFaucon', 'traqueur']);
+  assert.deepEqual(names('paladin'), ['templier', 'lumiere']);
+  assert.deepEqual(Object.keys(TALENTS).sort(), Object.keys(CLASSES).sort());
   const ids = new Set();
   for (const branches of Object.values(TALENTS)) {
     for (const b of branches) {
-      assert.deepEqual(b.nodes.map((n) => n.tier), [0, 1, 2, 3, 4]);
+      assert.deepEqual([...new Set(b.nodes.map((n) => n.tier))], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], b.key);
+      assert.equal(b.nodes.reduce((sum, n) => sum + n.ranks, 0), 50, `${b.key} : 50 rangs pour 50 niveaux`);
+      const last = b.nodes.filter((n) => n.tier === 9);
+      assert.ok(last.length === 1 && last[0].kind === 'signature' && last[0].skill, `${b.key} : signature au palier 9`);
+      // Chaque palier est atteignable avec les rangs des paliers précédents.
+      for (let t = 1; t <= 9; t++) {
+        const before = b.nodes.filter((n) => n.tier < t).reduce((sum, n) => sum + n.ranks, 0);
+        assert.ok(before >= t * 5, `${b.key} : palier ${t} inaccessible`);
+      }
       for (const n of b.nodes) {
         assert.ok(!ids.has(n.id), `id en double : ${n.id}`);
         ids.add(n.id);
-        if (n.kind === 'skill') assert.ok(n.skill?.id, `${n.id} doit accorder une compétence`);
-        if (n.skillMod) {
+        if (n.kind === 'skill' || n.kind === 'signature') assert.ok(n.skill?.id, `${n.id} doit accorder une compétence`);
+        for (const mod of [].concat(n.skillMod ?? [])) {
           const all = [...Object.values(CLASSES).flatMap((c) => c.skills), ...Object.values(TALENTS).flat().flatMap((br) => br.nodes).map((x) => x.skill).filter(Boolean)];
-          assert.ok(all.some((s) => s.id === n.skillMod.skill), `${n.id} vise une compétence inconnue`);
+          assert.ok(all.some((s) => s.id === mod.skill), `${n.id} vise une compétence inconnue`);
         }
       }
     }
@@ -41,12 +52,14 @@ test('chaque classe a ses orientations du design doc, avec 5 paliers', () => {
 test('1 point de talent par niveau ; les paliers se débloquent par points investis', () => {
   const [guerrier] = createParty();
   assert.equal(pointsAvailable(guerrier), 1);
-  assert.match(cannotLearnReason(guerrier, 'provocation'), /2 points/);
+  assert.match(cannotLearnReason(guerrier, 'provocation'), /5 points/);
   assert.ok(learn(guerrier, 'peau-de-fer'));
   assert.equal(pointsAvailable(guerrier), 0);
   assert.match(cannotLearnReason(guerrier, 'peau-de-fer'), /Aucun point/);
-  guerrier.level = 3;
-  learn(guerrier, 'peau-de-fer');
+  guerrier.level = 6;
+  for (const id of ['peau-de-fer', 'peau-de-fer', 'posture-defensive']) learn(guerrier, id);
+  assert.match(cannotLearnReason(guerrier, 'provocation'), /5 points/);
+  learn(guerrier, 'posture-defensive');
   assert.equal(cannotLearnReason(guerrier, 'provocation'), null);
   assert.ok(learn(guerrier, 'provocation'));
   assert.equal(rankOf(guerrier, 'provocation'), 1);
@@ -58,22 +71,23 @@ test('les talents modifient les stats et ajoutent des compétences', () => {
   guerrier.level = 10;
   const pv = getStats(guerrier).pv;
   learn(guerrier, 'peau-de-fer');
-  assert.equal(getStats(guerrier).pv, Math.round(pv * 1.05));
-  learn(guerrier, 'peau-de-fer');
-  learn(guerrier, 'provocation');
+  assert.equal(getStats(guerrier).pv, Math.round(pv * 1.04));
+  for (const id of ['peau-de-fer', 'peau-de-fer', 'posture-defensive', 'posture-defensive', 'provocation']) assert.ok(learn(guerrier, id), id);
   assert.ok(getSkills(guerrier).some((s) => s.id === 'provocation'));
 });
 
 test("un talent peut améliorer une compétence existante", () => {
   const [, , pretre] = createParty();
-  pretre.level = 10;
-  for (const id of ['devotion', 'devotion', 'devotion', 'priere-de-soins', 'meditation', 'meditation', 'grace']) {
+  pretre.level = 20;
+  for (const id of ['devotion', 'devotion', 'devotion', 'sagesse', 'sagesse', 'priere-de-soins', 'meditation', 'meditation', 'meditation', 'meditation',
+    'lumiere-bienveillante', 'lumiere-bienveillante', 'lumiere-bienveillante', 'robustesse-sacree', 'robustesse-sacree', 'grace']) {
     assert.ok(learn(pretre, id), id);
   }
   const soin = getSkills(pretre).find((s) => s.id === 'soin-majeur');
   assert.equal(soin.cost, 25);
   assert.equal(soin.power, 1.32);
-  assert.equal(getStats(pretre).healPct, 18);
+  assert.equal(getStats(pretre).healPct, 15);
+  assert.equal(getStats(pretre).resMax, 100);
 });
 
 test('réinitialiser rend tous les points contre de l\'or', () => {
@@ -122,4 +136,20 @@ test('toutes les compétences de talents sont définies correctement', () => {
     }
   }
   assert.ok(branchesOf({ classKey: 'mage' }).length === 3);
+});
+
+test('niveau maximum 50 : 50 points, de quoi compléter une seule orientation', () => {
+  const [guerrier] = createParty();
+  gainXp(guerrier, 10_000_000);
+  assert.equal(guerrier.level, 50);
+  assert.equal(guerrier.xp, 0);
+  assert.equal(gainXp(guerrier, 1000), 0);
+  assert.equal(guerrier.level, 50);
+  assert.equal(pointsAvailable(guerrier), 50);
+  const [gardien, berserker] = branchesOf(guerrier);
+  let learned = true;
+  while (learned) learned = gardien.nodes.some((n) => learn(guerrier, n.id));
+  assert.equal(rankOf(guerrier, 'dernier-rempart'), 1, 'la signature est atteinte');
+  assert.equal(pointsAvailable(guerrier), 0);
+  assert.ok(berserker.nodes.every((n) => rankOf(guerrier, n.id) === 0));
 });
