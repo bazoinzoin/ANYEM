@@ -41,7 +41,9 @@ import { pick, random } from './rng.js';
 export function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
   party.forEach((hero) => {
     hero.guard = false;
-    hero.statuses = [];
+    // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
+    // remède) ; les effets positifs disparaissent.
+    hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)

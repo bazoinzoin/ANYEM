@@ -142,7 +142,7 @@ test('entre deux étages : la Tente rend 30 % aux héros en vie, une seule fois 
   assert.ok(useOnMap(game, 'tente').ok);
 });
 
-test("entre deux étages : la Corde termine l'expédition ; potions et plume utilisables ; remèdes non", () => {
+test("entre deux étages : la Corde termine l'expédition ; potions, plume et remèdes utilisables", () => {
   const game = inDungeon({ corde: 1, potion: 1, plumeDePhenix: 1, antidote: 1 });
   const [g, v] = game.party;
   g.hp = 10;
@@ -152,7 +152,10 @@ test("entre deux étages : la Corde termine l'expédition ; potions et plume uti
   assert.equal(useOnMap(game, 'plumeDePhenix', 0).ok, false, 'Guerrier est en vie');
   assert.ok(useOnMap(game, 'plumeDePhenix', 1).ok);
   assert.equal(v.alive, true);
-  assert.equal(useOnMap(game, 'antidote', 0).ok, false);
+  assert.equal(useOnMap(game, 'antidote', 0).ok, false, "pas d'empoisonnement à soigner");
+  addStatus(g, poison);
+  assert.ok(useOnMap(game, 'antidote', 0).ok);
+  assert.deepEqual(g.statuses, []);
   const r = useOnMap(game, 'corde');
   assert.ok(r.ok && r.escaped);
   assert.equal(game.expedition, null);

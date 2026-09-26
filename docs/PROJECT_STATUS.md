@@ -69,9 +69,15 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Journal** : chaque coup indique critique / bloqué / esquivé ; le calcul détaillé apparaît au survol (puissance × compétence × critique × défense × variation, puis blocage, garde, bouclier). Le journal du dernier combat reste consultable après le combat ; un résumé de victoire détaille or, XP, équipement, matéria, consommables et montées de niveau.
 - **Tente** : 30 % des PV et de la ressource, une fois par palier de 5 étages, 300 or. Prix des consommables doublés. XP : niveau L → L+1 demande 80 + 40 × L.
 
+## Expédition : étages et soins hors combat (choix d'implémentation)
+
+- **Plusieurs combats par étage** : 2 ou 3 combats par étage ordinaire (`DUNGEON.fightsPerFloor`), le boss seul sur son étage. L'événement éventuel se tire à la fin de l'étage.
+- **Effets négatifs persistants** : ils restent d'un combat à l'autre (durée décomptée seulement en combat) jusqu'à un remède, une purification ou le retour au village ; les effets positifs disparaissent à la fin de chaque combat. Ils s'affichent sur les héros entre deux combats.
+- **Hors combat** (entre deux combats) : bouton **Objets** (tous les consommables, remèdes compris) et bouton **Sorts** (choix du héros, grisé s'il n'a aucun soin ; seuls les soins directs et les purifications, `game/field.js`, pour éviter de se sur-préparer avec des buffs).
+
 ## Événements d'expédition (choix d'implémentation)
 
-- Après chaque combat gagné hors boss, **35 %** de chance d'un événement (`EVENT_RULES`, contenu dans `src/data/events.js`, règles dans `src/game/events.js`). Il faut le régler (un choix ou « Passer son chemin ») avant l'étage suivant.
+- À la fin de chaque étage ordinaire, **35 %** de chance d'un événement (`EVENT_RULES`, contenu dans `src/data/events.js`, règles dans `src/game/events.js`). Il faut le régler (un choix ou « Passer son chemin ») avant l'étage suivant.
 - Chaque choix affiche ses chances et ses issues. Un événement ne tue jamais (1 PV minimum).
 - Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
 - Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).

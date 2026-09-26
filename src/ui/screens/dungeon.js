@@ -5,7 +5,11 @@
 import { state } from '../../state.js';
 import { DUNGEONS } from '../../data/dungeons.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
-import { getClass, getStats } from '../../game/party.js';
+import { getClass, getStats, getSkills } from '../../game/party.js';
+import { fieldSkills, castOutOfCombat, cannotCastReason } from '../../game/field.js';
+import { healAmount } from '../../game/formulas.js';
+import { statusesOf } from '../../game/statuses.js';
+import { EFFECTS } from '../../data/effects.js';
 import { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
@@ -25,7 +29,9 @@ import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
-const view = { pendingItem: null, flash: null, flashLoot: [] };
+// panel : 'items' | 'spells' | null (menu ouvert entre deux combats) ; caster /
+// pendingSpell : sort hors combat en cours de ciblage.
+const view = { pendingItem: null, flash: null, flashLoot: [], panel: null, caster: null, pendingSpell: null };
 
 export function renderDungeon(app) {
   const exp = state.expedition;
@@ -39,7 +45,7 @@ export function renderDungeon(app) {
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Étage ${exp.floor}/${d.floors}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
     ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
     ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${lastCombatLog(state.lastCombat)}
@@ -50,7 +56,12 @@ export function renderDungeon(app) {
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
       ${exp.event ? eventPanel(exp.event) : ''}
-      ${itemPanel()}
+      <div class="actions field-menu">
+        <button id="itemsBtn" class="${view.panel === 'items' ? 'selected' : ''}" ${tip('Utiliser un objet (potion, remède, tente, corde…).')}>🎒 Objets (${CONSUMABLE_ORDER.reduce((n, k) => n + (usableIn(k, 'map') ? countOf(state.consumables, k) : 0), 0)})</button>
+        <button id="spellsBtn" class="${view.panel === 'spells' ? 'selected' : ''}" ${tip('Lancer un soin ou une purification hors combat (les autres sorts ne servent qu\'en combat).')}>✨ Sorts</button>
+      </div>
+      ${view.panel === 'items' ? itemPanel() : ''}
+      ${view.panel === 'spells' ? spellPanel() : ''}
       ${exp.bossChoice ? `
         <div class="boss-choice">
           <p><b>Le boss est vaincu.</b> Rentrer au village avec tout le butin, ou continuer le donjon ?
@@ -62,7 +73,7 @@ export function renderDungeon(app) {
         </div>` : `
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
+          ${nextIsBoss ? `☠️ Affronter le boss (étage ${exp.floor})` : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${exp.floor} (${exp.fights} combats)`}
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
@@ -102,6 +113,38 @@ export function renderDungeon(app) {
       goTo('dungeon');
     };
   });
+  app.querySelector('#itemsBtn').onclick = () => {
+    Object.assign(view, { panel: view.panel === 'items' ? null : 'items', pendingItem: null });
+    goTo('dungeon');
+  };
+  app.querySelector('#spellsBtn').onclick = () => {
+    Object.assign(view, { panel: view.panel === 'spells' ? null : 'spells', caster: null, pendingSpell: null });
+    goTo('dungeon');
+  };
+  app.querySelectorAll('[data-caster]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { caster: Number(btn.dataset.caster), pendingSpell: null });
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-spell]').forEach((btn) => {
+    btn.onclick = () => {
+      const index = Number(btn.dataset.spell);
+      const skill = getSkills(state.party[view.caster])[index];
+      if (skill.target === 'ally' && view.pendingSpell !== index) {
+        view.pendingSpell = index; // choix de la cible
+        return goTo('dungeon');
+      }
+      if (skill.target !== 'ally' && view.pendingSpell !== index) {
+        view.pendingSpell = index; // confirmation
+        return goTo('dungeon');
+      }
+      castSpell(index, view.caster);
+    };
+  });
+  app.querySelectorAll('[data-spell-target]').forEach((btn) => {
+    btn.onclick = () => castSpell(view.pendingSpell, Number(btn.dataset.spellTarget));
+  });
   app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
@@ -132,6 +175,46 @@ export function renderDungeon(app) {
   app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
   app.querySelector('#stats').onclick = () => goTo('stats');
+}
+
+function castSpell(skillIndex, targetIndex) {
+  const r = castOutOfCombat(state, view.caster, skillIndex, targetIndex);
+  view.pendingSpell = null;
+  if (r.ok) view.flash = r.message;
+  goTo('dungeon');
+}
+
+// Sorts hors combat : d'abord le héros (grisé s'il n'a aucun soin ni purification),
+// puis ses sorts utilisables, puis la cible.
+function spellPanel() {
+  const heroes = state.party.map((h, i) => {
+    const usable = h.alive && fieldSkills(h).length > 0;
+    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${getClass(h).icon} ${esc(h.name)}</button>`;
+  }).join('');
+  let spells = '';
+  if (view.caster !== null) {
+    const caster = state.party[view.caster];
+    const stats = getStats(caster);
+    spells = fieldSkills(caster).map(({ skill, index }) => {
+      const reason = cannotCastReason(state, view.caster, skill);
+      const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
+        .filter(Boolean).join(', ');
+      const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
+      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(skill.name)} · ${skill.cost} ${getClass(caster).resource.name} · ${effect}${who}</button>`;
+    }).join('');
+    const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
+    if (pending?.target === 'ally') {
+      spells += `<div class="target-zone">${state.party.map((h, i) => (h.alive ? `<button data-spell-target="${i}">Cibler ${esc(h.name)} · PV ${h.hp}/${getStats(h).pv}${statusesOf(h).some((st) => st.kind === 'debuff') ? ' · ⚠️ affaibli' : ''}</button>` : '')).join('')}</div>`;
+    } else if (pending) {
+      spells += `<div class="target-zone"><button data-spell="${view.pendingSpell}" class="danger">Confirmer : ${esc(pending.name)}</button></div>`;
+    }
+  }
+  return `
+    <div class="map-items">
+      <div class="hint">Qui lance un sort ? (seuls les soins et les purifications marchent hors combat)</div>
+      <div class="actions">${heroes}</div>
+      ${spells ? `<div class="actions">${spells}</div>` : ''}
+    </div>`;
 }
 
 function useItem(key, targetIndex) {
@@ -189,7 +272,15 @@ function heroMini(hero) {
       ${bar(hero.hp, stats.pv, cls.color)}
       <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
+      ${debuffTags(hero)}
     </div>`;
+}
+
+// Effets négatifs qui suivent le héros d'un combat à l'autre.
+function debuffTags(hero) {
+  const list = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
+  if (!list.length) return '';
+  return `<div class="status">${list.map((st) => `<span class="tag debuff" ${tip(`${EFFECTS[st.key]?.desc ?? ''} Reste jusqu'à un remède, une purification ou le retour au village.`)}>${st.icon ?? ''} ${esc(st.name)}${st.stun ? '' : ` (${st.turns})`}</span>`).join('')}</div>`;
 }
 
 // ---- Événements ----

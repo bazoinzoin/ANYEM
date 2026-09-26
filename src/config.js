@@ -63,7 +63,8 @@ export const LOOT = {
 // d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
 // d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 export const DUNGEON = {
-  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
+  continueRegenPct: 40,
+  fightsPerFloor: { min: 2, max: 3 }, // combats par étage ordinaire (un étage de boss : le boss seul)   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
 };

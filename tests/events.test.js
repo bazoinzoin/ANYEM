@@ -30,8 +30,9 @@ test('chaque événement du catalogue est bien formé (chances à 100 %)', () =>
   }
 });
 
-test("après un combat ordinaire gagné, un événement peut survenir et bloque l'étage suivant", () => {
+test("à la fin d'un étage ordinaire, un événement peut survenir et bloque l'étage suivant", () => {
   const game = inDungeon();
+  game.expedition.fight = game.expedition.fights; // dernier combat de l'étage
   setRandomSource(() => 0.1); // < chance d'événement
   const cb = createCombat({ party: game.party, enemies: ['gobelin'], level: 1 });
   cb.enemies.forEach((e) => { e.alive = false; });
