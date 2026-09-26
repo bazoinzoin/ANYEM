@@ -6,7 +6,7 @@ import { createParty } from '../src/game/party.js';
 import { recruit, recruitProblem, dismiss, dismissOutcome, reserveOf } from '../src/game/roster.js';
 import { generateItem } from '../src/game/items.js';
 import { equippedItems } from '../src/game/equipment.js';
-import { recordEncounter, recordKills, isDiscovered, bestiaryOf, bestiaryPages, bestiaryProgress } from '../src/game/bestiary.js';
+import { recordEncounter, recordKills, isDiscovered, bestiaryOf, bestiaryPages, bestiaryProgress, levelRange } from '../src/game/bestiary.js';
 import { createCombat } from '../src/game/combat.js';
 import { startExpedition, floorCombat, winFloor, loseExpedition } from '../src/game/dungeon.js';
 import { createEnemy, enemyStats } from '../src/game/enemies.js';
@@ -107,4 +107,11 @@ test('stats du bestiaire = stats de combat (hors Vitesse tirée au hasard)', () 
   assert.equal(s.atq, e.stats.atq);
   assert.equal(s.def, e.stats.def);
   assert.equal(s.vit, ENEMIES.gobelin.vit.min);
+});
+
+test('bestiaire : niveaux où la créature apparaît dans la zone', () => {
+  assert.deepEqual(levelRange('foretMaudite', 'gobelin'), { minLevel: 1, maxLevel: 10 });
+  assert.deepEqual(levelRange('foretMaudite', 'araignee'), { minLevel: 4, maxLevel: 10 });
+  assert.deepEqual(levelRange('foretMaudite', 'chefGobelin'), { minLevel: 1, maxLevel: 3 });
+  assert.equal(levelRange('foretMaudite', 'liche'), null);
 });

@@ -16,6 +16,11 @@
 .start-floors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .start-floors button { padding: 6px 10px; font-size: 14px; }
 .start-floors small { color: var(--dim); }
+.subzones { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.subzone { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+.subzone small { color: var(--dim); }
+.subzone.locked { opacity: .5; }
+.subzone button { padding: 5px 12px; font-size: 14px; }
 .portal h3 { font-size: 16px; }
 .portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
 .services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }

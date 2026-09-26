@@ -39,6 +39,15 @@ export function bestiaryPages() {
   }));
 }
 
+// Niveaux où l'on croise l'ennemi dans la zone : { minLevel, maxLevel } des sous-zones
+// qui le contiennent, ou null.
+export function levelRange(dungeonKey, enemyKey) {
+  const subs = DUNGEONS[dungeonKey].subzones.filter((s) =>
+    s.boss === enemyKey || s.pool.includes(enemyKey) || s.elites?.includes(enemyKey));
+  if (!subs.length) return null;
+  return { minLevel: Math.min(...subs.map((s) => s.minLevel)), maxLevel: Math.max(...subs.map((s) => s.maxLevel)) };
+}
+
 // Nombre d'ennemis découverts / total.
 export function bestiaryProgress(game) {
   const all = bestiaryPages().flatMap((p) => p.enemies);

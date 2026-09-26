@@ -3,14 +3,14 @@
 // de rentrer au village.
 
 import { state } from '../../state.js';
-import { DUNGEONS } from '../../data/dungeons.js';
+import { DUNGEONS, FLOORS_PER_SUBZONE } from '../../data/dungeons.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats, getSkills } from '../../game/party.js';
 import { fieldSkills, castOutOfCombat, cannotCastReason } from '../../game/field.js';
 import { healAmount } from '../../game/formulas.js';
 import { statusesOf } from '../../game/statuses.js';
 import { EFFECTS } from '../../data/effects.js';
-import { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
+import { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
 import {
@@ -45,7 +45,7 @@ export function renderDungeon(app) {
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Étage ${exp.floor}/${d.floors}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
     ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
     ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${lastCombatLog(state.lastCombat)}
@@ -73,7 +73,7 @@ export function renderDungeon(app) {
         </div>` : `
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? `☠️ Affronter le boss (étage ${exp.floor})` : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${exp.floor} (${exp.fights} combats)`}
+          ${nextIsBoss ? '☠️ Affronter le boss' : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${floorInSubzone(exp.floor)} (${exp.fights} combats)`}
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
@@ -169,7 +169,7 @@ export function renderDungeon(app) {
     const d2 = DUNGEONS[exp.dungeonKey];
     const { gold, xp, items, materia } = exp.gains;
     if (leaveExpedition(state)) {
-      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
+      showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${esc(subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name)}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   };
   app.querySelector('#equip').onclick = () => openEquipment();
@@ -250,16 +250,16 @@ function itemPanel() {
     </div>`;
 }
 
-// Frise des étages du palier en cours : étages passés, prochain étage, boss.
+// Frise des étages de la sous-zone en cours : étages passés, prochain étage, boss.
 function floorTrack(key, next) {
   const d = DUNGEONS[key];
   const first = Math.floor((next - 1) / d.bossEvery) * d.bossEvery + 1;
   const cells = [];
   for (let f = first; f < first + d.bossEvery && f <= d.floors; f++) {
     const cls = f < next ? 'done' : f === next ? 'next' : '';
-    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : f}</div>`);
+    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : floorInSubzone(f)}</div>`);
   }
-  return `<small>Palier ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.floors / d.bossEvery}</small><div class="floors">${cells.join('')}</div>`;
+  return `<small>Sous-zone ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.subzones.length} · ${esc(subzoneOf(key, next).name)}</small><div class="floors">${cells.join('')}</div>`;
 }
 
 function heroMini(hero) {

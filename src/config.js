@@ -99,13 +99,15 @@ export const DIFFICULTIES = {
 export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
-// d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
-// d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
+// d'ennemis par étage ordinaire (selon la sous-zone : 0 = étages 1-5…), nombre
+// d'acolytes accompagnant un boss, chance qu'un ennemi ordinaire soit remplacé
+// par un élite de la sous-zone. Aucun soin automatique entre deux combats.
 export const DUNGEON = {
   continueRegenPct: 40,
   fightsPerFloor: { min: 2, max: 3 }, // combats par étage ordinaire (un étage de boss : le boss seul)   // après un boss, choisir de continuer rend ce % des PV et de la ressource
-  enemiesByTier: [2, 2, 3, 3, 3],
-  bossAddsByTier: [0, 1, 1, 2, 2],
+  enemiesByTier: [2, 3, 3],
+  bossAddsByTier: [0, 1, 2],
+  eliteChance: 0.15,
 };
 
 // Événements d'expédition (data/events.js) : chance après chaque combat gagné
@@ -124,8 +126,8 @@ export const EVENT_RULES = {
 export const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 80,
-  toNextPerLevel: 40,
+  toNextBase: 100,
+  toNextPerLevel: 70,
   maxLevel: 50,
 };
 

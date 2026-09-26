@@ -1,8 +1,8 @@
 // Village : équipe, portails vers les donjons et services.
 
 import { state } from '../../state.js';
-import { DUNGEONS, DUNGEON_ORDER } from '../../data/dungeons.js';
-import { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } from '../../game/dungeon.js';
+import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../../data/dungeons.js';
+import { isUnlocked, progressOf, startFloors, startExpedition } from '../../game/dungeon.js';
 import { getClass, getStats, getSkills, xpToNext } from '../../game/party.js';
 import { esc, tip, bar } from '../html.js';
 import { goTo } from '../router.js';
@@ -34,7 +34,7 @@ export function renderHub(app) {
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
-      <p class="hint">Un boss garde la fin de chaque palier de ${DUNGEONS[DUNGEON_ORDER[0]].bossEvery} étages. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu devient un point de départ.</p>
+      <p class="hint">Chaque zone compte 3 sous-zones de ${FLOORS_PER_SUBZONE} étages ; un boss garde le dernier étage de chaque sous-zone. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu ouvre la sous-zone suivante comme point de départ.</p>
       <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
     </div>
     <div class="card section">
@@ -97,18 +97,26 @@ function heroMini(hero) {
 function portal(key) {
   const d = DUNGEONS[key];
   if (!isUnlocked(state, key)) {
-    return `<div class="card portal locked"><h3>🔒 ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages. Terminez le donjon précédent pour l'ouvrir.</p></div>`;
+    return `<div class="card portal locked"><h3>🔒 Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel}. Terminez la zone précédente pour l'ouvrir.</p></div>`;
   }
   const progress = progressOf(state, key);
-  const status = progress.cleared ? '✓ Terminé' : progress.checkpoint ? `Dernier boss vaincu : étage ${progress.checkpoint}` : 'Jamais exploré';
+  const starts = startFloors(state, key);
   return `
     <div class="card portal">
-      <h3>${d.icon} ${d.name}</h3>
+      <h3>${d.icon} Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}${progress.cleared ? ' <b>✓</b>' : ''}</h3>
       <p>${d.desc}</p>
-      <p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages · <b>${status}</b></p>
-      <div class="start-floors">
-        ${startFloors(state, key).map((f) => `
-          <button data-dungeon="${key}" data-floor="${f}">Entrer — étage ${f} <small>(niv. ${floorLevel(key, f)})</small></button>`).join('')}
+      <p>Niveaux ${d.minLevel} à ${d.maxLevel}</p>
+      <div class="subzones">
+        ${d.subzones.map((sub, i) => {
+          const first = i * FLOORS_PER_SUBZONE + 1;
+          const beaten = progress.checkpoint >= first + FLOORS_PER_SUBZONE - 1;
+          const open = starts.includes(first);
+          return `
+            <div class="subzone ${open ? '' : 'locked'}">
+              <span>${i + 1}. ${esc(sub.name)} <small>niv. ${sub.minLevel}-${sub.maxLevel}${beaten ? ' · ✓ boss vaincu' : ''}</small></span>
+              ${open ? `<button data-dungeon="${key}" data-floor="${first}">Entrer</button>` : '<small>🔒</small>'}
+            </div>`;
+        }).join('')}
       </div>
     </div>`;
 }

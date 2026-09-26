@@ -7,7 +7,7 @@ import { DUNGEONS } from '../../data/dungeons.js';
 import { STATS } from '../../data/stats.js';
 import { enemyStats } from '../../game/enemies.js';
 import { difficultyOf, enemyPower } from '../../game/difficulty.js';
-import { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered } from '../../game/bestiary.js';
+import { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered, levelRange } from '../../game/bestiary.js';
 import { isUnlocked } from '../../game/dungeon.js';
 import { esc } from '../html.js';
 import { skillEffectLabel } from '../format.js';
@@ -37,7 +37,7 @@ export function renderBestiary(app) {
         return `<button data-page="${p.dungeonKey}" class="${p === page ? 'selected' : ''}">${d.icon} ${isUnlocked(state, p.dungeonKey) || n ? esc(d.name) : '???'} <small>(${n}/${p.enemies.length})</small></button>`;
       }).join('')}
     </div>
-    <p class="hint">Stats au premier et au dernier étage du donjon (niveaux ${DUNGEONS[page.dungeonKey].minLevel} → ${DUNGEONS[page.dungeonKey].maxLevel}), en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
+    <p class="hint">Stats au niveau le plus bas et le plus haut où l'on croise la créature dans cette zone, en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
     <div class="bestiary-grid">${page.enemies.map((k) => enemyCard(k, page.dungeonKey, enemyPower(diff))).join('')}</div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
@@ -55,13 +55,14 @@ function enemyCard(key, dungeonKey, power) {
   if (!isDiscovered(state, key)) {
     return `<div class="card bestiary-card unknown"><div class="big-icon">❔</div><h3>???</h3><p class="hint">${def.boss ? 'Un boss' : 'Une créature'} encore jamais rencontré${def.boss ? '' : 'e'}.</p></div>`;
   }
-  const { minLevel, maxLevel } = DUNGEONS[dungeonKey];
+  const { minLevel, maxLevel } = levelRange(dungeonKey, key);
   const lo = enemyStats(key, minLevel, power);
   const hi = enemyStats(key, maxLevel, power);
   const row = (stat, label = STATS[stat].label) => `<tr><th>${label}</th><td>${lo[stat]}</td><td>→ ${hi[stat]}</td></tr>`;
   const { seen, kills } = bestiaryOf(state)[key];
   const traits = [
     def.boss ? '👑 Boss' : null,
+    def.elite ? '⭐ Élite' : null,
     def.ranged ? '🏹 À distance' : '⚔️ Corps à corps',
     def.magic ? '✨ Attaque magique' : '🗡️ Attaque physique',
     def.riposte ? `↩️ Riposte ${def.riposte} %` : null,
@@ -71,6 +72,7 @@ function enemyCard(key, dungeonKey, power) {
       <div class="big-icon">${def.icon}</div>
       <h3>${esc(def.name)}</h3>
       <p class="hint">${traits.join(' · ')}</p>
+      <p class="hint">Niveau ${minLevel} à ${maxLevel}</p>
       <table class="bestiary-stats">
         ${row('pv')}${row('atq')}${row('def')}${row('defMag')}
         <tr><th>Vitesse</th><td colspan="2">${def.vit.min} à ${def.vit.max}</td></tr>
