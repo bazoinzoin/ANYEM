@@ -55,7 +55,7 @@ export const LOOT = {
   consumableChance: 0.2,
   bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
-  categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
+  categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 

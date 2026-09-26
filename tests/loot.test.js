@@ -93,3 +93,15 @@ test("n'importe quel légendaire peut tomber, quelle que soit l'équipe", () => 
   }
   assert.deepEqual([...seen].sort(), ['chasseur', 'guerrier', 'mage', 'paladin', 'pretre', 'voleur']);
 });
+
+test("armure, arme, bijou et bouclier ont autant de chances de tomber", () => {
+  const counts = { armor: 0, weapon: 0, jewel: 0, shield: 0 };
+  const n = 400;
+  for (let i = 0; i < n; i++) {
+    setRandomSource(() => (i + 0.5) / n);
+    const item = generateItem({ level: 1, rarity: 'commun' });
+    const cat = item.slotType === 'arme' ? 'weapon' : item.slotType === 'bouclier' ? 'shield' : item.armorType ? 'armor' : 'jewel';
+    counts[cat]++;
+  }
+  for (const c of Object.values(counts)) assert.ok(Math.abs(c - n / 4) <= 2, JSON.stringify(counts));
+});
