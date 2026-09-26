@@ -30,6 +30,13 @@ export const RARITIES = {
 
 export const RARITY_ORDER = Object.keys(RARITIES);
 
+// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
+// reste (armures, boucliers, bijoux) des matéria d'armure.
+export const MATERIA_KINDS = {
+  arme: { label: "Matéria d'arme", icon: '⚔️' },
+  armure: { label: "Matéria d'armure", icon: '🛡️' },
+};
+
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
 export const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,

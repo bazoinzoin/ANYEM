@@ -190,6 +190,27 @@ button.portal:hover { background: var(--panel2); }
 .diff .up { color: var(--r-peu-commun); }
 .diff .down { color: #e06a5a; }
 .warning { color: #e06a5a; }
+
+/* ---- Forge ---- */
+.card.materia { margin-bottom: 14px; overflow-x: auto; }
+.materia table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.materia th, .materia td { padding: 4px 8px; text-align: center; white-space: nowrap; }
+.materia thead th { color: var(--rc); font-weight: 600; }
+.materia tbody th { text-align: left; font-weight: 400; color: var(--dim); }
+.materia td.zero { color: var(--dim); opacity: .5; }
+.forge-list h3 { font-size: 16px; margin-bottom: 8px; }
+.forge-list .bag-title { margin-top: 16px; }
+.forge-hero { font-size: 13px; color: var(--dim); margin: 8px 0 4px; border-left: 3px solid var(--c); padding-left: 6px; }
+.forge-section { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.forge-section h3 { font-size: 15px; margin-bottom: 6px; }
+.forge-section p { margin: 4px 0 8px; }
+.cost { list-style: none; padding: 0; margin: 0 0 8px; font-size: 14px; }
+.cost li.ok::before { content: '✓ '; color: var(--r-peu-commun); }
+.cost li.lack::before { content: '✗ '; color: #e06a5a; }
+.cost li.lack { color: #e6b3aa; }
+.cost small { color: var(--dim); }
+.forge-section .diff { margin-bottom: 10px; }
+button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 </style>
 
 </head>
@@ -242,6 +263,19 @@ const LOOT = {
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
+// Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.
+const FORGE = {
+  maxPlus: 5,
+  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats positives de l'objet de 10 % (stat obligatoire : +1 minimum)
+  decraftYield: 3,        // matéria obtenues en décraftant un objet (de sa rareté)
+  // Coût du passage à +s (s = 1..5), pour chaque rareté de commun jusqu'à celle de l'objet :
+  // tiers inférieurs : lowerTiers[s-1] ; tier de l'objet : ownTier[s-1] (sauf commun : lowerTiers).
+  lowerTiers: [1, 2, 3, 4, 5],
+  ownTier: [1, 1, 1, 2, 3],
+  goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
+  goldPerLevel: 5,
+};
+
 // Fourchettes de variance des dégâts [min, max].
 const VARIANCE = {
   hero: [0.9, 1.15],
@@ -263,20 +297,444 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, FORGE, VARIANCE, REWARDS, TIMING };
+})();
+
+// ---- src/data/items.js
+__modules["src/data/items.js"] = (() => {
+
+// Données d'équipement (voir DESIGN_DOC §2 « Les Equipements »).
+
+// Emplacements d'un héros. `accepts` : types d'emplacement d'objet acceptés.
+const SLOTS = {
+  casque: { label: 'Casque', accepts: ['casque'] },
+  epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
+  plastron: { label: 'Plastron', accepts: ['plastron'] },
+  gants: { label: 'Gants', accepts: ['gants'] },
+  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
+  bottes: { label: 'Bottes', accepts: ['bottes'] },
+  collier: { label: 'Collier', accepts: ['collier'] },
+  anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
+  anneau2: { label: 'Anneau 2', accepts: ['anneau'] },
+  mainDroite: { label: 'Main droite', accepts: ['arme'] },
+  mainGauche: { label: 'Main gauche', accepts: ['arme', 'bouclier'] },
+};
+
+const SLOT_ORDER = Object.keys(SLOTS);
+
+// Rareté. secondaries : nombre de stats secondaires aléatoires.
+// mult : multiplicateur des stats obligatoire et principale.
+// range : fourchette (× valeur unitaire) des stats secondaires.
+const RARITIES = {
+  commun: { label: 'Commun', color: 'var(--r-commun)', secondaries: 0, mult: 1.0, range: [0, 0] },
+  peuCommun: { label: 'Peu commun', color: 'var(--r-peu-commun)', secondaries: 1, mult: 1.1, range: [0.5, 1.0] },
+  rare: { label: 'Rare', color: 'var(--r-rare)', secondaries: 2, mult: 1.25, range: [0.9, 1.5] },
+  epique: { label: 'Épique', color: 'var(--r-epique)', secondaries: 3, mult: 1.4, range: [1.4, 2.1] },
+  legendaire: { label: 'Légendaire', color: 'var(--r-legendaire)', secondaries: 4, mult: 1.6, range: [2.0, 2.8] },
+};
+
+const RARITY_ORDER = Object.keys(RARITIES);
+
+// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
+// reste (armures, boucliers, bijoux) des matéria d'armure.
+const MATERIA_KINDS = {
+  arme: { label: "Matéria d'arme", icon: '⚔️' },
+  armure: { label: "Matéria d'armure", icon: '🛡️' },
+};
+
+// Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+const ARMOR_PIECES = {
+  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
+};
+
+const ARMOR_TYPES = {
+  lourde: {
+    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
+    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
+  },
+  moyenne: {
+    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
+    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
+  },
+  legere: {
+    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
+    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
+  },
+};
+
+// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
+// twoHanded : occupe les deux mains.
+const WEAPON_TYPES = {
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
+  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
+  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
+  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
+  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
+  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
+  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
+};
+
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
+
+const JEWELS = {
+  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
+  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
+};
+
+// Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
+const PRIMARY_SUFFIX = {
+  force: "de l'Ours",
+  agilite: 'du Faucon',
+  intelligence: 'du Sage',
+};
+
+// Stats secondaires pouvant apparaître, avec leur valeur unitaire au niveau L :
+// unit = base + perLevel × L (puis multipliée par la fourchette de rareté).
+const SECONDARY_STATS = {
+  pv: { base: 3, perLevel: 1.2 },
+  atq: { base: 1, perLevel: 0.25 },
+  vit: { base: 1, perLevel: 0.05 },
+  critChance: { base: 1, perLevel: 0.1 },
+  critDmg: { base: 3, perLevel: 0.3 },
+  def: { base: 1, perLevel: 0.4 },
+  defMag: { base: 1, perLevel: 0.4 },
+  esquive: { base: 1, perLevel: 0.08 },
+  blocage: { base: 1, perLevel: 0.1 },
+};
+
+// Objets légendaires : liés à une classe, avec un passif unique qui modifie
+// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
+const LEGENDARIES = {
+  colereAncestrale: {
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
+  },
+  rempartDeKaldor: {
+    name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
+    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
+  },
+  crocSanglant: {
+    name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
+    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+  },
+  murmureDeLOmbre: {
+    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
+  },
+  benedictionDAube: {
+    name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
+  },
+  etoleDuPelerin: {
+    name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
+  },
+  coeurDeBrasier: {
+    name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
+  },
+  couronneDOrage: {
+    name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
+  },
+};
+
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+})();
+
+// ---- src/game/rng.js
+__modules["src/game/rng.js"] = (() => {
+
+// Source d'aléatoire unique du jeu, remplaçable pour les tests (ou pour un futur seed).
+
+let source = Math.random;
+
+function setRandomSource(fn) {
+  source = fn ?? Math.random;
+}
+
+function random() {
+  return source();
+}
+
+function rand(min, max) {
+  return min + source() * (max - min);
+}
+
+function pick(list) {
+  return list[Math.floor(source() * list.length)];
+}
+
+return { setRandomSource, random, rand, pick };
+})();
+
+// ---- src/game/items.js
+__modules["src/game/items.js"] = (() => {
+const { ITEM, LOOT, FORGE } = __modules["src/config.js"];
+const { RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
+const { rand, pick, random } = __modules["src/game/rng.js"];
+// Génération des objets d'équipement.
+//
+// Un objet est une donnée figée à sa création, sauf son niveau d'amélioration :
+// { id, name, level, rarity, plus, slotType, weaponType?, armorType?, primary,
+//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
+// `stats` sont les stats de base : les stats effectives se lisent via itemStats().
+// slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
+
+
+
+
+
+let nextId = 1;
+
+function budget(level) {
+  return ITEM.budgetBase + ITEM.budgetPerLevel * level;
+}
+
+// Stats effectives, amélioration (+1..+5) comprise.
+function itemStats(item) {
+  const plus = item.plus ?? 0;
+  if (!plus) return item.stats;
+  const boosted = {};
+  for (const [stat, value] of Object.entries(item.stats)) {
+    if (value <= 0) boosted[stat] = value; // un malus (vitesse d'un marteau) n'est pas aggravé
+    else {
+      const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+      boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
+    }
+  }
+  return boosted;
+}
+
+function isWeapon(item) {
+  return item.slotType === 'arme';
+}
+
+function isTwoHanded(item) {
+  return isWeapon(item) && !!WEAPON_TYPES[item.weaponType].twoHanded;
+}
+
+// Libellé du type, ex. « Armure lourde · Plastron », « Arme à deux mains ».
+function itemTypeLabel(item) {
+  if (isWeapon(item)) return WEAPON_TYPES[item.weaponType].label;
+  if (item.slotType === 'bouclier') return SHIELD.label;
+  if (JEWELS[item.slotType]) return JEWELS[item.slotType].label;
+  return ARMOR_TYPES[item.armorType].label;
+}
+
+function weightedPick(weights) {
+  const entries = Object.entries(weights);
+  let roll = random() * entries.reduce((sum, [, w]) => sum + w, 0);
+  for (const [key, w] of entries) {
+    roll -= w;
+    if (roll < 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
+function rollRarity() {
+  return weightedPick(LOOT.rarityWeights);
+}
+
+// Tire une base d'objet aléatoire (hors légendaires).
+function rollBase() {
+  const category = weightedPick(LOOT.categoryWeights);
+  if (category === 'weapon') return { slotType: 'arme', weaponType: pick(Object.keys(WEAPON_TYPES)) };
+  if (category === 'shield') return { slotType: 'bouclier' };
+  if (category === 'jewel') return { slotType: pick(Object.keys(JEWELS)) };
+  return { slotType: pick(Object.keys(ARMOR_PIECES)), armorType: pick(Object.keys(ARMOR_TYPES)) };
+}
+
+function primaryOptions(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].primaries;
+  if (base.slotType === 'bouclier') return SHIELD.primaries;
+  if (JEWELS[base.slotType]) return ['force', 'agilite', 'intelligence'];
+  return ARMOR_TYPES[base.armorType].primaries;
+}
+
+function baseName(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].name;
+  if (base.slotType === 'bouclier') return SHIELD.name;
+  if (JEWELS[base.slotType]) return JEWELS[base.slotType].name;
+  return ARMOR_TYPES[base.armorType].names[base.slotType];
+}
+
+// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
+// (bouclier), défense magique (bijou).
+function mandatoryStats(base, level, mult) {
+  const b = budget(level);
+  if (base.slotType === 'arme') {
+    const w = WEAPON_TYPES[base.weaponType];
+    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
+    if (w.vit) stats.vit = w.vit;
+    return stats;
+  }
+  if (base.slotType === 'bouclier') {
+    return {
+      def: Math.round(b * ITEM.shieldDef * mult),
+      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
+    };
+  }
+  if (JEWELS[base.slotType]) {
+    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
+  }
+  const weight = ARMOR_PIECES[base.slotType];
+  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
+}
+
+function primaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
+  if (base.slotType === 'bouclier') return 0.8;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_PIECES[base.slotType];
+}
+
+function secondaryValue(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return Math.max(1, Math.round(unit * rand(range[0], range[1])));
+}
+
+/**
+ * Crée un objet. Tout paramètre omis est tiré au hasard.
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ */
+function generateItem(opts = {}) {
+  const level = Math.max(1, opts.level ?? 1);
+  let rarity = opts.rarity ?? rollRarity();
+  let legendaryKey = opts.legendary ?? null;
+  if (legendaryKey) rarity = 'legendaire';
+  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
+  const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
+
+  const base = legendary
+    ? { slotType: legendary.slotType, weaponType: legendary.weaponType, armorType: legendary.armorType }
+    : opts.slotType ? { slotType: opts.slotType, weaponType: opts.weaponType, armorType: opts.armorType } : rollBase();
+  const primary = legendary?.primary ?? opts.primary ?? pick(primaryOptions(base));
+  const r = RARITIES[rarity];
+
+  const stats = mandatoryStats(base, level, r.mult);
+  const mandatory = Object.keys(stats);
+  stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
+
+  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
+  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
+  const secondaries = [];
+  for (let i = 0; i < r.secondaries && pool.length; i++) {
+    const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
+    stats[stat] = secondaryValue(stat, level, r.range);
+    secondaries.push(stat);
+  }
+
+  let name = legendary ? legendary.name : baseName(base);
+  if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
+
+  const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, secondaries };
+  for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
+  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
+  return item;
+}
+
+return { budget, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
+})();
+
+// ---- src/game/forge.js
+__modules["src/game/forge.js"] = (() => {
+const { FORGE } = __modules["src/config.js"];
+const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { isWeapon } = __modules["src/game/items.js"];
+// Forge : décraft des objets en matéria et amélioration de +1 à +5.
+//
+// game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … } }
+
+
+
+
+
+function emptyMateria() {
+  return Object.fromEntries(Object.keys(MATERIA_KINDS).map((kind) =>
+    [kind, Object.fromEntries(RARITY_ORDER.map((r) => [r, 0]))]));
+}
+
+function materiaKind(item) {
+  return isWeapon(item) ? 'arme' : 'armure';
+}
+
+function decraftYield(item) {
+  return { kind: materiaKind(item), rarity: item.rarity, amount: FORGE.decraftYield };
+}
+
+// Décrafte un objet du sac (jamais un objet porté). Retourne le gain, ou null.
+function decraft(game, item) {
+  const index = game.bag.indexOf(item);
+  if (index === -1) return null;
+  game.bag.splice(index, 1);
+  const gain = decraftYield(item);
+  game.materia[gain.kind][gain.rarity] += gain.amount;
+  return gain;
+}
+
+/**
+ * Coût du prochain niveau d'amélioration, ou null si l'objet est au maximum.
+ * { plus: niveau visé, gold, kind, materia: { rareté: quantité } }
+ */
+function upgradeCost(item) {
+  const plus = (item.plus ?? 0) + 1;
+  if (plus > FORGE.maxPlus) return null;
+  const tiers = RARITY_ORDER.slice(0, RARITY_ORDER.indexOf(item.rarity) + 1);
+  const materia = {};
+  for (const tier of tiers) {
+    const own = tier === item.rarity && tier !== 'commun';
+    materia[tier] = (own ? FORGE.ownTier : FORGE.lowerTiers)[plus - 1];
+  }
+  return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
+}
+
+// Ce qui manque pour améliorer : { gold, materia: { rareté: manque } } (vide si tout est là).
+function missingForUpgrade(game, item) {
+  const cost = upgradeCost(item);
+  if (!cost) return null;
+  const missing = { gold: Math.max(0, cost.gold - game.gold), materia: {} };
+  for (const [tier, need] of Object.entries(cost.materia)) {
+    const lack = need - game.materia[cost.kind][tier];
+    if (lack > 0) missing.materia[tier] = lack;
+  }
+  return missing;
+}
+
+function canUpgrade(game, item) {
+  const missing = missingForUpgrade(game, item);
+  return !!missing && missing.gold === 0 && Object.keys(missing.materia).length === 0;
+}
+
+// Améliore l'objet (porté ou dans le sac) en payant son coût. Retourne false si impossible.
+function upgrade(game, item) {
+  if (!canUpgrade(game, item)) return false;
+  const cost = upgradeCost(item);
+  game.gold -= cost.gold;
+  for (const [tier, need] of Object.entries(cost.materia)) game.materia[cost.kind][tier] -= need;
+  item.plus = cost.plus;
+  return true;
+}
+
+return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
 })();
 
 // ---- src/state.js
 __modules["src/state.js"] = (() => {
 const { START_GOLD, START_DUNGEON_LEVEL } = __modules["src/config.js"];
+const { emptyMateria } = __modules["src/game/forge.js"];
 // État global du jeu (source de vérité unique, lue par l'interface).
 
 
 
+
 const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'combat'
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'combat'
   party: [],
   bag: [],              // objets non équipés, partagés par l'équipe
+  materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
   gold: START_GOLD,
   dungeonLvl: START_DUNGEON_LEVEL,
   combat: null,
@@ -442,142 +900,6 @@ const CLASSES = {
 return { CLASSES };
 })();
 
-// ---- src/data/items.js
-__modules["src/data/items.js"] = (() => {
-
-// Données d'équipement (voir DESIGN_DOC §2 « Les Equipements »).
-
-// Emplacements d'un héros. `accepts` : types d'emplacement d'objet acceptés.
-const SLOTS = {
-  casque: { label: 'Casque', accepts: ['casque'] },
-  epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
-  plastron: { label: 'Plastron', accepts: ['plastron'] },
-  gants: { label: 'Gants', accepts: ['gants'] },
-  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
-  bottes: { label: 'Bottes', accepts: ['bottes'] },
-  collier: { label: 'Collier', accepts: ['collier'] },
-  anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
-  anneau2: { label: 'Anneau 2', accepts: ['anneau'] },
-  mainDroite: { label: 'Main droite', accepts: ['arme'] },
-  mainGauche: { label: 'Main gauche', accepts: ['arme', 'bouclier'] },
-};
-
-const SLOT_ORDER = Object.keys(SLOTS);
-
-// Rareté. secondaries : nombre de stats secondaires aléatoires.
-// mult : multiplicateur des stats obligatoire et principale.
-// range : fourchette (× valeur unitaire) des stats secondaires.
-const RARITIES = {
-  commun: { label: 'Commun', color: 'var(--r-commun)', secondaries: 0, mult: 1.0, range: [0, 0] },
-  peuCommun: { label: 'Peu commun', color: 'var(--r-peu-commun)', secondaries: 1, mult: 1.1, range: [0.5, 1.0] },
-  rare: { label: 'Rare', color: 'var(--r-rare)', secondaries: 2, mult: 1.25, range: [0.9, 1.5] },
-  epique: { label: 'Épique', color: 'var(--r-epique)', secondaries: 3, mult: 1.4, range: [1.4, 2.1] },
-  legendaire: { label: 'Légendaire', color: 'var(--r-legendaire)', secondaries: 4, mult: 1.6, range: [2.0, 2.8] },
-};
-
-const RARITY_ORDER = Object.keys(RARITIES);
-
-// Pièces d'armure : poids relatif (part de la défense et de la stat principale).
-const ARMOR_PIECES = {
-  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
-};
-
-const ARMOR_TYPES = {
-  lourde: {
-    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
-    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
-  },
-  moyenne: {
-    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
-    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
-  },
-  legere: {
-    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
-    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
-  },
-};
-
-// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
-// twoHanded : occupe les deux mains.
-const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
-};
-
-const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
-
-const JEWELS = {
-  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
-  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
-};
-
-// Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
-const PRIMARY_SUFFIX = {
-  force: "de l'Ours",
-  agilite: 'du Faucon',
-  intelligence: 'du Sage',
-};
-
-// Stats secondaires pouvant apparaître, avec leur valeur unitaire au niveau L :
-// unit = base + perLevel × L (puis multipliée par la fourchette de rareté).
-const SECONDARY_STATS = {
-  pv: { base: 3, perLevel: 1.2 },
-  atq: { base: 1, perLevel: 0.25 },
-  vit: { base: 1, perLevel: 0.05 },
-  critChance: { base: 1, perLevel: 0.1 },
-  critDmg: { base: 3, perLevel: 0.3 },
-  def: { base: 1, perLevel: 0.4 },
-  defMag: { base: 1, perLevel: 0.4 },
-  esquive: { base: 1, perLevel: 0.08 },
-  blocage: { base: 1, perLevel: 0.1 },
-};
-
-// Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
-const LEGENDARIES = {
-  colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
-    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
-  },
-  rempartDeKaldor: {
-    name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
-    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
-  },
-  crocSanglant: {
-    name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
-  },
-  murmureDeLOmbre: {
-    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
-    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
-  },
-  benedictionDAube: {
-    name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
-  },
-  etoleDuPelerin: {
-    name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
-  },
-  coeurDeBrasier: {
-    name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
-  },
-  couronneDOrage: {
-    name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
-  },
-};
-
-return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
-})();
-
 // ---- src/data/stats.js
 __modules["src/data/stats.js"] = (() => {
 
@@ -618,193 +940,13 @@ function zeroStats() {
 return { STATS, PRIMARY_STATS, STAT_ORDER, zeroStats };
 })();
 
-// ---- src/game/rng.js
-__modules["src/game/rng.js"] = (() => {
-
-// Source d'aléatoire unique du jeu, remplaçable pour les tests (ou pour un futur seed).
-
-let source = Math.random;
-
-function setRandomSource(fn) {
-  source = fn ?? Math.random;
-}
-
-function random() {
-  return source();
-}
-
-function rand(min, max) {
-  return min + source() * (max - min);
-}
-
-function pick(list) {
-  return list[Math.floor(source() * list.length)];
-}
-
-return { setRandomSource, random, rand, pick };
-})();
-
-// ---- src/game/items.js
-__modules["src/game/items.js"] = (() => {
-const { ITEM, LOOT } = __modules["src/config.js"];
-const { RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
-const { rand, pick, random } = __modules["src/game/rng.js"];
-// Génération des objets d'équipement.
-//
-// Un objet est une donnée figée à sa création :
-// { id, name, level, rarity, slotType, weaponType?, armorType?, primary,
-//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
-// slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
-
-
-
-
-
-let nextId = 1;
-
-function budget(level) {
-  return ITEM.budgetBase + ITEM.budgetPerLevel * level;
-}
-
-function isWeapon(item) {
-  return item.slotType === 'arme';
-}
-
-function isTwoHanded(item) {
-  return isWeapon(item) && !!WEAPON_TYPES[item.weaponType].twoHanded;
-}
-
-// Libellé du type, ex. « Armure lourde · Plastron », « Arme à deux mains ».
-function itemTypeLabel(item) {
-  if (isWeapon(item)) return WEAPON_TYPES[item.weaponType].label;
-  if (item.slotType === 'bouclier') return SHIELD.label;
-  if (JEWELS[item.slotType]) return JEWELS[item.slotType].label;
-  return ARMOR_TYPES[item.armorType].label;
-}
-
-function weightedPick(weights) {
-  const entries = Object.entries(weights);
-  let roll = random() * entries.reduce((sum, [, w]) => sum + w, 0);
-  for (const [key, w] of entries) {
-    roll -= w;
-    if (roll < 0) return key;
-  }
-  return entries[entries.length - 1][0];
-}
-
-function rollRarity() {
-  return weightedPick(LOOT.rarityWeights);
-}
-
-// Tire une base d'objet aléatoire (hors légendaires).
-function rollBase() {
-  const category = weightedPick(LOOT.categoryWeights);
-  if (category === 'weapon') return { slotType: 'arme', weaponType: pick(Object.keys(WEAPON_TYPES)) };
-  if (category === 'shield') return { slotType: 'bouclier' };
-  if (category === 'jewel') return { slotType: pick(Object.keys(JEWELS)) };
-  return { slotType: pick(Object.keys(ARMOR_PIECES)), armorType: pick(Object.keys(ARMOR_TYPES)) };
-}
-
-function primaryOptions(base) {
-  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].primaries;
-  if (base.slotType === 'bouclier') return SHIELD.primaries;
-  if (JEWELS[base.slotType]) return ['force', 'agilite', 'intelligence'];
-  return ARMOR_TYPES[base.armorType].primaries;
-}
-
-function baseName(base) {
-  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].name;
-  if (base.slotType === 'bouclier') return SHIELD.name;
-  if (JEWELS[base.slotType]) return JEWELS[base.slotType].name;
-  return ARMOR_TYPES[base.armorType].names[base.slotType];
-}
-
-// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
-// (bouclier), défense magique (bijou).
-function mandatoryStats(base, level, mult) {
-  const b = budget(level);
-  if (base.slotType === 'arme') {
-    const w = WEAPON_TYPES[base.weaponType];
-    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
-    if (w.vit) stats.vit = w.vit;
-    return stats;
-  }
-  if (base.slotType === 'bouclier') {
-    return {
-      def: Math.round(b * ITEM.shieldDef * mult),
-      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
-    };
-  }
-  if (JEWELS[base.slotType]) {
-    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
-  }
-  const weight = ARMOR_PIECES[base.slotType];
-  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
-}
-
-function primaryWeight(base) {
-  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
-  if (base.slotType === 'bouclier') return 0.8;
-  if (JEWELS[base.slotType]) return 1;
-  return ARMOR_PIECES[base.slotType];
-}
-
-function secondaryValue(stat, level, range) {
-  const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
-  return Math.max(1, Math.round(unit * rand(range[0], range[1])));
-}
-
-/**
- * Crée un objet. Tout paramètre omis est tiré au hasard.
- * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
- */
-function generateItem(opts = {}) {
-  const level = Math.max(1, opts.level ?? 1);
-  let rarity = opts.rarity ?? rollRarity();
-  let legendaryKey = opts.legendary ?? null;
-  if (legendaryKey) rarity = 'legendaire';
-  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
-  const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
-
-  const base = legendary
-    ? { slotType: legendary.slotType, weaponType: legendary.weaponType, armorType: legendary.armorType }
-    : opts.slotType ? { slotType: opts.slotType, weaponType: opts.weaponType, armorType: opts.armorType } : rollBase();
-  const primary = legendary?.primary ?? opts.primary ?? pick(primaryOptions(base));
-  const r = RARITIES[rarity];
-
-  const stats = mandatoryStats(base, level, r.mult);
-  const mandatory = Object.keys(stats);
-  stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
-
-  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
-  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
-  const secondaries = [];
-  for (let i = 0; i < r.secondaries && pool.length; i++) {
-    const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    stats[stat] = secondaryValue(stat, level, r.range);
-    secondaries.push(stat);
-  }
-
-  let name = legendary ? legendary.name : baseName(base);
-  if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
-
-  const item = { id: `it${nextId++}`, name, level, rarity, ...base, primary, stats, mandatory, secondaries };
-  for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
-  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
-  return item;
-}
-
-return { budget, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, generateItem };
-})();
-
 // ---- src/game/party.js
 __modules["src/game/party.js"] = (() => {
 const { CLASSES } = __modules["src/data/classes.js"];
 const { SLOT_ORDER } = __modules["src/data/items.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
 const { PARTY_ORDER, COMBAT } = __modules["src/config.js"];
-const { generateItem } = __modules["src/game/items.js"];
+const { generateItem, itemStats } = __modules["src/game/items.js"];
 // Héros et équipe.
 //
 // Un héros ne stocke que son état variable (PV, ressource, statuts, équipement).
@@ -834,7 +976,7 @@ function getStats(hero) {
   const cls = getClass(hero);
   const total = { ...zeroStats(), ...cls.base };
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(item.stats)) {
+    for (const [stat, value] of Object.entries(itemStats(item))) {
       // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
       const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
       total[stat] += Math.round(value * factor);
@@ -1535,7 +1677,7 @@ __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
 const { RARITIES, SLOTS } = __modules["src/data/items.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { itemTypeLabel } = __modules["src/game/items.js"];
+const { itemTypeLabel, itemStats } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 // Affichage des objets et des stats.
 
@@ -1552,6 +1694,11 @@ function formatStat(key, value, { sign = true } = {}) {
   return `${prefix}${value}${def.suffix ? ` ${def.suffix}` : ''} ${def.label}`;
 }
 
+// Nom avec niveau d'amélioration, ex. « Épée du Faucon +2 » (texte brut, non échappé).
+function itemName(item) {
+  return item.plus ? `${item.name} +${item.plus}` : item.name;
+}
+
 function itemStatKeys(item) {
   const primary = item.mandatory.includes(item.primary) ? [] : [item.primary];
   return [...item.mandatory, ...primary, ...item.secondaries];
@@ -1563,25 +1710,27 @@ function itemMeta(item) {
 
 // Texte brut multi-lignes (infobulles).
 function itemTooltipText(item) {
-  const lines = [item.name, itemMeta(item), ...itemStatKeys(item).map((k) => formatStat(k, item.stats[k]))];
+  const stats = itemStats(item);
+  const lines = [itemName(item), itemMeta(item), ...itemStatKeys(item).map((k) => formatStat(k, stats[k]))];
   if (item.legendary) lines.push(`Unique (${CLASSES[item.legendary.classKey].name}) : ${item.legendary.desc}`);
   return lines.join('\n');
 }
 
 // Nom coloré par rareté, avec infobulle détaillée.
 function itemChip(item) {
-  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>`;
+  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
 }
 
 // Fiche complète d'un objet.
 function itemCard(item) {
+  const stats = itemStats(item);
   const statLines = itemStatKeys(item).map((k) => {
     const cls = item.secondaries.includes(k) ? 'secondary' : 'main';
-    return `<li class="${cls}">${formatStat(k, item.stats[k])}</li>`;
+    return `<li class="${cls}">${formatStat(k, stats[k])}</li>`;
   });
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
-      <div class="item-name">${esc(item.name)}</div>
+      <div class="item-name">${esc(itemName(item))}</div>
       <div class="item-meta">${itemMeta(item)}</div>
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
@@ -1592,7 +1741,7 @@ function slotLabel(slot) {
   return SLOTS[slot].label;
 }
 
-return { formatStat, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
+return { formatStat, itemName, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
 })();
 
 // ---- src/game/equipment.js
@@ -1733,7 +1882,7 @@ const { STAT_ORDER } = __modules["src/data/stats.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
 const { esc } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, formatStat, slotLabel } = __modules["src/ui/items.js"];
+const { itemCard, itemMeta, itemName, formatStat, slotLabel } = __modules["src/ui/items.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
@@ -1832,7 +1981,7 @@ function slotRow(hero, slot) {
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
       <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
     </button>`;
 }
 
@@ -1845,7 +1994,7 @@ function bagList(hero) {
     const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
     return `
       <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
-        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
         <small>${itemMeta(item)}</small>
       </button>`;
   }).join('');
@@ -1867,7 +2016,7 @@ function detailPanel(hero) {
     return `
       <div class="equip-option">
         <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
-        <small>${current ? `remplace ${esc(current.name)}` : 'emplacement vide'}</small>
+        <small>${current ? `remplace ${esc(itemName(current))}` : 'emplacement vide'}</small>
         ${statDiff(hero, previewEquip(hero, item, slot))}
       </div>`;
   });
@@ -1889,6 +2038,197 @@ function statDiff(hero, preview) {
 return { openEquipment, renderEquipment };
 })();
 
+// ---- src/ui/screens/forge.js
+__modules["src/ui/screens/forge.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES, RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { getClass } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { itemStats } = __modules["src/game/items.js"];
+const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } = __modules["src/game/forge.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
+const view = { selectedId: null, confirm: null, flash: null };
+
+// Raretés dont le décraft demande une confirmation.
+const CONFIRM_RARITIES = ['epique', 'legendaire'];
+
+function openForge() {
+  Object.assign(view, { selectedId: null, confirm: null, flash: null });
+  goTo('forge');
+}
+
+function renderForge(app) {
+  const item = findItem(view.selectedId);
+  const flash = view.flash;
+  view.flash = null;
+  const commons = state.bag.filter((i) => i.rarity === 'commun');
+
+  app.innerHTML = `
+    <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    <div class="card materia">${materiaTable()}</div>
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets portés</h3>
+        ${state.party.map((hero) => `
+          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
+          ${equippedItems(hero).map(itemRow).join('')}`).join('')}
+        <h3 class="bag-title">Sac (${state.bag.length})</h3>
+        ${state.bag.length ? state.bag.map(itemRow).join('') : '<p class="hint">Le sac est vide.</p>'}
+        ${commons.length ? `
+          <button id="decraftCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
+            ${view.confirm === 'commons'
+              ? `Confirmer : décrafter ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''}`
+              : `Décrafter tous les objets communs du sac (${commons.length})`}
+          </button>` : ''}
+      </div>
+      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => {
+      Object.assign(view, { selectedId: row.dataset.item, confirm: null });
+      goTo('forge');
+    };
+  });
+  app.querySelector('#upgrade')?.addEventListener('click', () => {
+    if (upgrade(state, item)) view.flash = `${itemName(item)} : amélioration réussie !`;
+    goTo('forge');
+  });
+  app.querySelector('#decraft')?.addEventListener('click', () => {
+    if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
+      view.confirm = item.id;
+    } else {
+      const gain = decraft(state, item);
+      if (gain) view.flash = `${itemName(item)} décrafté : ${yieldText(gain)}.`;
+      Object.assign(view, { selectedId: null, confirm: null });
+    }
+    goTo('forge');
+  });
+  app.querySelector('#decraftCommons')?.addEventListener('click', () => {
+    if (view.confirm !== 'commons') {
+      view.confirm = 'commons';
+    } else {
+      const gains = commons.map((i) => decraft(state, i)).filter(Boolean);
+      const byKind = Object.keys(MATERIA_KINDS)
+        .map((kind) => [kind, gains.filter((g) => g.kind === kind).reduce((sum, g) => sum + g.amount, 0)])
+        .filter(([, n]) => n > 0)
+        .map(([kind, n]) => `${n} × ${MATERIA_KINDS[kind].label} commun`);
+      view.flash = `${gains.length} objet${gains.length > 1 ? 's' : ''} décrafté${gains.length > 1 ? 's' : ''} : ${byKind.join(', ')}.`;
+      if (commons.some((i) => i.id === view.selectedId)) view.selectedId = null;
+      view.confirm = null;
+    }
+    goTo('forge');
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function findItem(id) {
+  if (!id) return null;
+  for (const hero of state.party) {
+    const found = equippedItems(hero).find((i) => i.id === id);
+    if (found) return found;
+  }
+  return state.bag.find((i) => i.id === id) ?? null;
+}
+
+function wearerOf(item) {
+  return state.party.find((hero) => equippedItems(hero).includes(item)) ?? null;
+}
+
+function rarityLabel(rarity) {
+  return `<span class="rarity-text" style="--rc:${RARITIES[rarity].color}">${RARITIES[rarity].label.toLowerCase()}</span>`;
+}
+
+function yieldText(gain) {
+  return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
+}
+
+function materiaTable() {
+  return `
+    <table>
+      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
+          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${state.materia[kind][r] ? '' : 'zero'}">${state.materia[kind][r]}</td>`).join('')}</tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function itemRow(item) {
+  const selected = item.id === view.selectedId ? 'selected' : '';
+  return `
+    <button class="bag-row ${selected}" data-item="${item.id}">
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`;
+}
+
+function detailPanel(item) {
+  const wearer = wearerOf(item);
+  return `
+    ${itemCard(item)}
+    <p class="hint">${wearer ? `Porté par ${esc(wearer.name)}` : 'Dans le sac'}</p>
+    ${upgradeSection(item)}
+    ${wearer ? '<p class="hint">Un objet porté ne peut pas être décrafté : retire-le d\'abord (écran Équipement).</p>' : decraftSection(item)}`;
+}
+
+function upgradeSection(item) {
+  const cost = upgradeCost(item);
+  if (!cost) return '<div class="forge-section"><h3>Amélioration</h3><p>Amélioration maximale atteinte (+5).</p></div>';
+
+  const missing = missingForUpgrade(state, item);
+  const lines = Object.entries(cost.materia).map(([tier, need]) => {
+    const have = state.materia[cost.kind][tier];
+    return `<li class="${missing.materia[tier] ? 'lack' : 'ok'}">${need} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(tier)} <small>(possédé : ${have})</small></li>`;
+  });
+  lines.push(`<li class="${missing.gold ? 'lack' : 'ok'}">${cost.gold} pièces d'or <small>(possédé : ${state.gold})</small></li>`);
+
+  const before = itemStats(item);
+  const after = itemStats({ ...item, plus: cost.plus });
+  const gains = Object.keys(after)
+    .filter((k) => after[k] !== before[k])
+    .map((k) => `<span class="up">${formatStat(k, after[k] - before[k])}</span>`);
+
+  return `
+    <div class="forge-section">
+      <h3>Amélioration +${cost.plus}</h3>
+      <ul class="cost">${lines.join('')}</ul>
+      <div class="diff">${gains.length ? gains.join('') : '<span>Aucun gain visible à ce niveau</span>'}</div>
+      <button id="upgrade" ${canUpgrade(state, item) ? '' : 'disabled'}>Améliorer (+${cost.plus})</button>
+    </div>`;
+}
+
+function decraftSection(item) {
+  const confirming = view.confirm === item.id;
+  return `
+    <div class="forge-section">
+      <h3>Décraft</h3>
+      <p>Détruit l'objet et rapporte ${yieldText(decraftYield(item))}.</p>
+      <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
+    </div>`;
+}
+
+return { openForge, renderForge };
+})();
+
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -1900,7 +2240,9 @@ const { goTo, showHub } = __modules["src/ui/router.js"];
 const { startEncounter } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+const { openForge } = __modules["src/ui/screens/forge.js"];
 // Village : équipe, portails vers les donjons et services.
+
 
 
 
@@ -1936,7 +2278,7 @@ function renderHub(app) {
       <div class="services">
         <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
         <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
-        <button id="forge" ${tip('Décrafte et améliore ton équipement grâce aux matéria. Bientôt disponible.')}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
       </div>
@@ -1948,7 +2290,7 @@ function renderHub(app) {
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
   app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
-  app.querySelector('#forge').onclick = () => showHub('La forge est encore froide — bientôt disponible.');
+  app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
 }
@@ -2213,8 +2555,10 @@ const { renderCreate } = __modules["src/ui/screens/create.js"];
 const { renderHub } = __modules["src/ui/screens/hub.js"];
 const { renderStats } = __modules["src/ui/screens/stats.js"];
 const { renderEquipment } = __modules["src/ui/screens/equipment.js"];
+const { renderForge } = __modules["src/ui/screens/forge.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -2228,6 +2572,7 @@ registerScreens({
   hub: renderHub,
   stats: renderStats,
   equipment: renderEquipment,
+  forge: renderForge,
   combat: renderCombat,
 });
 

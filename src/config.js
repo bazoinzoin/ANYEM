@@ -37,6 +37,19 @@ export const LOOT = {
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
+// Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.
+export const FORGE = {
+  maxPlus: 5,
+  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats positives de l'objet de 10 % (stat obligatoire : +1 minimum)
+  decraftYield: 3,        // matéria obtenues en décraftant un objet (de sa rareté)
+  // Coût du passage à +s (s = 1..5), pour chaque rareté de commun jusqu'à celle de l'objet :
+  // tiers inférieurs : lowerTiers[s-1] ; tier de l'objet : ownTier[s-1] (sauf commun : lowerTiers).
+  lowerTiers: [1, 2, 3, 4, 5],
+  ownTier: [1, 1, 1, 2, 3],
+  goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
+  goldPerLevel: 5,
+};
+
 // Fourchettes de variance des dégâts [min, max].
 export const VARIANCE = {
   hero: [0.9, 1.15],

@@ -74,3 +74,24 @@ button.portal:hover { background: var(--panel2); }
 .diff .up { color: var(--r-peu-commun); }
 .diff .down { color: #e06a5a; }
 .warning { color: #e06a5a; }
+
+/* ---- Forge ---- */
+.card.materia { margin-bottom: 14px; overflow-x: auto; }
+.materia table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.materia th, .materia td { padding: 4px 8px; text-align: center; white-space: nowrap; }
+.materia thead th { color: var(--rc); font-weight: 600; }
+.materia tbody th { text-align: left; font-weight: 400; color: var(--dim); }
+.materia td.zero { color: var(--dim); opacity: .5; }
+.forge-list h3 { font-size: 16px; margin-bottom: 8px; }
+.forge-list .bag-title { margin-top: 16px; }
+.forge-hero { font-size: 13px; color: var(--dim); margin: 8px 0 4px; border-left: 3px solid var(--c); padding-left: 6px; }
+.forge-section { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.forge-section h3 { font-size: 15px; margin-bottom: 6px; }
+.forge-section p { margin: 4px 0 8px; }
+.cost { list-style: none; padding: 0; margin: 0 0 8px; font-size: 14px; }
+.cost li.ok::before { content: '✓ '; color: var(--r-peu-commun); }
+.cost li.lack::before { content: '✗ '; color: #e06a5a; }
+.cost li.lack { color: #e6b3aa; }
+.cost small { color: var(--dim); }
+.forge-section .diff { margin-bottom: 10px; }
+button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }

@@ -5,6 +5,7 @@ import { renderCreate } from './ui/screens/create.js';
 import { renderHub } from './ui/screens/hub.js';
 import { renderStats } from './ui/screens/stats.js';
 import { renderEquipment } from './ui/screens/equipment.js';
+import { renderForge } from './ui/screens/forge.js';
 import { renderCombat } from './ui/screens/combat.js';
 
 registerScreens({
@@ -12,6 +13,7 @@ registerScreens({
   hub: renderHub,
   stats: renderStats,
   equipment: renderEquipment,
+  forge: renderForge,
   combat: renderCombat,
 });
 

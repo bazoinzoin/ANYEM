@@ -9,7 +9,7 @@ import { CLASSES } from '../data/classes.js';
 import { SLOT_ORDER } from '../data/items.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT } from '../config.js';
-import { generateItem } from './items.js';
+import { generateItem, itemStats } from './items.js';
 
 export function getClass(hero) {
   return CLASSES[hero.classKey];
@@ -27,7 +27,7 @@ export function getStats(hero) {
   const cls = getClass(hero);
   const total = { ...zeroStats(), ...cls.base };
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(item.stats)) {
+    for (const [stat, value] of Object.entries(itemStats(item))) {
       // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
       const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
       total[stat] += Math.round(value * factor);

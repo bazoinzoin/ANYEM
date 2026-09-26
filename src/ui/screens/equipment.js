@@ -6,7 +6,7 @@ import { STAT_ORDER } from '../../data/stats.js';
 import { getClass, getStats } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
 import { esc } from '../html.js';
-import { itemCard, itemMeta, formatStat, slotLabel } from '../items.js';
+import { itemCard, itemMeta, itemName, formatStat, slotLabel } from '../items.js';
 import { goTo } from '../router.js';
 import { statsList } from '../heroStats.js';
 
@@ -94,7 +94,7 @@ function slotRow(hero, slot) {
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
       <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
     </button>`;
 }
 
@@ -107,7 +107,7 @@ function bagList(hero) {
     const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
     return `
       <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
-        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(item.name)}</span>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
         <small>${itemMeta(item)}</small>
       </button>`;
   }).join('');
@@ -129,7 +129,7 @@ function detailPanel(hero) {
     return `
       <div class="equip-option">
         <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
-        <small>${current ? `remplace ${esc(current.name)}` : 'emplacement vide'}</small>
+        <small>${current ? `remplace ${esc(itemName(current))}` : 'emplacement vide'}</small>
         ${statDiff(hero, previewEquip(hero, item, slot))}
       </div>`;
   });

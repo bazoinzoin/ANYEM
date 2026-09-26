@@ -1,11 +1,12 @@
 // Génération des objets d'équipement.
 //
-// Un objet est une donnée figée à sa création :
-// { id, name, level, rarity, slotType, weaponType?, armorType?, primary,
+// Un objet est une donnée figée à sa création, sauf son niveau d'amélioration :
+// { id, name, level, rarity, plus, slotType, weaponType?, armorType?, primary,
 //   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
+// `stats` sont les stats de base : les stats effectives se lisent via itemStats().
 // slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
 
-import { ITEM, LOOT } from '../config.js';
+import { ITEM, LOOT, FORGE } from '../config.js';
 import {
   RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS,
   PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES,
@@ -16,6 +17,21 @@ let nextId = 1;
 
 export function budget(level) {
   return ITEM.budgetBase + ITEM.budgetPerLevel * level;
+}
+
+// Stats effectives, amélioration (+1..+5) comprise.
+export function itemStats(item) {
+  const plus = item.plus ?? 0;
+  if (!plus) return item.stats;
+  const boosted = {};
+  for (const [stat, value] of Object.entries(item.stats)) {
+    if (value <= 0) boosted[stat] = value; // un malus (vitesse d'un marteau) n'est pas aggravé
+    else {
+      const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+      boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
+    }
+  }
+  return boosted;
 }
 
 export function isWeapon(item) {
@@ -141,7 +157,7 @@ export function generateItem(opts = {}) {
   let name = legendary ? legendary.name : baseName(base);
   if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
 
-  const item = { id: `it${nextId++}`, name, level, rarity, ...base, primary, stats, mandatory, secondaries };
+  const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, secondaries };
   for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
   if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
   return item;

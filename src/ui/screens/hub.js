@@ -9,6 +9,7 @@ import { goTo, showHub } from '../router.js';
 import { startEncounter } from '../encounter.js';
 import { itemChip } from '../items.js';
 import { openEquipment } from './equipment.js';
+import { openForge } from './forge.js';
 
 export function renderHub(app) {
   const message = state.hubMessage;
@@ -34,7 +35,7 @@ export function renderHub(app) {
       <div class="services">
         <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
         <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
-        <button id="forge" ${tip('Décrafte et améliore ton équipement grâce aux matéria. Bientôt disponible.')}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
       </div>
@@ -46,7 +47,7 @@ export function renderHub(app) {
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
   app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
-  app.querySelector('#forge').onclick = () => showHub('La forge est encore froide — bientôt disponible.');
+  app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
 }

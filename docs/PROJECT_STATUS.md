@@ -15,7 +15,15 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 - **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Marchand et Forge (placeholders "bientôt disponible"), écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
+- **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
 - **Stats complètes** (DESIGN_DOC §2) : Force/Agilité/Intelligence, Attaque, Vitesse, Taux et Dégâts critiques, PV, Défense, Défense magique, Esquive, Blocage — toutes utilisées en combat.
+
+## Forge (choix d'implémentation)
+
+Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
+- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte 3 matéria de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour tout le reste (armures, boucliers, bijoux). Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
+- **Amélioration** (+1 à +5), possible sur un objet porté ou dans le sac. Coût du passage à +s : pour chaque rareté de commun jusqu'à celle de l'objet, s matéria des raretés inférieures et 1/1/1/2/3 matéria de la rareté de l'objet (un objet commun paie s matéria communes), plus (10 + 5 × niveau de l'objet) × s pièces d'or. Exemple : une arme rare +1 demande 1 matéria d'arme commune, 1 peu commune, 1 rare.
+- **Effet** : chaque +1 augmente les stats positives de l'objet de 10 % (arrondi ; la stat obligatoire gagne au moins +1 par niveau). Les malus (vitesse d'un marteau) ne sont pas aggravés. Les stats de base restent stockées dans `item.stats` ; les stats effectives se lisent via `itemStats(item)`.
 
 ## Système d'équipement (choix d'implémentation)
 
@@ -36,9 +44,9 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 
 Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour le détail) :
 - `src/data/` : `CLASSES` (stats de base, maîtrises d'équipement, kit de départ, ressource, compétences), `STATS`, objets (`SLOTS`, `RARITIES`, types d'armes/armures, `LEGENDARIES`), `ENEMIES`, `DUNGEONS`.
-- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, esquive/blocage, saignements, fin de combat), `party.js` (héros, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
+- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, esquive/blocage, saignements, fin de combat), `party.js` (héros, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `forge.js`, `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
 - `src/ui/` : un écran par fichier, `router.js` pour la navigation, `encounter.js` pour le rythme des tours ennemis (`setTimeout`).
-- `src/state.js` : état global (`screen`, `party`, `bag`, `gold`, `dungeonLvl`, `combat`, `hubMessage`, `hubLoot`).
+- `src/state.js` : état global (`screen`, `party`, `bag`, `materia`, `gold`, `dungeonLvl`, `combat`, `hubMessage`, `hubLoot`).
 - Rendu par template strings, ré-affichage complet de l'écran à chaque `render()`.
 
 ### Corrections apportées lors du découpage
@@ -53,9 +61,8 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 
 ## Ce qui n'est PAS encore fait (voir DESIGN_DOC.md pour le détail complet)
 
-- Revente du butin (Marchand), amélioration +1 à +5 (Forge)
+- Revente du butin (Marchand)
 - Expérience et niveaux de personnage
-- Decraft/forge et matéria
 - Arbres de compétences (nodes principaux/secondaires par orientation de classe)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
 - Donjons à étages multiples avec boss tous les x étages, plusieurs donjons de niveau croissant
