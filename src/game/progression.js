@@ -3,24 +3,37 @@
 // { message, loot? }.
 
 import { REWARDS, LOOT, XP } from '../config.js';
+import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
 import { heal } from './units.js';
 import { rollLoot } from './loot.js';
 import { random } from './rng.js';
 
-export function xpReward(dungeonLvl, enemiesDefeated) {
-  return enemiesDefeated * (XP.xpBase + XP.xpPerLevel * dungeonLvl);
+const mult = (enemy, field) => ENEMIES[enemy.enemyKey]?.[field] ?? 1;
+
+// XP d'une victoire (pour chaque héros) : par ennemi, (base + par niveau) × multiplicateur (boss).
+export function xpReward(level, enemies) {
+  return enemies.reduce((sum, e) => sum + Math.round((XP.xpBase + XP.xpPerLevel * level) * mult(e, 'xpMult')), 0);
 }
 
-// Victoire : or, butin, et la même XP pour chaque héros (tombés compris).
-export function applyVictory(game, { enemiesDefeated = 0 } = {}) {
-  const gold = REWARDS.goldBase + game.dungeonLvl * REWARDS.goldPerLevel;
-  const xp = xpReward(game.dungeonLvl, enemiesDefeated);
-  const loot = rollLoot(game.dungeonLvl, enemiesDefeated);
+export function goldReward(level, enemies) {
+  const best = Math.max(1, ...enemies.map((e) => mult(e, 'goldMult')));
+  return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
+}
+
+/**
+ * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
+ * même XP pour chaque héros (tombés compris), petit soin des survivants.
+ * Retourne { message, loot, gold, xp, levelUps }.
+ */
+export function applyVictory(game, { level, enemies, final = false }) {
+  const gold = goldReward(level, enemies);
+  const xp = xpReward(level, enemies);
+  const loot = rollLoot(level, enemies, { final });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
-  game.dungeonLvl++;
+  game.dungeonLvl = Math.max(game.dungeonLvl, level);
   for (const hero of game.party) {
     if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
   }
@@ -28,10 +41,7 @@ export function applyVictory(game, { enemiesDefeated = 0 } = {}) {
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return {
-    message: `Victoire ! Vous rapportez ${gold} pièces d'or et ${xp} XP.${lootText}${levelText} Le prochain passage est plus dangereux.`,
-    loot,
-  };
+  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, gold, xp, levelUps };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).

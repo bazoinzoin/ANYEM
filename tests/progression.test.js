@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createParty, getStats } from '../src/game/party.js';
 import { applyVictory, applyDefeat, restAtInn } from '../src/game/progression.js';
+import { createEnemies } from '../src/game/enemies.js';
 import { generateItem } from '../src/game/items.js';
 import { setRandomSource } from '../src/game/rng.js';
 
@@ -27,13 +28,33 @@ test("l'auberge soigne et relève les héros tombés", () => {
   assert.equal(hero.res, getStats(hero).resMax);
 });
 
-test('victoire : or, niveau de donjon et soin partiel des survivants', () => {
+const goblins = (n, level) => createEnemies(Array(n).fill('gobelin'), level);
+
+test('victoire : or, plus haut niveau atteint et soin partiel des survivants', () => {
   const game = newGame();
   game.party[0].hp = 10;
-  applyVictory(game);
-  assert.equal(game.gold, 50 + 20 + 10);
-  assert.equal(game.dungeonLvl, 2);
+  applyVictory(game, { level: 3, enemies: goblins(2, 3) });
+  assert.equal(game.gold, 50 + 20 + 10 * 3);
+  assert.equal(game.dungeonLvl, 3);
+  assert.equal(game.party[0].level, 1);
   assert.equal(game.party[0].hp, 10 + Math.round(130 * 0.15));
+  applyVictory(game, { level: 2, enemies: goblins(2, 2) });
+  assert.equal(game.dungeonLvl, 3, 'ne redescend pas');
+});
+
+test('un boss rapporte plus d\'or et d\'XP, et un butin garanti plus rare', () => {
+  setRandomSource(() => 0.99); // au-dessus de la chance de butin ordinaire
+  const game = newGame();
+  const normal = applyVictory(game, { level: 5, enemies: goblins(1, 5) });
+  const boss = applyVictory(game, { level: 5, enemies: createEnemies(['chefGobelin'], 5) });
+  assert.equal(normal.loot.length, 0);
+  assert.equal(boss.loot.length, 1);
+  assert.ok(['peuCommun', 'rare', 'epique', 'legendaire'].includes(boss.loot[0].rarity));
+  assert.equal(boss.gold, normal.gold * 4);
+  assert.equal(boss.xp, normal.xp * 5);
+  const final = applyVictory(game, { level: 5, enemies: createEnemies(['reineSylvestre'], 5), final: true });
+  assert.equal(final.loot.length, 2, 'le boss final laisse un objet de plus');
+  setRandomSource(null);
 });
 
 test("défaite : perte d'or, retour à mi-vie", () => {
@@ -50,8 +71,7 @@ test("défaite : perte d'or, retour à mi-vie", () => {
 test('victoire : le butin arrive dans le sac, au niveau du donjon', () => {
   setRandomSource(() => 0.1); // sous la chance de butin : chaque ennemi laisse un objet
   const game = newGame();
-  game.dungeonLvl = 7;
-  const { loot } = applyVictory(game, { enemiesDefeated: 2 });
+  const { loot } = applyVictory(game, { level: 7, enemies: goblins(2, 7) });
   assert.equal(loot.length, 2);
   assert.deepEqual(game.bag, loot);
   loot.forEach((item) => assert.equal(item.level, 7));

@@ -130,8 +130,12 @@ button.full { width: 100%; margin-top: 12px; }
 /* ---- Village ---- */
 .notice .loot { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .portals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
-button.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
-button.portal:hover { background: var(--panel2); }
+.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
+.portal.locked { opacity: .55; }
+.portal p b { color: var(--gold); }
+.start-floors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.start-floors button { padding: 6px 10px; font-size: 14px; }
+.start-floors small { color: var(--dim); }
 .portal h3 { font-size: 16px; }
 .portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
 .services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
@@ -255,6 +259,21 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .shop-info small { color: var(--dim); }
 .shop-info .hint { font-size: 12px; }
 .shop-row button { flex-shrink: 0; padding: 6px 12px; font-size: 14px; }
+
+/* ---- Donjon / expédition ---- */
+.unit.boss { border-left-width: 5px; background: #2a1712; }
+.boss-tag { font-size: 10px; padding: 0 5px; border-radius: 6px; background: var(--danger); color: #fff; vertical-align: middle; letter-spacing: .05em; }
+.floor-track { margin-bottom: 12px; }
+.floor-track small { color: var(--dim); }
+.floors { display: flex; gap: 6px; margin-top: 6px; }
+.floor { flex: 1; text-align: center; padding: 6px 0; border: 1px solid var(--line); border-radius: 4px; color: var(--dim); background: #100c07; }
+.floor.done { background: #22301c; color: #9fd08f; border-color: #3f6b45; }
+.floor.next { outline: 2px solid var(--gold); color: var(--cream); }
+.floor.boss { border-color: var(--danger); }
+.expedition-info { margin-bottom: 8px; }
+.expedition-info b { color: var(--gold); }
+.expedition .actions { margin-bottom: 10px; }
+.boss-btn { border-color: var(--danger); background: #3a1c17; }
 </style>
 
 </head>
@@ -272,7 +291,7 @@ __modules["src/config.js"] = (() => {
 // plutôt qu'en dur dans la logique.
 
 const START_GOLD = 50;
-const START_DUNGEON_LEVEL = 1;
+const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Marchand)
 
 // Ordre d'affichage et de création de l'équipe.
 const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
@@ -306,9 +325,18 @@ const ITEM = {
 
 const LOOT = {
   dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
+  bossDrops: 1,           // objets garantis par boss (le boss final en donne un de plus)
+  bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+};
+
+// Donjons : nombre d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…)
+// et nombre d'acolytes accompagnant un boss.
+const DUNGEON = {
+  enemiesByTier: [2, 2, 3, 3, 3],
+  bossAddsByTier: [0, 1, 1, 2, 2],
 };
 
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
@@ -377,7 +405,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -1819,14 +1847,16 @@ const { startingConsumables } = __modules["src/game/consumables.js"];
 
 
 const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'combat'
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat'
   party: [],
   bag: [],              // objets non équipés, partagés par l'équipe
   materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
   consumables: startingConsumables(), // { potion: n, … } (voir data/consumables.js)
   shop: null,           // stock du Marchand : { level, stock: [objets] }
   gold: START_GOLD,
-  dungeonLvl: START_DUNGEON_LEVEL,
+  dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
+  dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
+  expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, gains }
   combat: null,
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
@@ -1861,13 +1891,22 @@ function goTo(screen) {
   render();
 }
 
+// Écran de base : le village, ou l'expédition en cours (entre deux étages).
+function goBack() {
+  goTo(state.expedition ? 'dungeon' : 'hub');
+}
+
+function backLabel() {
+  return state.expedition ? '← Retour au donjon' : '← Retour au village';
+}
+
 function showHub(message = null, loot = []) {
   state.hubMessage = message;
   state.hubLoot = loot;
   goTo('hub');
 }
 
-return { registerScreens, render, goTo, showHub };
+return { registerScreens, render, goTo, goBack, backLabel, showHub };
 })();
 
 // ---- src/ui/html.js
@@ -1953,25 +1992,207 @@ return { renderCreate };
 // ---- src/data/dungeons.js
 __modules["src/data/dungeons.js"] = (() => {
 
-// Donjons accessibles depuis les portails du village.
-// encounter : liste des clés d'ennemis (voir enemies.js) composant un combat.
+// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
+// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
+// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
+// Terminer un donjon débloque le suivant (ordre ci-dessous).
+//
+// pool   : ennemis des étages ordinaires (tirés au hasard)
+// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
 
 const DUNGEONS = {
   foretMaudite: {
     name: 'Forêt Maudite',
     icon: '🌲',
-    desc: 'Un groupe de gobelins garde le passage.',
-    encounter: ['gobelin', 'gobelin'],
+    desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 1,
+    maxLevel: 20,
+    pool: ['gobelin', 'loup', 'araignee'],
+    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
+  },
+  catacombes: {
+    name: 'Catacombes oubliées',
+    icon: '⚰️',
+    desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
+    floors: 25,
+    bossEvery: 5,
+    minLevel: 20,
+    maxLevel: 30,
+    pool: ['squelette', 'zombie', 'spectre'],
+    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
   },
 };
 
-return { DUNGEONS };
+const DUNGEON_ORDER = Object.keys(DUNGEONS);
+
+return { DUNGEONS, DUNGEON_ORDER };
+})();
+
+// ---- src/data/enemies.js
+__modules["src/data/enemies.js"] = (() => {
+
+// Bestiaire. Les stats évoluent avec le niveau de l'étage :
+// valeur = base + perLevel × niveau ; la vitesse est tirée dans [min, max].
+// Stats non précisées (critique, esquive, blocage…) : 0.
+//
+// Champs optionnels :
+//   magic      l'attaque de base est magique (réduite par la Défense magique)
+//   boss       ennemi de fin de palier (butin garanti et meilleur, voir LOOT)
+//   xpMult     multiplicateur d'XP (défaut 1) ; goldMult : multiplicateur d'or
+//   abilities  [{ chance, skill }] : à chaque tour, chaque capacité est tentée dans
+//              l'ordre avec sa chance ; sinon, attaque de base. Le format de `skill`
+//              est celui des compétences des héros (voir data/classes.js), avec les
+//              cibles 'hero' (un héros, provocation respectée), 'allHeroes', 'self'
+//              et 'allAllies' (les ennemis vivants).
+
+const bleed = (power, turns = 3) => ({ key: 'saignement', name: 'Saignement', power, turns });
+const poison = (power, turns = 3) => ({ key: 'poison', name: 'Poison', icon: '🧪', power, turns });
+const slow = (turns = 2) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
+const stun = { key: 'etourdi', name: 'Étourdi', icon: '💫', kind: 'debuff', turns: 1, stun: true };
+
+const ENEMIES = {
+  // ---- Forêt Maudite ----
+  gobelin: {
+    name: 'Gobelin', icon: '👹',
+    pv: { base: 40, perLevel: 8 }, atq: { base: 8, perLevel: 2 },
+    def: { base: 2, perLevel: 1 }, defMag: { base: 0, perLevel: 1 }, vit: { min: 6, max: 11 },
+  },
+  loup: {
+    name: 'Loup', icon: '🐺',
+    pv: { base: 30, perLevel: 6 }, atq: { base: 7, perLevel: 2 },
+    def: { base: 1, perLevel: 0.5 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 10, max: 14 },
+    abilities: [{ chance: 0.25, skill: { name: 'Morsure', kind: 'damage', target: 'hero', power: 1, dot: bleed(0.25) } }],
+  },
+  araignee: {
+    name: 'Araignée géante', icon: '🕷️',
+    pv: { base: 35, perLevel: 7 }, atq: { base: 6, perLevel: 1.5 },
+    def: { base: 2, perLevel: 1 }, defMag: { base: 1, perLevel: 1 }, vit: { min: 7, max: 10 },
+    abilities: [{ chance: 0.35, skill: { name: 'Crachat venimeux', kind: 'damage', target: 'hero', power: 0.6, dot: poison(0.3) } }],
+  },
+  chefGobelin: {
+    name: 'Chef gobelin', icon: '👺', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 150, perLevel: 25 }, atq: { base: 12, perLevel: 2.5 },
+    def: { base: 5, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 7, max: 9 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Cri de ralliement', kind: 'support', target: 'allAllies', status: { key: 'rallie', name: 'Rallié', icon: '📯', kind: 'buff', turns: 3, mods: { physPower: 30 } } } },
+      { chance: 0.25, skill: { name: 'Coup de massue', kind: 'damage', target: 'hero', power: 1.4, status: stun } },
+    ],
+  },
+  mereAraignee: {
+    name: 'Mère araignée', icon: '🕸️', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 170, perLevel: 25 }, atq: { base: 11, perLevel: 2 },
+    def: { base: 4, perLevel: 1 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 8, max: 10 },
+    abilities: [
+      { chance: 0.35, skill: { name: 'Pluie de venin', kind: 'damage', target: 'allHeroes', power: 0.5, dot: poison(0.3) } },
+      { chance: 0.25, skill: { name: 'Toile collante', kind: 'support', target: 'allHeroes', status: slow(2) } },
+    ],
+  },
+  loupAlpha: {
+    name: 'Loup alpha', icon: '🐺', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 180, perLevel: 25 }, atq: { base: 14, perLevel: 2.5 },
+    def: { base: 4, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 12, max: 15 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Hurlement', kind: 'support', target: 'allAllies', status: { key: 'meute', name: 'Meute', icon: '🌕', kind: 'buff', turns: 3, mods: { physPower: 25, vit: 20 } } } },
+      { chance: 0.3, skill: { name: 'Déchiquetage', kind: 'damage', target: 'hero', power: 1.4, dot: bleed(0.3) } },
+    ],
+  },
+  sylvainCorrompu: {
+    name: 'Sylvain corrompu', icon: '🌳', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 240, perLevel: 30 }, atq: { base: 12, perLevel: 2 },
+    def: { base: 8, perLevel: 1.5 }, defMag: { base: 2, perLevel: 1 }, vit: { min: 5, max: 7 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Étreinte des racines', kind: 'damage', target: 'hero', power: 0.8, status: stun } },
+      { chance: 0.25, skill: { name: 'Sève régénératrice', kind: 'heal', target: 'self', power: 1.5 } },
+    ],
+  },
+  reineSylvestre: {
+    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
+    def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
+    abilities: [
+      { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, dot: bleed(0.2) } },
+      { chance: 0.2, skill: { name: 'Malédiction', kind: 'support', target: 'allHeroes', status: { key: 'maudit', name: 'Maudit', icon: '🪦', kind: 'debuff', turns: 3, mods: { physPower: -20, magPower: -20 } } } },
+      { chance: 0.2, skill: { name: 'Régénération', kind: 'support', target: 'self', hot: { key: 'regeneration', name: 'Régénération', power: 0.8, turns: 3 } } },
+    ],
+  },
+
+  // ---- Catacombes oubliées ----
+  squelette: {
+    name: 'Squelette', icon: '💀',
+    pv: { base: 45, perLevel: 7 }, atq: { base: 9, perLevel: 2 },
+    def: { base: 4, perLevel: 1.2 }, defMag: { base: 1, perLevel: 0.5 }, vit: { min: 6, max: 9 },
+    abilities: [{ chance: 0.25, skill: { name: "Coup d'os", kind: 'damage', target: 'hero', power: 1.3 } }],
+  },
+  zombie: {
+    name: 'Zombie', icon: '🧟',
+    pv: { base: 60, perLevel: 9 }, atq: { base: 8, perLevel: 2 },
+    def: { base: 2, perLevel: 1 }, defMag: { base: 1, perLevel: 1 }, vit: { min: 3, max: 6 },
+    abilities: [{ chance: 0.3, skill: { name: 'Morsure putride', kind: 'damage', target: 'hero', power: 0.7, dot: poison(0.35) } }],
+  },
+  spectre: {
+    name: 'Spectre', icon: '👻', magic: true,
+    pv: { base: 30, perLevel: 6 }, atq: { base: 10, perLevel: 2 },
+    def: { base: 8, perLevel: 2 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 9, max: 13 },
+    abilities: [{ chance: 0.25, skill: { name: 'Cri glaçant', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, status: slow(2) } }],
+  },
+  chevalierSquelette: {
+    name: 'Chevalier squelette', icon: '🛡️', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 220, perLevel: 28 }, atq: { base: 14, perLevel: 2.5 },
+    def: { base: 12, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 8 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Mur d\'os', kind: 'support', target: 'self', shield: { key: 'mur-os', name: "Mur d'os", power: 2, turns: 2 } } },
+      { chance: 0.25, skill: { name: 'Frappe écrasante', kind: 'damage', target: 'hero', power: 1.6 } },
+    ],
+  },
+  necromancien: {
+    name: 'Nécromancien', icon: '🧙', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    pv: { base: 200, perLevel: 25 }, atq: { base: 13, perLevel: 2.5 },
+    def: { base: 4, perLevel: 1 }, defMag: { base: 8, perLevel: 1.5 }, vit: { min: 8, max: 10 },
+    abilities: [
+      { chance: 0.3, skill: { name: "Trait d'ombre", kind: 'damage', target: 'hero', power: 1.3, magic: true } },
+      { chance: 0.2, skill: { name: 'Pacte funeste', kind: 'support', target: 'self', hot: { key: 'pacte', name: 'Pacte funeste', power: 0.8, turns: 3 } } },
+      { chance: 0.25, skill: { name: 'Nuée de ténèbres', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true } },
+    ],
+  },
+  abomination: {
+    name: 'Abomination', icon: '🧌', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 320, perLevel: 35 }, atq: { base: 15, perLevel: 2.5 },
+    def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 4, max: 6 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Vomi putride', kind: 'damage', target: 'allHeroes', power: 0.5, dot: poison(0.35) } },
+      { chance: 0.25, skill: { name: 'Écrasement', kind: 'damage', target: 'hero', power: 1.8, status: stun } },
+    ],
+  },
+  banshee: {
+    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    pv: { base: 210, perLevel: 25 }, atq: { base: 15, perLevel: 2.5 },
+    def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, status: { key: 'terreur', name: 'Terreur', icon: '😨', kind: 'debuff', turns: 2, mods: { def: -30, defMag: -30 } } } },
+      { chance: 0.2, skill: { name: 'Voile spectral', kind: 'support', target: 'self', status: { key: 'voile', name: 'Voile', icon: '🌫️', kind: 'buff', turns: 2, mods: { def: 50, defMag: 50 } } } },
+    ],
+  },
+  liche: {
+    name: 'Liche', icon: '☠️', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    pv: { base: 380, perLevel: 38 }, atq: { base: 16, perLevel: 3 },
+    def: { base: 8, perLevel: 1.5 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 9, max: 11 },
+    abilities: [
+      { chance: 0.25, skill: { name: 'Nova de givre', kind: 'damage', target: 'allHeroes', power: 0.8, magic: true, status: slow(2) } },
+      { chance: 0.2, skill: { name: 'Doigt de mort', kind: 'damage', target: 'hero', power: 2.2, magic: true } },
+      { chance: 0.2, skill: { name: 'Phylactère', kind: 'heal', target: 'self', power: 2 } },
+    ],
+  },
+};
+
+return { ENEMIES };
 })();
 
 // ---- src/game/loot.js
 __modules["src/game/loot.js"] = (() => {
 const { LOOT } = __modules["src/config.js"];
-const { generateItem } = __modules["src/game/items.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
 const { random } = __modules["src/game/rng.js"];
 // Butin de fin de combat.
 
@@ -1979,11 +2200,20 @@ const { random } = __modules["src/game/rng.js"];
 
 
 
-// Chaque ennemi vaincu a une chance de laisser un objet du niveau du donjon.
-function rollLoot(level, enemiesDefeated) {
+/**
+ * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level` :
+ * chaque ennemi ordinaire a une chance de laisser un objet ; chaque boss laisse
+ * des objets garantis, plus rares (un de plus pour le boss final, `final`).
+ */
+function rollLoot(level, enemies, { final = false } = {}) {
   const loot = [];
-  for (let i = 0; i < enemiesDefeated; i++) {
-    if (random() < LOOT.dropChance) loot.push(generateItem({ level }));
+  for (const enemy of enemies) {
+    if (enemy.boss) {
+      const drops = LOOT.bossDrops + (final ? 1 : 0);
+      for (let i = 0; i < drops; i++) loot.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+    } else if (random() < LOOT.dropChance) {
+      loot.push(generateItem({ level }));
+    }
   }
   return loot;
 }
@@ -1994,6 +2224,7 @@ return { rollLoot };
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
 const { REWARDS, LOOT, XP } = __modules["src/config.js"];
+const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
@@ -2008,19 +2239,32 @@ const { random } = __modules["src/game/rng.js"];
 
 
 
-function xpReward(dungeonLvl, enemiesDefeated) {
-  return enemiesDefeated * (XP.xpBase + XP.xpPerLevel * dungeonLvl);
+
+const mult = (enemy, field) => ENEMIES[enemy.enemyKey]?.[field] ?? 1;
+
+// XP d'une victoire (pour chaque héros) : par ennemi, (base + par niveau) × multiplicateur (boss).
+function xpReward(level, enemies) {
+  return enemies.reduce((sum, e) => sum + Math.round((XP.xpBase + XP.xpPerLevel * level) * mult(e, 'xpMult')), 0);
 }
 
-// Victoire : or, butin, et la même XP pour chaque héros (tombés compris).
-function applyVictory(game, { enemiesDefeated = 0 } = {}) {
-  const gold = REWARDS.goldBase + game.dungeonLvl * REWARDS.goldPerLevel;
-  const xp = xpReward(game.dungeonLvl, enemiesDefeated);
-  const loot = rollLoot(game.dungeonLvl, enemiesDefeated);
+function goldReward(level, enemies) {
+  const best = Math.max(1, ...enemies.map((e) => mult(e, 'goldMult')));
+  return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
+}
+
+/**
+ * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
+ * même XP pour chaque héros (tombés compris), petit soin des survivants.
+ * Retourne { message, loot, gold, xp, levelUps }.
+ */
+function applyVictory(game, { level, enemies, final = false }) {
+  const gold = goldReward(level, enemies);
+  const xp = xpReward(level, enemies);
+  const loot = rollLoot(level, enemies, { final });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
-  game.dungeonLvl++;
+  game.dungeonLvl = Math.max(game.dungeonLvl, level);
   for (const hero of game.party) {
     if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
   }
@@ -2028,10 +2272,7 @@ function applyVictory(game, { enemiesDefeated = 0 } = {}) {
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return {
-    message: `Victoire ! Vous rapportez ${gold} pièces d'or et ${xp} XP.${lootText}${levelText} Le prochain passage est plus dangereux.`,
-    loot,
-  };
+  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, gold, xp, levelUps };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
@@ -2054,29 +2295,138 @@ function restAtInn(game) {
   return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
 }
 
-return { xpReward, applyVictory, applyDefeat, restAtInn };
+return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
 })();
 
-// ---- src/data/enemies.js
-__modules["src/data/enemies.js"] = (() => {
+// ---- src/game/dungeon.js
+__modules["src/game/dungeon.js"] = (() => {
+const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
+const { DUNGEON } = __modules["src/config.js"];
+const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { pick } = __modules["src/game/rng.js"];
+// Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
+//
+// game.dungeons[clé] = { checkpoint, cleared }
+//   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
+//                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
+// game.expedition = { dungeonKey, floor, canLeave, gains } | null
+//   floor    : prochain étage à combattre
+//   canLeave : vrai au départ et juste après un boss (sinon : impossible de fuir)
+//   gains    : cumul de l'expédition { gold, xp, items }
 
-// Bestiaire. Les stats évoluent avec le niveau du donjon :
-// valeur = base + perLevel * niveau ; la vitesse est tirée dans [min, max].
-// Stats non précisées (critique, esquive, blocage…) : 0.
 
-const ENEMIES = {
-  gobelin: {
-    name: 'Gobelin',
-    icon: '👹',
-    pv: { base: 40, perLevel: 8 },
-    atq: { base: 8, perLevel: 2 },
-    def: { base: 2, perLevel: 1 },
-    defMag: { base: 0, perLevel: 1 },
-    vit: { min: 6, max: 11 },
-  },
-};
 
-return { ENEMIES };
+
+
+
+function progressOf(game, key) {
+  game.dungeons ??= {};
+  game.dungeons[key] ??= { checkpoint: 0, cleared: false };
+  return game.dungeons[key];
+}
+
+// Un donjon est ouvert si c'est le premier ou si le précédent est terminé.
+function isUnlocked(game, key) {
+  const i = DUNGEON_ORDER.indexOf(key);
+  return i === 0 || progressOf(game, DUNGEON_ORDER[i - 1]).cleared;
+}
+
+function tierOf(key, floor) {
+  return Math.floor((floor - 1) / DUNGEONS[key].bossEvery);
+}
+
+function isBossFloor(key, floor) {
+  return floor % DUNGEONS[key].bossEvery === 0;
+}
+
+// Niveau des ennemis : de minLevel (étage 1) à maxLevel (dernier étage).
+function floorLevel(key, floor) {
+  const d = DUNGEONS[key];
+  return d.minLevel + Math.round(((floor - 1) * (d.maxLevel - d.minLevel)) / (d.floors - 1));
+}
+
+// Composition d'un étage : { enemies: [clés], boss, final }.
+function encounterFor(key, floor) {
+  const d = DUNGEONS[key];
+  const tier = tierOf(key, floor);
+  const byTier = (list) => list[Math.min(tier, list.length - 1)];
+  const randomFoes = (n) => Array.from({ length: n }, () => pick(d.pool));
+  if (isBossFloor(key, floor)) {
+    return { enemies: [d.bosses[tier], ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
+  }
+  return { enemies: randomFoes(byTier(DUNGEON.enemiesByTier)), boss: false, final: false };
+}
+
+// Étages de départ possibles : 1, puis l'étage qui suit chaque boss déjà vaincu.
+function startFloors(game, key) {
+  const d = DUNGEONS[key];
+  const { checkpoint } = progressOf(game, key);
+  const floors = [];
+  for (let f = 1; f <= Math.min(checkpoint + 1, d.floors); f += d.bossEvery) floors.push(f);
+  return floors;
+}
+
+function startExpedition(game, key, floor = 1) {
+  if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
+  game.expedition = { dungeonKey: key, floor, canLeave: true, gains: { gold: 0, xp: 0, items: 0 } };
+  return true;
+}
+
+// Paramètres du combat de l'étage courant (pour createCombat).
+function floorCombat(game) {
+  const { dungeonKey, floor } = game.expedition;
+  const d = DUNGEONS[dungeonKey];
+  const { enemies, boss } = encounterFor(dungeonKey, floor);
+  return {
+    enemies,
+    level: floorLevel(dungeonKey, floor),
+    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ''}`,
+  };
+}
+
+/**
+ * Étage gagné : récompenses, point de passage si c'était un boss, étage suivant.
+ * Si c'était le dernier étage, le donjon est terminé et l'expédition s'achève.
+ * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ */
+function winFloor(game, combat) {
+  const exp = game.expedition;
+  const key = exp.dungeonKey;
+  const { boss, final } = encounterFor(key, exp.floor);
+  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
+  exp.gains.gold += result.gold;
+  exp.gains.xp += result.xp;
+  exp.gains.items += result.loot.length;
+  const progress = progressOf(game, key);
+  let cleared = false;
+  let unlocked = null;
+  if (boss) progress.checkpoint = Math.max(progress.checkpoint, exp.floor);
+  if (final) {
+    cleared = true;
+    progress.cleared = true;
+    unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
+    game.expedition = null;
+  } else {
+    exp.floor++;
+    exp.canLeave = boss;
+  }
+  return { ...result, boss, cleared, unlocked };
+}
+
+// Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
+// La progression reste au dernier boss vaincu.
+function loseExpedition(game) {
+  game.expedition = null;
+  return applyDefeat(game);
+}
+
+function leaveExpedition(game) {
+  if (!game.expedition?.canLeave) return false;
+  game.expedition = null;
+  return true;
+}
+
+return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, leaveExpedition };
 })();
 
 // ---- src/game/enemies.js
@@ -2088,23 +2438,26 @@ const { rand } = __modules["src/game/rng.js"];
 
 
 
-const scaled = (def, level) => (def ? def.base + def.perLevel * level : 0);
+const scaled = (def, level) => (def ? Math.round(def.base + def.perLevel * level) : 0);
 
 function createEnemy(key, level, label) {
   const def = ENEMIES[key];
   const pv = scaled(def.pv, level);
+  const atq = scaled(def.atq, level);
   return {
     enemyKey: key,
     name: label ? `${def.name} ${label}` : def.name,
     icon: def.icon,
+    boss: !!def.boss,
+    magic: !!def.magic,
     hp: pv,
     stats: {
       ...zeroStats(),
       critDmg: 50,
       pv,
-      atq: scaled(def.atq, level),
-      physPower: scaled(def.atq, level),
-      magPower: scaled(def.atq, level),
+      atq,
+      physPower: atq,
+      magPower: atq,
       def: scaled(def.def, level),
       defMag: scaled(def.defMag, level),
       vit: Math.round(rand(def.vit.min, def.vit.max)),
@@ -2115,7 +2468,18 @@ function createEnemy(key, level, label) {
   };
 }
 
-return { createEnemy };
+// Crée les ennemis d'une rencontre ; numérote les doublons (« Loup 1 », « Loup 2 »).
+function createEnemies(keys, level) {
+  const counts = {};
+  keys.forEach((k) => { counts[k] = (counts[k] ?? 0) + 1; });
+  const seen = {};
+  return keys.map((k) => {
+    seen[k] = (seen[k] ?? 0) + 1;
+    return createEnemy(k, level, counts[k] > 1 ? seen[k] : null);
+  });
+}
+
+return { createEnemy, createEnemies };
 })();
 
 // ---- src/game/formulas.js
@@ -2228,8 +2592,8 @@ return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultipl
 // ---- src/game/combat.js
 __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
-const { DUNGEONS } = __modules["src/data/dungeons.js"];
-const { createEnemy } = __modules["src/game/enemies.js"];
+const { ENEMIES } = __modules["src/data/enemies.js"];
+const { createEnemies } = __modules["src/game/enemies.js"];
 const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
 const { rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
@@ -2258,16 +2622,22 @@ const { pick, random } = __modules["src/game/rng.js"];
 
 
 
-// `consumables` : inventaire partagé de l'équipe (modifié quand un objet est utilisé).
-function createCombat({ dungeonKey, level, party, consumables = {} }) {
-  const dungeon = DUNGEONS[dungeonKey];
-  const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
+/**
+ * Prépare un combat.
+ * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
+ * consumables : inventaire partagé de l'équipe (modifié quand un objet est utilisé)
+ * title       : texte d'introduction (ex. « Forêt Maudite — étage 3 »)
+ */
+function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
   });
-  const cb = { dungeonKey, level, party, enemies, consumables, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
-  log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
+  const cb = {
+    title, level, party, enemies: createEnemies(enemies, level), consumables,
+    log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
+  };
+  log(cb, `${title} (niveau ${level}).`);
   return cb;
 }
 
@@ -2464,14 +2834,18 @@ function skillTargets(cb, hero, skill, index) {
 
 function targetLabel(skill, targets) {
   if (skill.target === 'allEnemies') return ', visant tous les ennemis';
-  if (skill.target === 'allAllies') return ", sur toute l'équipe";
+  if (skill.target === 'allHeroes') return ', visant toute votre équipe';
+  if (skill.target === 'allAllies') return targets.some(isHero) ? ", sur toute l'équipe" : ', sur ses alliés';
   if (skill.target === 'self') return '';
   return ` sur ${targets[0].name}`;
 }
 
 // Applique une compétence (coût déjà payé) à ses cibles.
-function useSkill(cb, hero, skill, targets) {
-  const stats = statsOf(hero);
+// Applique une compétence (coût déjà payé) à ses cibles. `caster` peut être un
+// héros ou un ennemi (capacités ennemies) ; un héros touché profite de sa garde
+// et gagne de la Rage s'il survit.
+function useSkill(cb, caster, skill, targets) {
+  const stats = statsOf(caster);
   const parts = [];
 
   for (const target of targets) {
@@ -2479,8 +2853,11 @@ function useSkill(cb, hero, skill, targets) {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        hits.push(hit);
-        if (damage(target, hit.amount).fell) logFall(cb, target);
+        if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
+        const { taken, fell } = damage(target, hit.amount);
+        hits.push({ ...hit, amount: taken });
+        if (fell) logFall(cb, target);
+        else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -2507,10 +2884,10 @@ function useSkill(cb, hero, skill, targets) {
     }
     if (skill.status) addStatus(target, skill.status);
   }
-  if (skill.selfStatus) addStatus(hero, skill.selfStatus);
+  if (skill.selfStatus) addStatus(caster, skill.selfStatus);
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
-  log(cb, `${hero.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+  log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
@@ -2520,7 +2897,27 @@ function enemyTarget(cb) {
   return pick(taunting.length ? taunting : alive);
 }
 
-// IA ennemie : attaque un héros (esquive / blocage / garde / boucliers possibles).
+// Cibles d'une capacité ennemie (point de vue de l'ennemi).
+function abilityTargets(cb, enemy, skill) {
+  switch (skill.target) {
+    case 'hero': return [enemyTarget(cb)];
+    case 'allHeroes': return cb.party.filter(isAlive);
+    case 'self': return [enemy];
+    case 'allAllies': return cb.enemies.filter(isAlive);
+    default: return [];
+  }
+}
+
+// Capacité tentée ce tour : chacune dans l'ordre, avec sa chance.
+function pickAbility(enemy) {
+  for (const { chance: odds, skill } of ENEMIES[enemy.enemyKey]?.abilities ?? []) {
+    if (random() < odds) return skill;
+  }
+  return null;
+}
+
+// IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
+// (esquive / blocage / garde / boucliers possibles).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
@@ -2536,13 +2933,20 @@ function enemyAct(cb) {
     return;
   }
 
+  const ability = pickAbility(enemy);
+  if (ability) {
+    useSkill(cb, enemy, ability, abilityTargets(cb, enemy, ability));
+    endTurn(cb);
+    return;
+  }
+
   const target = enemyTarget(cb);
   if (target) {
     const targetStats = statsOf(target);
     if (random() < chance(targetStats, 'esquive')) {
       log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
     } else {
-      const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, targetStats);
+      const hit = rollHit(statsOf(enemy), { ...ENEMY_ATTACK, magic: enemy.magic }, targetStats);
       let dmg = hit.amount;
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
@@ -2565,10 +2969,12 @@ __modules["src/ui/encounter.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
-const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
-const { render, showHub } = __modules["src/ui/router.js"];
-// Orchestration d'un combat : enchaîne les tours du moteur (game/combat.js),
-// rythme les tours ennemis et déclenche le rendu.
+const { floorCombat, winFloor, loseExpedition } = __modules["src/game/dungeon.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { render, showHub, goTo } = __modules["src/ui/router.js"];
+// Orchestration d'un combat d'étage : enchaîne les tours du moteur (game/combat.js),
+// rythme les tours ennemis, déclenche le rendu, puis applique l'issue à
+// l'expédition (game/dungeon.js).
 
 
 
@@ -2576,8 +2982,13 @@ const { render, showHub } = __modules["src/ui/router.js"];
 
 
 
-function startEncounter(dungeonKey) {
-  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party, consumables: state.consumables });
+
+// Résultat du dernier étage, affiché sur l'écran d'expédition.
+const lastFloor = { message: null, loot: [] };
+
+// Lance le combat de l'étage courant de l'expédition.
+function startFloor() {
+  state.combat = createCombat({ ...floorCombat(state), party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -2609,14 +3020,24 @@ function advance() {
 
 function finish() {
   const cb = state.combat;
-  const outcome = cb.result === 'victory'
-    ? applyVictory(state, { enemiesDefeated: cb.enemies.length })
-    : applyDefeat(state);
   state.combat = null;
-  showHub(outcome.message, outcome.loot);
+  if (cb.result !== 'victory') {
+    showHub(loseExpedition(state).message);
+    return;
+  }
+  const dungeonKey = state.expedition.dungeonKey;
+  const r = winFloor(state, cb);
+  if (r.cleared) {
+    const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
+    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
+    return;
+  }
+  const bossText = r.boss ? ' Le boss est vaincu : vous pouvez rentrer au village sans rien perdre, ou continuer.' : '';
+  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  goTo('dungeon');
 }
 
-return { startEncounter, playerAction };
+return { lastFloor, startFloor, playerAction };
 })();
 
 // ---- src/ui/items.js
@@ -2830,7 +3251,7 @@ const { getClass, getStats } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, slotLabel } = __modules["src/ui/items.js"];
-const { goTo } = __modules["src/ui/router.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 // Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
 
@@ -2879,7 +3300,7 @@ function renderEquipment(app) {
         </div>
       </div>
     </div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
 
   app.querySelectorAll('[data-hero]').forEach((btn) => {
@@ -2901,7 +3322,7 @@ function renderEquipment(app) {
     const item = selectedItem(hero);
     if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
   });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function select(selection) {
@@ -3262,7 +3683,7 @@ const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
-const { goTo } = __modules["src/ui/router.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 // Maître des compétences : arbres de talents de chaque héros.
 
 
@@ -3312,7 +3733,7 @@ function renderTalents(app) {
     </div>
     <p class="hint">Chaque niveau rapporte 1 point. Un palier se débloque en investissant des points dans la même orientation (palier 1 : 2 points, palier 2 : 4, palier 3 : 6, palier 4 : 8).</p>
     <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
 
   app.querySelectorAll('[data-hero]').forEach((btn) => {
@@ -3333,7 +3754,7 @@ function renderTalents(app) {
     }
     goTo('talents');
   };
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function branchCard(hero, branch) {
@@ -3497,7 +3918,7 @@ function renderMerchant(app) {
         </div>
         <div class="card shop-section">
           <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
-          <p class="hint">Renouvelé à chaque nouveau niveau de donjon. Les objets achetés vont dans le sac.</p>
+          <p class="hint">Au plus haut niveau atteint dans les donjons, renouvelé quand il augmente. Les objets achetés vont dans le sac.</p>
           ${stock.length ? stock.map(stockRow).join('') : '<p class="hint">Tout a été vendu : revenez après le prochain donjon.</p>'}
         </div>
       </div>
@@ -3601,12 +4022,13 @@ return { openMerchant, renderMerchant };
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
+const { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } = __modules["src/game/dungeon.js"];
 const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { restAtInn } = __modules["src/game/progression.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
-const { startEncounter } = __modules["src/ui/encounter.js"];
+const { startFloor } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
@@ -3629,6 +4051,7 @@ const { pointsAvailable } = __modules["src/game/talents.js"];
 
 
 
+
 function renderHub(app) {
   const message = state.hubMessage;
   const loot = state.hubLoot;
@@ -3636,17 +4059,13 @@ function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Donjon actuel : niveau ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
-      <div class="portals">
-        ${Object.entries(DUNGEONS).map(([key, d]) => `
-          <button class="card portal" data-dungeon="${key}">
-            <h3>${d.icon} ${d.name} — Niveau ${state.dungeonLvl}</h3><p>${d.desc}</p>
-          </button>`).join('')}
-      </div>
+      <p class="hint">Un boss garde la fin de chaque palier de ${DUNGEONS[DUNGEON_ORDER[0]].bossEvery} étages. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu devient un point de départ.</p>
+      <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
     </div>
     <div class="card section">
       <h2>Services</h2>
@@ -3662,7 +4081,9 @@ function renderHub(app) {
   `;
 
   app.querySelectorAll('[data-dungeon]').forEach((btn) => {
-    btn.onclick = () => startEncounter(btn.dataset.dungeon);
+    btn.onclick = () => {
+      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
+    };
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
   app.querySelector('#merchant').onclick = () => openMerchant();
@@ -3686,6 +4107,25 @@ function heroMini(hero) {
     </div>`;
 }
 
+function portal(key) {
+  const d = DUNGEONS[key];
+  if (!isUnlocked(state, key)) {
+    return `<div class="card portal locked"><h3>🔒 ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages. Terminez le donjon précédent pour l'ouvrir.</p></div>`;
+  }
+  const progress = progressOf(state, key);
+  const status = progress.cleared ? '✓ Terminé' : progress.checkpoint ? `Dernier boss vaincu : étage ${progress.checkpoint}` : 'Jamais exploré';
+  return `
+    <div class="card portal">
+      <h3>${d.icon} ${d.name}</h3>
+      <p>${d.desc}</p>
+      <p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages · <b>${status}</b></p>
+      <div class="start-floors">
+        ${startFloors(state, key).map((f) => `
+          <button data-dungeon="${key}" data-floor="${f}">Entrer — étage ${f} <small>(niv. ${floorLevel(key, f)})</small></button>`).join('')}
+      </div>
+    </div>`;
+}
+
 function talentPoints() {
   return state.party.reduce((sum, h) => sum + pointsAvailable(h), 0);
 }
@@ -3703,7 +4143,7 @@ const { esc } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
-const { goTo } = __modules["src/ui/router.js"];
+const { goBack, backLabel } = __modules["src/ui/router.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 const { xpToNext } = __modules["src/game/party.js"];
@@ -3730,7 +4170,7 @@ function renderStats(app) {
   app.innerHTML = `
     <div class="hero"><h1>Feuilles de personnage</h1><p>Statistiques actuelles de votre équipe</p></div>
     <div class="slots">${state.party.map(sheet).join('')}</div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
   app.querySelectorAll('[data-talent-hero]').forEach((btn) => {
     btn.onclick = () => openTalents(Number(btn.dataset.talentHero));
@@ -3738,7 +4178,7 @@ function renderStats(app) {
   app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
     btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
   });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function sheet(hero, index) {
@@ -3770,12 +4210,119 @@ function sheet(hero, index) {
 return { renderStats };
 })();
 
+// ---- src/ui/screens/dungeon.js
+__modules["src/ui/screens/dungeon.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { isBossFloor, floorLevel, leaveExpedition, progressOf } = __modules["src/game/dungeon.js"];
+const { countOf } = __modules["src/game/consumables.js"];
+const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+const { goTo, showHub } = __modules["src/ui/router.js"];
+const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
+const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+// Expédition : entre deux étages d'un donjon. On y voit la progression et l'état
+// de l'équipe, et on choisit de descendre à l'étage suivant ou (après un boss)
+// de rentrer au village.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function renderDungeon(app) {
+  const exp = state.expedition;
+  const d = DUNGEONS[exp.dungeonKey];
+  const { message, loot } = lastFloor;
+  Object.assign(lastFloor, { message: null, loot: [] });
+  const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
+  const allDown = state.party.every((h) => !h.alive);
+
+  app.innerHTML = `
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
+    <div class="party-strip">${state.party.map(heroMini).join('')}</div>
+    <div class="card section expedition">
+      <div class="expedition-info">
+        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
+        <div class="hint">Consommables : ${CONSUMABLE_ORDER.filter((k) => countOf(state.consumables, k)).map((k) => `${CONSUMABLES[k].icon} ${countOf(state.consumables, k)}`).join(' · ') || 'aucun'}</div>
+      </div>
+      <div class="actions">
+        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${allDown ? 'disabled' : ''}>
+          ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
+        </button>
+        <button id="leave" ${exp.canLeave ? '' : 'disabled'}
+          ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
+          🏠 Rentrer au village
+        </button>
+      </div>
+      <div class="services">
+        <button id="equip">🎒 Équipement (${state.bag.length} dans le sac)</button>
+        <button id="talents">📖 Talents</button>
+        <button id="stats">📜 Statistiques</button>
+      </div>
+      ${exp.canLeave ? '' : '<p class="hint">Le seul moyen de rentrer est de vaincre le prochain boss. Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
+    </div>
+  `;
+
+  app.querySelector('#nextFloor').onclick = () => startFloor();
+  app.querySelector('#leave').onclick = () => {
+    const d2 = DUNGEONS[exp.dungeonKey];
+    const { gold, xp, items } = exp.gains;
+    if (leaveExpedition(state)) {
+      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} objet${items > 1 ? 's' : ''}.`);
+    }
+  };
+  app.querySelector('#equip').onclick = () => openEquipment();
+  app.querySelector('#talents').onclick = () => openTalents();
+  app.querySelector('#stats').onclick = () => goTo('stats');
+}
+
+// Frise des étages du palier en cours : étages passés, prochain étage, boss.
+function floorTrack(key, next) {
+  const d = DUNGEONS[key];
+  const first = Math.floor((next - 1) / d.bossEvery) * d.bossEvery + 1;
+  const cells = [];
+  for (let f = first; f < first + d.bossEvery && f <= d.floors; f++) {
+    const cls = f < next ? 'done' : f === next ? 'next' : '';
+    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : f}</div>`);
+  }
+  return `<small>Palier ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.floors / d.bossEvery}</small><div class="floors">${cells.join('')}</div>`;
+}
+
+function heroMini(hero) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  return `
+    <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b> <small>niv. ${hero.level}</small></div>
+      <small>${hero.alive ? `PV ${hero.hp}/${stats.pv}` : 'Tombé'}</small>
+      ${bar(hero.hp, stats.pv, cls.color)}
+      <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
+      ${bar(hero.res, stats.resMax, 'var(--gold)')}
+    </div>`;
+}
+
+return { renderDungeon };
+})();
+
 // ---- src/ui/screens/combat.js
 __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
-const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { getClass, getSkills, getStats } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { countOf } = __modules["src/game/consumables.js"];
@@ -3804,14 +4351,13 @@ const { playerAction } = __modules["src/ui/encounter.js"];
 
 
 
-
 function renderCombat(app) {
   const cb = state.combat;
   const acting = cb.acting;
   const activeHero = acting?.side === 'hero' ? acting.unit : null;
 
   app.innerHTML = `
-    <div class="hero"><h1>⚔️ Combat</h1><p>${DUNGEONS[cb.dungeonKey].name} — Niveau ${cb.level}</p></div>
+    <div class="hero"><h1>⚔️ Combat</h1><p>${esc(cb.title)} · niveau ${cb.level}</p></div>
     <div class="combatants">
       <div>
         <h3 class="side-title">VOTRE ÉQUIPE</h3>
@@ -3845,8 +4391,8 @@ function heroUnit(hero, active) {
 
 function enemyUnit(enemy, active) {
   return `
-    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:var(--danger)">
-      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
+    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''} ${enemy.boss ? 'boss' : ''}" style="--c:var(--danger)">
+      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
       ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
       ${statusTags(enemy)}
     </div>`;
@@ -3968,8 +4514,10 @@ const { renderEquipment } = __modules["src/ui/screens/equipment.js"];
 const { renderForge } = __modules["src/ui/screens/forge.js"];
 const { renderTalents } = __modules["src/ui/screens/talents.js"];
 const { renderMerchant } = __modules["src/ui/screens/merchant.js"];
+const { renderDungeon } = __modules["src/ui/screens/dungeon.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -3989,6 +4537,7 @@ registerScreens({
   forge: renderForge,
   talents: renderTalents,
   merchant: renderMerchant,
+  dungeon: renderDungeon,
   combat: renderCombat,
 });
 

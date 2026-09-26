@@ -7,7 +7,7 @@ import { getClass, getStats } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
 import { esc } from '../html.js';
 import { itemCard, itemMeta, itemName, formatStat, slotLabel } from '../items.js';
-import { goTo } from '../router.js';
+import { goTo, goBack, backLabel } from '../router.js';
 import { statsList } from '../heroStats.js';
 
 // État propre à l'écran (pas de l'état de jeu).
@@ -45,7 +45,7 @@ export function renderEquipment(app) {
         </div>
       </div>
     </div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
 
   app.querySelectorAll('[data-hero]').forEach((btn) => {
@@ -67,7 +67,7 @@ export function renderEquipment(app) {
     const item = selectedItem(hero);
     if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
   });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function select(selection) {

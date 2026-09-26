@@ -8,6 +8,7 @@ import { renderEquipment } from './ui/screens/equipment.js';
 import { renderForge } from './ui/screens/forge.js';
 import { renderTalents } from './ui/screens/talents.js';
 import { renderMerchant } from './ui/screens/merchant.js';
+import { renderDungeon } from './ui/screens/dungeon.js';
 import { renderCombat } from './ui/screens/combat.js';
 
 registerScreens({
@@ -18,6 +19,7 @@ registerScreens({
   forge: renderForge,
   talents: renderTalents,
   merchant: renderMerchant,
+  dungeon: renderDungeon,
   combat: renderCombat,
 });
 

@@ -19,7 +19,7 @@ function setup(heroIndex, talents = []) {
   hero.level = 20;
   for (const id of talents) assert.ok(learn(hero, id), id);
   hero.res = 999;
-  const cb = createCombat({ dungeonKey: 'foretMaudite', level: 1, party });
+  const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   for (let i = 0; i < 50; i++) {
     const turn = nextTurn(cb);
     if (turn.unit === hero) {

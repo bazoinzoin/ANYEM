@@ -1,12 +1,13 @@
 // Village : équipe, portails vers les donjons et services.
 
 import { state } from '../../state.js';
-import { DUNGEONS } from '../../data/dungeons.js';
+import { DUNGEONS, DUNGEON_ORDER } from '../../data/dungeons.js';
+import { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } from '../../game/dungeon.js';
 import { getClass, getStats, xpToNext } from '../../game/party.js';
 import { restAtInn } from '../../game/progression.js';
 import { esc, tip, bar } from '../html.js';
 import { goTo, showHub } from '../router.js';
-import { startEncounter } from '../encounter.js';
+import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
@@ -21,17 +22,13 @@ export function renderHub(app) {
   state.hubLoot = [];
 
   app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Donjon actuel : niveau ${state.dungeonLvl}</p></div>
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
-      <div class="portals">
-        ${Object.entries(DUNGEONS).map(([key, d]) => `
-          <button class="card portal" data-dungeon="${key}">
-            <h3>${d.icon} ${d.name} — Niveau ${state.dungeonLvl}</h3><p>${d.desc}</p>
-          </button>`).join('')}
-      </div>
+      <p class="hint">Un boss garde la fin de chaque palier de ${DUNGEONS[DUNGEON_ORDER[0]].bossEvery} étages. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu devient un point de départ.</p>
+      <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
     </div>
     <div class="card section">
       <h2>Services</h2>
@@ -47,7 +44,9 @@ export function renderHub(app) {
   `;
 
   app.querySelectorAll('[data-dungeon]').forEach((btn) => {
-    btn.onclick = () => startEncounter(btn.dataset.dungeon);
+    btn.onclick = () => {
+      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
+    };
   });
   app.querySelector('#inn').onclick = () => showHub(restAtInn(state).message);
   app.querySelector('#merchant').onclick = () => openMerchant();
@@ -68,6 +67,25 @@ function heroMini(hero) {
       ${bar(hero.hp, pv, cls.color)}
       <small class="xp-label">XP ${hero.xp}/${xpToNext(hero.level)}</small>
       ${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}
+    </div>`;
+}
+
+function portal(key) {
+  const d = DUNGEONS[key];
+  if (!isUnlocked(state, key)) {
+    return `<div class="card portal locked"><h3>🔒 ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages. Terminez le donjon précédent pour l'ouvrir.</p></div>`;
+  }
+  const progress = progressOf(state, key);
+  const status = progress.cleared ? '✓ Terminé' : progress.checkpoint ? `Dernier boss vaincu : étage ${progress.checkpoint}` : 'Jamais exploré';
+  return `
+    <div class="card portal">
+      <h3>${d.icon} ${d.name}</h3>
+      <p>${d.desc}</p>
+      <p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages · <b>${status}</b></p>
+      <div class="start-floors">
+        ${startFloors(state, key).map((f) => `
+          <button data-dungeon="${key}" data-floor="${f}">Entrer — étage ${f} <small>(niv. ${floorLevel(key, f)})</small></button>`).join('')}
+      </div>
     </div>`;
 }
 

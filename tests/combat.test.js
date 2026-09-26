@@ -10,7 +10,7 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 function newCombat() {
   const party = createParty();
-  const cb = createCombat({ dungeonKey: 'foretMaudite', level: 1, party });
+  const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   return { party, cb };
 }
 

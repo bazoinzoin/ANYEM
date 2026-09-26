@@ -21,6 +21,15 @@ export function goTo(screen) {
   render();
 }
 
+// Écran de base : le village, ou l'expédition en cours (entre deux étages).
+export function goBack() {
+  goTo(state.expedition ? 'dungeon' : 'hub');
+}
+
+export function backLabel() {
+  return state.expedition ? '← Retour au donjon' : '← Retour au village';
+}
+
 export function showHub(message = null, loot = []) {
   state.hubMessage = message;
   state.hubLoot = loot;

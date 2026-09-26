@@ -2,7 +2,7 @@
 // plutôt qu'en dur dans la logique.
 
 export const START_GOLD = 50;
-export const START_DUNGEON_LEVEL = 1;
+export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Marchand)
 
 // Ordre d'affichage et de création de l'équipe.
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
@@ -36,9 +36,18 @@ export const ITEM = {
 
 export const LOOT = {
   dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
+  bossDrops: 1,           // objets garantis par boss (le boss final en donne un de plus)
+  bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+};
+
+// Donjons : nombre d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…)
+// et nombre d'acolytes accompagnant un boss.
+export const DUNGEON = {
+  enemiesByTier: [2, 2, 3, 3, 3],
+  bossAddsByTier: [0, 1, 1, 2, 2],
 };
 
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;

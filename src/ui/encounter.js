@@ -1,14 +1,20 @@
-// Orchestration d'un combat : enchaîne les tours du moteur (game/combat.js),
-// rythme les tours ennemis et déclenche le rendu.
+// Orchestration d'un combat d'étage : enchaîne les tours du moteur (game/combat.js),
+// rythme les tours ennemis, déclenche le rendu, puis applique l'issue à
+// l'expédition (game/dungeon.js).
 
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { applyVictory, applyDefeat } from '../game/progression.js';
-import { render, showHub } from './router.js';
+import { floorCombat, winFloor, loseExpedition } from '../game/dungeon.js';
+import { DUNGEONS } from '../data/dungeons.js';
+import { render, showHub, goTo } from './router.js';
 
-export function startEncounter(dungeonKey) {
-  state.combat = createCombat({ dungeonKey, level: state.dungeonLvl, party: state.party, consumables: state.consumables });
+// Résultat du dernier étage, affiché sur l'écran d'expédition.
+export const lastFloor = { message: null, loot: [] };
+
+// Lance le combat de l'étage courant de l'expédition.
+export function startFloor() {
+  state.combat = createCombat({ ...floorCombat(state), party: state.party, consumables: state.consumables });
   state.screen = 'combat';
   advance();
 }
@@ -40,9 +46,19 @@ function advance() {
 
 function finish() {
   const cb = state.combat;
-  const outcome = cb.result === 'victory'
-    ? applyVictory(state, { enemiesDefeated: cb.enemies.length })
-    : applyDefeat(state);
   state.combat = null;
-  showHub(outcome.message, outcome.loot);
+  if (cb.result !== 'victory') {
+    showHub(loseExpedition(state).message);
+    return;
+  }
+  const dungeonKey = state.expedition.dungeonKey;
+  const r = winFloor(state, cb);
+  if (r.cleared) {
+    const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
+    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
+    return;
+  }
+  const bossText = r.boss ? ' Le boss est vaincu : vous pouvez rentrer au village sans rien perdre, ou continuer.' : '';
+  Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
+  goTo('dungeon');
 }
