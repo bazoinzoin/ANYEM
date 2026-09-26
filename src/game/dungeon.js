@@ -3,13 +3,15 @@
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, canLeave, bossChoice, gains } | null
+// game.expedition = { dungeonKey, floor, canLeave, bossChoice, event, gains } | null
+//   event      : événement en attente de choix (voir game/events.js), ou null
 //   floor      : prochain étage à combattre
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
 
+import { maybeTriggerEvent } from './events.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
@@ -109,7 +111,9 @@ export function winFloor(game, combat) {
     exp.canLeave = boss;
     exp.bossChoice = boss;
   }
-  return { ...result, boss, cleared, unlocked };
+  // Après un combat ordinaire : peut-être un événement (voir game/events.js).
+  const event = !boss && game.expedition ? maybeTriggerEvent(game, combat.level) : null;
+  return { ...result, boss, cleared, unlocked, event };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
@@ -119,9 +123,10 @@ export function loseExpedition(game) {
   return applyDefeat(game);
 }
 
-// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss est en attente.)
+// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss
+// ou un événement est en attente.)
 export function canFightNextFloor(game) {
-  return !!game.expedition && !game.expedition.bossChoice && game.party.some((h) => h.alive);
+  return !!game.expedition && !game.expedition.bossChoice && !game.expedition.event && game.party.some((h) => h.alive);
 }
 
 // Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de

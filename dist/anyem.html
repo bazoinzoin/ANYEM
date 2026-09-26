@@ -327,6 +327,15 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .bank-table th:first-child { text-align: left; }
 .materia-table button.mini { padding: 0 6px; font-size: 12px; }
 #goldAmount { width: 110px; }
+
+/* ---- Événements d'expédition ---- */
+.card.event { border: 1px solid var(--gold); background: #2a2015; margin: 10px 0; }
+.card.event h3 { margin-top: 0; }
+.event-choices { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 12px; }
+.event-choice { flex: 1 1 260px; }
+.event-choice ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
+.event-stock .bag-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
+.event-stock .bag-row button { margin-left: auto; }
 </style>
 
 </head>
@@ -410,6 +419,17 @@ const DUNGEON = {
   bossAddsByTier: [0, 1, 1, 2, 2],
 };
 
+// Événements d'expédition (data/events.js) : chance après chaque combat gagné
+// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+const EVENT_RULES = {
+  chance: 0.35,
+  merchantItems: 3,
+  merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
+  merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)
+  merchantConsumables: 3,
+  merchantConsumablePct: 75,   // consommables à 75 % du prix du village
+};
+
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
 // passer du niveau L à L+1 demande toNextBase + toNextPerLevel × L points d'XP.
 const XP = {
@@ -477,7 +497,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -3678,6 +3698,430 @@ const DUNGEON_ORDER = Object.keys(DUNGEONS);
 return { DUNGEONS, DUNGEON_ORDER };
 })();
 
+// ---- src/data/events.js
+__modules["src/data/events.js"] = (() => {
+
+// Événements d'expédition : après un combat gagné (hors boss), une chance
+// qu'une rencontre propose un choix au joueur. Données pures (règles : game/events.js).
+//
+// Événement : { name, icon, text, weight, choices: [choix] } ou, pour un marchand
+// ambulant, { kind: 'merchant', … } (stock tiré à la rencontre, voir EVENTS dans config.js).
+// « Passer son chemin » est toujours proposé en plus.
+//
+// Choix : { label, cost?, outcomes: [{ chance, text, effects }] } (chances en %, total 100)
+//   cost     { gold: { base, perLevel } } ou { consumable: clé } : payé en choisissant
+// Effets (le niveau est celui de l'étage) :
+//   gold        { base, perLevel }      or gagné
+//   item        { minRarity }           un équipement de cette rareté ou mieux
+//   materia     { rarity, amount }      matéria (d'arme ou d'armure au hasard)
+//   consumable  'random' | clé          un consommable
+//   restoreAll  %                       PV et ressource rendus aux héros en vie
+//   hurtRandom  { count, pct }          `count` héros au hasard perdent pct % de leurs PV max
+//   hurtAll     %                       chaque héros en vie perd ce % de ses PV max
+// Un événement ne tue jamais : un héros garde au moins 1 PV.
+
+const EVENTS = {
+  sorciere: {
+    name: 'La sorcière', icon: '🧙‍♀️', weight: 10,
+    text: 'Une sorcière encapuchonnée vous barre la route et vous propose un marché.',
+    choices: [{
+      label: 'Accepter le marché',
+      outcomes: [
+        { chance: 50, text: 'La sorcière tient parole et vous tend un objet.', effects: { item: { minRarity: 'peuCommun' } } },
+        { chance: 50, text: 'Le marché tourne mal : un maléfice frappe deux de vos héros.', effects: { hurtRandom: { count: 2, pct: 30 } } },
+      ],
+    }],
+  },
+  autel: {
+    name: 'Autel oublié', icon: '🕯️', weight: 10,
+    text: "Un autel couvert d'offrandes anciennes luit faiblement dans la pénombre.",
+    choices: [
+      {
+        label: 'Faire une offrande', cost: { gold: { base: 10, perLevel: 3 } },
+        outcomes: [
+          { chance: 70, text: "Une douce lumière enveloppe l'équipe.", effects: { restoreAll: 40 } },
+          { chance: 30, text: "L'autel reste silencieux.", effects: {} },
+        ],
+      },
+      {
+        label: 'Piller les offrandes',
+        outcomes: [
+          { chance: 50, text: "Vous raflez l'or et les pierres de l'autel.", effects: { gold: { base: 20, perLevel: 8 }, materia: { rarity: 'peuCommun', amount: 2 } } },
+          { chance: 50, text: "Une malédiction s'abat sur l'équipe.", effects: { hurtAll: 15 } },
+        ],
+      },
+    ],
+  },
+  coffre: {
+    name: 'Coffre abandonné', icon: '🧰', weight: 12,
+    text: 'Un coffre abandonné gît au milieu du chemin. Trop beau pour être vrai ?',
+    choices: [{
+      label: "L'ouvrir",
+      outcomes: [
+        { chance: 60, text: 'Le coffre contient de l\'or et des provisions.', effects: { gold: { base: 15, perLevel: 6 }, consumable: 'random' } },
+        { chance: 40, text: "C'était un piège ! Une lame jaillit du coffre.", effects: { hurtRandom: { count: 1, pct: 35 } } },
+      ],
+    }],
+  },
+  voyageur: {
+    name: 'Voyageur blessé', icon: '🤕', weight: 8,
+    text: 'Un voyageur blessé, adossé à un arbre, implore votre aide.',
+    choices: [{
+      label: 'Lui donner une potion de soin', cost: { consumable: 'potion' },
+      outcomes: [
+        { chance: 100, text: 'Reconnaissant, il vous offre ce qu\'il a de plus précieux.', effects: { materia: { rarity: 'rare', amount: 1 }, gold: { base: 10, perLevel: 4 } } },
+      ],
+    }],
+  },
+  source: {
+    name: 'Source mystérieuse', icon: '⛲', weight: 10,
+    text: "Une source aux reflets irisés murmure doucement. L'eau semble… vivante.",
+    choices: [{
+      label: 'Boire',
+      outcomes: [
+        { chance: 55, text: "L'eau vous revigore.", effects: { restoreAll: 50 } },
+        { chance: 45, text: "L'eau est empoisonnée !", effects: { hurtAll: 20 } },
+      ],
+    }],
+  },
+  joueur: {
+    name: 'Le joueur de dés', icon: '🎲', weight: 8,
+    text: 'Un joueur de dés goguenard vous propose de parier votre or.',
+    choices: [{
+      label: 'Parier', cost: { gold: { base: 10, perLevel: 5 } },
+      outcomes: [
+        { chance: 45, text: 'Double six ! Vous doublez votre mise.', effects: { gold: { base: 20, perLevel: 10 } } },
+        { chance: 55, text: 'Les dés ne vous aiment pas : vous perdez votre mise.', effects: {} },
+      ],
+    }],
+  },
+  marchand: {
+    kind: 'merchant', name: 'Marchand ambulant', icon: '🧳', weight: 10,
+    text: "Un marchand ambulant déballe sa marchandise : des pièces rares, à des prix qu'on ne trouve pas au village.",
+  },
+};
+
+const EVENT_ORDER = Object.keys(EVENTS);
+
+return { EVENTS, EVENT_ORDER };
+})();
+
+// ---- src/game/merchant.js
+__modules["src/game/merchant.js"] = (() => {
+const { MERCHANT } = __modules["src/config.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { addConsumable, countOf } = __modules["src/game/consumables.js"];
+// Marchand : revente du butin, achat de consommables et d'équipement.
+// Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
+
+
+
+
+
+
+function sellPrice(item) {
+  const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
+  return Math.max(1, Math.round(base * MERCHANT.sellRarityMult[item.rarity] * (1 + MERCHANT.sellPerPlus * (item.plus ?? 0))));
+}
+
+function buyPrice(item) {
+  return sellPrice(item) * MERCHANT.buyMarkup;
+}
+
+// Vend un objet du sac (jamais un objet porté).
+function sell(game, item) {
+  const index = game.bag.indexOf(item);
+  if (index === -1) return false;
+  game.bag.splice(index, 1);
+  game.gold += sellPrice(item);
+  return true;
+}
+
+// Stock d'équipement : renouvelé quand le niveau du donjon change.
+function ensureStock(game) {
+  if (game.shop?.level === game.dungeonLvl) return game.shop.stock;
+  const stock = [];
+  for (let i = 0; i < MERCHANT.stockSize; i++) {
+    stock.push(generateItem({ level: game.dungeonLvl, rarity: weightedPick(MERCHANT.stockRarityWeights) }));
+  }
+  game.shop = { level: game.dungeonLvl, stock };
+  return stock;
+}
+
+// Achète un objet du stock : il rejoint le sac.
+function buyItem(game, item) {
+  const stock = ensureStock(game);
+  const index = stock.indexOf(item);
+  const price = buyPrice(item);
+  if (index === -1 || game.gold < price) return false;
+  stock.splice(index, 1);
+  game.gold -= price;
+  game.bag.push(item);
+  return true;
+}
+
+function canBuyConsumable(game, key) {
+  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+}
+
+function buyConsumable(game, key) {
+  if (!canBuyConsumable(game, key)) return false;
+  addConsumable(game.consumables, key);
+  game.gold -= CONSUMABLES[key].price;
+  return true;
+}
+
+return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
+})();
+
+// ---- src/game/loot.js
+__modules["src/game/loot.js"] = (() => {
+const { LOOT } = __modules["src/config.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { MATERIA_KINDS } = __modules["src/data/items.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
+// équipement, matéria et consommable (voir LOOT dans config.js).
+
+
+
+
+
+
+
+const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
+
+const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
+  Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
+
+function addMateria(list, kind, rarity, amount) {
+  const same = list.find((m) => m.kind === kind && m.rarity === rarity);
+  if (same) same.amount += amount;
+  else list.push({ kind, rarity, amount });
+}
+
+/**
+ * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level`.
+ * - Équipement : chance par ennemi ordinaire ; garanti et plus rare pour un boss
+ *   (un de plus pour le boss final, `final`).
+ * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
+ *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
+ * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
+ * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
+ */
+function rollLoot(level, enemies, { final = false } = {}) {
+  const loot = { items: [], materia: [], consumables: [] };
+  const kinds = Object.keys(MATERIA_KINDS);
+  for (const enemy of enemies) {
+    if (enemy.boss) {
+      const drops = LOOT.bossDrops + (final ? 1 : 0);
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+      addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
+    } else {
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
+      if (random() < LOOT.materiaChance) {
+        addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
+      }
+    }
+    if (random() < (enemy.boss ? LOOT.bossConsumableChance : LOOT.consumableChance)) {
+      loot.consumables.push(weightedPick(CONSUMABLE_DROP_WEIGHTS));
+    }
+  }
+  return loot;
+}
+
+return { CONSUMABLE_DROP_WEIGHTS, rollLoot };
+})();
+
+// ---- src/game/events.js
+__modules["src/game/events.js"] = (() => {
+const { EVENT_RULES, LOOT, MERCHANT } = __modules["src/config.js"];
+const { EVENTS } = __modules["src/data/events.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { generateItem, weightedPick } = __modules["src/game/items.js"];
+const { sellPrice } = __modules["src/game/merchant.js"];
+const { addConsumable, countOf, restoreParty } = __modules["src/game/consumables.js"];
+const { CONSUMABLE_DROP_WEIGHTS } = __modules["src/game/loot.js"];
+const { getStats } = __modules["src/game/party.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Événements d'expédition (données : data/events.js).
+//
+// Après un combat gagné hors boss, EVENT_RULES.chance qu'un événement survienne :
+// game.expedition.event = { key, level, stock?, consumables? }. Tant qu'il n'est
+// pas réglé (un choix, ou « passer son chemin »), l'étage suivant attend.
+
+
+
+
+
+
+
+
+
+
+
+
+const scaled = (v, level) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
+
+// Tire l'événement d'une rencontre de niveau `level` (stock tiré pour un marchand).
+function rollEvent(level) {
+  const key = weightedPick(Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, e.weight])));
+  const event = { key, level };
+  if (EVENTS[key].kind === 'merchant') {
+    event.stock = Array.from({ length: EVENT_RULES.merchantItems }, () =>
+      generateItem({ level, rarity: weightedPick(EVENT_RULES.merchantRarityWeights) }));
+    event.consumables = Array.from({ length: EVENT_RULES.merchantConsumables }, () => {
+      const k = weightedPick(CONSUMABLE_DROP_WEIGHTS);
+      return { key: k, price: Math.max(1, Math.round(CONSUMABLES[k].price * EVENT_RULES.merchantConsumablePct / 100)) };
+    });
+  }
+  return event;
+}
+
+// Après une victoire : peut-être un événement.
+function maybeTriggerEvent(game, level) {
+  if (!game.expedition || random() >= EVENT_RULES.chance) return null;
+  game.expedition.event = rollEvent(level);
+  return game.expedition.event;
+}
+
+function currentEvent(game) {
+  return game.expedition?.event ?? null;
+}
+
+// Coût d'un choix : { gold, consumable } (or déjà mis à l'échelle du niveau).
+function choiceCost(choice, level) {
+  return {
+    gold: choice.cost?.gold ? scaled(choice.cost.gold, level) : 0,
+    consumable: choice.cost?.consumable ?? null,
+  };
+}
+
+// Raison pour laquelle le choix est impossible (coût non payable), ou null.
+function cannotChooseReason(game, index) {
+  const event = currentEvent(game);
+  const choice = event && EVENTS[event.key].choices?.[index];
+  if (!choice) return 'Choix inconnu';
+  const cost = choiceCost(choice, event.level);
+  if (game.gold < cost.gold) return `Il faut ${cost.gold} pièces d'or.`;
+  if (cost.consumable && countOf(game.consumables, cost.consumable) < 1) return `Il faut : ${CONSUMABLES[cost.consumable].name}.`;
+  return null;
+}
+
+// Rareté tirée comme un butin normal, mais au moins `minRarity`.
+function rarityAtLeast(minRarity) {
+  const min = RARITY_ORDER.indexOf(minRarity);
+  return weightedPick(Object.fromEntries(Object.entries(LOOT.rarityWeights).filter(([r]) => RARITY_ORDER.indexOf(r) >= min)));
+}
+
+function hurt(hero, pct) {
+  const amount = Math.round(getStats(hero).pv * pct / 100);
+  const before = hero.hp;
+  hero.hp = Math.max(1, hero.hp - amount); // un événement ne tue jamais
+  return before - hero.hp;
+}
+
+// Applique les effets d'une issue ; retourne { parts: [texte], loot: [objets] }.
+function applyEffects(game, effects, level) {
+  const parts = [];
+  const loot = [];
+  const gains = game.expedition?.gains;
+  if (effects.gold) {
+    const gold = scaled(effects.gold, level);
+    game.gold += gold;
+    if (gains) gains.gold += gold;
+    parts.push(`+${gold} or`);
+  }
+  if (effects.item) {
+    const item = generateItem({ level, rarity: rarityAtLeast(effects.item.minRarity) });
+    game.bag.push(item);
+    loot.push(item);
+    if (gains) gains.items++;
+  }
+  if (effects.materia) {
+    const kind = pick(Object.keys(MATERIA_KINDS));
+    game.materia[kind][effects.materia.rarity] += effects.materia.amount;
+    if (gains) gains.materia += effects.materia.amount;
+    parts.push(`${effects.materia.amount} × ${MATERIA_KINDS[kind].label}`);
+  }
+  if (effects.consumable) {
+    const key = effects.consumable === 'random' ? weightedPick(CONSUMABLE_DROP_WEIGHTS) : effects.consumable;
+    parts.push(addConsumable(game.consumables, key) ? `${CONSUMABLES[key].icon} ${CONSUMABLES[key].name}` : `${CONSUMABLES[key].name} laissé faute de place`);
+  }
+  if (effects.restoreAll) {
+    restoreParty(game.party, effects.restoreAll);
+    parts.push(`+${effects.restoreAll} % de PV et de ressource`);
+  }
+  const alive = game.party.filter((h) => h.alive);
+  if (effects.hurtRandom) {
+    const pool = [...alive];
+    for (let i = 0; i < effects.hurtRandom.count && pool.length; i++) {
+      const hero = pool.splice(Math.floor(random() * pool.length), 1)[0];
+      parts.push(`${hero.name} −${hurt(hero, effects.hurtRandom.pct)} PV`);
+    }
+  }
+  if (effects.hurtAll) {
+    for (const hero of alive) parts.push(`${hero.name} −${hurt(hero, effects.hurtAll)} PV`);
+  }
+  return { parts, loot };
+}
+
+/**
+ * Fait le choix `index` de l'événement en cours : paie son coût, tire une issue
+ * et l'applique. Retourne { ok, message, loot }.
+ */
+function chooseEvent(game, index) {
+  const event = currentEvent(game);
+  if (!event || cannotChooseReason(game, index)) return { ok: false, message: '', loot: [] };
+  const choice = EVENTS[event.key].choices[index];
+  const cost = choiceCost(choice, event.level);
+  game.gold -= cost.gold;
+  if (cost.consumable) game.consumables[cost.consumable]--;
+  let roll = random() * 100;
+  const outcome = choice.outcomes.find((o) => (roll -= o.chance) < 0) ?? choice.outcomes[choice.outcomes.length - 1];
+  const { parts, loot } = applyEffects(game, outcome.effects, event.level);
+  game.expedition.event = null;
+  const detail = parts.length ? ` (${parts.join(', ')})` : '';
+  return { ok: true, message: `${EVENTS[event.key].name} : ${outcome.text}${detail}`, loot };
+}
+
+// « Passer son chemin » (ou quitter le marchand ambulant).
+function skipEvent(game) {
+  if (!currentEvent(game)) return false;
+  game.expedition.event = null;
+  return true;
+}
+
+// Marchand ambulant : prix d'un objet (moins cher qu'au village).
+function eventItemPrice(item) {
+  return sellPrice(item) * EVENT_RULES.merchantPriceMult;
+}
+
+function buyEventItem(game, itemId) {
+  const event = currentEvent(game);
+  const i = event?.stock?.findIndex((it) => it.id === itemId) ?? -1;
+  if (i < 0 || game.gold < eventItemPrice(event.stock[i])) return false;
+  const [item] = event.stock.splice(i, 1);
+  game.gold -= eventItemPrice(item);
+  game.bag.push(item);
+  return true;
+}
+
+function buyEventConsumable(game, index) {
+  const offer = currentEvent(game)?.consumables?.[index];
+  if (!offer || game.gold < offer.price || countOf(game.consumables, offer.key) >= MERCHANT.maxConsumable) return false;
+  currentEvent(game).consumables.splice(index, 1);
+  game.gold -= offer.price;
+  addConsumable(game.consumables, offer.key);
+  return true;
+}
+
+return { rollEvent, maybeTriggerEvent, currentEvent, choiceCost, cannotChooseReason, chooseEvent, skipEvent, eventItemPrice, buyEventItem, buyEventConsumable };
+})();
+
 // ---- src/data/enemies.js
 __modules["src/data/enemies.js"] = (() => {
 
@@ -3845,66 +4289,6 @@ const ENEMIES = {
 return { ENEMIES };
 })();
 
-// ---- src/game/loot.js
-__modules["src/game/loot.js"] = (() => {
-const { LOOT } = __modules["src/config.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { MATERIA_KINDS } = __modules["src/data/items.js"];
-const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { random, pick } = __modules["src/game/rng.js"];
-// Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
-// équipement, matéria et consommable (voir LOOT dans config.js).
-
-
-
-
-
-
-
-const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
-
-const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
-  Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
-
-function addMateria(list, kind, rarity, amount) {
-  const same = list.find((m) => m.kind === kind && m.rarity === rarity);
-  if (same) same.amount += amount;
-  else list.push({ kind, rarity, amount });
-}
-
-/**
- * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level`.
- * - Équipement : chance par ennemi ordinaire ; garanti et plus rare pour un boss
- *   (un de plus pour le boss final, `final`).
- * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
- *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
- * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
- * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
- */
-function rollLoot(level, enemies, { final = false } = {}) {
-  const loot = { items: [], materia: [], consumables: [] };
-  const kinds = Object.keys(MATERIA_KINDS);
-  for (const enemy of enemies) {
-    if (enemy.boss) {
-      const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
-      addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
-    } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
-      if (random() < LOOT.materiaChance) {
-        addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
-      }
-    }
-    if (random() < (enemy.boss ? LOOT.bossConsumableChance : LOOT.consumableChance)) {
-      loot.consumables.push(weightedPick(CONSUMABLE_DROP_WEIGHTS));
-    }
-  }
-  return loot;
-}
-
-return { rollLoot };
-})();
-
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
 const { REWARDS, LOOT, XP } = __modules["src/config.js"];
@@ -4005,6 +4389,7 @@ return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
 
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
+const { maybeTriggerEvent } = __modules["src/game/events.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
@@ -4015,12 +4400,14 @@ const { pick } = __modules["src/game/rng.js"];
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, canLeave, bossChoice, gains } | null
+// game.expedition = { dungeonKey, floor, canLeave, bossChoice, event, gains } | null
+//   event      : événement en attente de choix (voir game/events.js), ou null
 //   floor      : prochain étage à combattre
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
+
 
 
 
@@ -4121,7 +4508,9 @@ function winFloor(game, combat) {
     exp.canLeave = boss;
     exp.bossChoice = boss;
   }
-  return { ...result, boss, cleared, unlocked };
+  // Après un combat ordinaire : peut-être un événement (voir game/events.js).
+  const event = !boss && game.expedition ? maybeTriggerEvent(game, combat.level) : null;
+  return { ...result, boss, cleared, unlocked, event };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
@@ -4131,9 +4520,10 @@ function loseExpedition(game) {
   return applyDefeat(game);
 }
 
-// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss est en attente.)
+// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss
+// ou un événement est en attente.)
 function canFightNextFloor(game) {
-  return !!game.expedition && !game.expedition.bossChoice && game.party.some((h) => h.alive);
+  return !!game.expedition && !game.expedition.bossChoice && !game.expedition.event && game.party.some((h) => h.alive);
 }
 
 // Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de
@@ -5370,75 +5760,6 @@ function decraftSection(item) {
 return { openForge, renderForge };
 })();
 
-// ---- src/game/merchant.js
-__modules["src/game/merchant.js"] = (() => {
-const { MERCHANT } = __modules["src/config.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { addConsumable, countOf } = __modules["src/game/consumables.js"];
-// Marchand : revente du butin, achat de consommables et d'équipement.
-// Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
-
-
-
-
-
-
-function sellPrice(item) {
-  const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
-  return Math.max(1, Math.round(base * MERCHANT.sellRarityMult[item.rarity] * (1 + MERCHANT.sellPerPlus * (item.plus ?? 0))));
-}
-
-function buyPrice(item) {
-  return sellPrice(item) * MERCHANT.buyMarkup;
-}
-
-// Vend un objet du sac (jamais un objet porté).
-function sell(game, item) {
-  const index = game.bag.indexOf(item);
-  if (index === -1) return false;
-  game.bag.splice(index, 1);
-  game.gold += sellPrice(item);
-  return true;
-}
-
-// Stock d'équipement : renouvelé quand le niveau du donjon change.
-function ensureStock(game) {
-  if (game.shop?.level === game.dungeonLvl) return game.shop.stock;
-  const stock = [];
-  for (let i = 0; i < MERCHANT.stockSize; i++) {
-    stock.push(generateItem({ level: game.dungeonLvl, rarity: weightedPick(MERCHANT.stockRarityWeights) }));
-  }
-  game.shop = { level: game.dungeonLvl, stock };
-  return stock;
-}
-
-// Achète un objet du stock : il rejoint le sac.
-function buyItem(game, item) {
-  const stock = ensureStock(game);
-  const index = stock.indexOf(item);
-  const price = buyPrice(item);
-  if (index === -1 || game.gold < price) return false;
-  stock.splice(index, 1);
-  game.gold -= price;
-  game.bag.push(item);
-  return true;
-}
-
-function canBuyConsumable(game, key) {
-  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
-}
-
-function buyConsumable(game, key) {
-  if (!canBuyConsumable(game, key)) return false;
-  addConsumable(game.consumables, key);
-  game.gold -= CONSUMABLES[key].price;
-  return true;
-}
-
-return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
-})();
-
 // ---- src/ui/screens/merchant.js
 __modules["src/ui/screens/merchant.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -5989,8 +6310,12 @@ const { getClass, getStats } = __modules["src/game/party.js"];
 const { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } = __modules["src/game/consumables.js"];
+const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
+const { EVENTS } = __modules["src/data/events.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { MERCHANT } = __modules["src/config.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
-const { itemChip } = __modules["src/ui/items.js"];
+const { itemChip, itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
 const { consumableEstimate } = __modules["src/ui/format.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
 const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
@@ -6015,16 +6340,21 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 
 
 
+
+
+
+
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
-const view = { pendingItem: null, flash: null };
+const view = { pendingItem: null, flash: null, flashLoot: [] };
 
 function renderDungeon(app) {
   const exp = state.expedition;
   const d = DUNGEONS[exp.dungeonKey];
   const message = view.flash ?? lastFloor.message;
-  const loot = view.flash ? [] : lastFloor.loot;
+  const loot = view.flash ? view.flashLoot : lastFloor.loot;
   Object.assign(lastFloor, { message: null, loot: [] });
   view.flash = null;
+  view.flashLoot = [];
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
@@ -6036,6 +6366,7 @@ function renderDungeon(app) {
       <div class="expedition-info">
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
+      ${exp.event ? eventPanel(exp.event) : ''}
       ${itemPanel()}
       ${exp.bossChoice ? `
         <div class="boss-choice">
@@ -6064,6 +6395,30 @@ function renderDungeon(app) {
     </div>
   `;
 
+  app.querySelectorAll('[data-event-choice]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = chooseEvent(state, Number(btn.dataset.eventChoice));
+      if (r.ok) Object.assign(view, { flash: r.message, flashLoot: r.loot });
+      goTo('dungeon');
+    };
+  });
+  app.querySelector('#eventSkip')?.addEventListener('click', () => {
+    const e = currentEvent(state);
+    if (skipEvent(state)) view.flash = EVENTS[e.key].kind === 'merchant' ? 'Le marchand ambulant remballe sa marchandise.' : `Vous passez votre chemin (${EVENTS[e.key].name}).`;
+    goTo('dungeon');
+  });
+  app.querySelectorAll('[data-event-buy]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventItem(state, btn.dataset.eventBuy)) view.flash = 'Achat effectué : l\'objet rejoint le sac.';
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-event-consumable]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventConsumable(state, Number(btn.dataset.eventConsumable))) view.flash = 'Achat effectué.';
+      goTo('dungeon');
+    };
+  });
   app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
@@ -6152,6 +6507,68 @@ function heroMini(hero) {
       <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
     </div>`;
+}
+
+// ---- Événements ----
+
+// Texte d'une issue : « 50 % : objet peu commun ou mieux », « 50 % : 2 héros au hasard perdent 30 % de leurs PV max ».
+function outcomeText(outcome, level) {
+  const e = outcome.effects;
+  const scaled = (v) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
+  const parts = [];
+  if (e.gold) parts.push(`+${scaled(e.gold)} or`);
+  if (e.item) parts.push(`un équipement ${RARITIES[e.item.minRarity].label.toLowerCase()} ou mieux`);
+  if (e.materia) parts.push(`${e.materia.amount} matéria ${RARITIES[e.materia.rarity].label.toLowerCase()}${e.materia.amount > 1 ? 's' : ''}`);
+  if (e.consumable) parts.push(e.consumable === 'random' ? 'un consommable' : CONSUMABLES[e.consumable].name);
+  if (e.restoreAll) parts.push(`+${e.restoreAll} % de PV et de ressource à l'équipe`);
+  if (e.hurtRandom) parts.push(`${e.hurtRandom.count} héros au hasard perd${e.hurtRandom.count > 1 ? 'ent' : ''} ${e.hurtRandom.pct} % de ${e.hurtRandom.count > 1 ? 'leurs' : 'ses'} PV max`);
+  if (e.hurtAll) parts.push(`chaque héros perd ${e.hurtAll} % de ses PV max`);
+  return `${outcome.chance} % : ${parts.length ? parts.join(', ') : 'rien'}`;
+}
+
+function eventPanel(event) {
+  const def = EVENTS[event.key];
+  const body = def.kind === 'merchant' ? merchantBody(event) : `
+    <div class="event-choices">
+      ${def.choices.map((c, i) => {
+        const cost = choiceCost(c, event.level);
+        const costText = [cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : ''].filter(Boolean).join(', ');
+        const reason = cannotChooseReason(state, i);
+        return `
+          <div class="event-choice">
+            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}${costText ? ` (coût : ${costText})` : ''}</button>
+            <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
+          </div>`;
+      }).join('')}
+    </div>`;
+  return `
+    <div class="card event">
+      <h3>${def.icon} ${esc(def.name)}</h3>
+      <p>${esc(def.text)}</p>
+      ${body}
+      <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
+      <p class="hint">Il faut régler cet événement avant de descendre à l'étage suivant.</p>
+    </div>`;
+}
+
+function merchantBody(event) {
+  const items = event.stock.length ? event.stock.map((item) => {
+    const price = eventItemPrice(item);
+    return `
+      <div class="bag-row" ${tip(itemTooltipText(item))}>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+        <small>${itemMeta(item)}</small>
+        <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>
+      </div>`;
+  }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
+  const consumables = event.consumables.map((o, i) => `
+    <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
+      ${CONSUMABLES[o.key].icon} ${CONSUMABLES[o.key].name} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+    </button>`).join('');
+  return `
+    <p>Or : <b>${state.gold}</b></p>
+    <div class="event-stock">${items}</div>
+    ${consumables ? `<div class="actions">${consumables}</div>` : ''}`;
 }
 
 return { renderDungeon };

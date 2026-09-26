@@ -62,6 +62,13 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Événements d'expédition (choix d'implémentation)
+
+- Après chaque combat gagné hors boss, **35 %** de chance d'un événement (`EVENT_RULES`, contenu dans `src/data/events.js`, règles dans `src/game/events.js`). Il faut le régler (un choix ou « Passer son chemin ») avant l'étage suivant.
+- Chaque choix affiche ses chances et ses issues. Un événement ne tue jamais (1 PV minimum).
+- Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
+- Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).
+
 ## Village : auberge et banque (choix d'implémentation)
 
 - **Auberge** (`game/roster.js`, écran `inn`) : repos gratuit ; **recrutement** d'un compagnon de n'importe quelle classe, au niveau 1 avec l'équipement de départ, à la place d'un membre de l'équipe ; le héros remplacé part **à l'auberge** (`state.reserve`) avec son équipement et ses talents, et n'y gagne pas d'XP. On peut échanger à tout moment un héros de l'équipe avec un héros de l'auberge (au village uniquement). Survoler un héros affiche l'équipement qu'il porte.

@@ -189,3 +189,12 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .bank-table th:first-child { text-align: left; }
 .materia-table button.mini { padding: 0 6px; font-size: 12px; }
 #goldAmount { width: 110px; }
+
+/* ---- Événements d'expédition ---- */
+.card.event { border: 1px solid var(--gold); background: #2a2015; margin: 10px 0; }
+.card.event h3 { margin-top: 0; }
+.event-choices { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 12px; }
+.event-choice { flex: 1 1 260px; }
+.event-choice ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
+.event-stock .bag-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
+.event-stock .bag-row button { margin-left: auto; }

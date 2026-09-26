@@ -68,6 +68,17 @@ export const DUNGEON = {
   bossAddsByTier: [0, 1, 1, 2, 2],
 };
 
+// Événements d'expédition (data/events.js) : chance après chaque combat gagné
+// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+export const EVENT_RULES = {
+  chance: 0.35,
+  merchantItems: 3,
+  merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
+  merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)
+  merchantConsumables: 3,
+  merchantConsumablePct: 75,   // consommables à 75 % du prix du village
+};
+
 // Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
 // passer du niveau L à L+1 demande toNextBase + toNextPerLevel × L points d'XP.
 export const XP = {

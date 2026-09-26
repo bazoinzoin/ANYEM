@@ -9,7 +9,7 @@ import { random, pick } from './rng.js';
 
 const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
 
-const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
+export const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
   Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
 
 function addMateria(list, kind, rarity, amount) {

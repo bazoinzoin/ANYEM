@@ -9,8 +9,14 @@ import { getClass, getStats } from '../../game/party.js';
 import { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } from '../../game/consumables.js';
+import {
+  currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable,
+} from '../../game/events.js';
+import { EVENTS } from '../../data/events.js';
+import { RARITIES } from '../../data/items.js';
+import { MERCHANT } from '../../config.js';
 import { esc, tip, bar } from '../html.js';
-import { itemChip } from '../items.js';
+import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
 import { consumableEstimate } from '../format.js';
 import { goTo, showHub } from '../router.js';
 import { startFloor, lastFloor } from '../encounter.js';
@@ -18,15 +24,16 @@ import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
-const view = { pendingItem: null, flash: null };
+const view = { pendingItem: null, flash: null, flashLoot: [] };
 
 export function renderDungeon(app) {
   const exp = state.expedition;
   const d = DUNGEONS[exp.dungeonKey];
   const message = view.flash ?? lastFloor.message;
-  const loot = view.flash ? [] : lastFloor.loot;
+  const loot = view.flash ? view.flashLoot : lastFloor.loot;
   Object.assign(lastFloor, { message: null, loot: [] });
   view.flash = null;
+  view.flashLoot = [];
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
@@ -38,6 +45,7 @@ export function renderDungeon(app) {
       <div class="expedition-info">
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
+      ${exp.event ? eventPanel(exp.event) : ''}
       ${itemPanel()}
       ${exp.bossChoice ? `
         <div class="boss-choice">
@@ -66,6 +74,30 @@ export function renderDungeon(app) {
     </div>
   `;
 
+  app.querySelectorAll('[data-event-choice]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = chooseEvent(state, Number(btn.dataset.eventChoice));
+      if (r.ok) Object.assign(view, { flash: r.message, flashLoot: r.loot });
+      goTo('dungeon');
+    };
+  });
+  app.querySelector('#eventSkip')?.addEventListener('click', () => {
+    const e = currentEvent(state);
+    if (skipEvent(state)) view.flash = EVENTS[e.key].kind === 'merchant' ? 'Le marchand ambulant remballe sa marchandise.' : `Vous passez votre chemin (${EVENTS[e.key].name}).`;
+    goTo('dungeon');
+  });
+  app.querySelectorAll('[data-event-buy]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventItem(state, btn.dataset.eventBuy)) view.flash = 'Achat effectué : l\'objet rejoint le sac.';
+      goTo('dungeon');
+    };
+  });
+  app.querySelectorAll('[data-event-consumable]').forEach((btn) => {
+    btn.onclick = () => {
+      if (buyEventConsumable(state, Number(btn.dataset.eventConsumable))) view.flash = 'Achat effectué.';
+      goTo('dungeon');
+    };
+  });
   app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
@@ -154,4 +186,66 @@ function heroMini(hero) {
       <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
     </div>`;
+}
+
+// ---- Événements ----
+
+// Texte d'une issue : « 50 % : objet peu commun ou mieux », « 50 % : 2 héros au hasard perdent 30 % de leurs PV max ».
+function outcomeText(outcome, level) {
+  const e = outcome.effects;
+  const scaled = (v) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
+  const parts = [];
+  if (e.gold) parts.push(`+${scaled(e.gold)} or`);
+  if (e.item) parts.push(`un équipement ${RARITIES[e.item.minRarity].label.toLowerCase()} ou mieux`);
+  if (e.materia) parts.push(`${e.materia.amount} matéria ${RARITIES[e.materia.rarity].label.toLowerCase()}${e.materia.amount > 1 ? 's' : ''}`);
+  if (e.consumable) parts.push(e.consumable === 'random' ? 'un consommable' : CONSUMABLES[e.consumable].name);
+  if (e.restoreAll) parts.push(`+${e.restoreAll} % de PV et de ressource à l'équipe`);
+  if (e.hurtRandom) parts.push(`${e.hurtRandom.count} héros au hasard perd${e.hurtRandom.count > 1 ? 'ent' : ''} ${e.hurtRandom.pct} % de ${e.hurtRandom.count > 1 ? 'leurs' : 'ses'} PV max`);
+  if (e.hurtAll) parts.push(`chaque héros perd ${e.hurtAll} % de ses PV max`);
+  return `${outcome.chance} % : ${parts.length ? parts.join(', ') : 'rien'}`;
+}
+
+function eventPanel(event) {
+  const def = EVENTS[event.key];
+  const body = def.kind === 'merchant' ? merchantBody(event) : `
+    <div class="event-choices">
+      ${def.choices.map((c, i) => {
+        const cost = choiceCost(c, event.level);
+        const costText = [cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : ''].filter(Boolean).join(', ');
+        const reason = cannotChooseReason(state, i);
+        return `
+          <div class="event-choice">
+            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}${costText ? ` (coût : ${costText})` : ''}</button>
+            <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
+          </div>`;
+      }).join('')}
+    </div>`;
+  return `
+    <div class="card event">
+      <h3>${def.icon} ${esc(def.name)}</h3>
+      <p>${esc(def.text)}</p>
+      ${body}
+      <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
+      <p class="hint">Il faut régler cet événement avant de descendre à l'étage suivant.</p>
+    </div>`;
+}
+
+function merchantBody(event) {
+  const items = event.stock.length ? event.stock.map((item) => {
+    const price = eventItemPrice(item);
+    return `
+      <div class="bag-row" ${tip(itemTooltipText(item))}>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+        <small>${itemMeta(item)}</small>
+        <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>
+      </div>`;
+  }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
+  const consumables = event.consumables.map((o, i) => `
+    <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
+      ${CONSUMABLES[o.key].icon} ${CONSUMABLES[o.key].name} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+    </button>`).join('');
+  return `
+    <p>Or : <b>${state.gold}</b></p>
+    <div class="event-stock">${items}</div>
+    ${consumables ? `<div class="actions">${consumables}</div>` : ''}`;
 }
