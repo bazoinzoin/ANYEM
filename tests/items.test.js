@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { generateItem, rollRarity, itemStats, itemStatLines } from '../src/game/items.js';
-import { RARITIES, SECONDARY_STATS, LEGENDARIES } from '../src/data/items.js';
+import { RARITIES, SECONDARY_STATS, LEGENDARIES, WEAPON_TYPES } from '../src/data/items.js';
 
 beforeEach(() => setRandomSource(null));
 
@@ -64,12 +64,28 @@ test('les stats secondaires apparaissent à partir de peu commun', () => {
   }
 });
 
-test("la stat principale respecte le type d'objet (pas d'armure lourde d'intelligence)", () => {
+test("la stat principale respecte le type d'armure ; une arme peut sortir dans les trois stats", () => {
   for (let i = 0; i < 100; i++) {
     const item = generateItem({ level: 3, rarity: 'commun' });
     if (item.armorType === 'lourde') assert.equal(item.primary, 'force');
-    if (item.armorType === 'legere' || item.weaponType === 'baton') assert.equal(item.primary, 'intelligence');
+    if (item.armorType === 'legere') assert.equal(item.primary, 'intelligence');
   }
+  const primaries = [0.1, 0.5, 0.9].map((r) => {
+    setRandomSource(() => r);
+    return generateItem({ level: 3, rarity: 'commun', slotType: 'arme', weaponType: 'epee' }).primary;
+  });
+  assert.deepEqual(primaries.sort(), ['agilite', 'force', 'intelligence']);
+  for (const w of Object.values(WEAPON_TYPES)) assert.deepEqual([...w.primaries].sort(), ['agilite', 'force', 'intelligence'], w.name);
+});
+
+test("vitesse d'attaque : des armes les plus lentes aux plus rapides, les lentes frappent plus fort", () => {
+  const order = ['masse2m', 'hache2m', 'epee2m', 'baton', 'arc', 'masse', 'hache', 'epee', 'dague'];
+  assert.deepEqual(Object.keys(WEAPON_TYPES), order);
+  for (let i = 1; i < order.length; i++) {
+    assert.ok(WEAPON_TYPES[order[i]].speed > WEAPON_TYPES[order[i - 1]].speed, order[i]);
+    assert.ok(WEAPON_TYPES[order[i]].atqMult < WEAPON_TYPES[order[i - 1]].atqMult, order[i]);
+  }
+  assert.deepEqual(Object.keys(WEAPON_TYPES).filter((k) => WEAPON_TYPES[k].range === 'ranged'), ['arc']);
 });
 
 test("le niveau et la rareté augmentent les stats de l'objet", () => {

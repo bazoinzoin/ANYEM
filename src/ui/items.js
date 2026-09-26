@@ -1,7 +1,7 @@
 // Affichage des objets et des stats.
 
 import { STATS } from '../data/stats.js';
-import { RARITIES, SLOTS } from '../data/items.js';
+import { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
 import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
@@ -18,8 +18,14 @@ export function itemName(item) {
   return item.plus ? `${item.name} +${item.plus}` : item.name;
 }
 
+// « Corps à corps · vitesse d'attaque ×1,08 » pour une arme, sinon ''.
+export function weaponLine(item) {
+  const w = item.slotType === 'arme' ? WEAPON_TYPES[item.weaponType] : null;
+  return w ? `${RANGE_LABELS[w.range]} · vitesse d'attaque ×${String(w.speed).replace('.', ',')}` : '';
+}
+
 export function itemMeta(item) {
-  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
+  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}${weaponLine(item) ? ` · ${weaponLine(item)}` : ''}`;
 }
 
 // Texte brut multi-lignes (infobulles).
@@ -42,7 +48,8 @@ export function itemCard(item) {
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
       <div class="item-rarity">${RARITIES[item.rarity].label}</div>
-      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
+      <div class="item-meta">Niveau ${item.level} · ${item.slotType === 'arme' ? `${WEAPON_TYPES[item.weaponType].name} · ` : ''}${itemTypeLabel(item)}</div>
+      ${weaponLine(item) ? `<div class="item-meta">${weaponLine(item)}</div>` : ''}
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
     </div>`;

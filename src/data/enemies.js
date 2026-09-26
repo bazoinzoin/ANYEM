@@ -4,6 +4,9 @@
 //
 // Champs optionnels :
 //   magic      l'attaque de base est magique (réduite par la Défense magique)
+//   ranged     l'ennemi se tient à distance (sinon corps à corps : il peut riposter
+//              et ses attaques physiques peuvent déclencher la riposte des héros)
+//   riposte    chance (%) de riposter quand un héros le frappe au corps à corps
 //   boss       ennemi de fin de palier (butin garanti et meilleur, voir LOOT)
 //   xpMult     multiplicateur d'XP (défaut 1) ; goldMult : multiplicateur d'or
 //   abilities  [{ chance, skill }] : à chaque tour, chaque capacité est tentée dans
@@ -23,7 +26,7 @@ const stun = { id: 'etourdi', turns: 1 };
 export const ENEMIES = {
   // ---- Forêt Maudite ----
   gobelin: {
-    name: 'Gobelin', icon: '👹',
+    name: 'Gobelin', icon: '👹', riposte: 5,
     pv: { base: 40, perLevel: 8 }, atq: { base: 8, perLevel: 2 },
     def: { base: 2, perLevel: 1 }, defMag: { base: 0, perLevel: 1 }, vit: { min: 6, max: 11 },
   },
@@ -40,7 +43,7 @@ export const ENEMIES = {
     abilities: [{ chance: 0.35, skill: { name: 'Crachat venimeux', kind: 'damage', target: 'hero', power: 0.6, effects: [poison(0.3)] } }],
   },
   chefGobelin: {
-    name: 'Chef gobelin', icon: '👺', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Chef gobelin', icon: '👺', riposte: 15, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 150, perLevel: 25 }, atq: { base: 12, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 7, max: 9 },
     abilities: [
@@ -58,7 +61,7 @@ export const ENEMIES = {
     ],
   },
   loupAlpha: {
-    name: 'Loup alpha', icon: '🐺', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Loup alpha', icon: '🐺', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 180, perLevel: 25 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 12, max: 15 },
     abilities: [
@@ -67,7 +70,7 @@ export const ENEMIES = {
     ],
   },
   sylvainCorrompu: {
-    name: 'Sylvain corrompu', icon: '🌳', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Sylvain corrompu', icon: '🌳', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 240, perLevel: 30 }, atq: { base: 12, perLevel: 2 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 2, perLevel: 1 }, vit: { min: 5, max: 7 },
     abilities: [
@@ -76,7 +79,7 @@ export const ENEMIES = {
     ],
   },
   reineSylvestre: {
-    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
     pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
@@ -89,7 +92,7 @@ export const ENEMIES = {
 
   // ---- Catacombes oubliées ----
   squelette: {
-    name: 'Squelette', icon: '💀',
+    name: 'Squelette', icon: '💀', riposte: 10,
     pv: { base: 45, perLevel: 7 }, atq: { base: 9, perLevel: 2 },
     def: { base: 4, perLevel: 1.2 }, defMag: { base: 1, perLevel: 0.5 }, vit: { min: 6, max: 9 },
     abilities: [{ chance: 0.25, skill: { name: "Coup d'os", kind: 'damage', target: 'hero', power: 1.3 } }],
@@ -101,13 +104,13 @@ export const ENEMIES = {
     abilities: [{ chance: 0.3, skill: { name: 'Morsure putride', kind: 'damage', target: 'hero', power: 0.7, effects: [poison(0.35)] } }],
   },
   spectre: {
-    name: 'Spectre', icon: '👻', magic: true,
+    name: 'Spectre', icon: '👻', magic: true, ranged: true,
     pv: { base: 30, perLevel: 6 }, atq: { base: 10, perLevel: 2 },
     def: { base: 8, perLevel: 2 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 9, max: 13 },
     abilities: [{ chance: 0.25, skill: { name: 'Cri glaçant', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, effects: [slow(2)] } }],
   },
   chevalierSquelette: {
-    name: 'Chevalier squelette', icon: '🛡️', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Chevalier squelette', icon: '🛡️', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 220, perLevel: 28 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 12, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 8 },
     abilities: [
@@ -116,7 +119,7 @@ export const ENEMIES = {
     ],
   },
   necromancien: {
-    name: 'Nécromancien', icon: '🧙', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    name: 'Nécromancien', icon: '🧙', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
     pv: { base: 200, perLevel: 25 }, atq: { base: 13, perLevel: 2.5 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 8, perLevel: 1.5 }, vit: { min: 8, max: 10 },
     abilities: [
@@ -126,7 +129,7 @@ export const ENEMIES = {
     ],
   },
   abomination: {
-    name: 'Abomination', icon: '🧌', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Abomination', icon: '🧌', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 320, perLevel: 35 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 4, max: 6 },
     abilities: [
@@ -135,7 +138,7 @@ export const ENEMIES = {
     ],
   },
   banshee: {
-    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
     pv: { base: 210, perLevel: 25 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
@@ -145,7 +148,7 @@ export const ENEMIES = {
     ],
   },
   liche: {
-    name: 'Liche', icon: '☠️', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    name: 'Liche', icon: '☠️', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
     pv: { base: 380, perLevel: 38 }, atq: { base: 16, perLevel: 3 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 9, max: 11 },
     abilities: [

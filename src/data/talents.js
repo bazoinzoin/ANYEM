@@ -649,7 +649,7 @@ export const TALENTS = {
     },
     {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, sceptre ou arme d'Intelligence.",
+      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
       nodes: [
         minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),

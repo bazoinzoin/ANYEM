@@ -21,7 +21,9 @@ export const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
-  caps: { critChance: 75, esquive: 50, blocage: 50 }, // plafonds en %
+  caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
+  meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
+  ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)
   executeThreshold: 0.3,  // « exécution » : bonus de dégâts contre une cible sous ce % de PV
   minGuardFactor: 0.2,    // la garde (talents compris) ne réduit jamais les dégâts à moins de 20 %
 };

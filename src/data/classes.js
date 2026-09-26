@@ -1,5 +1,7 @@
 // Définition des classes jouables. Données pures : aucune logique ici.
 //
+// position    position de combat par défaut : 'melee' (corps à corps) ou 'ranged'
+//             (distance), modifiable au village (écran Stratégie)
 // mainStat    stat principale de la classe (affichage, orientation de l'équipement)
 // physStat    stat qui renforce les dégâts physiques (attaque de base, compétences
 //             non magiques) : Force ou Agilité ; Force par défaut pour les classes magiques,
@@ -52,14 +54,15 @@ export const CLASSES = {
     name: 'Guerrier',
     icon: '⚔️',
     color: 'var(--guerrier)',
+    position: 'melee',
     mainStat: 'force',
     physStat: 'force',
     desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
-    base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3, riposte: 5 },
     growth: { pv: 12, force: 1 },
     resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
+      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde', 'moyenne'],
     },
@@ -76,16 +79,17 @@ export const CLASSES = {
     name: 'Voleur',
     icon: '🗡️',
     color: 'var(--voleur)',
+    position: 'melee',
     mainStat: 'agilite',
     physStat: 'agilite',
     desc: "Combattant agile et rapide. Son Énergie lui permet d'agir plusieurs fois par tour : ses coups rapides accumulent des points de combo, que ses finishers dépensent pour frapper d'autant plus fort.",
-    base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6, riposte: 3 },
     growth: { pv: 8, agilite: 1 },
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
     comboMax: 5,
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'dague'],
-      offHand: ['epee', 'hache', 'marteau', 'dague'],
+      weapons: ['epee', 'hache', 'masse', 'dague'],
+      offHand: ['epee', 'hache', 'masse', 'dague'],
       armor: ['moyenne'],
     },
     starterKit: [
@@ -102,6 +106,7 @@ export const CLASSES = {
     name: 'Prêtre',
     icon: '✨',
     color: 'var(--pretre)',
+    position: 'ranged',
     mainStat: 'intelligence',
     physStat: 'force',
     desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
@@ -109,7 +114,7 @@ export const CLASSES = {
     growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['baton', 'dague', 'sceptre'],
+      weapons: ['baton', 'dague'],
       offHand: [],
       armor: ['legere'],
     },
@@ -126,6 +131,7 @@ export const CLASSES = {
     name: 'Mage',
     icon: '🔥',
     color: 'var(--mage)',
+    position: 'ranged',
     mainStat: 'intelligence',
     physStat: 'force',
     desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
@@ -150,6 +156,7 @@ export const CLASSES = {
     name: 'Chasseur',
     icon: '🏹',
     color: 'var(--chasseur)',
+    position: 'ranged',
     mainStat: 'agilite',
     physStat: 'agilite',
     desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
@@ -174,19 +181,20 @@ export const CLASSES = {
     name: 'Paladin',
     icon: '⚜️',
     color: 'var(--paladin)',
+    position: 'melee',
     mainStat: 'force',
     physStat: 'force',
     desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, porte l'armure légère et soigne son groupe.",
-    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3, riposte: 3 },
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'sceptre', 'epee2m', 'hache2m', 'marteau2m'],
+      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde', 'legere'],
     },
     starterKit: [
-      { slotType: 'arme', weaponType: 'marteau', primary: 'force' },
+      { slotType: 'arme', weaponType: 'masse', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
     skills: [

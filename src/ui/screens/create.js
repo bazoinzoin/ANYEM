@@ -131,7 +131,7 @@ function statsTab(hero) {
       <div>
         <h3>Stats de base (niveau 1, équipement compris)</h3>
         <div class="stats sheet">${statsList(hero)}</div>
-        <p class="hint">${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
+        <p class="hint">Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'} (modifiable au village, bouton Stratégie). ${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
       </div>
       <div>
         <h3>Compétences de départ</h3>

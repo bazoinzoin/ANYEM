@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
+import { setPosition } from '../src/game/position.js';
 
 // Aléatoire déterministe : chaque jet vaut le milieu de sa fourchette.
 beforeEach(() => setRandomSource(() => 0.5));
@@ -170,6 +171,8 @@ test("l'attaque de base est physique : elle ignore l'Intelligence, même pour un
   const target = cb.enemies[0];
   target.stats.def = 0;
   const hp = target.hp;
+  assert.equal(heroAct(cb, { type: 'attack', target: 0 }), false, 'à distance, le mage ne peut pas frapper avec son bâton');
+  turn.unit.row = 'melee';
   heroAct(cb, { type: 'attack', target: 0 });
   const stats = getStats(turn.unit);
   assert.equal(stats.physPower, stats.atq + Math.round(stats.force * 0.5));
@@ -289,4 +292,89 @@ test("un objet coûte de l'Énergie au voleur ; les combos repartent de zéro à
   assert.equal(turn.unit.res, 80);
   turn.unit.res = 10;
   assert.equal(heroAct(cb, { type: 'item', item: 'potion', target: voleur }), false, "pas assez d'Énergie");
+});
+
+
+// ---- Positions : corps à corps / distance ----
+
+test("positions par défaut selon la classe ; une arme ne sert que depuis sa position", () => {
+  const party = createParty([], ['guerrier', 'chasseur', 'pretre', 'paladin']);
+  const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
+  assert.deepEqual(cb.party.map((h) => h.row), ['melee', 'ranged', 'ranged', 'melee']);
+  const chasseur = playUntilHero(cb, 1).unit;
+  cb.enemies.forEach((e) => { e.hp = e.stats.pv = 9999; });
+  chasseur.row = 'melee';
+  assert.equal(heroAct(cb, { type: 'attack', target: 0 }), false, "pas de tir à l'arc au corps à corps");
+  assert.equal(heroAct(cb, { type: 'skill', skill: 0, target: 0 }), false, 'Tir visé utilise l\'arc');
+  chasseur.row = 'ranged';
+  assert.ok(heroAct(cb, { type: 'attack', target: 0 }));
+});
+
+test("changer de position prend le tour ; une classe à Énergie ne peut plus le faire après avoir agi", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  cb.enemies.forEach((e) => { e.hp = e.stats.pv = 9999; });
+  assert.ok(heroAct(cb, { type: 'attack', target: 0 }));
+  assert.equal(heroAct(cb, { type: 'move' }), false, 'déjà agi ce tour');
+  heroAct(cb, { type: 'endTurn' });
+  playUntilHero(cb, voleur);
+  assert.ok(heroAct(cb, { type: 'move' }));
+  assert.equal(turn.unit.row, 'ranged');
+  assert.equal(cb.acting, null, 'le tour est passé, même avec de l\'Énergie');
+  const g = playUntilHero(cb, guerrier).unit;
+  assert.ok(heroAct(cb, { type: 'move' }));
+  assert.equal(g.row, 'ranged');
+});
+
+test('les ennemis ciblent plus souvent les héros au corps à corps', () => {
+  const party = createParty();
+  const counts = new Map(party.map((h) => [h, 0]));
+  for (let i = 0; i < 400; i++) {
+    setRandomSource(() => (i + 0.5) / 400);
+    const cb = createCombat({ enemies: ['gobelin'], level: 1, party });
+    party.forEach((h) => { h.hp = 999; h.guard = false; });
+    cb.acting = { side: 'enemy', unit: cb.enemies[0] };
+    const before = party.map((h) => h.hp);
+    enemyAct(cb);
+    party.forEach((h, j) => { if (h.hp < before[j]) counts.set(h, counts.get(h) + 1); });
+  }
+  const [g, v, p, m] = party.map((h) => counts.get(h));
+  assert.ok(g > p * 2 && v > m * 2, `corps à corps ${g}, ${v} ; distance ${p}, ${m}`);
+});
+
+test('riposte : un héros au corps à corps frappé au corps à corps peut contre-attaquer', () => {
+  const party = createParty();
+  const cb = createCombat({ enemies: ['gobelin'], level: 1, party });
+  const [g] = party;
+  party.slice(1).forEach((h) => { h.alive = false; });
+  g.equipment.anneau1 = { stats: { riposte: 100 }, mandatory: [] };
+  const enemy = cb.enemies[0];
+  enemy.hp = enemy.stats.pv = 999;
+  setRandomSource(() => 0.6); // pas d'esquive ni de blocage, riposte (plafond 50 %) ratée
+  cb.acting = { side: 'enemy', unit: enemy };
+  enemyAct(cb);
+  assert.equal(enemy.hp, 999);
+  setRandomSource(() => 0.3); // riposte réussie (< 50 %) ; esquive 2 % et blocage 3 % ratés
+  cb.acting = { side: 'enemy', unit: enemy };
+  enemyAct(cb);
+  assert.ok(enemy.hp < 999);
+  assert.ok(cb.log.some((l) => l.text.includes('riposte')));
+  g.row = 'ranged';
+  enemy.hp = 999;
+  cb.acting = { side: 'enemy', unit: enemy };
+  enemyAct(cb);
+  assert.equal(enemy.hp, 999, 'à distance : pas de riposte');
+});
+
+test('Stratégie : la position choisie au village sert de départ à chaque combat', () => {
+  const party = createParty();
+  assert.equal(setPosition(party[pretre], 'melee'), true);
+  assert.equal(setPosition(party[pretre], 'ailleurs'), false);
+  const cb = createCombat({ enemies: ['gobelin'], level: 1, party });
+  assert.equal(party[pretre].row, 'melee');
+  party[pretre].row = 'ranged'; // déplacé pendant le combat
+  createCombat({ enemies: ['gobelin'], level: 1, party });
+  assert.equal(party[pretre].row, 'melee', 'le combat suivant repart de la position choisie');
+  assert.equal(cb.enemies[0].row, 'melee');
+  assert.equal(createCombat({ enemies: ['spectre'], level: 1, party }).enemies[0].row, 'ranged');
 });

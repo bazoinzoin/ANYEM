@@ -19,8 +19,9 @@ import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
 import { getClass, getSkills, getStats, gainResource } from './party.js';
 import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
+import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
 import {
-  rollHit, healAmount, skillHitOptions, chance, effectValue,
+  rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor,
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
@@ -42,6 +43,7 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     hero.statuses = [];
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
+    hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
@@ -164,6 +166,7 @@ function confusedHeroStrikes(cb, hero) {
 
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
+  hero.actedThisTurn = false;
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
 }
 
@@ -213,6 +216,7 @@ export function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
   if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
+  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -220,7 +224,7 @@ export function canUseSkill(cb, hero, skill) {
 // Action de base possible maintenant pour le héros actif ('attack' | 'defend').
 export function canDoAction(cb, hero, type) {
   if (!canPay(hero, type)) return false;
-  if (type === 'attack') return cb.enemies.some(isAlive);
+  if (type === 'attack') return canUseWeapon(hero) && cb.enemies.some(isAlive);
   if (type === 'defend') return !(hero.guard && isMultiAction(hero)); // une seule garde par tour
   return true;
 }
@@ -235,6 +239,7 @@ export function hasActionLeft(cb, hero) {
 /**
  * Résout l'action du héros actif.
  * action : { type: 'endTurn' }  (passer / finir son tour)
+ *        | { type: 'move' }     (changer de position : corps à corps ↔ distance, prend le tour)
  *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
@@ -244,6 +249,14 @@ export function hasActionLeft(cb, hero) {
 export function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
+
+  if (action.type === 'move') {
+    if (!canChangePosition(hero)) return false;
+    hero.row = otherRow(hero.row);
+    log(cb, `${hero.name} passe ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'}.`, true);
+    endTurn(cb); // changer de position prend toujours le tour
+    return true;
+  }
 
   if (action.type === 'endTurn') {
     log(cb, isMultiAction(hero) ? `${hero.name} termine son tour.` : `${hero.name} passe son tour.`);
@@ -272,6 +285,7 @@ export function heroAct(cb, action) {
     if (fell) logFall(cb, target);
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
+    if (!fell) riposte(cb, hero, target);
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
@@ -298,6 +312,7 @@ export function heroAct(cb, action) {
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
+    if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
     // Talent « Implacable » : un finisher rend de l'Énergie par point de combo dépensé.
     if (skill.finisher) gainResource(hero, skill.comboPoints * (statsOf(hero).finisherRefund ?? 0));
     if (skill.comboGain) {
@@ -308,6 +323,7 @@ export function heroAct(cb, action) {
     return false;
   }
 
+  hero.actedThisTurn = true;
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
     const res = getClass(hero).resource.name;
@@ -327,6 +343,19 @@ function hurt(cb, unit, amount) {
 // « (12 encaissés par Aldric) » quand une Intercession a pris une part des dégâts.
 function redirectText(r) {
   return r.redirected ? ` (${r.redirected} encaissés par ${r.protector.unit.name})` : '';
+}
+
+// Riposte : `defender`, au corps à corps et frappé au corps à corps par
+// `attacker`, a une chance (stat Riposte) de contre-attaquer pour une part de sa
+// puissance physique, réduite par la Défense de l'attaquant.
+function riposte(cb, attacker, defender) {
+  if (!attacker.alive || !defender.alive || attacker.row !== 'melee' || defender.row !== 'melee') return;
+  const stats = statsOf(defender);
+  if (random() >= chance(stats, 'riposte')) return;
+  const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
+  const { taken, fell } = hurt(cb, attacker, amount);
+  log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
+  if (fell) logFall(cb, attacker);
 }
 
 // Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
@@ -445,10 +474,18 @@ function useSkill(cb, caster, skill, targets) {
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
+// Au corps à corps, un héros a plus de chances d'être ciblé qu'à distance.
 function enemyTarget(cb) {
   const alive = cb.party.filter(isAlive);
   const taunting = alive.filter((h) => hasStatus(h, 'taunt'));
-  return pick(taunting.length ? taunting : alive);
+  const pool = taunting.length ? taunting : alive;
+  if (!pool.length) return undefined;
+  let roll = random() * pool.reduce((sum, h) => sum + targetWeight(h), 0);
+  for (const hero of pool) {
+    roll -= targetWeight(hero);
+    if (roll < 0) return hero;
+  }
+  return pool[pool.length - 1];
 }
 
 // Cibles d'une capacité ennemie (point de vue de l'ennemi).
@@ -471,6 +508,7 @@ function pickAbility(enemy) {
 }
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
+// (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
 // (esquive / blocage / garde / boucliers possibles).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 export function enemyAct(cb) {
@@ -489,7 +527,9 @@ export function enemyAct(cb) {
 
   const ability = pickAbility(enemy);
   if (ability) {
-    useSkill(cb, enemy, ability, abilityTargets(cb, enemy, ability));
+    const targets = abilityTargets(cb, enemy, ability);
+    useSkill(cb, enemy, ability, targets);
+    if (ability.kind === 'damage' && !ability.magic && ability.target === 'hero' && targets[0]?.alive) riposte(cb, enemy, targets[0]);
     endTurn(cb);
     return;
   }
@@ -510,7 +550,10 @@ export function enemyAct(cb) {
       const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
-      else onHitTaken(target);
+      else {
+        onHitTaken(target);
+        if (!enemy.magic) riposte(cb, enemy, target);
+      }
     }
   }
   endTurn(cb);

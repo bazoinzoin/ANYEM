@@ -62,6 +62,15 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Corps à corps / distance (choix d'implémentation)
+
+- **Position** de chaque héros choisie au village (bouton **Stratégie**, `hero.position`) ; par défaut Guerrier, Voleur, Paladin au corps à corps, Prêtre, Mage, Chasseur à distance. Chaque combat repart de cette position (`unit.row`).
+- **Ciblage** : un héros au corps à corps a 3 fois plus de chances d'être ciblé (`COMBAT.meleeTargetWeight`) ; la Provocation reste prioritaire.
+- **Armes** : attaque simple et compétences physiques (« à l'arme ») impossibles si la position ne correspond pas à l'arme (arc : distance ; autres : corps à corps). Sorts, soins, pièges, objets : partout.
+- **Changer de position** (bouton en combat) : prend tout le tour ; pour le Voleur et le Chasseur, seulement avant d'avoir agi.
+- **Riposte** (nouvelle stat secondaire, max 50 %) : une unité au corps à corps frappée au corps à corps (attaque simple ou compétence physique sur une cible) peut contre-attaquer pour 50 % de sa puissance physique, réduite par la Défense. Guerrier 5 %, Voleur et Paladin 3 % de base ; certains ennemis en ont (Chevalier squelette 20 %…).
+- **Ennemis** : magiciens (Spectre, Reine sylvestre, Nécromancien, Banshee, Liche) à distance ; les autres au corps à corps.
+
 ## Chasseur et Paladin (choix d'implémentation)
 
 - **Chasseur** : classe à Énergie comme le Voleur (plusieurs actions par tour, mêmes coûts d'actions de base), mais **sans points de combo** ; Agilité, arc, armure moyenne. Tir visé (45 Énergie) et Tir rapide (20).
@@ -114,8 +123,8 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Raretés** : commun (gris, 0 secondaire), peu commun (vert, 1), rare (bleu, 2), épique (violet, 3), légendaire (orange, 4 + passif unique). Les stats obligatoire/principale sont aussi multipliées par la rareté.
 - **Niveau** : un objet a le niveau du donjon où il est trouvé ; ses stats en dépendent.
 - **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
-- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, sceptre, armure légère), Mage (bâton, armure légère), Chasseur (arc, armure moyenne), Paladin (armes 1M/2M, sceptre, bouclier, armure lourde/légère).
-- **Nouvelles armes** : Arc (deux mains, Agilité) ; Sceptre (une main, Intelligence). Les boucliers peuvent porter Force ou Intelligence.
+- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère), Chasseur (arc, armure moyenne), Paladin (armes 1M/2M de corps à corps, bouclier, armure lourde/légère).
+- **Armes** (de la plus lente à la plus rapide) : masse à deux mains, hache à deux mains, épée à deux mains, bâton, arc, masse, hache, épée, dague. **Coefficient de vitesse d'attaque** (0,8 à 1,12) : il multiplie la Vitesse du héros (moyenne des deux armes en ambidextrie) ; les armes lentes frappent plus fort. **Toute arme peut sortir en Force, Agilité ou Intelligence.** Arc = seule arme à distance ; toutes les autres sont de corps à corps. Les boucliers peuvent porter Force ou Intelligence.
 - **Légendaires** : un par orientation (14), chacun renforce une compétence de cette orientation (voir `LEGENDARIES`). Un légendaire tiré est réservé à une classe présente dans l'équipe.
 - **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Le Voleur utilise des points de combo (voir plus haut).
 

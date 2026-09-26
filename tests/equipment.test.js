@@ -63,7 +63,7 @@ test("équiper remplace l'objet en place, qui retourne au sac, et met à jour le
 test("une arme à deux mains libère la main gauche, et inversement", () => {
   const [guerrier] = party();
   const shield = item({ slotType: 'bouclier' });
-  const hammer = item({ slotType: 'arme', weaponType: 'marteau2m' });
+  const hammer = item({ slotType: 'arme', weaponType: 'masse2m' });
   const bag = [shield, hammer];
   equip(guerrier, bag, shield, 'mainGauche');
   const sword = guerrier.equipment.mainDroite;
@@ -133,15 +133,29 @@ test('chaque légendaire vise une compétence de sa classe (de base ou de talent
   }
 });
 
-test('Paladin : armes de Force et d\'Intelligence, bouclier, armures lourde et légère ; Chasseur : arc et armure moyenne', () => {
+test('Paladin : armes au corps à corps (toute stat principale), bouclier, armures lourde et légère ; Chasseur : arc et armure moyenne', () => {
   const [paladin, chasseur] = createParty([], ['paladin', 'chasseur']);
-  assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'sceptre' })), ['mainDroite']);
+  assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'masse', primary: 'intelligence' })), ['mainDroite']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'bouclier' })), ['mainGauche']);
   assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), null);
   assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })));
   assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'arc' })));
   assert.equal(chasseur.equipment.mainDroite.weaponType, 'arc');
   assert.ok(cannotEquipReason(chasseur, item({ slotType: 'arme', weaponType: 'dague' })));
-  assert.equal(item({ slotType: 'arme', weaponType: 'sceptre' }).primary, 'intelligence');
-  assert.equal(item({ slotType: 'arme', weaponType: 'arc' }).primary, 'agilite');
+  assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'baton' })));
+});
+
+test("la Vitesse est multipliée par le coefficient de vitesse d'attaque des armes", () => {
+  const [guerrier, voleur] = party();
+  const base = getStats(guerrier).vitBase;
+  guerrier.equipment.mainDroite = item({ slotType: 'arme', weaponType: 'masse2m', primary: 'force' });
+  assert.equal(getStats(guerrier).vit, Math.round(base * 0.8));
+  guerrier.equipment.mainDroite = item({ slotType: 'arme', weaponType: 'epee', primary: 'force' });
+  assert.equal(getStats(guerrier).vit, Math.round(base * 1.08));
+  // Ambidextrie : moyenne des deux armes.
+  voleur.equipment.mainDroite = item({ slotType: 'arme', weaponType: 'dague', primary: 'agilite' });
+  voleur.equipment.mainGauche = item({ slotType: 'arme', weaponType: 'masse', primary: 'agilite' });
+  assert.equal(getStats(voleur).weaponSpeed, 1.06);
+  delete guerrier.equipment.mainDroite;
+  assert.equal(getStats(guerrier).vit, base, 'sans arme : coefficient 1');
 });

@@ -57,21 +57,30 @@ export const ARMOR_TYPES = {
   },
 };
 
-// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
-// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
-// bonus de vitesse lié au type d'arme.)
+// Armes, de la plus lente à la plus rapide.
+//   atqMult    puissance relative (les armes lentes frappent plus fort)
+//   speed      coefficient de vitesse d'attaque : multiplie la Vitesse du héros
+//              (moyenne des deux armes en ambidextrie ; 1 sans arme)
+//   range      'melee' (corps à corps) ou 'ranged' (distance) : une arme ne sert
+//              que depuis la position correspondante (voir game/position.js)
+//   twoHanded  occupe les deux mains
+// Toute arme peut sortir en Force, Agilité ou Intelligence (stat principale) : une
+// épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
+// d'Intelligence au Paladin Lumière.
+const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
 export const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
-  sceptre: { name: 'Sceptre', label: 'Arme à une main', atqMult: 0.8, primaries: ['intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
-  arc: { name: 'Arc', label: 'Arc (distance)', atqMult: 1.5, primaries: ['agilite'], twoHanded: true },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
 };
+
+export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
@@ -101,6 +110,7 @@ export const SECONDARY_STATS = {
   defMag: { base: 1, perLevel: 0.4 },
   esquive: { base: 1, perLevel: 0.08 },
   blocage: { base: 1, perLevel: 0.1 },
+  riposte: { base: 1, perLevel: 0.1 },
 };
 
 // Objets légendaires : liés à une classe, avec un passif unique qui renforce une
@@ -114,7 +124,7 @@ export const LEGENDARIES = {
     passive: { skill: 'mur-de-boucliers', costDelta: -15, effectPowerPct: 20 }, desc: 'Gardien — Mur de boucliers coûte 15 Rage de moins et protège 20 % de plus.',
   },
   colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'masse2m', primary: 'force',
     passive: { skill: 'tourbillon', powerPct: 30 }, desc: 'Berserker — Tourbillon inflige 30 % de dégâts en plus.',
   },
   // Voleur
@@ -166,8 +176,8 @@ export const LEGENDARIES = {
     name: 'Égide du Croisé', classKey: 'paladin', slotType: 'bouclier', primary: 'force',
     passive: { skill: 'sceau-de-vie', powerPct: 30, effectPowerPct: 30 }, desc: 'Templier — Sceau de vie soigne 30 % de plus.',
   },
-  sceptreDeLAurore: {
-    name: "Sceptre de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'sceptre', primary: 'intelligence',
+  masseDeLAurore: {
+    name: "Masse de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'masse', primary: 'intelligence',
     passive: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 }, desc: 'Lumière — Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.',
   },
 };

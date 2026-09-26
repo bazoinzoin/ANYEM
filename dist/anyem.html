@@ -301,6 +301,14 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
 .boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
 .boss-choice p { margin: 0 0 10px; }
+
+/* ---- Positions ---- */
+.row-tag { font-size: 13px; margin-left: 2px; }
+.rules { margin: 0; padding-left: 20px; line-height: 1.6; }
+.pos-choice { display: flex; gap: 8px; margin: 10px 0; }
+.pos-choice button { flex: 1; }
+.pos-choice button.selected { background: #3a2c1c; outline: 2px solid var(--gold); }
+.slot .warn { color: #e6a59a; font-size: 13px; margin: 6px 0 0; }
 </style>
 
 </head>
@@ -337,7 +345,9 @@ const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
-  caps: { critChance: 75, esquive: 50, blocage: 50 }, // plafonds en %
+  caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
+  meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
+  ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)
   executeThreshold: 0.3,  // « exécution » : bonus de dégâts contre une cible sous ce % de PV
   minGuardFactor: 0.2,    // la garde (talents compris) ne réduit jamais les dégâts à moins de 20 %
 };
@@ -515,21 +525,30 @@ const ARMOR_TYPES = {
   },
 };
 
-// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
-// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
-// bonus de vitesse lié au type d'arme.)
+// Armes, de la plus lente à la plus rapide.
+//   atqMult    puissance relative (les armes lentes frappent plus fort)
+//   speed      coefficient de vitesse d'attaque : multiplie la Vitesse du héros
+//              (moyenne des deux armes en ambidextrie ; 1 sans arme)
+//   range      'melee' (corps à corps) ou 'ranged' (distance) : une arme ne sert
+//              que depuis la position correspondante (voir game/position.js)
+//   twoHanded  occupe les deux mains
+// Toute arme peut sortir en Force, Agilité ou Intelligence (stat principale) : une
+// épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
+// d'Intelligence au Paladin Lumière.
+const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
 const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
-  sceptre: { name: 'Sceptre', label: 'Arme à une main', atqMult: 0.8, primaries: ['intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
-  arc: { name: 'Arc', label: 'Arc (distance)', atqMult: 1.5, primaries: ['agilite'], twoHanded: true },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
 };
+
+const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
@@ -559,6 +578,7 @@ const SECONDARY_STATS = {
   defMag: { base: 1, perLevel: 0.4 },
   esquive: { base: 1, perLevel: 0.08 },
   blocage: { base: 1, perLevel: 0.1 },
+  riposte: { base: 1, perLevel: 0.1 },
 };
 
 // Objets légendaires : liés à une classe, avec un passif unique qui renforce une
@@ -572,7 +592,7 @@ const LEGENDARIES = {
     passive: { skill: 'mur-de-boucliers', costDelta: -15, effectPowerPct: 20 }, desc: 'Gardien — Mur de boucliers coûte 15 Rage de moins et protège 20 % de plus.',
   },
   colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'masse2m', primary: 'force',
     passive: { skill: 'tourbillon', powerPct: 30 }, desc: 'Berserker — Tourbillon inflige 30 % de dégâts en plus.',
   },
   // Voleur
@@ -624,13 +644,13 @@ const LEGENDARIES = {
     name: 'Égide du Croisé', classKey: 'paladin', slotType: 'bouclier', primary: 'force',
     passive: { skill: 'sceau-de-vie', powerPct: 30, effectPowerPct: 30 }, desc: 'Templier — Sceau de vie soigne 30 % de plus.',
   },
-  sceptreDeLAurore: {
-    name: "Sceptre de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'sceptre', primary: 'intelligence',
+  masseDeLAurore: {
+    name: "Masse de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'masse', primary: 'intelligence',
     passive: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 }, desc: 'Lumière — Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.',
   },
 };
 
-return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
 })();
 
 // ---- src/game/rng.js
@@ -1112,6 +1132,8 @@ __modules["src/data/classes.js"] = (() => {
 
 // Définition des classes jouables. Données pures : aucune logique ici.
 //
+// position    position de combat par défaut : 'melee' (corps à corps) ou 'ranged'
+//             (distance), modifiable au village (écran Stratégie)
 // mainStat    stat principale de la classe (affichage, orientation de l'équipement)
 // physStat    stat qui renforce les dégâts physiques (attaque de base, compétences
 //             non magiques) : Force ou Agilité ; Force par défaut pour les classes magiques,
@@ -1164,14 +1186,15 @@ const CLASSES = {
     name: 'Guerrier',
     icon: '⚔️',
     color: 'var(--guerrier)',
+    position: 'melee',
     mainStat: 'force',
     physStat: 'force',
     desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
-    base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3, riposte: 5 },
     growth: { pv: 12, force: 1 },
     resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
+      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde', 'moyenne'],
     },
@@ -1188,16 +1211,17 @@ const CLASSES = {
     name: 'Voleur',
     icon: '🗡️',
     color: 'var(--voleur)',
+    position: 'melee',
     mainStat: 'agilite',
     physStat: 'agilite',
     desc: "Combattant agile et rapide. Son Énergie lui permet d'agir plusieurs fois par tour : ses coups rapides accumulent des points de combo, que ses finishers dépensent pour frapper d'autant plus fort.",
-    base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6, riposte: 3 },
     growth: { pv: 8, agilite: 1 },
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
     comboMax: 5,
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'dague'],
-      offHand: ['epee', 'hache', 'marteau', 'dague'],
+      weapons: ['epee', 'hache', 'masse', 'dague'],
+      offHand: ['epee', 'hache', 'masse', 'dague'],
       armor: ['moyenne'],
     },
     starterKit: [
@@ -1214,6 +1238,7 @@ const CLASSES = {
     name: 'Prêtre',
     icon: '✨',
     color: 'var(--pretre)',
+    position: 'ranged',
     mainStat: 'intelligence',
     physStat: 'force',
     desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
@@ -1221,7 +1246,7 @@ const CLASSES = {
     growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['baton', 'dague', 'sceptre'],
+      weapons: ['baton', 'dague'],
       offHand: [],
       armor: ['legere'],
     },
@@ -1238,6 +1263,7 @@ const CLASSES = {
     name: 'Mage',
     icon: '🔥',
     color: 'var(--mage)',
+    position: 'ranged',
     mainStat: 'intelligence',
     physStat: 'force',
     desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
@@ -1262,6 +1288,7 @@ const CLASSES = {
     name: 'Chasseur',
     icon: '🏹',
     color: 'var(--chasseur)',
+    position: 'ranged',
     mainStat: 'agilite',
     physStat: 'agilite',
     desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
@@ -1286,19 +1313,20 @@ const CLASSES = {
     name: 'Paladin',
     icon: '⚜️',
     color: 'var(--paladin)',
+    position: 'melee',
     mainStat: 'force',
     physStat: 'force',
     desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, porte l'armure légère et soigne son groupe.",
-    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3, riposte: 3 },
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['epee', 'hache', 'marteau', 'sceptre', 'epee2m', 'hache2m', 'marteau2m'],
+      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde', 'legere'],
     },
     starterKit: [
-      { slotType: 'arme', weaponType: 'marteau', primary: 'force' },
+      { slotType: 'arme', weaponType: 'masse', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
     skills: [
@@ -1333,6 +1361,7 @@ const STATS = {
   defMag: { label: 'Défense magique' },
   esquive: { label: 'Esquive', suffix: '%' },
   blocage: { label: 'Blocage', suffix: '%' },
+  riposte: { label: 'Riposte', suffix: '%' }, // chance de contre-attaquer au corps à corps
 };
 
 const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
@@ -1341,7 +1370,7 @@ const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
 const STAT_ORDER = [
   'force', 'agilite', 'intelligence',
   'atq', 'vit', 'critChance', 'critDmg',
-  'pv', 'def', 'defMag', 'esquive', 'blocage',
+  'pv', 'def', 'defMag', 'esquive', 'blocage', 'riposte',
 ];
 
 function zeroStats() {
@@ -2005,7 +2034,7 @@ const TALENTS = {
     },
     {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, sceptre ou arme d'Intelligence.",
+      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
       nodes: [
         minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
@@ -2160,7 +2189,7 @@ return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsIn
 // ---- src/game/party.js
 __modules["src/game/party.js"] = (() => {
 const { CLASSES } = __modules["src/data/classes.js"];
-const { SLOT_ORDER } = __modules["src/data/items.js"];
+const { SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
 const { PARTY_ORDER, COMBAT, XP } = __modules["src/config.js"];
@@ -2189,12 +2218,20 @@ function wornItems(hero) {
   return SLOT_ORDER.map((slot) => [slot, hero.equipment[slot]]).filter(([, item]) => item);
 }
 
+// Coefficient de vitesse d'attaque des armes tenues (moyenne en ambidextrie, 1 sans arme).
+function weaponSpeedOf(hero) {
+  const weapons = ['mainDroite', 'mainGauche'].map((slot) => hero.equipment[slot]).filter((it) => it?.slotType === 'arme');
+  if (!weapons.length) return 1;
+  return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
  *   resMax     maximum de la ressource de classe
+ *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 function getStats(hero) {
   const cls = getClass(hero);
@@ -2210,8 +2247,13 @@ function getStats(hero) {
     }
   }
   const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
+  const weaponSpeed = weaponSpeedOf(hero);
   const stats = {
     ...total,
+    // Vitesse d'attaque : la Vitesse est multipliée par le coefficient des armes.
+    vitBase: total.vit,
+    weaponSpeed,
+    vit: Math.round(total.vit * weaponSpeed),
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
@@ -2294,6 +2336,7 @@ function createHero(classKey, name) {
     alive: true,
     guard: false,
     statuses: [],
+    position: cls.position ?? 'melee', // position de combat choisie (écran Stratégie)
     equipment: {},
     talents: {},
   };
@@ -2332,7 +2375,7 @@ function restoreFully(hero) {
   hero.statuses = [];
 }
 
-return { getClass, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, weaponSpeedOf, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -2847,6 +2890,8 @@ const STAT_TIPS = {
   defMag: 'Réduit les dégâts magiques subis.',
   esquive: `Chance d'éviter entièrement une attaque (max ${COMBAT.caps.esquive} %).`,
   blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
+  riposte: `Au corps à corps, chance de contre-attaquer quand on est frappé au corps à corps (${Math.round(COMBAT.ripostePower * 100)} % de la puissance physique, max ${COMBAT.caps.riposte} %).`,
+  vit: "Ordre de jeu en combat. Multipliée par le coefficient de vitesse d'attaque de l'arme (armes lourdes lentes, dagues rapides).",
 };
 
 function row(label, value, tipText) {
@@ -2860,7 +2905,8 @@ function statsList(hero) {
   const phys = STATS[cls.physStat].label;
   const rows = STAT_ORDER.map((k) => {
     const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
-    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    let value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    if (k === 'vit' && stats.weaponSpeed !== 1) value += ` <small>(${stats.vitBase} × ${String(stats.weaponSpeed).replace('.', ',')} arme)</small>`;
     return row(label, value, STAT_TIPS[k]);
   });
   // Puissances dérivées, juste après les stats principales.
@@ -2879,7 +2925,7 @@ return { statsList };
 // ---- src/ui/items.js
 __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
-const { RARITIES, SLOTS } = __modules["src/data/items.js"];
+const { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } = __modules["src/data/items.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
@@ -2903,8 +2949,14 @@ function itemName(item) {
   return item.plus ? `${item.name} +${item.plus}` : item.name;
 }
 
+// « Corps à corps · vitesse d'attaque ×1,08 » pour une arme, sinon ''.
+function weaponLine(item) {
+  const w = item.slotType === 'arme' ? WEAPON_TYPES[item.weaponType] : null;
+  return w ? `${RANGE_LABELS[w.range]} · vitesse d'attaque ×${String(w.speed).replace('.', ',')}` : '';
+}
+
 function itemMeta(item) {
-  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}`;
+  return `${RARITIES[item.rarity].label} · Niveau ${item.level} · ${itemTypeLabel(item)}${weaponLine(item) ? ` · ${weaponLine(item)}` : ''}`;
 }
 
 // Texte brut multi-lignes (infobulles).
@@ -2927,7 +2979,8 @@ function itemCard(item) {
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
       <div class="item-rarity">${RARITIES[item.rarity].label}</div>
-      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
+      <div class="item-meta">Niveau ${item.level} · ${item.slotType === 'arme' ? `${WEAPON_TYPES[item.weaponType].name} · ` : ''}${itemTypeLabel(item)}</div>
+      ${weaponLine(item) ? `<div class="item-meta">${weaponLine(item)}</div>` : ''}
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
     </div>`;
@@ -2937,7 +2990,7 @@ function slotLabel(slot) {
   return SLOTS[slot].label;
 }
 
-return { formatStat, itemName, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
+return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel };
 })();
 
 // ---- src/game/formulas.js
@@ -3461,7 +3514,7 @@ function statsTab(hero) {
       <div>
         <h3>Stats de base (niveau 1, équipement compris)</h3>
         <div class="stats sheet">${statsList(hero)}</div>
-        <p class="hint">${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
+        <p class="hint">Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'} (modifiable au village, bouton Stratégie). ${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
       </div>
       <div>
         <h3>Compétences de départ</h3>
@@ -3571,6 +3624,9 @@ __modules["src/data/enemies.js"] = (() => {
 //
 // Champs optionnels :
 //   magic      l'attaque de base est magique (réduite par la Défense magique)
+//   ranged     l'ennemi se tient à distance (sinon corps à corps : il peut riposter
+//              et ses attaques physiques peuvent déclencher la riposte des héros)
+//   riposte    chance (%) de riposter quand un héros le frappe au corps à corps
 //   boss       ennemi de fin de palier (butin garanti et meilleur, voir LOOT)
 //   xpMult     multiplicateur d'XP (défaut 1) ; goldMult : multiplicateur d'or
 //   abilities  [{ chance, skill }] : à chaque tour, chaque capacité est tentée dans
@@ -3590,7 +3646,7 @@ const stun = { id: 'etourdi', turns: 1 };
 const ENEMIES = {
   // ---- Forêt Maudite ----
   gobelin: {
-    name: 'Gobelin', icon: '👹',
+    name: 'Gobelin', icon: '👹', riposte: 5,
     pv: { base: 40, perLevel: 8 }, atq: { base: 8, perLevel: 2 },
     def: { base: 2, perLevel: 1 }, defMag: { base: 0, perLevel: 1 }, vit: { min: 6, max: 11 },
   },
@@ -3607,7 +3663,7 @@ const ENEMIES = {
     abilities: [{ chance: 0.35, skill: { name: 'Crachat venimeux', kind: 'damage', target: 'hero', power: 0.6, effects: [poison(0.3)] } }],
   },
   chefGobelin: {
-    name: 'Chef gobelin', icon: '👺', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Chef gobelin', icon: '👺', riposte: 15, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 150, perLevel: 25 }, atq: { base: 12, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 7, max: 9 },
     abilities: [
@@ -3625,7 +3681,7 @@ const ENEMIES = {
     ],
   },
   loupAlpha: {
-    name: 'Loup alpha', icon: '🐺', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Loup alpha', icon: '🐺', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 180, perLevel: 25 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 12, max: 15 },
     abilities: [
@@ -3634,7 +3690,7 @@ const ENEMIES = {
     ],
   },
   sylvainCorrompu: {
-    name: 'Sylvain corrompu', icon: '🌳', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Sylvain corrompu', icon: '🌳', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 240, perLevel: 30 }, atq: { base: 12, perLevel: 2 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 2, perLevel: 1 }, vit: { min: 5, max: 7 },
     abilities: [
@@ -3643,7 +3699,7 @@ const ENEMIES = {
     ],
   },
   reineSylvestre: {
-    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
     pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
@@ -3656,7 +3712,7 @@ const ENEMIES = {
 
   // ---- Catacombes oubliées ----
   squelette: {
-    name: 'Squelette', icon: '💀',
+    name: 'Squelette', icon: '💀', riposte: 10,
     pv: { base: 45, perLevel: 7 }, atq: { base: 9, perLevel: 2 },
     def: { base: 4, perLevel: 1.2 }, defMag: { base: 1, perLevel: 0.5 }, vit: { min: 6, max: 9 },
     abilities: [{ chance: 0.25, skill: { name: "Coup d'os", kind: 'damage', target: 'hero', power: 1.3 } }],
@@ -3668,13 +3724,13 @@ const ENEMIES = {
     abilities: [{ chance: 0.3, skill: { name: 'Morsure putride', kind: 'damage', target: 'hero', power: 0.7, effects: [poison(0.35)] } }],
   },
   spectre: {
-    name: 'Spectre', icon: '👻', magic: true,
+    name: 'Spectre', icon: '👻', magic: true, ranged: true,
     pv: { base: 30, perLevel: 6 }, atq: { base: 10, perLevel: 2 },
     def: { base: 8, perLevel: 2 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 9, max: 13 },
     abilities: [{ chance: 0.25, skill: { name: 'Cri glaçant', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, effects: [slow(2)] } }],
   },
   chevalierSquelette: {
-    name: 'Chevalier squelette', icon: '🛡️', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Chevalier squelette', icon: '🛡️', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 220, perLevel: 28 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 12, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 8 },
     abilities: [
@@ -3683,7 +3739,7 @@ const ENEMIES = {
     ],
   },
   necromancien: {
-    name: 'Nécromancien', icon: '🧙', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    name: 'Nécromancien', icon: '🧙', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
     pv: { base: 200, perLevel: 25 }, atq: { base: 13, perLevel: 2.5 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 8, perLevel: 1.5 }, vit: { min: 8, max: 10 },
     abilities: [
@@ -3693,7 +3749,7 @@ const ENEMIES = {
     ],
   },
   abomination: {
-    name: 'Abomination', icon: '🧌', boss: true, xpMult: 5, goldMult: 4,
+    name: 'Abomination', icon: '🧌', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 320, perLevel: 35 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 4, max: 6 },
     abilities: [
@@ -3702,7 +3758,7 @@ const ENEMIES = {
     ],
   },
   banshee: {
-    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true,
+    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
     pv: { base: 210, perLevel: 25 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
@@ -3712,7 +3768,7 @@ const ENEMIES = {
     ],
   },
   liche: {
-    name: 'Liche', icon: '☠️', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    name: 'Liche', icon: '☠️', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
     pv: { base: 380, perLevel: 38 }, atq: { base: 16, perLevel: 3 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 9, max: 11 },
     abilities: [
@@ -4064,6 +4120,7 @@ function createEnemy(key, level, label) {
     icon: def.icon,
     boss: !!def.boss,
     magic: !!def.magic,
+    row: def.ranged ? 'ranged' : 'melee',
     hp: pv,
     stats: {
       ...zeroStats(),
@@ -4075,6 +4132,7 @@ function createEnemy(key, level, label) {
       def: scaled(def.def, level),
       defMag: scaled(def.defMag, level),
       vit: Math.round(rand(def.vit.min, def.vit.max)),
+      riposte: def.riposte ?? 0,
     },
     alive: true,
     guard: false,
@@ -4159,6 +4217,84 @@ function atCombo(skill, points) {
 return { isMultiAction, actionCost, canPay, comboMax, comboOf, gainCombo, atCombo };
 })();
 
+// ---- src/game/position.js
+__modules["src/game/position.js"] = (() => {
+const { COMBAT } = __modules["src/config.js"];
+const { WEAPON_TYPES } = __modules["src/data/items.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { isMultiAction } = __modules["src/game/combo.js"];
+// Positions de combat : corps à corps ('melee') ou distance ('ranged').
+//
+// - hero.position : position choisie au village (écran Stratégie) ; chaque combat
+//   commence avec unit.row = cette position. « Changer de position » en combat
+//   modifie unit.row pour ce combat seulement.
+// - Les ennemis ont leur position dans le bestiaire (`ranged`).
+// - Une unité au corps à corps a plus de chances d'être ciblée (COMBAT.meleeTargetWeight).
+// - Une arme ne sert que depuis sa position (WEAPON_TYPES[].range) : attaque simple et
+//   compétences physiques (« à l'arme ») ; sorts, soins, pièges et objets restent possibles.
+// - Riposte : une unité au corps à corps attaquée au corps à corps peut riposter
+//   (chance = stat Riposte), en infligeant une part de sa puissance physique.
+
+
+
+
+
+
+const POSITIONS = ['melee', 'ranged'];
+
+function defaultPosition(classKey) {
+  return CLASSES[classKey].position ?? 'melee';
+}
+
+// Portée de l'arme en main droite ('melee' sans arme : coups de poing).
+function weaponRange(hero) {
+  const weapon = hero.equipment?.mainDroite;
+  return weapon?.slotType === 'arme' ? WEAPON_TYPES[weapon.weaponType].range : 'melee';
+}
+
+// Compétence qui frappe avec l'arme : dégâts physiques directs.
+function usesWeapon(skill) {
+  return skill.kind === 'damage' && !skill.magic;
+}
+
+// Le héros peut-il se servir de son arme depuis sa position actuelle ?
+function canUseWeapon(hero) {
+  return weaponRange(hero) === hero.row;
+}
+
+// Pourquoi l'arme est inutilisable (texte), ou null.
+function weaponBlockedReason(hero) {
+  if (canUseWeapon(hero)) return null;
+  return weaponRange(hero) === 'ranged'
+    ? 'Arme à distance : impossible de tirer au corps à corps. Changez de position.'
+    : 'Arme de corps à corps : impossible de frapper à distance. Changez de position.';
+}
+
+// Changer de position : toujours possible pour une classe à une action ; une
+// classe à Énergie ne peut plus le faire après avoir agi ce tour.
+function canChangePosition(hero) {
+  return !(isMultiAction(hero) && hero.actedThisTurn);
+}
+
+function otherRow(row) {
+  return row === 'melee' ? 'ranged' : 'melee';
+}
+
+// Poids d'une unité dans le choix de cible d'un ennemi.
+function targetWeight(unit) {
+  return unit.row === 'melee' ? COMBAT.meleeTargetWeight : 1;
+}
+
+// Stratégie (village) : position de départ d'un héros en combat.
+function setPosition(hero, position) {
+  if (!POSITIONS.includes(position)) return false;
+  hero.position = position;
+  return true;
+}
+
+return { POSITIONS, defaultPosition, weaponRange, usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition, otherRow, targetWeight, setPosition };
+})();
+
 // ---- src/game/combat.js
 __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
@@ -4166,7 +4302,8 @@ const { ENEMIES } = __modules["src/data/enemies.js"];
 const { createEnemies } = __modules["src/game/enemies.js"];
 const { getClass, getSkills, getStats, gainResource } = __modules["src/game/party.js"];
 const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __modules["src/game/combo.js"];
-const { rollHit, healAmount, skillHitOptions, chance, effectValue, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
+const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } = __modules["src/game/position.js"];
+const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } = __modules["src/game/statuses.js"];
 const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
@@ -4202,6 +4339,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 
 
 
+
 /**
  * Prépare un combat.
  * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
@@ -4214,6 +4352,7 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     hero.statuses = [];
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
+    hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
   });
@@ -4336,6 +4475,7 @@ function confusedHeroStrikes(cb, hero) {
 
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
+  hero.actedThisTurn = false;
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
 }
 
@@ -4385,6 +4525,7 @@ function canUseSkill(cb, hero, skill) {
   if (hero.res < skill.cost) return false;
   if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
+  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -4392,7 +4533,7 @@ function canUseSkill(cb, hero, skill) {
 // Action de base possible maintenant pour le héros actif ('attack' | 'defend').
 function canDoAction(cb, hero, type) {
   if (!canPay(hero, type)) return false;
-  if (type === 'attack') return cb.enemies.some(isAlive);
+  if (type === 'attack') return canUseWeapon(hero) && cb.enemies.some(isAlive);
   if (type === 'defend') return !(hero.guard && isMultiAction(hero)); // une seule garde par tour
   return true;
 }
@@ -4407,6 +4548,7 @@ function hasActionLeft(cb, hero) {
 /**
  * Résout l'action du héros actif.
  * action : { type: 'endTurn' }  (passer / finir son tour)
+ *        | { type: 'move' }     (changer de position : corps à corps ↔ distance, prend le tour)
  *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
@@ -4416,6 +4558,14 @@ function hasActionLeft(cb, hero) {
 function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
+
+  if (action.type === 'move') {
+    if (!canChangePosition(hero)) return false;
+    hero.row = otherRow(hero.row);
+    log(cb, `${hero.name} passe ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'}.`, true);
+    endTurn(cb); // changer de position prend toujours le tour
+    return true;
+  }
 
   if (action.type === 'endTurn') {
     log(cb, isMultiAction(hero) ? `${hero.name} termine son tour.` : `${hero.name} passe son tour.`);
@@ -4444,6 +4594,7 @@ function heroAct(cb, action) {
     if (fell) logFall(cb, target);
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
+    if (!fell) riposte(cb, hero, target);
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
@@ -4470,6 +4621,7 @@ function heroAct(cb, action) {
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
+    if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
     // Talent « Implacable » : un finisher rend de l'Énergie par point de combo dépensé.
     if (skill.finisher) gainResource(hero, skill.comboPoints * (statsOf(hero).finisherRefund ?? 0));
     if (skill.comboGain) {
@@ -4480,6 +4632,7 @@ function heroAct(cb, action) {
     return false;
   }
 
+  hero.actedThisTurn = true;
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
     const res = getClass(hero).resource.name;
@@ -4499,6 +4652,19 @@ function hurt(cb, unit, amount) {
 // « (12 encaissés par Aldric) » quand une Intercession a pris une part des dégâts.
 function redirectText(r) {
   return r.redirected ? ` (${r.redirected} encaissés par ${r.protector.unit.name})` : '';
+}
+
+// Riposte : `defender`, au corps à corps et frappé au corps à corps par
+// `attacker`, a une chance (stat Riposte) de contre-attaquer pour une part de sa
+// puissance physique, réduite par la Défense de l'attaquant.
+function riposte(cb, attacker, defender) {
+  if (!attacker.alive || !defender.alive || attacker.row !== 'melee' || defender.row !== 'melee') return;
+  const stats = statsOf(defender);
+  if (random() >= chance(stats, 'riposte')) return;
+  const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
+  const { taken, fell } = hurt(cb, attacker, amount);
+  log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
+  if (fell) logFall(cb, attacker);
 }
 
 // Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
@@ -4617,10 +4783,18 @@ function useSkill(cb, caster, skill, targets) {
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
+// Au corps à corps, un héros a plus de chances d'être ciblé qu'à distance.
 function enemyTarget(cb) {
   const alive = cb.party.filter(isAlive);
   const taunting = alive.filter((h) => hasStatus(h, 'taunt'));
-  return pick(taunting.length ? taunting : alive);
+  const pool = taunting.length ? taunting : alive;
+  if (!pool.length) return undefined;
+  let roll = random() * pool.reduce((sum, h) => sum + targetWeight(h), 0);
+  for (const hero of pool) {
+    roll -= targetWeight(hero);
+    if (roll < 0) return hero;
+  }
+  return pool[pool.length - 1];
 }
 
 // Cibles d'une capacité ennemie (point de vue de l'ennemi).
@@ -4643,6 +4817,7 @@ function pickAbility(enemy) {
 }
 
 // IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
+// (plus souvent un héros au corps à corps ; riposte possible au corps à corps)
 // (esquive / blocage / garde / boucliers possibles).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 function enemyAct(cb) {
@@ -4661,7 +4836,9 @@ function enemyAct(cb) {
 
   const ability = pickAbility(enemy);
   if (ability) {
-    useSkill(cb, enemy, ability, abilityTargets(cb, enemy, ability));
+    const targets = abilityTargets(cb, enemy, ability);
+    useSkill(cb, enemy, ability, targets);
+    if (ability.kind === 'damage' && !ability.magic && ability.target === 'hero' && targets[0]?.alive) riposte(cb, enemy, targets[0]);
     endTurn(cb);
     return;
   }
@@ -4682,7 +4859,10 @@ function enemyAct(cb) {
       const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
-      else onHitTaken(target);
+      else {
+        onHitTaken(target);
+        if (!enemy.magic) riposte(cb, enemy, target);
+      }
     }
   }
   endTurn(cb);
@@ -5417,6 +5597,7 @@ function renderHub(app) {
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
       </div>
     </div>
   `;
@@ -5432,6 +5613,7 @@ function renderHub(app) {
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
+  app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
 }
 
 function heroMini(hero) {
@@ -5739,6 +5921,7 @@ const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
 const { targetsFor, canUseSkill, canUseItem, canDoAction } = __modules["src/game/combat.js"];
 const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src/game/combo.js"];
+const { usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition } = __modules["src/game/position.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
@@ -5749,6 +5932,7 @@ const { playerAction } = __modules["src/ui/encounter.js"];
 // personnelle demande une confirmation qui montre qui sera touché.
 // Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
 // tout héros peut passer son tour.
+
 
 
 
@@ -5795,13 +5979,19 @@ function heroUnit(hero, active) {
   const res = cls.resource.name;
   return `
     <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
-      <div class="row1"><b>${cls.icon} ${esc(hero.name)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
+      <div class="row1"><b>${cls.icon} ${esc(hero.name)} ${rowTag(hero)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
       ${bar(hero.hp, stats.pv, cls.color)}
       <small ${tip(resourceTip(hero))}>${res}: ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
       ${comboDots(hero)}
       ${statusTags(hero)}
     </div>`;
+}
+
+// Position de l'unité : ⚔️ corps à corps ou 🏹 distance.
+function rowTag(unit) {
+  const melee = unit.row === 'melee';
+  return `<span class="row-tag ${unit.row}" ${tip(melee ? 'Corps à corps : plus souvent ciblé par les ennemis ; peut riposter aux attaques au corps à corps.' : 'Distance : moins souvent ciblé ; ne riposte pas.')}>${melee ? '⚔️' : '🏹'}</span>`;
 }
 
 function resourceTip(hero) {
@@ -5825,7 +6015,7 @@ function comboDots(hero) {
 function enemyUnit(enemy, active) {
   return `
     <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''} ${enemy.boss ? 'boss' : ''}" style="--c:var(--danger)">
-      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
+      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)} ${rowTag(enemy)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
       ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
       ${statusTags(enemy)}
     </div>`;
@@ -5860,11 +6050,12 @@ function actionPanel(hero) {
   const takesTurn = multi ? '' : ' Prend le tour du héros.';
   return `
     <div class="card">
-      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
+      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name}, ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
+        <button id="actAttack" ${tip(`${weaponBlockedReason(hero) ? `${weaponBlockedReason(hero)} ` : ''}Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour du héros." + takesTurn)} ${canDoAction(cb, hero, 'defend') ? '' : 'disabled'}>${hero.guard ? 'En garde' : 'Défendre'}${cost('defend')}</button>
         <button id="actItem" ${tip(`Utilise un consommable (potion, remède, corde…).${takesTurn}`)} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet${cost('item')} · ${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)}</button>
+        <button id="actMove" ${tip(`Passe ${hero.row === 'melee' ? 'à distance' : 'au corps à corps'}. Prend tout le tour${multi ? ", et n'est possible qu'avant d'avoir agi" : ''}. Une arme ne sert que depuis sa position (arc : distance ; autres armes : corps à corps) ; au corps à corps, on est plus souvent ciblé.`)} ${canChangePosition(hero) ? '' : 'disabled'}>↔️ ${hero.row === 'melee' ? 'Passer à distance' : 'Passer au corps à corps'}</button>
         <button id="actEnd" class="end-turn" ${tip(multi ? `Termine le tour de ${hero.name} : l'${res} restante est conservée.` : `${hero.name} ne fait rien ce tour-ci.`)}>${multi ? '⏭️ Finir le tour' : '⏭️ Passer le tour'}</button>
         <span class="hint">Compétences ↓</span>
       </div>
@@ -5872,7 +6063,7 @@ function actionPanel(hero) {
         ${getSkills(hero).map((base, i) => {
           const s = atCombo(base, Math.max(1, comboOf(hero)));
           return `
-          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
+          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
           </button>`;
         }).join('')}
@@ -5920,6 +6111,7 @@ function wireActions(app, hero) {
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
   app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
+  app.querySelector('#actMove').onclick = () => playerAction({ type: 'move' });
   app.querySelector('#actItem').onclick = () => {
     zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];
@@ -5938,6 +6130,72 @@ function wireActions(app, hero) {
 return { renderCombat };
 })();
 
+// ---- src/ui/screens/strategy.js
+__modules["src/ui/screens/strategy.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { COMBAT } = __modules["src/config.js"];
+const { WEAPON_TYPES, RANGE_LABELS } = __modules["src/data/items.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { setPosition, weaponRange, POSITIONS } = __modules["src/game/position.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Stratégie : position de départ de chaque héros en combat (corps à corps ou distance).
+
+
+
+
+
+
+
+
+
+const ICONS = { melee: '⚔️', ranged: '🏹' };
+
+function renderStrategy(app) {
+  app.innerHTML = `
+    <div class="hero"><h1>🧭 Stratégie</h1><p>Place tes héros au corps à corps ou à distance avant le combat</p></div>
+    <div class="card">
+      <ul class="rules">
+        <li><b>Corps à corps</b> : ${COMBAT.meleeTargetWeight} fois plus de chances d'être ciblé par les ennemis qu'à distance. Un héros au corps à corps frappé au corps à corps peut <b>riposter</b> (stat Riposte).</li>
+        <li><b>Armes</b> : l'arc ne sert qu'à distance ; toutes les autres armes (bâton compris) qu'au corps à corps. L'attaque simple et les compétences physiques en dépendent ; sorts, soins, pièges et objets marchent partout.</li>
+        <li>En combat, <b>« Changer de position »</b> prend tout le tour (avant toute autre action pour le Voleur et le Chasseur). Chaque combat repart de la position choisie ici.</li>
+      </ul>
+    </div>
+    <div class="slots">${state.party.map(heroCard).join('')}</div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-pos]').forEach((btn) => {
+    btn.onclick = () => {
+      setPosition(state.party[Number(btn.dataset.hero)], btn.dataset.pos);
+      goTo('strategy');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function heroCard(hero, i) {
+  const cls = getClass(hero);
+  const weapon = hero.equipment.mainDroite;
+  const weaponName = weapon ? WEAPON_TYPES[weapon.weaponType].name : 'Mains nues';
+  const range = weaponRange(hero);
+  const warning = range !== hero.position
+    ? `<p class="warn">⚠️ ${range === 'ranged' ? "Son arc ne sert pas au corps à corps" : `Son arme (${esc(weaponName)}) ne sert pas à distance`} : pas d'attaque simple ni de compétence physique depuis cette position (sorts, soins, pièges et objets restent possibles).</p>`
+    : '';
+  return `
+    <div class="card slot" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div>
+      <div class="cname">${esc(hero.name)}</div>
+      <div class="role">${cls.name} · ${esc(weaponName)} (${RANGE_LABELS[range].toLowerCase()}) · Riposte ${getStats(hero).riposte} %</div>
+      <div class="pos-choice">
+        ${POSITIONS.map((p) => `<button data-hero="${i}" data-pos="${p}" class="${hero.position === p ? 'selected' : ''}">${ICONS[p]} ${RANGE_LABELS[p]}</button>`).join('')}
+      </div>
+      ${warning}
+    </div>`;
+}
+
+return { renderStrategy };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -5950,7 +6208,9 @@ const { renderTalents } = __modules["src/ui/screens/talents.js"];
 const { renderMerchant } = __modules["src/ui/screens/merchant.js"];
 const { renderDungeon } = __modules["src/ui/screens/dungeon.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
+const { renderStrategy } = __modules["src/ui/screens/strategy.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -5973,6 +6233,7 @@ registerScreens({
   merchant: renderMerchant,
   dungeon: renderDungeon,
   combat: renderCombat,
+  strategy: renderStrategy,
 });
 
 render();

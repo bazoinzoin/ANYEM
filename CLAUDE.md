@@ -26,6 +26,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Consommables : données dans `data/consumables.js` (`use` : 'combat' / 'map', `target`, `effect`), logique dans `game/consumables.js` (`applyConsumable`, `useOnMap`). Tout nouvel effet négatif doit être ajouté à `DEBUFF_KEYS` et avoir un remède dédié (un test le vérifie).
 - 6 classes (`CLASS_ORDER`), équipe de 4 au choix (`createParty(names, classes)`). Chasseur = Énergie sans combo, pièges (`trap`) ; Paladin = Force ou Intelligence selon l'orientation, soins `physHeal`, Intercession (`redirect`).
 - Classes à Énergie (Voleur, Chasseur) : plusieurs actions par tour (`resource.multiAction`, `actionCosts`), points de combo (`comboGain` / `finisher`) : règles dans `game/combo.js` ; un finisher se lance via `atCombo(skill, points)` (puissance et effets par point).
+- Positions corps à corps / distance, riposte, portée des armes : `game/position.js` (`hero.position` = stratégie, `unit.row` = position en combat). Vitesse d'attaque des armes : `WEAPON_TYPES[].speed`, appliquée dans `getStats`.
 - En combat, lire les stats via `statsOf(unit)` (`game/units.js`) : il ajoute les buffs/debuffs et Berserk à `getStats`.
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
 - Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).

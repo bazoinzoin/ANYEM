@@ -10,6 +10,7 @@ import { renderTalents } from './ui/screens/talents.js';
 import { renderMerchant } from './ui/screens/merchant.js';
 import { renderDungeon } from './ui/screens/dungeon.js';
 import { renderCombat } from './ui/screens/combat.js';
+import { renderStrategy } from './ui/screens/strategy.js';
 
 registerScreens({
   create: renderCreate,
@@ -21,6 +22,7 @@ registerScreens({
   merchant: renderMerchant,
   dungeon: renderDungeon,
   combat: renderCombat,
+  strategy: renderStrategy,
 });
 
 render();

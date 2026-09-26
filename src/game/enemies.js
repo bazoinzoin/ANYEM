@@ -14,6 +14,7 @@ export function createEnemy(key, level, label) {
     icon: def.icon,
     boss: !!def.boss,
     magic: !!def.magic,
+    row: def.ranged ? 'ranged' : 'melee',
     hp: pv,
     stats: {
       ...zeroStats(),
@@ -25,6 +26,7 @@ export function createEnemy(key, level, label) {
       def: scaled(def.def, level),
       defMag: scaled(def.defMag, level),
       vit: Math.round(rand(def.vit.min, def.vit.max)),
+      riposte: def.riposte ?? 0,
     },
     alive: true,
     guard: false,

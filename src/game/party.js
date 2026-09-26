@@ -6,7 +6,7 @@
 // talents (les buffs de combat s'ajoutent ensuite dans units.statsOf).
 
 import { CLASSES } from '../data/classes.js';
-import { SLOT_ORDER } from '../data/items.js';
+import { SLOT_ORDER, WEAPON_TYPES } from '../data/items.js';
 import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
@@ -21,12 +21,20 @@ function wornItems(hero) {
   return SLOT_ORDER.map((slot) => [slot, hero.equipment[slot]]).filter(([, item]) => item);
 }
 
+// Coefficient de vitesse d'attaque des armes tenues (moyenne en ambidextrie, 1 sans arme).
+export function weaponSpeedOf(hero) {
+  const weapons = ['mainDroite', 'mainGauche'].map((slot) => hero.equipment[slot]).filter((it) => it?.slotType === 'arme');
+  if (!weapons.length) return 1;
+  return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
  *   resMax     maximum de la ressource de classe
+ *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 export function getStats(hero) {
   const cls = getClass(hero);
@@ -42,8 +50,13 @@ export function getStats(hero) {
     }
   }
   const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
+  const weaponSpeed = weaponSpeedOf(hero);
   const stats = {
     ...total,
+    // Vitesse d'attaque : la Vitesse est multipliée par le coefficient des armes.
+    vitBase: total.vit,
+    weaponSpeed,
+    vit: Math.round(total.vit * weaponSpeed),
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
@@ -126,6 +139,7 @@ export function createHero(classKey, name) {
     alive: true,
     guard: false,
     statuses: [],
+    position: cls.position ?? 'melee', // position de combat choisie (écran Stratégie)
     equipment: {},
     talents: {},
   };

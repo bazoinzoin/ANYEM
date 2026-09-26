@@ -13,6 +13,7 @@ import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
 import { targetsFor, canUseSkill, canUseItem, canDoAction } from '../../game/combat.js';
 import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../game/combo.js';
+import { usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, tip, bar, range } from '../html.js';
@@ -49,13 +50,19 @@ function heroUnit(hero, active) {
   const res = cls.resource.name;
   return `
     <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
-      <div class="row1"><b>${cls.icon} ${esc(hero.name)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
+      <div class="row1"><b>${cls.icon} ${esc(hero.name)} ${rowTag(hero)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
       ${bar(hero.hp, stats.pv, cls.color)}
       <small ${tip(resourceTip(hero))}>${res}: ${hero.res}/${stats.resMax}</small>
       ${bar(hero.res, stats.resMax, 'var(--gold)')}
       ${comboDots(hero)}
       ${statusTags(hero)}
     </div>`;
+}
+
+// Position de l'unité : ⚔️ corps à corps ou 🏹 distance.
+function rowTag(unit) {
+  const melee = unit.row === 'melee';
+  return `<span class="row-tag ${unit.row}" ${tip(melee ? 'Corps à corps : plus souvent ciblé par les ennemis ; peut riposter aux attaques au corps à corps.' : 'Distance : moins souvent ciblé ; ne riposte pas.')}>${melee ? '⚔️' : '🏹'}</span>`;
 }
 
 function resourceTip(hero) {
@@ -79,7 +86,7 @@ function comboDots(hero) {
 function enemyUnit(enemy, active) {
   return `
     <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''} ${enemy.boss ? 'boss' : ''}" style="--c:var(--danger)">
-      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
+      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)} ${rowTag(enemy)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
       ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
       ${statusTags(enemy)}
     </div>`;
@@ -114,11 +121,12 @@ function actionPanel(hero) {
   const takesTurn = multi ? '' : ' Prend le tour du héros.';
   return `
     <div class="card">
-      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
+      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name}, ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
+        <button id="actAttack" ${tip(`${weaponBlockedReason(hero) ? `${weaponBlockedReason(hero)} ` : ''}Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour du héros." + takesTurn)} ${canDoAction(cb, hero, 'defend') ? '' : 'disabled'}>${hero.guard ? 'En garde' : 'Défendre'}${cost('defend')}</button>
         <button id="actItem" ${tip(`Utilise un consommable (potion, remède, corde…).${takesTurn}`)} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet${cost('item')} · ${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)}</button>
+        <button id="actMove" ${tip(`Passe ${hero.row === 'melee' ? 'à distance' : 'au corps à corps'}. Prend tout le tour${multi ? ", et n'est possible qu'avant d'avoir agi" : ''}. Une arme ne sert que depuis sa position (arc : distance ; autres armes : corps à corps) ; au corps à corps, on est plus souvent ciblé.`)} ${canChangePosition(hero) ? '' : 'disabled'}>↔️ ${hero.row === 'melee' ? 'Passer à distance' : 'Passer au corps à corps'}</button>
         <button id="actEnd" class="end-turn" ${tip(multi ? `Termine le tour de ${hero.name} : l'${res} restante est conservée.` : `${hero.name} ne fait rien ce tour-ci.`)}>${multi ? '⏭️ Finir le tour' : '⏭️ Passer le tour'}</button>
         <span class="hint">Compétences ↓</span>
       </div>
@@ -126,7 +134,7 @@ function actionPanel(hero) {
         ${getSkills(hero).map((base, i) => {
           const s = atCombo(base, Math.max(1, comboOf(hero)));
           return `
-          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
+          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
           </button>`;
         }).join('')}
@@ -174,6 +182,7 @@ function wireActions(app, hero) {
   app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
   app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
   app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
+  app.querySelector('#actMove').onclick = () => playerAction({ type: 'move' });
   app.querySelector('#actItem').onclick = () => {
     zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];

@@ -9,3 +9,12 @@ test('dist/anyem.html est à jour (sinon : npm run build)', async () => {
   const actual = await readFile(OUTPUT, 'utf8').catch(() => '');
   assert.ok(actual === expected, 'dist/anyem.html est périmé : lance « npm run build » et commite le résultat.');
 });
+
+// Les tests unitaires n'importent pas les écrans (src/ui) : on vérifie ici que
+// tout le code du jeu, écrans compris, est syntaxiquement valide.
+test('le jeu en un seul fichier ne contient pas d\'erreur de syntaxe', async () => {
+  const html = await build();
+  const start = html.indexOf('<script>\n"use strict";');
+  const code = html.slice(start + '<script>'.length, html.indexOf('</script>', start));
+  assert.doesNotThrow(() => new Function(code), 'erreur de syntaxe dans le code du jeu');
+});

@@ -168,3 +168,11 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
 .boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
 .boss-choice p { margin: 0 0 10px; }
+
+/* ---- Positions ---- */
+.row-tag { font-size: 13px; margin-left: 2px; }
+.rules { margin: 0; padding-left: 20px; line-height: 1.6; }
+.pos-choice { display: flex; gap: 8px; margin: 10px 0; }
+.pos-choice button { flex: 1; }
+.pos-choice button.selected { background: #3a2c1c; outline: 2px solid var(--gold); }
+.slot .warn { color: #e6a59a; font-size: 13px; margin: 6px 0 0; }
