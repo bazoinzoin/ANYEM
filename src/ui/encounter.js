@@ -5,7 +5,7 @@
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFloor, loseExpedition, escapeExpedition, subzoneOf } from '../game/dungeon.js';
+import { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } from '../game/dungeon.js';
 import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
@@ -65,7 +65,7 @@ function finish() {
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
-  const r = winFloor(state, cb);
+  const r = winFight(state, cb);
   if (r.cleared) {
     const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);

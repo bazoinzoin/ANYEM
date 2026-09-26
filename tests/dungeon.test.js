@@ -6,9 +6,10 @@ import { createParty } from '../src/game/party.js';
 import { createCombat, enemyAct } from '../src/game/combat.js';
 import {
   progressOf, isUnlocked, floorLevel, isBossFloor, encounterFor, startFloors,
-  startExpedition, floorCombat, winFloor, loseExpedition, leaveExpedition,
-  continueExpedition, canFightNextFloor,
+  startExpedition, floorCombat, loseExpedition, leaveExpedition,
+  continueExpedition, canExplore, stepParty, takeLadder, engagedMob,
 } from '../src/game/dungeon.js';
+import { winNextFight, clearFloor } from './helpers.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../src/data/dungeons.js';
 import { ENEMIES } from '../src/data/enemies.js';
 import { createEnemies } from '../src/game/enemies.js';
@@ -18,39 +19,24 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 const newGame = () => ({ party: createParty(), bag: [], gold: 100, dungeonLvl: 1, dungeons: {}, expedition: null });
 
-// Gagne un combat sans le jouer (tous les ennemis vaincus).
-function winFight(game) {
-  const params = floorCombat(game);
-  const cb = createCombat({ party: game.party, ...params });
-  cb.enemies.forEach((e) => { e.alive = false; e.hp = 0; });
-  return winFloor(game, cb);
-}
-
-// Gagne tous les combats de l'étage courant (en ignorant les événements).
-function clearFloor(game) {
-  let r;
-  do {
-    if (game.expedition) game.expedition.event = null;
-    r = winFight(game);
-  } while (!r.floorDone);
-  return r;
-}
-
-test("un étage ordinaire compte 2 ou 3 combats, un étage de boss un seul", () => {
+test("carte d'un étage ordinaire : 2 ou 3 groupes de monstres, une échelle ; étage du boss : le boss garde la fin", () => {
   const game = newGame();
   startExpedition(game, 'foretMaudite');
-  const exp = game.expedition;
-  assert.ok(exp.fights >= 2 && exp.fights <= 3);
-  assert.equal(exp.fight, 1);
-  assert.match(floorCombat(game).title, /combat 1\//);
-  const r = winFight(game);
-  assert.equal(r.floorDone, false);
-  assert.equal(exp.floor, 1);
-  assert.equal(exp.fight, 2);
-  exp.event = null;
+  const map = game.expedition.map;
+  assert.ok(map.mobs.length >= 2 && map.mobs.length <= 3);
+  assert.ok(map.mobs.every((m) => !m.boss));
+  assert.ok(map.ladder);
+  const r = winNextFight(game);
+  assert.equal(r.boss, false);
+  assert.equal(game.expedition.floor, 1, "vaincre un groupe ne fait pas changer d'étage");
+  assert.equal(game.expedition.map.mobs.length, map.mobs.length);
   for (let f = 1; f <= 4; f++) clearFloor(game);
   assert.equal(game.expedition.floor, 5);
-  assert.equal(game.expedition.fights, 1, 'boss seul');
+  const bossMap = game.expedition.map;
+  assert.equal(bossMap.ladder, null);
+  assert.equal(bossMap.mobs.filter((m) => m.boss).length, 1);
+  assert.deepEqual(bossMap.mobs.find((m) => m.boss).enemies, ['chefGobelin']);
+  game.expedition.engaged = bossMap.mobs.find((m) => m.boss).id;
   assert.match(floorCombat(game).title, /BOSS/);
 });
 
@@ -104,8 +90,7 @@ test('expédition : on ne peut partir qu\'au départ ou juste après un boss', (
   assert.ok(startExpedition(game, 'foretMaudite'));
   assert.equal(game.expedition.canLeave, true);
   for (let f = 1; f <= 4; f++) {
-    const r = clearFloor(game);
-    assert.equal(r.boss, false);
+    clearFloor(game);
     assert.equal(game.expedition.canLeave, false, `après l'étage ${f}`);
     assert.equal(leaveExpedition(game), false);
   }
@@ -194,7 +179,7 @@ test("après un boss : choix obligatoire entre rentrer et continuer ; continuer 
   const hpAfterBoss = g.hp;
   const pAfterBoss = p.hp;
   assert.equal(game.expedition.bossChoice, true);
-  assert.equal(canFightNextFloor(game), false, "il faut d'abord choisir");
+  assert.equal(canExplore(game), false, "il faut d'abord choisir");
   assert.ok(continueExpedition(game));
   const s = getStats(g);
   assert.equal(g.hp, hpAfterBoss + Math.round(s.pv * 0.4));
@@ -204,7 +189,7 @@ test("après un boss : choix obligatoire entre rentrer et continuer ; continuer 
   assert.equal(v.alive, false, 'les héros tombés ne sont pas relevés');
   assert.equal(game.expedition.canLeave, false, 'après avoir choisi de continuer, impossible de rentrer');
   assert.equal(leaveExpedition(game), false);
-  assert.equal(canFightNextFloor(game), true);
+  assert.equal(canExplore(game), true);
   assert.equal(continueExpedition(game), false, 'une seule régénération par boss');
 });
 
@@ -241,7 +226,12 @@ test("niveau des étages : de min à max dans chaque sous-zone, boss au niveau m
   const levels = Array.from({ length: 15 }, (_, i) => floorLevel('foretMaudite', i + 1));
   assert.deepEqual(levels, [1, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 8, 9, 9, 10]);
   assert.equal(floorLevel('abimeInfernal', 15), 50);
-  assert.match(floorCombat({ ...newGame(), expedition: { dungeonKey: 'foretMaudite', floor: 7, fight: 1, fights: 2 } }).title, /Sous-bois — étage 2\/5/);
+  const game = newGame();
+  progressOf(game, 'foretMaudite').checkpoint = 5;
+  startExpedition(game, 'foretMaudite', 6);
+  clearFloor(game);
+  game.expedition.engaged = game.expedition.map.mobs[0].id;
+  assert.match(floorCombat(game).title, /Sous-bois — étage 2\/5/);
 });
 
 test('élites : ennemis renforcés, seulement là où la sous-zone en prévoit', () => {
@@ -257,7 +247,91 @@ test("butin : le niveau des objets est celui des ennemis vaincus", () => {
   progressOf(game, 'foretMaudite').checkpoint = 10;
   startExpedition(game, 'foretMaudite', 11);
   setRandomSource(() => 0.01);
-  const r = winFight(game);
+  const r = winNextFight(game);
   assert.ok(r.loot.length > 0);
   r.loot.forEach((item) => assert.equal(item.level, floorLevel('foretMaudite', 11)));
+});
+
+test("déplacement : un pas par case de sol, les murs bloquent, le brouillard se lève", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  const map = game.expedition.map;
+  map.mobs = [];
+  const { x, y } = map.party;
+  assert.equal(stepParty(game, 1, 1).moved, false, 'pas de diagonale');
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => map.tiles[(y + dy) * map.w + x + dx] === 1);
+  const [dx, dy] = dirs[0];
+  const seenBefore = map.seen.reduce((a, b) => a + b, 0);
+  assert.ok(stepParty(game, dx, dy).moved);
+  assert.deepEqual(map.party, { x: x + dx, y: y + dy });
+  assert.ok(map.seen.reduce((a, b) => a + b, 0) >= seenBefore);
+  assert.ok(map.seen[map.party.y * map.w + map.party.x]);
+  // Un mur bloque.
+  map.tiles[map.party.y * map.w + map.party.x + 1] = 0;
+  assert.equal(stepParty(game, 1, 0).moved, false);
+});
+
+test("monstres : marcher sur un groupe l'engage ; un groupe qui voit l'équipe la poursuit", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  const map = game.expedition.map;
+  const { x, y } = map.party;
+  // Couloir horizontal dégagé autour du groupe.
+  for (let i = x - 3; i <= x + 6; i++) map.tiles[y * map.w + i] = 1;
+  const mob = map.mobs[0];
+  map.mobs = [mob];
+  Object.assign(mob, { x: x + 1, y });
+  const r = stepParty(game, 1, 0);
+  assert.equal(r.moved, false);
+  assert.equal(r.encounter, mob);
+  assert.equal(engagedMob(game), mob);
+  assert.equal(canExplore(game), false, 'combat en cours');
+
+  game.expedition.engaged = null;
+  Object.assign(mob, { x: x + 4, y, chasing: false });
+  stepParty(game, -1, 0); // le groupe s'éloigne d'un pas ; le monstre (à 5 cases) le voit et avance
+  assert.equal(mob.chasing, true);
+  assert.equal(mob.x, x + 3);
+  // En revenant vers lui, le combat se déclenche (le groupe marche dessus ou le monstre l'atteint).
+  let caught = null;
+  for (let n = 0; n < 6 && !caught; n++) caught = stepParty(game, 1, 0).encounter;
+  assert.equal(caught, mob);
+});
+
+test("échelle : il faut être dessus ; on peut descendre sans combattre", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  const exp = game.expedition;
+  assert.equal(takeLadder(game), false);
+  exp.map.party = { ...exp.map.ladder };
+  const mobs = exp.map.mobs.length;
+  assert.ok(mobs > 0);
+  assert.ok(takeLadder(game));
+  assert.equal(exp.floor, 2);
+  assert.equal(exp.canLeave, false);
+});
+
+test("génération : tout le sol est relié, monstres et événements hors de la salle de départ", () => {
+  for (let i = 0; i < 30; i++) {
+    setRandomSource(() => i / 30);
+    const game = newGame();
+    progressOf(game, 'foretMaudite').checkpoint = 10;
+    startExpedition(game, 'foretMaudite', 11);
+    const map = game.expedition.map;
+    const start = map.party;
+    const seen = new Set([`${start.x},${start.y}`]);
+    const queue = [start];
+    while (queue.length) {
+      const p = queue.shift();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const q = { x: p.x + dx, y: p.y + dy };
+        if (map.tiles[q.y * map.w + q.x] === 1 && !seen.has(`${q.x},${q.y}`)) { seen.add(`${q.x},${q.y}`); queue.push(q); }
+      }
+    }
+    const floors = map.tiles.filter((t) => t === 1).length;
+    assert.equal(seen.size, floors, 'un seul bloc de sol');
+    assert.ok(map.rooms.length >= 4);
+    for (const m of [...map.mobs, ...map.events]) assert.notDeepEqual({ x: m.x, y: m.y }, start);
+    assert.ok(seen.has(`${map.ladder.x},${map.ladder.y}`));
+  }
 });

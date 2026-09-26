@@ -2,6 +2,7 @@
 // remplit #app et branche ses propres événements.
 
 import { state } from '../state.js';
+import { arriveAtVillage } from './villageView.js';
 
 const screens = {};
 
@@ -21,7 +22,7 @@ export function goTo(screen) {
   render();
 }
 
-// Écran de base : le village, ou l'expédition en cours (entre deux étages).
+// Écran de base : le village, ou l'expédition en cours (exploration de l'étage).
 export function goBack() {
   goTo(state.expedition ? 'dungeon' : 'hub');
 }
@@ -30,7 +31,9 @@ export function backLabel() {
   return state.expedition ? '← Retour au donjon' : '← Retour au village';
 }
 
+// Arrivée au village (retour d'expédition…) : le groupe réapparaît à la porte.
 export function showHub(message = null, loot = []) {
+  arriveAtVillage();
   state.hubMessage = message;
   state.hubLoot = loot;
   goTo('hub');

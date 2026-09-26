@@ -8,7 +8,7 @@ import { generateItem } from '../src/game/items.js';
 import { equippedItems } from '../src/game/equipment.js';
 import { recordEncounter, recordKills, isDiscovered, bestiaryOf, bestiaryPages, bestiaryProgress, levelRange } from '../src/game/bestiary.js';
 import { createCombat } from '../src/game/combat.js';
-import { startExpedition, floorCombat, winFloor, loseExpedition } from '../src/game/dungeon.js';
+import { startExpedition, floorCombat, winFight, loseExpedition } from '../src/game/dungeon.js';
 import { createEnemy, enemyStats } from '../src/game/enemies.js';
 import { ENEMIES } from '../src/data/enemies.js';
 import { INN } from '../src/config.js';
@@ -77,14 +77,16 @@ test('bestiaire : rencontre notée une fois par combat, ennemis vaincus comptés
 test('bestiaire : victoire et défaite en expédition comptent les vaincus', () => {
   const game = newGame();
   startExpedition(game, 'foretMaudite');
+  game.expedition.engaged = game.expedition.map.mobs[0].id;
   const params = floorCombat(game);
   recordEncounter(game, params.enemies);
   const cb = createCombat({ party: game.party, ...params });
   cb.enemies.forEach((e) => { e.alive = false; e.hp = 0; });
-  winFloor(game, cb);
+  winFight(game, cb);
   const kills = Object.values(bestiaryOf(game)).reduce((n, e) => n + e.kills, 0);
   assert.equal(kills, params.enemies.length);
 
+  game.expedition.engaged = game.expedition.map.mobs[0].id;
   const cb2 = createCombat({ party: game.party, ...floorCombat(game) });
   cb2.enemies[0].alive = false;
   loseExpedition(game, cb2);

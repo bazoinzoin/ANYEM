@@ -108,12 +108,25 @@ export const DUNGEON = {
   enemiesByTier: [2, 3, 3],
   bossAddsByTier: [0, 1, 2],
   eliteChance: 0.15,
+  bossFloorGroups: 1,              // groupes de monstres ordinaires en plus du boss, à l'étage du boss
+  mapEventChances: [0.7, 0.25],    // chance d'un 1er, d'un 2e événement sur la carte d'un étage ordinaire
 };
 
-// Événements d'expédition (data/events.js) : chance après chaque combat gagné
-// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+// Cartes d'étage (game/floorMap.js) : taille en cases, salles, vue et comportement des monstres.
+export const MAP = {
+  width: 36,
+  height: 24,
+  rooms: 7,
+  roomSize: { min: 5, max: 9 },
+  sightRadius: 6,    // rayon de vue du groupe (brouillard)
+  aggroRadius: 5,    // un monstre qui voit le groupe à cette distance le poursuit
+  loseRadius: 9,     // … et abandonne au-delà
+  wanderChance: 0.5, // sinon, chance de faire un pas dans sa salle
+};
+
+// Événements d'expédition (data/events.js ; nombre par étage : DUNGEON.mapEventChances) :
+// stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
 export const EVENT_RULES = {
-  chance: 0.35,
   merchantItems: 3,
   merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
   merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)

@@ -8,6 +8,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - `npm start` — serveur local sur http://localhost:8000
 - `npm test` — tests unitaires (`node --test`)
 - `npm run build` — régénère `dist/anyem.html` (jeu en un seul fichier, jouable en double-clic). **À lancer et commiter après toute modification de `index.html`, `css/` ou `src/`** : un test vérifie qu'il est à jour. Le joueur utilise ce fichier, il n'a pas Node.
+- Images : déposer les PNG dans `assets/` (crédits dans `assets/CREDITS.md`) ; `npm run build` les intègre en data URI dans `src/ui/assetData.js` (généré, un test vérifie qu'il est à jour) ; chargement via `image(clé)` (`ui/sprites.js`), clé = chemin sous `assets/` sans extension.
 - `tools/build.mjs` ne gère que `import { … } from '…'` et `export function|const|let|class` : s'en tenir à ces formes.
 
 ## Architecture : couches à respecter
@@ -28,9 +29,10 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Consommables : données dans `data/consumables.js` (`use` : 'combat' / 'map', `target`, `effect`), logique dans `game/consumables.js` (`applyConsumable`, `useOnMap`). Tout nouvel effet négatif doit être ajouté à `DEBUFF_KEYS` et avoir un remède dédié (un test le vérifie).
 - 6 classes (`CLASS_ORDER`), équipe de 4 au choix (`createParty(names, classes)`). Chasseur = Énergie sans combo, pièges (`trap`) ; Paladin = Force ou Intelligence selon l'orientation, soins `physHeal`, Intercession (`redirect`).
 - Classes à Énergie (Voleur, Chasseur) : plusieurs actions par tour (`resource.multiAction`, `actionCosts`), points de combo (`comboGain` / `finisher`) : règles dans `game/combo.js` ; un finisher se lance via `atCombo(skill, points)` (puissance et effets par point).
-- Expédition : 2-3 combats par étage (`expedition.fight/fights`, `winFloor` renvoie `floorDone`) ; les debuffs restent entre les combats (filtrés dans `createCombat`) ; soins/purifications hors combat : `game/field.js`.
+- Expédition sur carte : `game/floorMap.js` (génération seedée, brouillard, IA des monstres), `stepParty` / `takeLadder` / `winFight` / `canExplore` dans `game/dungeon.js`, rendu et contrôles dans `ui/mapView.js` ; 2-3 groupes de monstres par étage ; tests : `winNextFight` / `clearFloor` (`tests/helpers.js`) ; les debuffs restent entre les combats (filtrés dans `createCombat`) ; soins/purifications hors combat : `game/field.js`.
 - Événements d'expédition : contenu `data/events.js` (choix, issues, coûts), règles `game/events.js` (`maybeTriggerEvent` dans `winFloor`, `chooseEvent`, marchand ambulant) ; `expedition.event` bloque l'étage suivant.
 - Difficulté : `DIFFICULTIES` (`config.js`), règles dans `game/difficulty.js` (`enemyPower`, `lootRules`) ; la puissance passe à `createCombat` via `floorCombat`, le butin via `rollLoot(…, { difficulty })`.
+- Village à parcourir : carte et habitants dans `data/village.js` (un habitant = un service), marche dans `game/village.js`, rendu `ui/villageView.js` ; `hub.js` associe chaque service à son écran (`openService`) ; portails : `ui/screens/portals.js`. Personnages sur les cartes : `drawActor` / `tintedSheet` (`ui/actors.js`).
 - Village : auberge (`game/roster.js` : recrutement niveau 1, réserve `state.reserve` sans XP, max `INN.maxReserve`, échanges, renvoi `dismiss`), bestiaire (`game/bestiary.js`, stats sans hasard via `enemyStats`) et banque (`game/bank.js` : or, objets, consommables, matéria à l'abri des défaites). Matéria et consommables sont dans le sac du joueur (`state.materia`, `state.consumables`).
 - Positions corps à corps / distance, riposte, portée des armes : `game/position.js` (`hero.position` = stratégie, `unit.row` = position en combat). Vitesse d'attaque des armes : `WEAPON_TYPES[].speed`, appliquée dans `getStats`.
 - En combat, lire les stats via `statsOf(unit)` (`game/units.js`) : il ajoute les buffs/debuffs et Berserk à `getStats`.

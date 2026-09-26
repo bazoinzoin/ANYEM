@@ -10,6 +10,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeAssets } from './assets.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const OUTPUT = join(root, 'dist', 'anyem.html');
@@ -71,6 +72,7 @@ export async function build() {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await writeAssets(); // images de assets/ → src/ui/assetData.js, avant l'assemblage
   const out = await build();
   await mkdir(dirname(OUTPUT), { recursive: true });
   await writeFile(OUTPUT, out);

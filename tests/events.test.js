@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
-import { startExpedition, winFloor, canFightNextFloor } from '../src/game/dungeon.js';
+import { startExpedition, stepParty, canExplore } from '../src/game/dungeon.js';
 import { createCombat } from '../src/game/combat.js';
 import {
   rollEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, buyEventItem, buyEventConsumable, eventItemPrice,
@@ -30,17 +30,21 @@ test('chaque événement du catalogue est bien formé (chances à 100 %)', () =>
   }
 });
 
-test("à la fin d'un étage ordinaire, un événement peut survenir et bloque l'étage suivant", () => {
+test("un événement posé sur la carte se déclenche quand on marche dessus et bloque l'exploration", () => {
   const game = inDungeon();
-  game.expedition.fight = game.expedition.fights; // dernier combat de l'étage
-  setRandomSource(() => 0.1); // < chance d'événement
-  const cb = createCombat({ party: game.party, enemies: ['gobelin'], level: 1 });
-  cb.enemies.forEach((e) => { e.alive = false; });
-  const r = winFloor(game, cb);
-  assert.ok(r.event);
-  assert.equal(canFightNextFloor(game), false);
+  const map = game.expedition.map;
+  map.mobs = []; // rien ne vient gêner
+  // Place un événement juste à droite du groupe (sur du sol).
+  const { x, y } = map.party;
+  map.tiles[y * map.w + x + 1] = 1;
+  map.events = [{ id: 'e1', x: x + 1, y }];
+  const r = stepParty(game, 1, 0);
+  assert.ok(r.moved && r.event);
+  assert.equal(map.events.length, 0, "l'événement est consommé");
+  assert.equal(canExplore(game), false);
+  assert.equal(stepParty(game, -1, 0).moved, false);
   assert.ok(skipEvent(game));
-  assert.equal(canFightNextFloor(game), true);
+  assert.equal(canExplore(game), true);
 });
 
 test('la sorcière : 50 % objet au moins peu commun, 50 % deux héros blessés (jamais tués)', () => {

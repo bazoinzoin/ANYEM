@@ -26,7 +26,7 @@ export function lastCombatLog(last) {
     </details>`;
 }
 
-// Résumé détaillé d'une victoire (résultat de applyVictory / winFloor).
+// Résumé détaillé d'une victoire (résultat de applyVictory / winFight).
 export function victorySummary(r) {
   if (!r) return '';
   const rows = [

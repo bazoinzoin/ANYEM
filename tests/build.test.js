@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { build, OUTPUT } from '../tools/build.mjs';
+import { assetModule, ASSET_MODULE } from '../tools/assets.mjs';
 
 test('dist/anyem.html est à jour (sinon : npm run build)', async () => {
   const expected = await build();
@@ -17,4 +18,10 @@ test('le jeu en un seul fichier ne contient pas d\'erreur de syntaxe', async () 
   const start = html.indexOf('<script>\n"use strict";');
   const code = html.slice(start + '<script>'.length, html.indexOf('</script>', start));
   assert.doesNotThrow(() => new Function(code), 'erreur de syntaxe dans le code du jeu');
+});
+
+test('src/ui/assetData.js contient les images de assets/ (sinon : npm run build)', async () => {
+  const expected = await assetModule();
+  const actual = await readFile(ASSET_MODULE, 'utf8').catch(() => '');
+  assert.ok(actual === expected, 'src/ui/assetData.js est périmé : lance « npm run build » et commite le résultat.');
 });
