@@ -138,7 +138,7 @@ function actionPanel(hero) {
           <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
           </button>`;
-        }).join('')}
+        }).join('') || `<span class="hint">${esc(hero.name)} ne connaît encore aucun sort : apprends son sort de départ au Maître des compétences (premier point de talent).</span>`}
       </div>
       <div id="targetZone" class="target-zone"></div>
     </div>`;

@@ -1,6 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { learnStarters } from './helpers.js';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
 import { learn, branchesOf } from '../src/game/talents.js';
@@ -13,7 +14,7 @@ import { healAmount } from '../src/game/formulas.js';
 beforeEach(() => setRandomSource(() => 0.5));
 
 const inDungeon = () => {
-  const game = { party: createParty(), reserve: [], bag: [], gold: 100, dungeonLvl: 1, dungeons: {}, expedition: null, consumables: {} };
+  const game = { party: learnStarters(createParty()), reserve: [], bag: [], gold: 100, dungeonLvl: 1, dungeons: {}, expedition: null, consumables: {} };
   startExpedition(game, 'foretMaudite', 1);
   return game;
 };
@@ -24,6 +25,7 @@ test('seuls les soins et les purifications sont utilisables hors combat', () => 
   assert.deepEqual(fieldSkills(g), []);
   assert.deepEqual(fieldSkills(m), []);
   assert.deepEqual(fieldSkills(p).map((f) => f.skill.id), ['soin-majeur']);
+  assert.deepEqual(fieldSkills(createParty()[2]), [], 'sans sort de départ appris');
   p.level = 50;
   const clerc = branchesOf(p).find((b) => b.key === 'clerc');
   let ok = true;

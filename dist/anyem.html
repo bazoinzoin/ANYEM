@@ -1261,7 +1261,9 @@ __modules["src/data/classes.js"] = (() => {
 // starterKit  équipement commun de niveau 1 donné à la création
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
-// skills[] :
+// starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
+// s'apprennent au palier 0 des orientations (voir data/talents.js), avec le
+// premier point de talent. Format d'une compétence :
 //   id        identifiant stable (référencé par les légendaires)
 //   kind      'damage' | 'heal'
 //   target    'enemy' | 'ally' | 'allEnemies'
@@ -1307,7 +1309,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
     ],
@@ -1333,7 +1335,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'dague', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
       { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
@@ -1359,9 +1361,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.1, desc: 'Soigne fortement un allié' },
       { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 0.65, magic: true, desc: 'Dégâts de lumière' },
+      { id: 'trait-d-ombre', name: "Trait d'ombre", cost: 20, kind: 'damage', target: 'enemy', power: 0.7, magic: true, desc: "Dégâts d'ombre" },
     ],
   },
   mage: {
@@ -1384,9 +1387,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
       { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.5, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
     ],
   },
   chasseur: {
@@ -1409,7 +1413,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
       { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
     ],
@@ -1434,7 +1438,7 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
-    skills: [
+    starterSkills: [
       { id: 'frappe-du-croise', name: 'Frappe du croisé', cost: 20, kind: 'damage', target: 'enemy', power: 1.4, desc: "Coup d'arme béni (dégâts physiques, Force)" },
       { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],
@@ -1490,7 +1494,7 @@ return { STATS, PRIMARY_STATS, STAT_ORDER, zeroStats };
 
 // ---- src/data/talents.js
 __modules["src/data/talents.js"] = (() => {
-
+const { CLASSES } = __modules["src/data/classes.js"];
 // Arbres de compétences (DESIGN_DOC §3). Données pures.
 //
 // Chaque classe a une orientation par branche. Une branche compte 10 paliers
@@ -1500,7 +1504,7 @@ __modules["src/data/talents.js"] = (() => {
 // compétence signature de l'orientation.
 //
 // Modèle d'une branche (rangs par palier) :
-//   0 : 2 bonus            1 : compétence + bonus    2 : 2 bonus
+//   0 : sort de départ + 2 bonus   1 : compétence + bonus    2 : 2 bonus
 //   3 : passif + bonus     4 : compétence + bonus    5 : 2 bonus
 //   6 : passif + bonus     7 : compétence + bonus    8 : passif + bonus
 //   9 : compétence signature
@@ -1531,15 +1535,29 @@ __modules["src/data/talents.js"] = (() => {
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
 //   skill    compétence accordée (même format que data/classes.js)
+//   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
 //              effectTurnsDelta, effectPowerPct, addEffects, addSelfEffects } (ou une liste)
 // Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
+
+
 
 // Raccourcis de construction des nœuds.
 const minor = (id, name, tier, ranks, desc, fx) => ({ id, name, tier, ranks, kind: 'minor', desc, ...fx });
 const passive = (id, name, tier, desc, fx) => ({ id, name, tier, ranks: 1, kind: 'passive', desc, ...fx });
 const skill = (tier, def) => ({ id: def.id, name: def.name, tier, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.', skill: def });
 const signature = (def) => ({ id: def.id, name: def.name, tier: 9, ranks: 1, kind: 'signature', desc: 'Compétence signature.', skill: def });
+// Nœud du palier 0 : le(s) sort(s) de départ de l'orientation (voir starterSkills
+// dans data/classes.js). Un héros commence sans sort et apprend celui-ci avec son
+// premier point de talent.
+const starter = (id, name, classKey, ids) => ({
+  id, name, tier: 0, ranks: 1, kind: 'skill', desc: 'Sort de départ.',
+  skills: ids.map((sid) => {
+    const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
+    if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
+    return skill;
+  }),
+});
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
 
 const TALENTS = {
@@ -1548,7 +1566,8 @@ const TALENTS = {
       key: 'gardien', name: 'Gardien', icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
-        minor('peau-de-fer', 'Peau de fer', 0, 3, '+4 % PV par rang.', { pct: { pv: 4 } }),
+        starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
+        minor('peau-de-fer', 'Peau de fer', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         minor('posture-defensive', 'Posture défensive', 0, 2, '+5 % Défense par rang.', { pct: { def: 5 } }),
         skill(1, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
@@ -1592,7 +1611,8 @@ const TALENTS = {
       key: 'berserker', name: 'Berserker', icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
-        minor('soif-de-sang', 'Soif de sang', 0, 3, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
+        starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
+        minor('soif-de-sang', 'Soif de sang', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         minor('brutalite', 'Brutalité', 0, 2, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
         skill(1, {
           id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, critBonus: 25,
@@ -1635,7 +1655,8 @@ const TALENTS = {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
       desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
       nodes: [
-        minor('vivacite', 'Vivacité', 0, 3, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
+        starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
+        minor('vivacite', 'Vivacité', 0, 2, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
         minor('precision', 'Précision', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         skill(1, {
           id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
@@ -1676,7 +1697,8 @@ const TALENTS = {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
       desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
       nodes: [
-        minor('toxines', 'Toxines', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
+        minor('toxines', 'Toxines', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('opportuniste', 'Opportuniste', 0, 2, '+6 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', { passive: { vsDebuffedPct: 6 } }),
         skill(1, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
@@ -1726,7 +1748,8 @@ const TALENTS = {
       key: 'clerc', name: 'Clerc', icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
-        minor('devotion', 'Dévotion', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
+        minor('devotion', 'Dévotion', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse', 'Sagesse', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'priere-de-soins', name: 'Prière de soins', cost: 40, kind: 'heal', target: 'allAllies', power: 0.55,
@@ -1770,7 +1793,8 @@ const TALENTS = {
       key: 'precheur', name: 'Prêcheur', icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
-        minor('foi', 'Foi', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
+        minor('foi', 'Foi', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('constance', 'Constance', 0, 2, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
         skill(1, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
@@ -1817,7 +1841,8 @@ const TALENTS = {
       key: 'profane', name: 'Profane', icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
-        minor('ombre', 'Ombre', 0, 3, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
+        starter('depart-profane', "Trait d'ombre", 'pretre', ['trait-d-ombre']),
+        minor('ombre', 'Ombre', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         minor('esprit-sombre', 'Esprit sombre', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         skill(1, {
           id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
@@ -1867,7 +1892,8 @@ const TALENTS = {
       key: 'feu', name: 'Mage de feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
-        minor('chaleur', 'Chaleur', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
+        minor('chaleur', 'Chaleur', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('combustion', 'Combustion', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
         skill(1, {
           id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
@@ -1917,7 +1943,8 @@ const TALENTS = {
       key: 'glace', name: 'Mage de glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
-        minor('froid', 'Froid', 0, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
+        minor('froid', 'Froid', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
         minor('armure-de-givre', 'Armure de givre', 0, 2, '+5 % Défense et Défense magique par rang.', { pct: { def: 5, defMag: 5 } }),
         skill(1, {
           id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
@@ -1961,7 +1988,8 @@ const TALENTS = {
       key: 'foudre', name: 'Mage de foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
-        minor('conductivite', 'Conductivité', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
+        minor('conductivite', 'Conductivité', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('surtension', 'Surtension', 0, 2, '+8 % Dégâts critiques par rang.', { flat: { critDmg: 8 } }),
         skill(1, {
           id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
@@ -2009,7 +2037,8 @@ const TALENTS = {
       key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
       desc: "Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.",
       nodes: [
-        minor('oeil-percant', 'Œil perçant', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
+        minor('oeil-percant', 'Œil perçant', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
         minor('tension-de-la-corde', 'Tension de la corde', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
         skill(1, {
           id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 1.75, critBonus: 10,
@@ -2050,7 +2079,8 @@ const TALENTS = {
       key: 'traqueur', name: 'Traqueur', icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
-        minor('pisteur', 'Pisteur', 0, 3, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
+        starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
+        minor('pisteur', 'Pisteur', 0, 2, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
         minor('reflexes-du-traqueur', 'Réflexes du traqueur', 0, 2, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
         skill(1, {
           id: 'piege-a-machoires', name: 'Piège à mâchoires', cost: 25, kind: 'support', target: 'enemy',
@@ -2100,7 +2130,8 @@ const TALENTS = {
       key: 'templier', name: 'Templier', icon: '🛡️',
       desc: "Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.",
       nodes: [
-        minor('armure-sacree', 'Armure sacrée', 0, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
+        starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
+        minor('armure-sacree', 'Armure sacrée', 0, 2, '+4 % Défense par rang.', { pct: { def: 4 } }),
         minor('vigueur', 'Vigueur', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
         skill(1, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
@@ -2144,7 +2175,8 @@ const TALENTS = {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
       desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
       nodes: [
-        minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
+        minor('eclat-sacre', 'Éclat sacré', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
         minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
         skill(1, {
           id: 'lumiere-de-l-aube', name: "Lumière de l'aube", cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
@@ -2186,12 +2218,17 @@ const TALENTS = {
   ],
 };
 
-return { TALENTS };
+// Compétences accordées par un nœud (champ `skill` ou `skills`).
+function nodeSkills(node) {
+  return node.skills ?? (node.skill ? [node.skill] : []);
+}
+
+return { TALENTS, nodeSkills };
 })();
 
 // ---- src/game/talents.js
 __modules["src/game/talents.js"] = (() => {
-const { TALENTS } = __modules["src/data/talents.js"];
+const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
 const { TALENT_RULES } = __modules["src/config.js"];
 // Arbres de compétences : points, paliers, apprentissage, réinitialisation,
 // et effets cumulés des talents appris (lus par getStats / getSkills).
@@ -2284,7 +2321,7 @@ function talentEffects(hero) {
       add(fx.flat, node.flat, rank);
       add(fx.pct, node.pct, rank);
       add(fx.passive, node.passive, rank);
-      if (node.skill) fx.skills.push(node.skill);
+      fx.skills.push(...nodeSkills(node));
       if (node.skillMod) fx.skillMods.push(...[].concat(node.skillMod));
     }
   }
@@ -2405,12 +2442,14 @@ function applySkillMod(skill, mod) {
   return s;
 }
 
-// Compétences du héros : celles de sa classe puis celles de ses talents, modifiées
-// par les passifs des objets légendaires portés et des talents.
+// Compétences du héros : celles apprises par ses talents (un héros commence sans
+// sort : les sorts de départ sont au palier 0 des orientations), sans doublon,
+// modifiées par les passifs des objets légendaires portés et des talents.
 function getSkills(hero) {
   const fx = talentEffects(hero);
   const mods = [...wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean), ...fx.skillMods];
-  return [...getClass(hero).skills, ...fx.skills].map((skill) =>
+  const unique = fx.skills.filter((skill, i) => fx.skills.findIndex((s) => s.id === skill.id) === i);
+  return unique.map((skill) =>
     mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
 }
 
@@ -3449,9 +3488,11 @@ const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { nodeSkills } = __modules["src/data/talents.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { TALENT_RULES, XP } = __modules["src/config.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
 
 
 
@@ -3553,9 +3594,9 @@ function nodeCard(hero, branch, node, readOnly = false) {
   const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
   const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
   let body = esc(node.desc);
-  if (node.skill) {
-    const s = node.skill;
-    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
+  const skills = nodeSkills(node);
+  if (skills.length) {
+    body = `${node.tier === 0 ? '<small class="hint">Sort de départ</small><br>' : ''}${skills.map((s) => `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`).join('<br>')}`;
   }
   const action = readOnly ? '' : reason
     ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
@@ -3582,8 +3623,8 @@ const { PARTY_ORDER, CLASS_ORDER } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES, SLOTS, WEAPON_TYPES, JEWELS } = __modules["src/data/items.js"];
-const { TALENTS } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats, getSkills } = __modules["src/game/party.js"];
+const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
+const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemTypeLabel } = __modules["src/game/items.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
@@ -3728,12 +3769,12 @@ function statsTab(hero) {
         <p class="hint">Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'} (modifiable au village, bouton Stratégie). ${esc(resourceText)} À chaque niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
       </div>
       <div>
-        <h3>Compétences de départ</h3>
+        <h3>Sorts de départ</h3>
+        <p class="hint">Un héros commence sans sort : son premier point de talent lui fait apprendre le sort de départ d'une orientation (palier 0).</p>
         <div class="skillbox">
-          ${getSkills(hero).map((s) => `
+          ${TALENTS[hero.classKey].map((b) => `
             <div class="skill-line">
-              <b>${esc(s.name)}</b> — ${s.cost} ${r.name}<br>
-              ${esc(s.desc)}.<br><small>${esc(skillEffectLabel(stats, s))}</small>
+              <b>${b.icon} ${esc(b.name)}</b> : ${nodeSkills(b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length)).map((s) => `<b>${esc(s.name)}</b> (${s.cost} ${r.name}) — ${esc(s.desc)}. <small>${esc(skillEffectLabel(stats, s))}</small>`).join(' · ')}
             </div>`).join('')}
         </div>
         <h3>Équipement de départ</h3>
@@ -3778,11 +3819,12 @@ function legendariesTab() {
 }
 
 function skillSource(classKey, skillId) {
-  const base = CLASSES[classKey].skills.find((s) => s.id === skillId);
-  if (base) return `Renforce ${base.name} (compétence de départ).`;
   for (const branch of TALENTS[classKey]) {
-    const node = branch.nodes.find((n) => n.skill?.id === skillId);
-    if (node) return `Renforce ${node.skill.name} (${branch.icon} ${branch.name}, palier ${node.tier}).`;
+    const node = branch.nodes.find((n) => nodeSkills(n).some((s) => s.id === skillId));
+    if (node) {
+      const skill = nodeSkills(node).find((s) => s.id === skillId);
+      return `Renforce ${skill.name} (${branch.icon} ${branch.name}, ${node.tier === 0 ? 'sort de départ' : `palier ${node.tier}`}).`;
+    }
   }
   return '';
 }
@@ -6323,7 +6365,7 @@ __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } = __modules["src/game/dungeon.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
@@ -6363,6 +6405,7 @@ function renderHub(app) {
     <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${message ? lastCombatLog(state.lastCombat) : ''}
+    ${noSkillNotice()}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
@@ -6397,6 +6440,13 @@ function renderHub(app) {
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+}
+
+// Rappel : un héros sans sort doit dépenser son premier point de talent.
+function noSkillNotice() {
+  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
+  if (!names.length) return '';
+  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
 }
 
 function heroMini(hero) {
@@ -7123,7 +7173,7 @@ function actionPanel(hero) {
           <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
           </button>`;
-        }).join('')}
+        }).join('') || `<span class="hint">${esc(hero.name)} ne connaît encore aucun sort : apprends son sort de départ au Maître des compétences (premier point de talent).</span>`}
       </div>
       <div id="targetZone" class="target-zone"></div>
     </div>`;

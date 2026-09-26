@@ -96,8 +96,8 @@ test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plu
   const { cb, hero } = setup(1, 'assassin');
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  assert.equal(getStats(hero).resMax, 150);
-  assert.equal(getStats(hero).resRegen, 21);
+  assert.equal(getStats(hero).resMax, 140);
+  assert.equal(getStats(hero).resRegen, 18);
   hero.combo = 3;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
   assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);

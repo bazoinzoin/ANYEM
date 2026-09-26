@@ -3,7 +3,7 @@
 //
 // hero.talents : { idDuNœud: rang }
 
-import { TALENTS } from '../data/talents.js';
+import { TALENTS, nodeSkills } from '../data/talents.js';
 import { TALENT_RULES } from '../config.js';
 
 export function branchesOf(hero) {
@@ -89,7 +89,7 @@ export function talentEffects(hero) {
       add(fx.flat, node.flat, rank);
       add(fx.pct, node.pct, rank);
       add(fx.passive, node.passive, rank);
-      if (node.skill) fx.skills.push(node.skill);
+      fx.skills.push(...nodeSkills(node));
       if (node.skillMod) fx.skillMods.push(...[].concat(node.skillMod));
     }
   }

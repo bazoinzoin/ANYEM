@@ -28,7 +28,7 @@ function effectEntries() {
       assert.equal(skill[old], undefined, `${where} définit encore un effet à la main (${old}) : utiliser le catalogue`);
     }
   };
-  Object.values(CLASSES).forEach((c) => c.skills.forEach((s) => visit(s, s.name)));
+  Object.values(CLASSES).forEach((c) => c.starterSkills.forEach((s) => visit(s, s.name)));
   Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill, n.id); [].concat(n.skillMod ?? []).forEach((m) => visit(m, n.id)); }));
   Object.values(ENEMIES).forEach((e) => (e.abilities ?? []).forEach((a) => visit(a.skill, `${e.name} : ${a.skill.name}`)));
   return entries;

@@ -3,7 +3,7 @@
 import { state } from '../../state.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../../data/dungeons.js';
 import { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } from '../../game/dungeon.js';
-import { getClass, getStats, xpToNext } from '../../game/party.js';
+import { getClass, getStats, getSkills, xpToNext } from '../../game/party.js';
 import { esc, tip, bar } from '../html.js';
 import { goTo } from '../router.js';
 import { startFloor } from '../encounter.js';
@@ -26,6 +26,7 @@ export function renderHub(app) {
     <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl}</p></div>
     ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${message ? lastCombatLog(state.lastCombat) : ''}
+    ${noSkillNotice()}
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
@@ -60,6 +61,13 @@ export function renderHub(app) {
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+}
+
+// Rappel : un héros sans sort doit dépenser son premier point de talent.
+function noSkillNotice() {
+  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
+  if (!names.length) return '';
+  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
 }
 
 function heroMini(hero) {
