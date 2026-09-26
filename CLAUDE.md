@@ -34,6 +34,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Positions corps à corps / distance, riposte, portée des armes : `game/position.js` (`hero.position` = stratégie, `unit.row` = position en combat). Vitesse d'attaque des armes : `WEAPON_TYPES[].speed`, appliquée dans `getStats`.
 - En combat, lire les stats via `statsOf(unit)` (`game/units.js`) : il ajoute les buffs/debuffs et Berserk à `getStats`.
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
+- Rareté Divin (boss seulement, Guerre/Horreur) : pas de matéria divine (`MATERIA_RARITIES`) ; pouvoir légendaire absorbé = `item.absorbed` (Forge divine, `absorbLegendary`).
 - Forge (`game/forge.js`) : matéria par catégorie (`materiaKind` : arme / armure (+ bouclier) / bijou), décraft, amélioration, fabrication (`craft`, `craftProblem`). Runomancien : `game/runes.js` (`rerollSecondary`).
 - Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).
 - Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée. Physique = `physPower` (Attaque des armes + Force/Agilité selon `physStat` de la classe) ; magique (`skill.magic`) et soins = `magPower` (Intelligence). L'Intelligence ne doit jamais renforcer une attaque à l'arme.

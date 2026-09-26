@@ -86,6 +86,9 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 
 ## Difficulté (choix d'implémentation)
 
+- Rareté **Divin** (rouge) : 5 secondaires, fourchette au-dessus du légendaire. Uniquement sur les boss : 0 % en Balade et Aventure, 1 % en Guerre, 5 % en Horreur (`bossRarityWeights`). Pas de matéria divine (`MATERIA_RARITIES`) : un divin se décrafte en matéria légendaires et s'améliore avec elles.
+- **Forge divine** (onglet de la Forge, `absorbLegendary` dans `game/forge.js`) : un objet divin absorbe le pouvoir unique d'un légendaire du sac, qui est détruit (`item.absorbed`, appliqué par `getSkills`, sans réserver l'objet à une classe ; un nouveau pouvoir remplace l'ancien).
+
 - 4 niveaux (`DIFFICULTIES` dans `config.js`) : Balade ×1 (réglages d'origine), Aventure ×1,3, Guerre ×1,7, Horreur ×2,2 sur les PV et l'Attaque des ennemis.
 - Chaque niveau surcharge les chances et raretés de butin (`lootRules` dans `game/difficulty.js`) ; les types d'équipement restent équiprobables, l'or et l'XP ne changent pas.
 - Choix à l'écran « Difficulté » du village (`ui/screens/difficulty.js`), bloqué pendant une expédition ; stocké dans `state.difficulty`.

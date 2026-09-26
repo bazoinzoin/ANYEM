@@ -1,7 +1,7 @@
 // Affichage des objets et des stats.
 
 import { STATS } from '../data/stats.js';
-import { RARITIES, RARITY_ORDER, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } from '../data/items.js';
+import { RARITIES, MATERIA_RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } from '../data/items.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../data/consumables.js';
 import { CLASSES } from '../data/classes.js';
 import { itemTypeLabel, itemStatLines } from '../game/items.js';
@@ -33,6 +33,7 @@ export function itemMeta(item) {
 export function itemTooltipText(item) {
   const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
+  if (item.absorbed) lines.push(`Pouvoir absorbé (${item.absorbed.name}${absorbedOwner(item)}) : ${item.absorbed.desc}`);
   return lines.join('\n');
 }
 
@@ -40,6 +41,12 @@ export function itemTooltipText(item) {
 function legendaryOwner(item) {
   const cls = CLASSES[item.legendary.classKey];
   return cls ? ` (${cls.icon} ${cls.name})` : '';
+}
+
+// « , ⚔️ Guerrier » : classe qui profite du pouvoir absorbé par un objet divin.
+function absorbedOwner(item) {
+  const cls = CLASSES[item.absorbed.classKey];
+  return cls ? `, ${cls.icon} ${cls.name}` : '';
 }
 
 // « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
@@ -65,6 +72,7 @@ export function itemCard(item) {
       ${weaponLine(item) ? `<div class="item-meta">${weaponLine(item)}</div>` : ''}
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique${legendaryOwner(item)} : ${esc(item.legendary.desc)}</div>` : ''}
+      ${item.absorbed ? `<div class="item-legendary item-absorbed">Pouvoir absorbé — ${esc(item.absorbed.name)}${absorbedOwner(item)} : ${esc(item.absorbed.desc)}</div>` : ''}
     </div>`;
 }
 
@@ -77,10 +85,10 @@ export function slotLabel(slot) {
 export function materiaTable(materia, cell = (kind, rarity, n) => `${n}`) {
   return `
     <table class="materia-table">
-      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
+      <thead><tr><th></th>${MATERIA_RARITIES.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
       <tbody>
         ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
-          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
+          <tr><th>${def.icon} ${def.label}</th>${MATERIA_RARITIES.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
       </tbody>
     </table>`;
 }

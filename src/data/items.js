@@ -25,9 +25,16 @@ export const RARITIES = {
   rare: { label: 'Rare', color: 'var(--r-rare)', secondaries: 2, mult: 1.25, range: [0.9, 1.5] },
   epique: { label: 'Épique', color: 'var(--r-epique)', secondaries: 3, mult: 1.4, range: [1.4, 2.1] },
   legendaire: { label: 'Légendaire', color: 'var(--r-legendaire)', secondaries: 4, mult: 1.6, range: [2.0, 2.8] },
+  // Divin : uniquement sur les boss, à partir de la difficulté Guerre (voir DIFFICULTIES).
+  // Peut absorber le pouvoir unique d'un légendaire (Forge divine, game/forge.js).
+  divin: { label: 'Divin', color: 'var(--r-divin)', secondaries: 5, mult: 1.8, range: [2.8, 3.6] },
 };
 
 export const RARITY_ORDER = Object.keys(RARITIES);
+
+// Raretés des matéria : pas de matéria divine (un objet divin se décrafte en
+// matéria légendaires et s'améliore avec elles).
+export const MATERIA_RARITIES = RARITY_ORDER.filter((r) => r !== 'divin');
 
 // Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
 // d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.

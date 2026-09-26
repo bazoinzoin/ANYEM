@@ -80,7 +80,7 @@ export const DIFFICULTIES = {
     loot: {
       dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
       rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
-      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      bossRarityWeights: { peuCommun: 10, rare: 34, epique: 38, legendaire: 17, divin: 1 },
       materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
       bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
     },
@@ -90,7 +90,7 @@ export const DIFFICULTIES = {
     loot: {
       dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
       rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
-      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      bossRarityWeights: { peuCommun: 5, rare: 25, epique: 42, legendaire: 23, divin: 5 },
       materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
       bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
     },
@@ -158,7 +158,7 @@ export const FORGE = {
 // Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
 // prix en or selon la rareté de l'objet.
 export const RUNES = {
-  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000, divin: 2500 },
 };
 
 // Marchand. Prix de revente d'un objet :
@@ -172,7 +172,7 @@ export const INN = {
 export const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,
-  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16 },
+  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16, divin: 32 },
   sellPerPlus: 0.2,
   buyMarkup: 4,
   stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon

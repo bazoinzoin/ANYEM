@@ -102,10 +102,11 @@ function applySkillMod(skill, mod) {
 
 // Compétences du héros : celles apprises par ses talents (un héros commence sans
 // sort : les sorts de départ sont au palier 0 des orientations), sans doublon,
-// modifiées par les passifs des objets légendaires portés et des talents.
+// modifiées par les passifs des objets légendaires portés (ou absorbés par un objet
+// divin) et des talents.
 export function getSkills(hero) {
   const fx = talentEffects(hero);
-  const mods = [...wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean), ...fx.skillMods];
+  const mods = [...wornItems(hero).map(([, item]) => (item.legendary ?? item.absorbed)?.passive).filter(Boolean), ...fx.skillMods];
   const unique = fx.skills.filter((skill, i) => fx.skills.findIndex((s) => s.id === skill.id) === i);
   return unique.map((skill) =>
     mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
