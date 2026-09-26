@@ -7,10 +7,12 @@ import { createCombat, enemyAct } from '../src/game/combat.js';
 import {
   progressOf, isUnlocked, floorLevel, isBossFloor, encounterFor, startFloors,
   startExpedition, floorCombat, winFloor, loseExpedition, leaveExpedition,
+  continueExpedition, canFightNextFloor,
 } from '../src/game/dungeon.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../src/data/dungeons.js';
 import { ENEMIES } from '../src/data/enemies.js';
 import { createEnemies } from '../src/game/enemies.js';
+import { getStats } from '../src/game/party.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
 
@@ -143,4 +145,46 @@ test('capacités ennemies : les acolytes d\'un boss sont renforcés par son cri'
   enemyAct(cb);
   cb.enemies.forEach((e) => assert.ok(e.statuses.some((s) => s.key === 'rallie'), e.name));
   assert.deepEqual(createEnemies(['loup', 'loup', 'gobelin'], 1).map((e) => e.name), ['Loup 1', 'Loup 2', 'Gobelin']);
+});
+
+test("après un boss : choix obligatoire entre rentrer et continuer ; continuer régénère à 40 %", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  for (let f = 1; f <= 4; f++) clearFloor(game);
+  const [g, v, p] = game.party;
+  g.hp = 10;
+  g.res = 0;
+  v.alive = false;
+  v.hp = 0;
+  const missingBefore = getStats(g).pv - g.hp;
+  const hpBefore = p.hp;
+  clearFloor(game); // boss de l'étage 5
+  // Une montée de niveau ajoute les PV gagnés, mais les PV manquants ne changent pas.
+  assert.equal(getStats(g).pv - g.hp, missingBefore, 'la victoire contre le boss ne soigne pas');
+  const hpAfterBoss = g.hp;
+  const pAfterBoss = p.hp;
+  assert.equal(game.expedition.bossChoice, true);
+  assert.equal(canFightNextFloor(game), false, "il faut d'abord choisir");
+  assert.ok(continueExpedition(game));
+  const s = getStats(g);
+  assert.equal(g.hp, hpAfterBoss + Math.round(s.pv * 0.4));
+  assert.equal(g.res, Math.round(s.resMax * 0.4));
+  assert.equal(p.hp, Math.min(getStats(p).pv, pAfterBoss + Math.round(getStats(p).pv * 0.4)));
+  assert.ok(hpBefore <= pAfterBoss);
+  assert.equal(v.alive, false, 'les héros tombés ne sont pas relevés');
+  assert.equal(game.expedition.canLeave, false, 'après avoir choisi de continuer, impossible de rentrer');
+  assert.equal(leaveExpedition(game), false);
+  assert.equal(canFightNextFloor(game), true);
+  assert.equal(continueExpedition(game), false, 'une seule régénération par boss');
+});
+
+test("entre deux étages ordinaires : ni soin, ni choix", () => {
+  const game = newGame();
+  startExpedition(game, 'foretMaudite');
+  const [g] = game.party;
+  g.hp = 10;
+  clearFloor(game);
+  assert.equal(g.hp, 10);
+  assert.equal(game.expedition.bossChoice, false);
+  assert.equal(continueExpedition(game), false);
 });

@@ -14,7 +14,7 @@ export const state = {
   gold: START_GOLD,
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
-  expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, gains }
+  expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message

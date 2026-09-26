@@ -5,7 +5,6 @@
 import { REWARDS, LOOT, XP } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
-import { heal } from './units.js';
 import { rollLoot } from './loot.js';
 import { random } from './rng.js';
 
@@ -23,7 +22,8 @@ export function goldReward(level, enemies) {
 
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
- * même XP pour chaque héros (tombés compris), petit soin des survivants.
+ * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * restent tels qu'à la fin du combat.
  * Retourne { message, loot, gold, xp, levelUps }.
  */
 export function applyVictory(game, { level, enemies, final = false }) {
@@ -34,9 +34,6 @@ export function applyVictory(game, { level, enemies, final = false }) {
   game.gold += gold;
   game.bag.push(...loot);
   game.dungeonLvl = Math.max(game.dungeonLvl, level);
-  for (const hero of game.party) {
-    if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
-  }
   const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`

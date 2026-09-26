@@ -6,7 +6,8 @@ import { state } from '../../state.js';
 import { DUNGEONS } from '../../data/dungeons.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats } from '../../game/party.js';
-import { isBossFloor, floorLevel, leaveExpedition, progressOf } from '../../game/dungeon.js';
+import { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
+import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } from '../../game/consumables.js';
 import { esc, tip, bar } from '../html.js';
 import { itemChip } from '../items.js';
@@ -27,7 +28,6 @@ export function renderDungeon(app) {
   Object.assign(lastFloor, { message: null, loot: [] });
   view.flash = null;
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
-  const allDown = state.party.every((h) => !h.alive);
 
   app.innerHTML = `
     <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
@@ -39,28 +39,41 @@ export function renderDungeon(app) {
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
       </div>
       ${itemPanel()}
+      ${exp.bossChoice ? `
+        <div class="boss-choice">
+          <p><b>Le boss est vaincu.</b> Rentrer au village avec tout le butin, ou continuer le donjon ?
+          Continuer rend <b>${DUNGEON.continueRegenPct} %</b> des PV et de la ressource aux héros en vie, mais il faudra ensuite vaincre le prochain boss pour pouvoir rentrer.</p>
+          <div class="actions">
+            <button id="leave" class="btn-primary">🏠 Rentrer au village</button>
+            <button id="continue" class="btn-primary boss-btn">⚔️ Continuer le donjon (+${DUNGEON.continueRegenPct} %)</button>
+          </div>
+        </div>` : `
       <div class="actions">
-        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${allDown ? 'disabled' : ''}>
+        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
           ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
           🏠 Rentrer au village
         </button>
-      </div>
+      </div>`}
       <div class="services">
         <button id="equip">🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="talents">📖 Talents</button>
         <button id="stats">📜 Statistiques</button>
       </div>
-      ${exp.canLeave ? '' : '<p class="hint">Le seul moyen de rentrer est de vaincre le prochain boss. Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
+      ${exp.canLeave ? '' : '<p class="hint">Aucun soin automatique entre deux combats : potions, Tente et compétences de soin sont vos seules ressources. Le seul moyen de rentrer est de vaincre le prochain boss (ou une Corde d\'évasion). Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
     </div>
   `;
 
-  app.querySelector('#nextFloor').onclick = () => {
+  app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
-  };
+  });
+  app.querySelector('#continue')?.addEventListener('click', () => {
+    if (continueExpedition(state)) view.flash = `L'équipe reprend son souffle (+${DUNGEON.continueRegenPct} % de PV et de ressource) et s'enfonce dans ${d.name}.`;
+    goTo('dungeon');
+  });
   app.querySelectorAll('[data-map-item]').forEach((btn) => {
     btn.onclick = () => {
       const key = btn.dataset.mapItem;

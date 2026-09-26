@@ -43,9 +43,11 @@ export const LOOT = {
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
-// Donjons : nombre d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…)
-// et nombre d'acolytes accompagnant un boss.
+// Donjons : régénération quand on choisit de continuer après un boss, nombre
+// d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
+// d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 export const DUNGEON = {
+  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
 };
@@ -105,7 +107,6 @@ export const VARIANCE = {
 export const REWARDS = {
   goldBase: 20,
   goldPerLevel: 10,
-  victoryHealPct: 0.15,   // soin des survivants après une victoire
   defeatGoldLossPct: 0.2,
   defeatHpPct: 0.5,       // PV avec lesquels l'équipe revient au village
 };

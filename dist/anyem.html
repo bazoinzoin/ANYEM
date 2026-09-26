@@ -279,6 +279,8 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .map-items button.selected { outline: 2px solid var(--gold); }
 .shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
+.boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
+.boss-choice p { margin: 0 0 10px; }
 </style>
 
 </head>
@@ -337,9 +339,11 @@ const LOOT = {
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
 };
 
-// Donjons : nombre d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…)
-// et nombre d'acolytes accompagnant un boss.
+// Donjons : régénération quand on choisit de continuer après un boss, nombre
+// d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
+// d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
 const DUNGEON = {
+  continueRegenPct: 40,   // après un boss, choisir de continuer rend ce % des PV et de la ressource
   enemiesByTier: [2, 2, 3, 3, 3],
   bossAddsByTier: [0, 1, 1, 2, 2],
 };
@@ -399,7 +403,6 @@ const VARIANCE = {
 const REWARDS = {
   goldBase: 20,
   goldPerLevel: 10,
-  victoryHealPct: 0.15,   // soin des survivants après une victoire
   defeatGoldLossPct: 0.2,
   defeatHpPct: 0.5,       // PV avec lesquels l'équipe revient au village
 };
@@ -1989,7 +1992,7 @@ const state = {
   gold: START_GOLD,
   dungeonLvl: START_DUNGEON_LEVEL, // plus haut niveau d'étage atteint
   dungeons: {},         // progression par donjon : { checkpoint, cleared } (voir game/dungeon.js)
-  expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, gains }
+  expedition: null,     // expédition en cours : { dungeonKey, floor, canLeave, bossChoice, gains }
   combat: null,
   hubMessage: null,     // message affiché une seule fois à l'arrivée au village
   hubLoot: [],          // objets obtenus, affichés avec ce message
@@ -2362,13 +2365,11 @@ __modules["src/game/progression.js"] = (() => {
 const { REWARDS, LOOT, XP } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
-const { heal } = __modules["src/game/units.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
 const { random } = __modules["src/game/rng.js"];
 // Conséquences d'un combat et services du village sur l'état global du jeu.
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
-
 
 
 
@@ -2390,7 +2391,8 @@ function goldReward(level, enemies) {
 
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
- * même XP pour chaque héros (tombés compris), petit soin des survivants.
+ * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * restent tels qu'à la fin du combat.
  * Retourne { message, loot, gold, xp, levelUps }.
  */
 function applyVictory(game, { level, enemies, final = false }) {
@@ -2401,9 +2403,6 @@ function applyVictory(game, { level, enemies, final = false }) {
   game.gold += gold;
   game.bag.push(...loot);
   game.dungeonLvl = Math.max(game.dungeonLvl, level);
-  for (const hero of game.party) {
-    if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
-  }
   const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
@@ -2439,16 +2438,20 @@ __modules["src/game/dungeon.js"] = (() => {
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { restoreParty } = __modules["src/game/consumables.js"];
 const { pick } = __modules["src/game/rng.js"];
 // Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
 //
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, canLeave, gains } | null
-//   floor    : prochain étage à combattre
-//   canLeave : vrai au départ et juste après un boss (sinon : impossible de fuir)
+// game.expedition = { dungeonKey, floor, canLeave, bossChoice, gains } | null
+//   floor      : prochain étage à combattre
+//   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
+//   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
+//                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items }
+
 
 
 
@@ -2504,7 +2507,7 @@ function startFloors(game, key) {
 
 function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, canLeave: true, gains: { gold: 0, xp: 0, items: 0 } };
+  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0 } };
   return true;
 }
 
@@ -2545,6 +2548,7 @@ function winFloor(game, combat) {
   } else {
     exp.floor++;
     exp.canLeave = boss;
+    exp.bossChoice = boss;
   }
   return { ...result, boss, cleared, unlocked };
 }
@@ -2554,6 +2558,22 @@ function winFloor(game, combat) {
 function loseExpedition(game) {
   game.expedition = null;
   return applyDefeat(game);
+}
+
+// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss est en attente.)
+function canFightNextFloor(game) {
+  return !!game.expedition && !game.expedition.bossChoice && game.party.some((h) => h.alive);
+}
+
+// Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de
+// ses PV et de sa ressource, et ne pourra plus rentrer avant le boss suivant.
+function continueExpedition(game) {
+  const exp = game.expedition;
+  if (!exp?.bossChoice) return false;
+  restoreParty(game.party, DUNGEON.continueRegenPct);
+  exp.bossChoice = false;
+  exp.canLeave = false;
+  return true;
 }
 
 // Fuite par la Corde d'évasion : fin de l'expédition sans perte.
@@ -2567,7 +2587,7 @@ function leaveExpedition(game) {
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, escapeExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
 })();
 
 // ---- src/game/enemies.js
@@ -3204,7 +3224,7 @@ function finish() {
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
     return;
   }
-  const bossText = r.boss ? ' Le boss est vaincu : vous pouvez rentrer au village sans rien perdre, ou continuer.' : '';
+  const bossText = r.boss ? ' Le boss est vaincu !' : '';
   Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
   goTo('dungeon');
 }
@@ -4410,7 +4430,8 @@ const { state } = __modules["src/state.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { getClass, getStats } = __modules["src/game/party.js"];
-const { isBossFloor, floorLevel, leaveExpedition, progressOf } = __modules["src/game/dungeon.js"];
+const { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
+const { DUNGEON } = __modules["src/config.js"];
 const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap } = __modules["src/game/consumables.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { itemChip } = __modules["src/ui/items.js"];
@@ -4437,6 +4458,7 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 
 
 
+
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
 const view = { pendingItem: null, flash: null };
 
@@ -4448,7 +4470,6 @@ function renderDungeon(app) {
   Object.assign(lastFloor, { message: null, loot: [] });
   view.flash = null;
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
-  const allDown = state.party.every((h) => !h.alive);
 
   app.innerHTML = `
     <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Prochain étage : ${exp.floor}/${d.floors} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
@@ -4460,28 +4481,41 @@ function renderDungeon(app) {
         <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
       </div>
       ${itemPanel()}
+      ${exp.bossChoice ? `
+        <div class="boss-choice">
+          <p><b>Le boss est vaincu.</b> Rentrer au village avec tout le butin, ou continuer le donjon ?
+          Continuer rend <b>${DUNGEON.continueRegenPct} %</b> des PV et de la ressource aux héros en vie, mais il faudra ensuite vaincre le prochain boss pour pouvoir rentrer.</p>
+          <div class="actions">
+            <button id="leave" class="btn-primary">🏠 Rentrer au village</button>
+            <button id="continue" class="btn-primary boss-btn">⚔️ Continuer le donjon (+${DUNGEON.continueRegenPct} %)</button>
+          </div>
+        </div>` : `
       <div class="actions">
-        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${allDown ? 'disabled' : ''}>
+        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
           ${nextIsBoss ? '☠️ Affronter le boss' : '⚔️ Étage suivant'} (${exp.floor})
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
           🏠 Rentrer au village
         </button>
-      </div>
+      </div>`}
       <div class="services">
         <button id="equip">🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="talents">📖 Talents</button>
         <button id="stats">📜 Statistiques</button>
       </div>
-      ${exp.canLeave ? '' : '<p class="hint">Le seul moyen de rentrer est de vaincre le prochain boss. Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
+      ${exp.canLeave ? '' : '<p class="hint">Aucun soin automatique entre deux combats : potions, Tente et compétences de soin sont vos seules ressources. Le seul moyen de rentrer est de vaincre le prochain boss (ou une Corde d\'évasion). Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
     </div>
   `;
 
-  app.querySelector('#nextFloor').onclick = () => {
+  app.querySelector('#nextFloor')?.addEventListener('click', () => {
     view.pendingItem = null;
     startFloor();
-  };
+  });
+  app.querySelector('#continue')?.addEventListener('click', () => {
+    if (continueExpedition(state)) view.flash = `L'équipe reprend son souffle (+${DUNGEON.continueRegenPct} % de PV et de ressource) et s'enfonce dans ${d.name}.`;
+    goTo('dungeon');
+  });
   app.querySelectorAll('[data-map-item]').forEach((btn) => {
     btn.onclick = () => {
       const key = btn.dataset.mapItem;

@@ -63,7 +63,7 @@ function finish() {
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
     return;
   }
-  const bossText = r.boss ? ' Le boss est vaincu : vous pouvez rentrer au village sans rien perdre, ou continuer.' : '';
+  const bossText = r.boss ? ' Le boss est vaincu !' : '';
   Object.assign(lastFloor, { message: `${r.message}${bossText}`, loot: r.loot });
   goTo('dungeon');
 }

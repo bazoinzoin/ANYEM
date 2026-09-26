@@ -159,3 +159,5 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .map-items button.selected { outline: 2px solid var(--gold); }
 .shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
+.boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
+.boss-choice p { margin: 0 0 10px; }
