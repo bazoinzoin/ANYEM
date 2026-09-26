@@ -12,8 +12,8 @@ import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
-import { image, isReady } from './sprites.js';
-import { staticLayer, TILE, HERO } from './mapThemes.js';
+import { staticLayer, TILE } from './mapThemes.js';
+import { drawActor } from './actors.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
 const VIEW_W = 21;         // cases visibles (largeur × hauteur)
@@ -309,28 +309,6 @@ function drawMob(ctx, mob, p, at, size) {
 
 // Héros : sprite animé (marche pendant un pas, attente sinon), pieds au bas de la case.
 function drawHero(ctx, p, at, now) {
-  const size = TILE * SCALE;
   const [sx, sy] = at(p.x, p.y);
-  const sheet = image(p.moving ? HERO.walk : HERO.idle);
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.ellipse(sx + size / 2, sy + size * 0.88, size * 0.34, size * 0.13, 0, 0, Math.PI * 2);
-  ctx.fill();
-  if (!isReady(sheet)) return;
-  const { frameW, frameH, frames, rows } = HERO;
-  const frameIndex = Math.floor(now / (p.moving ? 90 : 200)) % frames;
-  const row = rows[anim.dir];
-  const w = frameW * SCALE;
-  const h = frameH * SCALE;
-  const dx = Math.round(sx + size / 2 - w / 2);
-  const dy = Math.round(sy + size - h + HERO.footOffset * SCALE);
-  ctx.save();
-  if (anim.dir === 'left') {
-    ctx.translate(dx + w, dy);
-    ctx.scale(-1, 1);
-    ctx.drawImage(sheet, frameIndex * frameW, row * frameH, frameW, frameH, 0, 0, w, h);
-  } else {
-    ctx.drawImage(sheet, frameIndex * frameW, row * frameH, frameW, frameH, dx, dy, w, h);
-  }
-  ctx.restore();
+  drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: anim.dir, moving: p.moving, now });
 }

@@ -16,6 +16,7 @@ import { renderBank } from './ui/screens/bank.js';
 import { renderDifficulty } from './ui/screens/difficulty.js';
 import { renderRunes } from './ui/screens/runes.js';
 import { renderBestiary } from './ui/screens/bestiary.js';
+import { renderPortals } from './ui/screens/portals.js';
 
 registerScreens({
   create: renderCreate,
@@ -33,6 +34,7 @@ registerScreens({
   difficulty: renderDifficulty,
   runes: renderRunes,
   bestiary: renderBestiary,
+  portals: renderPortals,
 });
 
 render();

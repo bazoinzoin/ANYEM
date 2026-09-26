@@ -9,18 +9,6 @@ import { image, isReady } from './sprites.js';
 
 export const TILE = 16;
 
-// Héros sur la carte : planches du pack (4 images par ligne, 40 × 48 px).
-// Lignes : 0 = profil (vers la droite, retourné pour la gauche), 2 = dos, 3 = face.
-export const HERO = {
-  walk: 'fantasy/Character_Walk',
-  idle: 'fantasy/Character_Idle',
-  frameW: 40,
-  frameH: 48,
-  frames: 4,
-  rows: { right: 0, left: 0, up: 2, down: 3 },
-  footOffset: 6,
-};
-
 const FOREST = {
   ground: 'fantasy/Tileset_Ground',
   groundCol: 6, // moitié droite du tileset : herbe sur terre battue

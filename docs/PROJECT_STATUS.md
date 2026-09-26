@@ -95,6 +95,8 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 
 ## Village : auberge et banque (choix d'implémentation)
 
+- **Village à parcourir** (`data/village.js` : carte 34 × 24, bâtiments, décors, arbres, habitants ; `game/village.js` : grille de marche, parler ; `ui/villageView.js` : rendu et contrôles). Chaque service est un habitant (aubergiste, forgeron, banquier, marchande, runomancienne, maître des compétences, traqueur du bestiaire, Oracle de la difficulté, garde des portails) : Espace/Entrée/E face à lui, ou clic dessus (le groupe y marche). Passer sous l'arche de la porte ouvre aussi les portails (`ui/screens/portals.js`). Équipement, statistiques et stratégie restent en raccourcis sous la carte. Les habitants utilisent le sprite du héros recoloré (`tintedSheet`, `ui/actors.js`) en attendant de vrais personnages. Retour d'expédition : le groupe réapparaît à la porte (`arriveAtVillage`).
+
 - Auberge : au plus 4 compagnons au repos (`INN.maxReserve`) ; on peut renvoyer définitivement un compagnon au repos (`dismiss`) : ses objets communs portés sont détruits, les autres rendus au sac.
 - Bestiaire (`game/bestiary.js`, écran `ui/screens/bestiary.js`) : `state.bestiary` note les rencontres (`recordEncounter`, au lancement du combat) et les ennemis vaincus (`recordKills`, victoire et défaite). Fiche par donjon : stats au premier et dernier étage (difficulté actuelle, via `enemyStats`), capacités ; page vide « ??? » pour un ennemi jamais rencontré.
 
