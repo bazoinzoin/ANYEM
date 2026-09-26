@@ -3,6 +3,7 @@
 
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
+import { STATS } from '../../data/stats.js';
 import { DUNGEONS } from '../../data/dungeons.js';
 import { getClass, getStats, getSkills } from '../../game/party.js';
 import { estimateHit, estimateSkill, skillHitOptions, BASIC_ATTACK } from '../../game/formulas.js';
@@ -81,7 +82,7 @@ function actionPanel(hero) {
     <div class="card">
       <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée. Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
         <span class="hint">Compétences ↓</span>
       </div>

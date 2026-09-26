@@ -106,6 +106,10 @@ function rarityLabel(rarity) {
   return `<span class="rarity-text" style="--rc:${RARITIES[rarity].color}">${RARITIES[rarity].label.toLowerCase()}</span>`;
 }
 
+function rangeYieldText({ kind, rarity, min, max }) {
+  return `${min} à ${max} × ${MATERIA_KINDS[kind].label} ${RARITIES[rarity].label.toLowerCase()} (au hasard)`;
+}
+
 function yieldText(gain) {
   return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
 }
@@ -170,7 +174,7 @@ function decraftSection(item) {
   return `
     <div class="forge-section">
       <h3>Décraft</h3>
-      <p>Détruit l'objet et rapporte ${yieldText(decraftYield(item))}.</p>
+      <p>Détruit l'objet et rapporte ${rangeYieldText(decraftYield(item))}.</p>
       <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
     </div>`;
 }

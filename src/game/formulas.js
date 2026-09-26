@@ -1,7 +1,9 @@
 // Formules de dégâts et de soins, et leurs estimations affichées au joueur.
 // Les estimations utilisent exactement les mêmes calculs que les jets réels.
 //
-// Un coup : attaque × puissance × variance [× critique] × facteur de défense.
+// Un coup : puissance du lanceur × multiplicateur × variance [× critique] × facteur de défense.
+// Puissance physique (arme + Force/Agilité) contre la Défense, ou puissance magique
+// (Intelligence) contre la Défense magique.
 // `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
 
 import { COMBAT, VARIANCE } from '../config.js';
@@ -33,6 +35,10 @@ export function chance(stats, stat) {
   return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
 }
 
+export function powerOf(attacker, magic) {
+  return magic ? attacker.magPower : attacker.physPower;
+}
+
 function hitMultiplier(attacker, opts, defender, crit) {
   let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
   if (defender) mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
@@ -42,29 +48,27 @@ function hitMultiplier(attacker, opts, defender, crit) {
 // Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
 // Sans `defender`, la défense de la cible n'est pas prise en compte.
 export function estimateHit(attacker, opts, defender = null) {
-  const mult = hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
   const [lo, hi] = opts.variance;
-  return {
-    lo: Math.max(1, Math.round(attacker.atq * mult * lo)),
-    hi: Math.max(1, Math.round(attacker.atq * mult * hi)),
-  };
+  return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
 }
 
 export function rollHit(attacker, opts, defender) {
   const crit = opts.alwaysCrit || random() < chance(attacker, 'critChance');
-  const mult = hitMultiplier(attacker, opts, defender, crit);
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(attacker.atq * mult * rand(lo, hi))), crit };
+  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
 }
 
-export function healAmount(atq, power) {
-  return Math.round(atq * power);
+// Soins : toujours sur la puissance magique.
+export function healAmount(stats, power) {
+  return Math.round(stats.magPower * power);
 }
 
 // Estimation {lo, hi} de l'effet d'une compétence (soin exact, ou dégâts).
 export function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
-    const amount = healAmount(attacker.atq, skill.power);
+    const amount = healAmount(attacker, skill.power);
     return { lo: amount, hi: amount };
   }
   return estimateHit(attacker, skillHitOptions(skill), defender);

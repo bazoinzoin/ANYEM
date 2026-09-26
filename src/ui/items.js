@@ -50,7 +50,8 @@ export function itemCard(item) {
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
-      <div class="item-meta">${itemMeta(item)}</div>
+      <div class="item-rarity">${RARITIES[item.rarity].label}</div>
+      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
     </div>`;

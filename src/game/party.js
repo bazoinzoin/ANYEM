@@ -20,8 +20,11 @@ function wornItems(hero) {
 }
 
 /**
- * Stats finales du héros (base de classe + équipement).
- * atq inclut le bonus de stat principale (atqFromMain) ; resMax vient de la classe.
+ * Stats finales du héros (base de classe + équipement), plus :
+ *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
+ *              (attaque de base et compétences non magiques)
+ *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
+ *   resMax     maximum de la ressource de classe
  */
 export function getStats(hero) {
   const cls = getClass(hero);
@@ -33,8 +36,14 @@ export function getStats(hero) {
       total[stat] += Math.round(value * factor);
     }
   }
-  const atqFromMain = Math.round(total[cls.mainStat] * COMBAT.mainStatFactor);
-  return { ...total, atq: total.atq + atqFromMain, atqFromMain, resMax: cls.resource.max };
+  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor);
+  return {
+    ...total,
+    physPower: total.atq + physFromStat,
+    physFromStat,
+    magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
+    resMax: cls.resource.max,
+  };
 }
 
 // Compétences du héros, modifiées par les passifs des objets légendaires portés.

@@ -5,6 +5,7 @@
 import { FORGE } from '../config.js';
 import { RARITY_ORDER, MATERIA_KINDS } from '../data/items.js';
 import { isWeapon } from './items.js';
+import { random } from './rng.js';
 
 export function emptyMateria() {
   return Object.fromEntries(Object.keys(MATERIA_KINDS).map((kind) =>
@@ -15,18 +16,20 @@ export function materiaKind(item) {
   return isWeapon(item) ? 'arme' : 'armure';
 }
 
+// Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
 export function decraftYield(item) {
-  return { kind: materiaKind(item), rarity: item.rarity, amount: FORGE.decraftYield };
+  return { kind: materiaKind(item), rarity: item.rarity, ...FORGE.decraftYield };
 }
 
-// Décrafte un objet du sac (jamais un objet porté). Retourne le gain, ou null.
+// Décrafte un objet du sac (jamais un objet porté). Retourne le gain { kind, rarity, amount }, ou null.
 export function decraft(game, item) {
   const index = game.bag.indexOf(item);
   if (index === -1) return null;
   game.bag.splice(index, 1);
-  const gain = decraftYield(item);
-  game.materia[gain.kind][gain.rarity] += gain.amount;
-  return gain;
+  const { kind, rarity, min, max } = decraftYield(item);
+  const amount = min + Math.floor(random() * (max - min + 1));
+  game.materia[kind][rarity] += amount;
+  return { kind, rarity, amount };
 }
 
 /**
@@ -37,11 +40,7 @@ export function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
   const tiers = RARITY_ORDER.slice(0, RARITY_ORDER.indexOf(item.rarity) + 1);
-  const materia = {};
-  for (const tier of tiers) {
-    const own = tier === item.rarity && tier !== 'commun';
-    materia[tier] = (own ? FORGE.ownTier : FORGE.lowerTiers)[plus - 1];
-  }
+  const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
 

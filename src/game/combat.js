@@ -157,7 +157,7 @@ function useSkill(cb, hero, skill, targetIndex) {
     const target = aliveAt(cb.party, targetIndex);
     if (!target) return false;
     hero.res -= skill.cost;
-    const amount = healAmount(stats.atq, skill.power);
+    const amount = healAmount(stats, skill.power);
     heal(target, amount);
     log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} (+${amount} PV).`, true);
     return true;

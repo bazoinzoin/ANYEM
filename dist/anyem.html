@@ -103,6 +103,10 @@ button.full { width: 100%; margin-top: 12px; }
 .item-chip { color: var(--rc); border-bottom-color: var(--rc); font-size: 14px; }
 .item-card { border-left: 3px solid var(--rc); padding: 4px 0 4px 12px; margin-bottom: 12px; }
 .item-card .item-name { font-family: var(--font-title); color: var(--rc); font-size: 16px; }
+.item-card .item-rarity {
+  display: inline-block; margin: 2px 0; padding: 0 8px; border: 1px solid var(--rc); border-radius: 10px;
+  color: var(--rc); font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+}
 .item-card .item-meta { color: var(--dim); font-size: 13px; }
 .item-stats { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
 .item-stats li.secondary { color: var(--r-peu-commun); }
@@ -237,7 +241,10 @@ const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
   bleedDamage: 6,         // dégâts d'un saignement par fin de round
-  mainStatFactor: 0.5,    // attaque gagnée par point de stat principale
+  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor
+  // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
+  physStatFactor: 0.5,
+  magicPerInt: 2,
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
@@ -251,7 +258,6 @@ const ITEM = {
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
   armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
-  shieldBlock: { base: 5, perLevel: 0.2 },
   jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
@@ -266,12 +272,11 @@ const LOOT = {
 // Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.
 const FORGE = {
   maxPlus: 5,
-  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats positives de l'objet de 10 % (stat obligatoire : +1 minimum)
-  decraftYield: 3,        // matéria obtenues en décraftant un objet (de sa rareté)
-  // Coût du passage à +s (s = 1..5), pour chaque rareté de commun jusqu'à celle de l'objet :
-  // tiers inférieurs : lowerTiers[s-1] ; tier de l'objet : ownTier[s-1] (sauf commun : lowerTiers).
-  lowerTiers: [1, 2, 3, 4, 5],
-  ownTier: [1, 1, 1, 2, 3],
+  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats de l'objet de 10 % (stat obligatoire : +1 minimum)
+  decraftYield: { min: 1, max: 3 }, // matéria obtenues en décraftant un objet (de sa rareté), tirage aléatoire
+  // Coût du passage à +s (s = 1..5) : tierCost[s-1] matéria de chaque rareté,
+  // de commun jusqu'à celle de l'objet.
+  tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
 };
@@ -362,17 +367,18 @@ const ARMOR_TYPES = {
   },
 };
 
-// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
-// twoHanded : occupe les deux mains.
+// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
+// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
+// bonus de vitesse lié au type d'arme.)
 const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
+  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
+  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
+  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
+  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
+  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
+  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
 };
 
 const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
@@ -498,11 +504,8 @@ function itemStats(item) {
   if (!plus) return item.stats;
   const boosted = {};
   for (const [stat, value] of Object.entries(item.stats)) {
-    if (value <= 0) boosted[stat] = value; // un malus (vitesse d'un marteau) n'est pas aggravé
-    else {
-      const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
-      boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
-    }
+    const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+    boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
   }
   return boosted;
 }
@@ -560,22 +563,14 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
-// (bouclier), défense magique (bijou).
+// Stat obligatoire : attaque (arme), défense (armure, bouclier), défense magique (bijou).
+// Un objet commun ne porte que celle-ci et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
   if (base.slotType === 'arme') {
-    const w = WEAPON_TYPES[base.weaponType];
-    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
-    if (w.vit) stats.vit = w.vit;
-    return stats;
+    return { atq: Math.round(b * ITEM.weaponAtq * WEAPON_TYPES[base.weaponType].atqMult * mult) };
   }
-  if (base.slotType === 'bouclier') {
-    return {
-      def: Math.round(b * ITEM.shieldDef * mult),
-      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
-    };
-  }
+  if (base.slotType === 'bouclier') return { def: Math.round(b * ITEM.shieldDef * mult) };
   if (JEWELS[base.slotType]) {
     return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
   }
@@ -644,9 +639,11 @@ __modules["src/game/forge.js"] = (() => {
 const { FORGE } = __modules["src/config.js"];
 const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
 const { isWeapon } = __modules["src/game/items.js"];
+const { random } = __modules["src/game/rng.js"];
 // Forge : décraft des objets en matéria et amélioration de +1 à +5.
 //
 // game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … } }
+
 
 
 
@@ -661,18 +658,20 @@ function materiaKind(item) {
   return isWeapon(item) ? 'arme' : 'armure';
 }
 
+// Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
 function decraftYield(item) {
-  return { kind: materiaKind(item), rarity: item.rarity, amount: FORGE.decraftYield };
+  return { kind: materiaKind(item), rarity: item.rarity, ...FORGE.decraftYield };
 }
 
-// Décrafte un objet du sac (jamais un objet porté). Retourne le gain, ou null.
+// Décrafte un objet du sac (jamais un objet porté). Retourne le gain { kind, rarity, amount }, ou null.
 function decraft(game, item) {
   const index = game.bag.indexOf(item);
   if (index === -1) return null;
   game.bag.splice(index, 1);
-  const gain = decraftYield(item);
-  game.materia[gain.kind][gain.rarity] += gain.amount;
-  return gain;
+  const { kind, rarity, min, max } = decraftYield(item);
+  const amount = min + Math.floor(random() * (max - min + 1));
+  game.materia[kind][rarity] += amount;
+  return { kind, rarity, amount };
 }
 
 /**
@@ -683,11 +682,7 @@ function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
   const tiers = RARITY_ORDER.slice(0, RARITY_ORDER.indexOf(item.rarity) + 1);
-  const materia = {};
-  for (const tier of tiers) {
-    const own = tier === item.rarity && tier !== 'commun';
-    materia[tier] = (own ? FORGE.ownTier : FORGE.lowerTiers)[plus - 1];
-  }
+  const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
 
@@ -785,7 +780,10 @@ __modules["src/data/classes.js"] = (() => {
 
 // Définition des classes jouables. Données pures : aucune logique ici.
 //
-// mainStat    stat principale (voir data/stats.js) : augmente l'attaque
+// mainStat    stat principale de la classe (affichage, orientation de l'équipement)
+// physStat    stat qui renforce les dégâts physiques (attaque de base, compétences
+//             non magiques) : Force ou Agilité ; Force par défaut pour les classes magiques,
+//             qui restent faibles à l'arme. Les sorts et soins utilisent l'Intelligence.
 // base        stats de base, avant équipement (stats absentes = 0)
 // resource :
 //   regen       gain au début de chaque tour du héros
@@ -801,8 +799,10 @@ __modules["src/data/classes.js"] = (() => {
 //   id        identifiant stable (référencé par les légendaires)
 //   kind      'damage' | 'heal'
 //   target    'enemy' | 'ally' | 'allEnemies'
-//   power     multiplicateur appliqué à l'attaque du lanceur
-//   magic     dégâts magiques (réduits par la défense magique)
+//   power     multiplicateur appliqué à la puissance du lanceur
+//   magic     sort : utilise la puissance magique (Intelligence) et est réduit par la
+//             défense magique ; sinon puissance physique (arme + Force/Agilité).
+//             Les soins utilisent toujours la puissance magique.
 //   bleed     nombre de tours de saignement infligés (optionnel)
 //   alwaysCrit  coup critique garanti (optionnel)
 
@@ -812,8 +812,9 @@ const CLASSES = {
     icon: '⚔️',
     color: 'var(--guerrier)',
     mainStat: 'force',
+    physStat: 'force',
     desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
-    base: { pv: 130, atq: 7, vit: 7, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
     resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
@@ -834,8 +835,9 @@ const CLASSES = {
     icon: '🗡️',
     color: 'var(--voleur)',
     mainStat: 'agilite',
+    physStat: 'agilite',
     desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
-    base: { pv: 95, atq: 7, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
     resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'dague'],
@@ -856,6 +858,7 @@ const CLASSES = {
     icon: '✨',
     color: 'var(--pretre)',
     mainStat: 'intelligence',
+    physStat: 'force',
     desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
     base: { pv: 88, atq: 0, vit: 9, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
@@ -869,8 +872,8 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
     skills: [
-      { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.7, desc: 'Soigne fortement un allié' },
-      { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 1.0, magic: true, desc: 'Dégâts de lumière' },
+      { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.1, desc: 'Soigne fortement un allié' },
+      { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 0.65, magic: true, desc: 'Dégâts de lumière' },
     ],
   },
   mage: {
@@ -878,8 +881,9 @@ const CLASSES = {
     icon: '🔥',
     color: 'var(--mage)',
     mainStat: 'intelligence',
+    physStat: 'force',
     desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
-    base: { pv: 78, atq: 6, vit: 10, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    base: { pv: 78, atq: 0, vit: 10, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
     resource: { name: 'Mana', max: 90, start: 90, regen: 10 },
     gear: {
       weapons: ['baton'],
@@ -891,8 +895,8 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
     skills: [
-      { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.3, magic: true, desc: 'Dégâts de feu' },
-      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.8, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
+      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
     ],
   },
 };
@@ -912,7 +916,7 @@ const STATS = {
   agilite: { label: 'Agilité' },
   intelligence: { label: 'Intelligence' },
   // Secondaires offensives
-  atq: { label: 'Attaque' },
+  atq: { label: 'Attaque' },            // dégâts des armes (stat d'objet)
   vit: { label: 'Vitesse' },
   critChance: { label: 'Taux critique', suffix: '%' },
   critDmg: { label: 'Dégâts critiques', suffix: '%' },
@@ -969,8 +973,11 @@ function wornItems(hero) {
 }
 
 /**
- * Stats finales du héros (base de classe + équipement).
- * atq inclut le bonus de stat principale (atqFromMain) ; resMax vient de la classe.
+ * Stats finales du héros (base de classe + équipement), plus :
+ *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
+ *              (attaque de base et compétences non magiques)
+ *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
+ *   resMax     maximum de la ressource de classe
  */
 function getStats(hero) {
   const cls = getClass(hero);
@@ -982,8 +989,14 @@ function getStats(hero) {
       total[stat] += Math.round(value * factor);
     }
   }
-  const atqFromMain = Math.round(total[cls.mainStat] * COMBAT.mainStatFactor);
-  return { ...total, atq: total.atq + atqFromMain, atqFromMain, resMax: cls.resource.max };
+  const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor);
+  return {
+    ...total,
+    physPower: total.atq + physFromStat,
+    physFromStat,
+    magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
+    resMax: cls.resource.max,
+  };
 }
 
 // Compétences du héros, modifiées par les passifs des objets légendaires portés.
@@ -1085,7 +1098,7 @@ __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { PARTY_ORDER } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { createParty } = __modules["src/game/party.js"];
+const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
 // Création de l'équipe.
@@ -1115,12 +1128,15 @@ function renderCreate(app) {
 
 function classCard(key, i) {
   const cls = CLASSES[key];
+  const stats = getStats(createHero(key)); // avec l'équipement de départ
+  const power = cls.skills.some((s) => s.magic || s.kind === 'heal')
+    ? `Magie ${stats.magPower}` : `Puissance ${stats.physPower}`;
   return `
     <div class="card slot" style="--c:${cls.color}">
       <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
       <div class="cname">${cls.name}</div>
       <div class="role">Ressource : ${cls.resource.name}</div>
-      <div class="stats">PV ${cls.base.pv} · Attaque ${cls.base.atq} · Vitesse ${cls.base.vit}</div>
+      <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(cls.name)}" maxlength="24">
     </div>`;
 }
@@ -1299,6 +1315,8 @@ function createEnemy(key, level, label) {
       critDmg: 50,
       pv,
       atq: scaled(def.atq, level),
+      physPower: scaled(def.atq, level),
+      magPower: scaled(def.atq, level),
       def: scaled(def.def, level),
       defMag: scaled(def.defMag, level),
       vit: Math.round(rand(def.vit.min, def.vit.max)),
@@ -1319,7 +1337,9 @@ const { rand, random } = __modules["src/game/rng.js"];
 // Formules de dégâts et de soins, et leurs estimations affichées au joueur.
 // Les estimations utilisent exactement les mêmes calculs que les jets réels.
 //
-// Un coup : attaque × puissance × variance [× critique] × facteur de défense.
+// Un coup : puissance du lanceur × multiplicateur × variance [× critique] × facteur de défense.
+// Puissance physique (arme + Force/Agilité) contre la Défense, ou puissance magique
+// (Intelligence) contre la Défense magique.
 // `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
 
 
@@ -1351,6 +1371,10 @@ function chance(stats, stat) {
   return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
 }
 
+function powerOf(attacker, magic) {
+  return magic ? attacker.magPower : attacker.physPower;
+}
+
 function hitMultiplier(attacker, opts, defender, crit) {
   let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
   if (defender) mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
@@ -1360,35 +1384,33 @@ function hitMultiplier(attacker, opts, defender, crit) {
 // Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
 // Sans `defender`, la défense de la cible n'est pas prise en compte.
 function estimateHit(attacker, opts, defender = null) {
-  const mult = hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
   const [lo, hi] = opts.variance;
-  return {
-    lo: Math.max(1, Math.round(attacker.atq * mult * lo)),
-    hi: Math.max(1, Math.round(attacker.atq * mult * hi)),
-  };
+  return { lo: Math.max(1, Math.round(base * lo)), hi: Math.max(1, Math.round(base * hi)) };
 }
 
 function rollHit(attacker, opts, defender) {
   const crit = opts.alwaysCrit || random() < chance(attacker, 'critChance');
-  const mult = hitMultiplier(attacker, opts, defender, crit);
+  const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
-  return { amount: Math.max(1, Math.round(attacker.atq * mult * rand(lo, hi))), crit };
+  return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
 }
 
-function healAmount(atq, power) {
-  return Math.round(atq * power);
+// Soins : toujours sur la puissance magique.
+function healAmount(stats, power) {
+  return Math.round(stats.magPower * power);
 }
 
 // Estimation {lo, hi} de l'effet d'une compétence (soin exact, ou dégâts).
 function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
-    const amount = healAmount(attacker.atq, skill.power);
+    const amount = healAmount(attacker, skill.power);
     return { lo: amount, hi: amount };
   }
   return estimateHit(attacker, skillHitOptions(skill), defender);
 }
 
-return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, estimateHit, rollHit, healAmount, estimateSkill };
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, estimateSkill };
 })();
 
 // ---- src/game/combat.js
@@ -1559,7 +1581,7 @@ function useSkill(cb, hero, skill, targetIndex) {
     const target = aliveAt(cb.party, targetIndex);
     if (!target) return false;
     hero.res -= skill.cost;
-    const amount = healAmount(stats.atq, skill.power);
+    const amount = healAmount(stats, skill.power);
     heal(target, amount);
     log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} (+${amount} PV).`, true);
     return true;
@@ -1731,7 +1753,8 @@ function itemCard(item) {
   return `
     <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
-      <div class="item-meta">${itemMeta(item)}</div>
+      <div class="item-rarity">${RARITIES[item.rarity].label}</div>
+      <div class="item-meta">Niveau ${item.level} · ${itemTypeLabel(item)}</div>
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique (${CLASSES[item.legendary.classKey].name}) : ${esc(item.legendary.desc)}</div>` : ''}
     </div>`;
@@ -1846,7 +1869,7 @@ const { tip } = __modules["src/ui/html.js"];
 
 
 const STAT_TIPS = {
-  atq: "Base des dégâts et des soins. Comprend le bonus de la stat principale.",
+  atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
   critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
   critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
   def: 'Réduit les dégâts physiques subis.',
@@ -1855,19 +1878,27 @@ const STAT_TIPS = {
   blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
 };
 
+function row(label, value, tipText) {
+  const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
+  return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+}
+
 function statsList(hero) {
   const cls = getClass(hero);
   const stats = getStats(hero);
+  const phys = STATS[cls.physStat].label;
   const rows = STAT_ORDER.map((k) => {
-    let label = STATS[k].label;
-    if (k === cls.mainStat) label += ' ★';
-    let value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
-    if (k === 'atq') value += ` <small>(dont +${stats.atqFromMain} ${STATS[cls.mainStat].label})</small>`;
-    const labelHtml = STAT_TIPS[k] ? `<span ${tip(STAT_TIPS[k])}>${label}</span>` : label;
-    return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+    const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
+    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    return row(label, value, STAT_TIPS[k]);
   });
-  rows.splice(STAT_ORDER.indexOf('pv'), 0,
-    `<div class="stat-row"><span>${cls.resource.name}</span><span>${hero.res}/${stats.resMax}</span></div>`);
+  // Puissances dérivées, juste après les stats principales.
+  rows.splice(STAT_ORDER.indexOf('atq'), 0,
+    row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
+      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${COMBAT.physStatFactor} × ${phys}.`),
+    row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
+      'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
+  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
   return rows.join('');
 }
 
@@ -1981,7 +2012,7 @@ function slotRow(hero, slot) {
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
       <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))} <small>· ${RARITIES[item.rarity].label}</small></span>
     </button>`;
 }
 
@@ -2157,6 +2188,10 @@ function rarityLabel(rarity) {
   return `<span class="rarity-text" style="--rc:${RARITIES[rarity].color}">${RARITIES[rarity].label.toLowerCase()}</span>`;
 }
 
+function rangeYieldText({ kind, rarity, min, max }) {
+  return `${min} à ${max} × ${MATERIA_KINDS[kind].label} ${RARITIES[rarity].label.toLowerCase()} (au hasard)`;
+}
+
 function yieldText(gain) {
   return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
 }
@@ -2221,7 +2256,7 @@ function decraftSection(item) {
   return `
     <div class="forge-section">
       <h3>Décraft</h3>
-      <p>Détruit l'objet et rapporte ${yieldText(decraftYield(item))}.</p>
+      <p>Détruit l'objet et rapporte ${rangeYieldText(decraftYield(item))}.</p>
       <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
     </div>`;
 }
@@ -2323,7 +2358,7 @@ const { range } = __modules["src/ui/html.js"];
 function skillEffectLabel(stats, skill) {
   const est = range(estimateSkill(stats, skill));
   if (skill.kind === 'heal') return `Soin +${est} PV`;
-  let label = `~${est} dégâts${skill.magic ? ' magiques' : ''}`;
+  let label = `~${est} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
   if (skill.alwaysCrit) label += ' (critique garanti)';
   if (skill.target === 'allEnemies') label += ' (zone)';
   if (skill.bleed) label += ` + saignement ${skill.bleed} tours`;
@@ -2406,6 +2441,7 @@ return { renderStats };
 __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
+const { STATS } = __modules["src/data/stats.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
 const { estimateHit, estimateSkill, skillHitOptions, BASIC_ATTACK } = __modules["src/game/formulas.js"];
@@ -2416,6 +2452,7 @@ const { skillEffectLabel, skillShortEstimate } = __modules["src/ui/format.js"];
 const { playerAction } = __modules["src/ui/encounter.js"];
 // Écran de combat. Le ciblage est toujours demandé explicitement,
 // même s'il ne reste qu'une seule cible possible.
+
 
 
 
@@ -2497,7 +2534,7 @@ function actionPanel(hero) {
     <div class="card">
       <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée. Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
         <span class="hint">Compétences ↓</span>
       </div>

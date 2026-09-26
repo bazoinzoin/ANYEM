@@ -22,7 +22,8 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Les stats d'un héros se lisent **toujours** via `getStats(hero)` et ses compétences via `getSkills(hero)` (`game/party.js`) : c'est là que l'équipement (et plus tard talents et buffs) s'applique. Ne pas lire `CLASSES[...].base` ou `.skills` directement ailleurs.
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
 - Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).
-- Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée.
+- Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée. Physique = `physPower` (Attaque des armes + Force/Agilité selon `physStat` de la classe) ; magique (`skill.magic`) et soins = `magPower` (Intelligence). L'Intelligence ne doit jamais renforcer une attaque à l'arme.
+- Objets communs : exactement stat obligatoire + stat principale ; secondaires à partir de peu commun.
 
 ## Conventions
 

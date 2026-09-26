@@ -11,7 +11,10 @@ export const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
   bleedDamage: 6,         // dégâts d'un saignement par fin de round
-  mainStatFactor: 0.5,    // attaque gagnée par point de stat principale
+  // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor
+  // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
+  physStatFactor: 0.5,
+  magicPerInt: 2,
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
@@ -25,7 +28,6 @@ export const ITEM = {
   weaponAtq: 1.5,         // attaque d'arme = budget × weaponAtq × atqMult du type
   armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
-  shieldBlock: { base: 5, perLevel: 0.2 },
   jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
@@ -40,12 +42,11 @@ export const LOOT = {
 // Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.
 export const FORGE = {
   maxPlus: 5,
-  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats positives de l'objet de 10 % (stat obligatoire : +1 minimum)
-  decraftYield: 3,        // matéria obtenues en décraftant un objet (de sa rareté)
-  // Coût du passage à +s (s = 1..5), pour chaque rareté de commun jusqu'à celle de l'objet :
-  // tiers inférieurs : lowerTiers[s-1] ; tier de l'objet : ownTier[s-1] (sauf commun : lowerTiers).
-  lowerTiers: [1, 2, 3, 4, 5],
-  ownTier: [1, 1, 1, 2, 3],
+  statBonusPerPlus: 0.1,  // chaque +1 augmente les stats de l'objet de 10 % (stat obligatoire : +1 minimum)
+  decraftYield: { min: 1, max: 3 }, // matéria obtenues en décraftant un objet (de sa rareté), tirage aléatoire
+  // Coût du passage à +s (s = 1..5) : tierCost[s-1] matéria de chaque rareté,
+  // de commun jusqu'à celle de l'objet.
+  tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
 };

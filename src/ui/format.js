@@ -8,7 +8,7 @@ import { range } from './html.js';
 export function skillEffectLabel(stats, skill) {
   const est = range(estimateSkill(stats, skill));
   if (skill.kind === 'heal') return `Soin +${est} PV`;
-  let label = `~${est} dégâts${skill.magic ? ' magiques' : ''}`;
+  let label = `~${est} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
   if (skill.alwaysCrit) label += ' (critique garanti)';
   if (skill.target === 'allEnemies') label += ' (zone)';
   if (skill.bleed) label += ` + saignement ${skill.bleed} tours`;

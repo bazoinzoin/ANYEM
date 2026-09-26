@@ -25,11 +25,8 @@ export function itemStats(item) {
   if (!plus) return item.stats;
   const boosted = {};
   for (const [stat, value] of Object.entries(item.stats)) {
-    if (value <= 0) boosted[stat] = value; // un malus (vitesse d'un marteau) n'est pas aggravé
-    else {
-      const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
-      boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
-    }
+    const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+    boosted[stat] = item.mandatory.includes(stat) ? Math.max(v, value + plus) : v;
   }
   return boosted;
 }
@@ -87,22 +84,14 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
-// (bouclier), défense magique (bijou).
+// Stat obligatoire : attaque (arme), défense (armure, bouclier), défense magique (bijou).
+// Un objet commun ne porte que celle-ci et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
   if (base.slotType === 'arme') {
-    const w = WEAPON_TYPES[base.weaponType];
-    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
-    if (w.vit) stats.vit = w.vit;
-    return stats;
+    return { atq: Math.round(b * ITEM.weaponAtq * WEAPON_TYPES[base.weaponType].atqMult * mult) };
   }
-  if (base.slotType === 'bouclier') {
-    return {
-      def: Math.round(b * ITEM.shieldDef * mult),
-      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
-    };
-  }
+  if (base.slotType === 'bouclier') return { def: Math.round(b * ITEM.shieldDef * mult) };
   if (JEWELS[base.slotType]) {
     return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
   }

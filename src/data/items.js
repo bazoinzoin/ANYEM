@@ -57,17 +57,18 @@ export const ARMOR_TYPES = {
   },
 };
 
-// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
-// twoHanded : occupe les deux mains.
+// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
+// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
+// bonus de vitesse lié au type d'arme.)
 export const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
+  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
+  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
+  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
+  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
+  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
+  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
 };
 
 export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };

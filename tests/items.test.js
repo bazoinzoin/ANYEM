@@ -24,14 +24,28 @@ test('chaque rareté a le bon nombre de stats secondaires, sans doublon', () => 
 test('stat obligatoire : attaque pour une arme, défense pour une armure, défense magique pour un bijou', () => {
   assert.ok(generateItem({ slotType: 'arme', weaponType: 'hache', rarity: 'commun' }).stats.atq > 0);
   assert.ok(generateItem({ slotType: 'bottes', armorType: 'lourde', rarity: 'commun' }).stats.def > 0);
-  const shield = generateItem({ slotType: 'bouclier', rarity: 'commun' });
-  assert.ok(shield.stats.def > 0 && shield.stats.blocage > 0);
+  assert.ok(generateItem({ slotType: 'bouclier', rarity: 'commun' }).stats.def > 0);
   assert.ok(generateItem({ slotType: 'anneau', rarity: 'commun' }).stats.defMag > 0);
 });
 
 test('un objet commun ne porte que ses stats obligatoire et principale', () => {
   const item = generateItem({ slotType: 'plastron', armorType: 'moyenne', primary: 'agilite', rarity: 'commun' });
   assert.deepEqual(Object.keys(item.stats).sort(), ['agilite', 'def']);
+  const sword = generateItem({ slotType: 'arme', weaponType: 'epee', primary: 'agilite', rarity: 'commun' });
+  assert.deepEqual(Object.keys(sword.stats).sort(), ['agilite', 'atq'], 'pas de vitesse sur une épée commune');
+  // Toutes les bases possibles : exactement 2 stats.
+  for (let i = 0; i < 300; i++) {
+    const it = generateItem({ level: 1 + (i % 20), rarity: 'commun' });
+    assert.equal(Object.keys(it.stats).length, 2, `${it.name} : ${JSON.stringify(it.stats)}`);
+    assert.equal(it.mandatory.length, 1);
+  }
+});
+
+test('les stats secondaires apparaissent à partir de peu commun', () => {
+  for (let i = 0; i < 100; i++) {
+    const it = generateItem({ level: 5, rarity: 'peuCommun' });
+    assert.equal(Object.keys(it.stats).length, 3);
+  }
 });
 
 test("la stat principale respecte le type d'objet (pas d'armure lourde d'intelligence)", () => {

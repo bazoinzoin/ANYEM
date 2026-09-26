@@ -94,7 +94,7 @@ function slotRow(hero, slot) {
   return `
     <button class="slot-row ${selected}" data-slot="${slot}">
       <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))} <small>· ${RARITIES[item.rarity].label}</small></span>
     </button>`;
 }
 

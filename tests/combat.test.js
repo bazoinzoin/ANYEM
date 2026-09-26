@@ -64,7 +64,7 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
   cb.party[mage].hp = 10;
   turn.unit.res = 80;
   assert.ok(heroAct(cb, { type: 'skill', skill: 0, target: mage }));
-  assert.equal(cb.party[mage].hp, 10 + Math.round(getStats(turn.unit).atq * 1.7));
+  assert.equal(cb.party[mage].hp, 10 + Math.round(getStats(turn.unit).magPower * 1.1));
   assert.equal(cb.party[guerrier].hp, 0);
 });
 
@@ -155,4 +155,39 @@ test('Coup Vicieux est toujours critique', () => {
   turn.unit.res = 60;
   heroAct(cb, { type: 'skill', skill: 0, target: 0 });
   assert.ok(cb.log[0].text.includes('critique') || cb.log[1].text.includes('critique'));
+});
+
+test("l'attaque de base est physique : elle ignore l'Intelligence, même pour un mage", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, mage);
+  const target = cb.enemies[0];
+  target.stats.def = 0;
+  const hp = target.hp;
+  heroAct(cb, { type: 'attack', target: 0 });
+  const stats = getStats(turn.unit);
+  assert.equal(stats.physPower, stats.atq + Math.round(stats.force * 0.5));
+  assert.equal(hp - target.hp, Math.round(stats.physPower * (0.9 + 0.5 * 0.25)));
+  turn.unit.equipment.anneau1 = { stats: { intelligence: 100 } };
+  assert.equal(getStats(turn.unit).physPower, stats.physPower, "l'Intelligence ne change pas la puissance physique");
+});
+
+test("un sort est magique : il utilise l'Intelligence et la défense magique", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, mage);
+  const target = cb.enemies[0];
+  Object.assign(target.stats, { def: 1000, defMag: 0 });
+  turn.unit.res = 90;
+  const hp = target.hp;
+  heroAct(cb, { type: 'skill', skill: 0, target: 0 }); // Boule de Feu
+  const stats = getStats(turn.unit);
+  assert.equal(stats.magPower, stats.intelligence * 2);
+  assert.equal(hp - target.hp, Math.round(stats.magPower * 2.1 * (0.9 + 0.5 * 0.25)));
+});
+
+test("la puissance physique du voleur dépend de l'Agilité, celle du guerrier de la Force", () => {
+  const { cb } = newCombat();
+  const v = getStats(cb.party[voleur]);
+  const g = getStats(cb.party[guerrier]);
+  assert.equal(v.physPower, v.atq + Math.round(v.agilite * 0.5));
+  assert.equal(g.physPower, g.atq + Math.round(g.force * 0.5));
 });

@@ -21,22 +21,30 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 ## Forge (choix d'implémentation)
 
 Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
-- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte 3 matéria de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour tout le reste (armures, boucliers, bijoux). Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
-- **Amélioration** (+1 à +5), possible sur un objet porté ou dans le sac. Coût du passage à +s : pour chaque rareté de commun jusqu'à celle de l'objet, s matéria des raretés inférieures et 1/1/1/2/3 matéria de la rareté de l'objet (un objet commun paie s matéria communes), plus (10 + 5 × niveau de l'objet) × s pièces d'or. Exemple : une arme rare +1 demande 1 matéria d'arme commune, 1 peu commune, 1 rare.
-- **Effet** : chaque +1 augmente les stats positives de l'objet de 10 % (arrondi ; la stat obligatoire gagne au moins +1 par niveau). Les malus (vitesse d'un marteau) ne sont pas aggravés. Les stats de base restent stockées dans `item.stats` ; les stats effectives se lisent via `itemStats(item)`.
+- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte **1 à 3 matéria (au hasard)** de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour tout le reste (armures, boucliers, bijoux). Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
+- **Amélioration** (+1 à +5), possible sur un objet porté ou dans le sac. Coût du passage à +1/+2/+3/+4/+5 : **2/4/6/8/10 matéria de chaque rareté**, de commun jusqu'à celle de l'objet, plus (10 + 5 × niveau de l'objet) × niveau visé en pièces d'or. Exemple : une arme rare +1 demande 2 matéria d'arme commune, 2 peu commune, 2 rare.
+- **Effet** : chaque +1 augmente les stats de l'objet de 10 % (arrondi ; la stat obligatoire gagne au moins +1 par niveau). Les stats de base restent stockées dans `item.stats` ; les stats effectives se lisent via `itemStats(item)`.
 
 ## Système d'équipement (choix d'implémentation)
 
 Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus dans `src/data/items.js`.
 - **Emplacements** : casque, épaulières, plastron, gants, ceinture, bottes, collier, anneau ×2, main droite, main gauche.
-- **Stat obligatoire** : Attaque (armes), Défense (armures), Défense + Blocage (bouclier), Défense magique (bijoux — choix non précisé par le design doc).
-- **Stat principale** cohérente avec le type : armure lourde = Force, moyenne = Force/Agilité, légère = Intelligence, bâton = Intelligence, dague = Agilité/Intelligence, armes 1M = Force/Agilité, 2M = Force, bijoux = au choix. Chaque point de stat principale de la classe donne +0,5 Attaque.
+- **Stat obligatoire** : Attaque (armes), Défense (armures et boucliers), Défense magique (bijoux — choix non précisé par le design doc).
+- **Un objet commun porte exactement 2 stats** : sa stat obligatoire et sa stat principale. Les stats secondaires n'apparaissent qu'à partir de peu commun.
+- **Stat principale** cohérente avec le type : armure lourde = Force, moyenne = Force/Agilité, légère = Intelligence, bâton = Intelligence, dague = Agilité/Intelligence, armes 1M = Force/Agilité, 2M = Force, bijoux = au choix. (Voir « Dégâts physiques et magiques » ci-dessous pour leur effet.)
 - **Raretés** : commun (gris, 0 secondaire), peu commun (vert, 1), rare (bleu, 2), épique (violet, 3), légendaire (orange, 4 + passif unique). Les stats obligatoire/principale sont aussi multipliées par la rareté.
 - **Niveau** : un objet a le niveau du donjon où il est trouvé ; ses stats en dépendent.
-- **Armes** : épée rapide (+1 Vit) et moins puissante, hache intermédiaire, marteau lent (−1 Vit) et puissant ; versions 2 mains plus lentes et plus fortes ; dague très rapide ; bâton à deux mains. Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
+- **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
 - **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère).
 - **Légendaires** : 2 par classe, chacun modifie une compétence existante (puissance, coût ou durée du saignement). À revoir quand les orientations et arbres de compétences existeront.
 - **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Coup Vicieux est un critique garanti.
+
+## Dégâts physiques et magiques
+
+- **Puissance physique** = Attaque (armes et bonus d'objets) + 0,5 × stat physique de la classe : Force (Guerrier), Agilité (Voleur), **Force par défaut pour les classes magiques** (Prêtre, Mage). Utilisée par l'attaque de base de toutes les classes et par les compétences non magiques ; réduite par la Défense de la cible.
+- **Puissance magique** = 2 × Intelligence. Utilisée par les sorts (compétences `magic: true` : Boule de Feu, Éclair, Éclat de Lumière) et par tous les soins ; réduite par la Défense magique de la cible. Elle ne compte jamais pour une attaque à l'arme : un Mage qui tape au bâton fait peu de dégâts.
+- Les éléments (feu, glace, foudre, lumière…) viendront plus tard sur les sorts.
+- Coefficients dans `src/config.js` (`COMBAT.physStatFactor`, `COMBAT.magicPerInt`) ; stat physique par classe dans `src/data/classes.js` (`physStat`).
 - **Butin** : 40 % de chance par ennemi vaincu (commun 50 %, peu commun 30 %, rare 14 %, épique 5 %, légendaire 1 %). En cas de défaite, chaque objet du sac a 50 % de chance d'être perdu ; l'équipement porté n'est jamais perdu.
 - **Départ** : chaque héros commence avec une arme et un plastron communs ; les stats de base ont été ajustées pour garder la même puissance qu'avant l'équipement.
 

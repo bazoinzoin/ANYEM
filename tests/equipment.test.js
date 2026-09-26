@@ -49,11 +49,11 @@ test("équiper remplace l'objet en place, qui retourne au sac, et met à jour le
   const oldWeapon = guerrier.equipment.mainDroite;
   const axe = item({ slotType: 'arme', weaponType: 'hache', level: 10, primary: 'force' });
   const bag = [axe];
-  const before = getStats(guerrier).atq;
+  const before = getStats(guerrier).physPower;
   assert.ok(equip(guerrier, bag, axe, 'mainDroite'));
   assert.equal(guerrier.equipment.mainDroite, axe);
   assert.deepEqual(bag, [oldWeapon]);
-  assert.ok(getStats(guerrier).atq > before);
+  assert.ok(getStats(guerrier).physPower > before);
 });
 
 test("une arme à deux mains libère la main gauche, et inversement", () => {
@@ -99,8 +99,7 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
   const before = getStats(voleur);
   equip(voleur, [dagger], dagger, 'mainGauche');
   const after = getStats(voleur);
-  const mainGain = Math.round(dagger.stats.agilite * 0.5 + before.agilite * 0.5) - Math.round(before.agilite * 0.5);
-  assert.equal(after.atq - before.atq, Math.round(dagger.stats.atq * 0.5) + mainGain);
+  assert.equal(after.atq - before.atq, Math.round(dagger.stats.atq * 0.5));
 });
 
 test('un légendaire porté modifie la compétence visée', () => {
