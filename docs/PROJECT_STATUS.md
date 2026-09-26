@@ -12,10 +12,11 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 ## Ce qui est déjà fonctionnel
 
 - **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
-- **Village (hub)** : affichage de l'équipe, portail vers un donjon, Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
+- **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Compétence, ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
 - **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
+- **Donjons à étages** (voir détail ci-dessous) : Forêt Maudite et Catacombes oubliées, 25 étages chacun, un boss tous les 5 étages, expéditions sans retour possible avant le boss, points de départ après chaque boss, ennemis et boss avec capacités.
 - **Marchand** (voir détail ci-dessous) : revente du butin, achat de consommables et d'équipement ; action « Objet » en combat.
 - **Expérience et niveaux** : XP à chaque victoire, montée de niveau (PV et stat principale), 1 point de talent par niveau.
 - **Arbres de compétences** (voir détail ci-dessous) : orientations du design doc, écran « Maître des compétences » au village.
@@ -43,6 +44,18 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
   - Foudre : Chaîne d'éclairs (zone) / Surcharge (+25 % puissance à un allié) / Tempête (énorme dégât direct).
 - **Statuts** (`src/game/statuses.js`) : durée en rounds, décomptée en fin de round (sauf l'étourdissement, consommé au tour perdu) ; les effets sur la durée ignorent la défense. Un statut de même nom se rafraîchit au lieu de se cumuler.
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
+
+## Donjons (choix d'implémentation)
+
+Contenu dans `src/data/dungeons.js` et `src/data/enemies.js`, logique dans `src/game/dungeon.js`, réglages dans `src/config.js` (`DUNGEON`, `LOOT`).
+- **Donjons** : Forêt Maudite (niveaux 1 → 20) puis Catacombes oubliées (20 → 30), comme dans le design doc ; 25 étages chacun (le design doc citait 50 comme exemple : il suffit de changer `floors` et d'ajouter des boss). Terminer un donjon ouvre le suivant.
+- **Étages** : le niveau des ennemis monte régulièrement du premier au dernier étage. Étages ordinaires : 2 ennemis tirés du bestiaire du donjon (3 à partir du 3e palier). Étage 5, 10, 15… : un boss (différent à chaque palier), accompagné de 0 à 2 acolytes selon le palier.
+- **Expédition** (DESIGN_DOC §5) : on enchaîne les étages sans repasser par le village (petit soin de 15 % après chaque victoire, ressources conservées, héros tombés à terre jusqu'à une Plume de phénix ou une Résurrection). On ne peut rentrer qu'au départ ou juste après un boss ; sinon, on continue à ses risques et périls. Entre deux étages : équipement, talents et statistiques restent accessibles.
+- **Points de passage** : chaque boss vaincu devient un point de départ (entrer à l'étage 1, 6, 11…). Une défaite fait perdre l'or et une partie du sac (règle existante) et ramène au village ; la progression reste au dernier boss vaincu. On peut toujours repartir d'un palier inférieur pour s'entraîner.
+- **Boss** : 4 à 6 fois plus d'or, 5 à 8 fois plus d'XP, et un objet garanti de rareté peu commune à légendaire (deux pour le boss final).
+- **Capacités ennemies** : les ennemis et surtout les boss utilisent des capacités (morsure qui fait saigner, crachat venimeux, cri de ralliement, étourdissement, soins, malédiction…), au même format que les compétences des héros ; la provocation du Gardien s'applique aussi à ces capacités.
+- **Simulation d'équilibrage** (joueur automatique simple, sans équipement trouvé, sans Forge ni potions) : la Forêt se termine en 0 à 7 défaites, surtout contre le boss final ; les Catacombes demandent plus d'entraînement (1 à 11 défaites). Les talents réduisent fortement le nombre de défaites. À affiner avec de vraies parties.
+- `state.dungeonLvl` devient « plus haut niveau atteint » : il sert au stock du Marchand.
 
 ## Marchand (choix d'implémentation)
 
@@ -86,9 +99,9 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 
 Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour le détail) :
 - `src/data/` : `CLASSES` (stats de base, croissance par niveau, maîtrises d'équipement, kit de départ, ressource, compétences), `TALENTS` (arbres), `STATS`, objets (`SLOTS`, `RARITIES`, types d'armes/armures, `LEGENDARIES`), `ENEMIES`, `DUNGEONS`.
-- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, compétences généralisées, IA avec provocation/confusion, fin de combat), `statuses.js` (effets à durée), `talents.js` (points, paliers, effets), `party.js` (héros, niveaux/XP, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `forge.js`, `merchant.js`, `consumables.js`, `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
+- `src/game/` : moteur pur et testé — `combat.js` (file de tour par vitesse, actions, compétences généralisées, IA avec provocation/confusion, fin de combat), `statuses.js` (effets à durée), `talents.js` (points, paliers, effets), `party.js` (héros, niveaux/XP, `getStats()`, `getSkills()`), `items.js` (génération d'objets), `equipment.js` (règles d'équipement, sac), `dungeon.js` (expéditions, étages, boss, points de passage), `forge.js`, `merchant.js`, `consumables.js`, `loot.js`, `progression.js` (victoire, défaite, auberge), `formulas.js` (jets et estimations), `rng.js`.
 - `src/ui/` : un écran par fichier, `router.js` pour la navigation, `encounter.js` pour le rythme des tours ennemis (`setTimeout`).
-- `src/state.js` : état global (`screen`, `party`, `bag`, `materia`, `consumables`, `shop`, `gold`, `dungeonLvl`, `combat`, `hubMessage`, `hubLoot`).
+- `src/state.js` : état global (`screen`, `party`, `bag`, `materia`, `consumables`, `shop`, `gold`, `dungeonLvl`, `dungeons`, `expedition`, `combat`, `hubMessage`, `hubLoot`).
 - Rendu par template strings, ré-affichage complet de l'écran à chaque `render()`.
 
 ### Corrections apportées lors du découpage
@@ -105,7 +118,8 @@ Le prototype monofichier `anyem.html` a été découpé (voir `CLAUDE.md` pour l
 
 - Éléments des sorts (feu, glace, foudre… plus ou moins efficaces selon les monstres)
 - Classes Paladin et Chasseur (orientations non définies dans le design doc, à inventer)
-- Donjons à étages multiples avec boss tous les x étages, plusieurs donjons de niveau croissant
+- Donjons procéduraux (étages générés, cartes) : pour l'instant, étages = suite de combats
+- Réglage de difficulté au village pour augmenter le butin (DESIGN_DOC §8)
 - Banque
 - Vrais sprites visuels (actuellement : emojis et couleurs CSS en guise de placeholders)
 - Village explorable avec déplacement libre du personnage (actuellement un simple menu/hub)
@@ -124,7 +138,7 @@ Contrairement à un artifact publié sur claude.ai (qui interdit les images dist
 
 1. ~~Équipement + rareté~~ (fait)
 2. ~~Arbres de compétences par classe/orientation~~ (fait, avec XP/niveaux et effets de combat)
-3. Donjons à étages multiples + plusieurs donjons de niveau croissant
+3. ~~Donjons à étages multiples + plusieurs donjons de niveau croissant~~ (fait)
 4. Intégration des vrais sprites
 5. Village explorable avec déplacement libre
 6. Paladin, Chasseur, et autres classes

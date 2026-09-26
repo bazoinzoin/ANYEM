@@ -21,6 +21,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - Chiffres d'équilibrage globaux : `src/config.js`.
 - Les stats d'un héros se lisent **toujours** via `getStats(hero)` et ses compétences via `getSkills(hero)` (`game/party.js`) : c'est là que l'équipement (et plus tard talents et buffs) s'applique. Ne pas lire `CLASSES[...].base` ou `.skills` directement ailleurs.
 - Talents : contenu dans `data/talents.js`, règles dans `game/talents.js` ; leurs effets passent par `getStats` (flat/pct/passive) et `getSkills` (skill/skillMod). Nouveaux effets de combat = statuts (`game/statuses.js`) appliqués via les champs de compétence `dot`, `hot`, `shield`, `status`, `selfStatus` : préférer ces champs génériques à du code spécifique.
+- Donjons : contenu dans `data/dungeons.js` / `data/enemies.js`, logique dans `game/dungeon.js` (expédition, étages, boss, points de passage) ; `ui/encounter.js` lance le combat de l'étage (`startFloor`) et applique l'issue (`winFloor` / `loseExpedition`). Capacités ennemies = `abilities` au format des compétences, cibles `hero` / `allHeroes` / `self` / `allAllies`.
 - En combat, lire les stats via `statsOf(unit)` (`game/units.js`) : il ajoute les buffs/debuffs et Berserk à `getStats`.
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
 - Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).

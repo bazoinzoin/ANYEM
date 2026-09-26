@@ -8,7 +8,7 @@ import {
 } from '../../game/talents.js';
 import { esc, tip, bar } from '../html.js';
 import { skillEffectLabel } from '../format.js';
-import { goTo } from '../router.js';
+import { goTo, goBack, backLabel } from '../router.js';
 
 // État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
 const view = { heroIndex: 0, confirmReset: false, flash: null };
@@ -50,7 +50,7 @@ export function renderTalents(app) {
     </div>
     <p class="hint">Chaque niveau rapporte 1 point. Un palier se débloque en investissant des points dans la même orientation (palier 1 : 2 points, palier 2 : 4, palier 3 : 6, palier 4 : 8).</p>
     <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
 
   app.querySelectorAll('[data-hero]').forEach((btn) => {
@@ -71,7 +71,7 @@ export function renderTalents(app) {
     }
     goTo('talents');
   };
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function branchCard(hero, branch) {

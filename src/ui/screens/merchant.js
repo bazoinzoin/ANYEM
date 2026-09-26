@@ -40,7 +40,7 @@ export function renderMerchant(app) {
         </div>
         <div class="card shop-section">
           <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
-          <p class="hint">Renouvelé à chaque nouveau niveau de donjon. Les objets achetés vont dans le sac.</p>
+          <p class="hint">Au plus haut niveau atteint dans les donjons, renouvelé quand il augmente. Les objets achetés vont dans le sac.</p>
           ${stock.length ? stock.map(stockRow).join('') : '<p class="hint">Tout a été vendu : revenez après le prochain donjon.</p>'}
         </div>
       </div>

@@ -8,7 +8,7 @@ import { esc } from '../html.js';
 import { skillEffectLabel } from '../format.js';
 import { itemChip } from '../items.js';
 import { statsList } from '../heroStats.js';
-import { goTo } from '../router.js';
+import { goBack, backLabel } from '../router.js';
 import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 import { xpToNext } from '../../game/party.js';
@@ -19,7 +19,7 @@ export function renderStats(app) {
   app.innerHTML = `
     <div class="hero"><h1>Feuilles de personnage</h1><p>Statistiques actuelles de votre équipe</p></div>
     <div class="slots">${state.party.map(sheet).join('')}</div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
   app.querySelectorAll('[data-talent-hero]').forEach((btn) => {
     btn.onclick = () => openTalents(Number(btn.dataset.talentHero));
@@ -27,7 +27,7 @@ export function renderStats(app) {
   app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
     btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
   });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
+  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 function sheet(hero, index) {

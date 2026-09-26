@@ -75,7 +75,7 @@ test('acheter des consommables : prix, et limite de stock transporté', () => {
 });
 
 function combatAtHero(game, heroIndex) {
-  const cb = createCombat({ dungeonKey: 'foretMaudite', level: 1, party: game.party, consumables: game.consumables });
+  const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party: game.party, consumables: game.consumables });
   for (let i = 0; i < 50; i++) {
     const turn = nextTurn(cb);
     if (turn.unit === game.party[heroIndex]) return cb;

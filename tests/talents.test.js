@@ -7,6 +7,7 @@ import {
   branchesOf, pointsAvailable, cannotLearnReason, learn, resetTalents, resetCost, rankOf,
 } from '../src/game/talents.js';
 import { applyVictory, xpReward } from '../src/game/progression.js';
+import { createEnemies } from '../src/game/enemies.js';
 import { TALENTS } from '../src/data/talents.js';
 import { CLASSES } from '../src/data/classes.js';
 
@@ -102,8 +103,9 @@ test("l'XP fait monter de niveau, avec les PV qui augmentent", () => {
 
 test('une victoire donne de l\'XP à chaque héros', () => {
   const game = newGame();
-  const xp = xpReward(1, 2);
-  applyVictory(game, { enemiesDefeated: 2 });
+  const enemies = createEnemies(['gobelin', 'gobelin'], 1);
+  const xp = xpReward(1, enemies);
+  applyVictory(game, { level: 1, enemies });
   game.party.forEach((h) => assert.equal(h.xp, xp));
 });
 

@@ -5,7 +5,6 @@
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { DUNGEONS } from '../../data/dungeons.js';
 import { getClass, getSkills, getStats } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf } from '../../game/consumables.js';
@@ -23,7 +22,7 @@ export function renderCombat(app) {
   const activeHero = acting?.side === 'hero' ? acting.unit : null;
 
   app.innerHTML = `
-    <div class="hero"><h1>⚔️ Combat</h1><p>${DUNGEONS[cb.dungeonKey].name} — Niveau ${cb.level}</p></div>
+    <div class="hero"><h1>⚔️ Combat</h1><p>${esc(cb.title)} · niveau ${cb.level}</p></div>
     <div class="combatants">
       <div>
         <h3 class="side-title">VOTRE ÉQUIPE</h3>
@@ -57,8 +56,8 @@ function heroUnit(hero, active) {
 
 function enemyUnit(enemy, active) {
   return `
-    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:var(--danger)">
-      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
+    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''} ${enemy.boss ? 'boss' : ''}" style="--c:var(--danger)">
+      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
       ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
       ${statusTags(enemy)}
     </div>`;

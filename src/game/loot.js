@@ -1,14 +1,23 @@
 // Butin de fin de combat.
 
 import { LOOT } from '../config.js';
-import { generateItem } from './items.js';
+import { generateItem, weightedPick } from './items.js';
 import { random } from './rng.js';
 
-// Chaque ennemi vaincu a une chance de laisser un objet du niveau du donjon.
-export function rollLoot(level, enemiesDefeated) {
+/**
+ * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level` :
+ * chaque ennemi ordinaire a une chance de laisser un objet ; chaque boss laisse
+ * des objets garantis, plus rares (un de plus pour le boss final, `final`).
+ */
+export function rollLoot(level, enemies, { final = false } = {}) {
   const loot = [];
-  for (let i = 0; i < enemiesDefeated; i++) {
-    if (random() < LOOT.dropChance) loot.push(generateItem({ level }));
+  for (const enemy of enemies) {
+    if (enemy.boss) {
+      const drops = LOOT.bossDrops + (final ? 1 : 0);
+      for (let i = 0; i < drops; i++) loot.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+    } else if (random() < LOOT.dropChance) {
+      loot.push(generateItem({ level }));
+    }
   }
   return loot;
 }

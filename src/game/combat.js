@@ -9,8 +9,8 @@
 // passe au combattant suivant.
 
 import { COMBAT } from '../config.js';
-import { DUNGEONS } from '../data/dungeons.js';
-import { createEnemy } from './enemies.js';
+import { ENEMIES } from '../data/enemies.js';
+import { createEnemies } from './enemies.js';
 import { getClass, getSkills, gainResource } from './party.js';
 import {
   rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount,
@@ -22,16 +22,22 @@ import { applyConsumable, countOf, isValidTarget } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { pick, random } from './rng.js';
 
-// `consumables` : inventaire partagé de l'équipe (modifié quand un objet est utilisé).
-export function createCombat({ dungeonKey, level, party, consumables = {} }) {
-  const dungeon = DUNGEONS[dungeonKey];
-  const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
+/**
+ * Prépare un combat.
+ * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
+ * consumables : inventaire partagé de l'équipe (modifié quand un objet est utilisé)
+ * title       : texte d'introduction (ex. « Forêt Maudite — étage 3 »)
+ */
+export function createCombat({ party, enemies, level, consumables = {}, title = 'Combat' }) {
   party.forEach((hero) => {
     hero.guard = false;
     hero.statuses = [];
   });
-  const cb = { dungeonKey, level, party, enemies, consumables, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
-  log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
+  const cb = {
+    title, level, party, enemies: createEnemies(enemies, level), consumables,
+    log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
+  };
+  log(cb, `${title} (niveau ${level}).`);
   return cb;
 }
 
@@ -228,14 +234,18 @@ function skillTargets(cb, hero, skill, index) {
 
 function targetLabel(skill, targets) {
   if (skill.target === 'allEnemies') return ', visant tous les ennemis';
-  if (skill.target === 'allAllies') return ", sur toute l'équipe";
+  if (skill.target === 'allHeroes') return ', visant toute votre équipe';
+  if (skill.target === 'allAllies') return targets.some(isHero) ? ", sur toute l'équipe" : ', sur ses alliés';
   if (skill.target === 'self') return '';
   return ` sur ${targets[0].name}`;
 }
 
 // Applique une compétence (coût déjà payé) à ses cibles.
-function useSkill(cb, hero, skill, targets) {
-  const stats = statsOf(hero);
+// Applique une compétence (coût déjà payé) à ses cibles. `caster` peut être un
+// héros ou un ennemi (capacités ennemies) ; un héros touché profite de sa garde
+// et gagne de la Rage s'il survit.
+function useSkill(cb, caster, skill, targets) {
+  const stats = statsOf(caster);
   const parts = [];
 
   for (const target of targets) {
@@ -243,8 +253,11 @@ function useSkill(cb, hero, skill, targets) {
       const hits = [];
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
-        hits.push(hit);
-        if (damage(target, hit.amount).fell) logFall(cb, target);
+        if (target.guard) hit.amount = Math.round(hit.amount * COMBAT.guardFactor);
+        const { taken, fell } = damage(target, hit.amount);
+        hits.push({ ...hit, amount: taken });
+        if (fell) logFall(cb, target);
+        else if (isHero(target) && !isHero(caster)) gainResource(target, getClass(target).resource.onHitTaken);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
@@ -271,10 +284,10 @@ function useSkill(cb, hero, skill, targets) {
     }
     if (skill.status) addStatus(target, skill.status);
   }
-  if (skill.selfStatus) addStatus(hero, skill.selfStatus);
+  if (skill.selfStatus) addStatus(caster, skill.selfStatus);
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
-  log(cb, `${hero.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+  log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
 }
 
 // Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
@@ -284,7 +297,27 @@ function enemyTarget(cb) {
   return pick(taunting.length ? taunting : alive);
 }
 
-// IA ennemie : attaque un héros (esquive / blocage / garde / boucliers possibles).
+// Cibles d'une capacité ennemie (point de vue de l'ennemi).
+function abilityTargets(cb, enemy, skill) {
+  switch (skill.target) {
+    case 'hero': return [enemyTarget(cb)];
+    case 'allHeroes': return cb.party.filter(isAlive);
+    case 'self': return [enemy];
+    case 'allAllies': return cb.enemies.filter(isAlive);
+    default: return [];
+  }
+}
+
+// Capacité tentée ce tour : chacune dans l'ordre, avec sa chance.
+function pickAbility(enemy) {
+  for (const { chance: odds, skill } of ENEMIES[enemy.enemyKey]?.abilities ?? []) {
+    if (random() < odds) return skill;
+  }
+  return null;
+}
+
+// IA ennemie : capacité spéciale éventuelle, sinon attaque de base sur un héros
+// (esquive / blocage / garde / boucliers possibles).
 // Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 export function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
@@ -300,13 +333,20 @@ export function enemyAct(cb) {
     return;
   }
 
+  const ability = pickAbility(enemy);
+  if (ability) {
+    useSkill(cb, enemy, ability, abilityTargets(cb, enemy, ability));
+    endTurn(cb);
+    return;
+  }
+
   const target = enemyTarget(cb);
   if (target) {
     const targetStats = statsOf(target);
     if (random() < chance(targetStats, 'esquive')) {
       log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
     } else {
-      const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, targetStats);
+      const hit = rollHit(statsOf(enemy), { ...ENEMY_ATTACK, magic: enemy.magic }, targetStats);
       let dmg = hit.amount;
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));

@@ -10,8 +10,12 @@
 /* ---- Village ---- */
 .notice .loot { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .portals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
-button.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
-button.portal:hover { background: var(--panel2); }
+.portal { text-align: left; width: 100%; padding: 16px; background: var(--panel); }
+.portal.locked { opacity: .55; }
+.portal p b { color: var(--gold); }
+.start-floors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.start-floors button { padding: 6px 10px; font-size: 14px; }
+.start-floors small { color: var(--dim); }
 .portal h3 { font-size: 16px; }
 .portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
 .services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
@@ -135,3 +139,18 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .shop-info small { color: var(--dim); }
 .shop-info .hint { font-size: 12px; }
 .shop-row button { flex-shrink: 0; padding: 6px 12px; font-size: 14px; }
+
+/* ---- Donjon / expédition ---- */
+.unit.boss { border-left-width: 5px; background: #2a1712; }
+.boss-tag { font-size: 10px; padding: 0 5px; border-radius: 6px; background: var(--danger); color: #fff; vertical-align: middle; letter-spacing: .05em; }
+.floor-track { margin-bottom: 12px; }
+.floor-track small { color: var(--dim); }
+.floors { display: flex; gap: 6px; margin-top: 6px; }
+.floor { flex: 1; text-align: center; padding: 6px 0; border: 1px solid var(--line); border-radius: 4px; color: var(--dim); background: #100c07; }
+.floor.done { background: #22301c; color: #9fd08f; border-color: #3f6b45; }
+.floor.next { outline: 2px solid var(--gold); color: var(--cream); }
+.floor.boss { border-color: var(--danger); }
+.expedition-info { margin-bottom: 8px; }
+.expedition-info b { color: var(--gold); }
+.expedition .actions { margin-bottom: 10px; }
+.boss-btn { border-color: var(--danger); background: #3a1c17; }
