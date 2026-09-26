@@ -1,0 +1,43 @@
+/* Variables, reset et éléments de base. */
+
+:root {
+  --bg: #161009; --panel: #241b12; --panel2: #2e2216; --line: #4a3a26;
+  --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
+  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a;
+  --danger: #a33; --good: #5a8a5a;
+  --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a;
+  --font-title: 'Cinzel', serif;
+  --font-body: 'EB Garamond', serif;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); height: 100%; }
+body {
+  height: 100%; margin: 0; background: var(--bg); color: var(--cream);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.5;
+  background-image: radial-gradient(ellipse at top, #2a1f14 0%, #161009 60%);
+}
+
+h1, h2, h3, .title { font-family: var(--font-title); letter-spacing: .02em; color: var(--gold); margin: 0; }
+#app { max-width: 900px; margin: 0 auto; padding: 24px 16px 40px; }
+
+button {
+  font-family: var(--font-body); font-size: 16px; cursor: pointer; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--cream);
+  padding: 10px 16px; transition: background .15s;
+}
+button:hover { background: #3a2c1c; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+input[type=text] {
+  font-family: var(--font-body); font-size: 16px; background: #100c07; border: 1px solid var(--line);
+  color: var(--cream); padding: 8px 10px; border-radius: 4px; width: 100%;
+}
+
+/* Utilitaires */
+.hidden { display: none !important; }
+.center { text-align: center; }
+.hint { color: var(--dim); align-self: center; }
