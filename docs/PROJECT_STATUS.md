@@ -86,6 +86,9 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 
 ## Difficulté (choix d'implémentation)
 
+- Rareté **Divin** (rouge) : 5 secondaires, fourchette au-dessus du légendaire. Uniquement sur les boss : 0 % en Balade et Aventure, 1 % en Guerre, 5 % en Horreur (`bossRarityWeights`). Pas de matéria divine (`MATERIA_RARITIES`) : un divin se décrafte en matéria légendaires et s'améliore avec elles.
+- **Forge divine** (onglet de la Forge, `absorbLegendary` dans `game/forge.js`) : un objet divin absorbe le pouvoir unique d'un légendaire du sac, qui est détruit (`item.absorbed`, appliqué par `getSkills`, sans réserver l'objet à une classe ; un nouveau pouvoir remplace l'ancien).
+
 - 4 niveaux (`DIFFICULTIES` dans `config.js`) : Balade ×1 (réglages d'origine), Aventure ×1,3, Guerre ×1,7, Horreur ×2,2 sur les PV et l'Attaque des ennemis.
 - Chaque niveau surcharge les chances et raretés de butin (`lootRules` dans `game/difficulty.js`) ; les types d'équipement restent équiprobables, l'or et l'XP ne changent pas.
 - Choix à l'écran « Difficulté » du village (`ui/screens/difficulty.js`), bloqué pendant une expédition ; stocké dans `state.difficulty`.
@@ -121,8 +124,10 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 ## Donjons (choix d'implémentation)
 
 Contenu dans `src/data/dungeons.js` et `src/data/enemies.js`, logique dans `src/game/dungeon.js`, réglages dans `src/config.js` (`DUNGEON`, `LOOT`).
-- **Donjons** : Forêt Maudite (niveaux 1 → 20) puis Catacombes oubliées (20 → 30), comme dans le design doc ; 25 étages chacun (le design doc citait 50 comme exemple : il suffit de changer `floors` et d'ajouter des boss). Terminer un donjon ouvre le suivant.
-- **Étages** : le niveau des ennemis monte régulièrement du premier au dernier étage. Étages ordinaires : 2 ennemis tirés du bestiaire du donjon (3 à partir du 3e palier). Étage 5, 10, 15… : un boss (différent à chaque palier), accompagné de 0 à 2 acolytes selon le palier.
+- **Zones** (= donjons, jusqu'au niveau 50) : Forêt Maudite (1-10), Catacombes oubliées (11-20), Cavernes ardentes (21-30), Pics gelés (31-40), Abîme infernal (41-50). Chaque zone a **3 sous-zones de 5 étages** (niveaux 1-3 / 4-6 / 7-10, puis 11-13 / 14-17 / 18-20, etc.), chacune avec ses ennemis, ses élites et son boss au 5e étage. Terminer une zone ouvre la suivante.
+- **Étages** : dans une sous-zone, le niveau des ennemis monte de son minimum (1er étage) à son maximum (boss). Étages ordinaires : 2 ennemis (sous-zone 1) ou 3 (sous-zones 2-3), chacun ayant 15 % de chances d'être un **élite** de la sous-zone (ennemi renforcé, ×1,5 XP et or). Boss accompagné de 0 à 2 acolytes selon la sous-zone.
+- **Butin** : le niveau des équipements (et l'or, l'XP) suit le niveau des ennemis vaincus, pas celui des héros.
+- **XP** : courbe réglée pour que les héros finissent chaque zone vers son niveau maximum (simulation : niv. 12, 20, 30, 38, 46 en Balade).
 - **Expédition** (DESIGN_DOC §5) : on enchaîne les étages sans repasser par le village. **Aucun soin automatique entre deux combats** : PV et ressources restent tels qu'à la fin du combat (seuls les potions, la Tente, les compétences de soin et l'auberge soignent) ; les héros tombés restent à terre jusqu'à une Plume de phénix ou une Résurrection. On ne peut rentrer qu'au départ ou juste après un boss ; sinon, on continue à ses risques et périls. Entre deux étages : objets, équipement, talents et statistiques restent accessibles.
 - **Après un boss : choix obligatoire** entre « Rentrer au village » (tout le butin est conservé) et « Continuer le donjon ». Continuer rend **40 % des PV et de la ressource** aux héros en vie (`DUNGEON.continueRegenPct`), une seule fois, puis il faut vaincre le boss suivant pour pouvoir rentrer.
 - **Points de passage** : chaque boss vaincu devient un point de départ (entrer à l'étage 1, 6, 11…). Une défaite fait perdre l'or et une partie du sac (règle existante) et ramène au village ; la progression reste au dernier boss vaincu. On peut toujours repartir d'un palier inférieur pour s'entraîner.

@@ -16,6 +16,11 @@
 .start-floors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .start-floors button { padding: 6px 10px; font-size: 14px; }
 .start-floors small { color: var(--dim); }
+.subzones { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.subzone { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+.subzone small { color: var(--dim); }
+.subzone.locked { opacity: .5; }
+.subzone button { padding: 5px 12px; font-size: 14px; }
 .portal h3 { font-size: 16px; }
 .portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
 .services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
@@ -241,3 +246,6 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .bestiary-stats td { padding: 2px 6px; text-align: right; }
 .abilities { text-align: left; padding-left: 18px; margin: 0; font-size: 14px; }
 .abilities li { margin-bottom: 6px; }
+.card.difficulty h4 { margin: 12px 0 2px; color: var(--gold); }
+.loot-lines { margin: 0; padding-left: 18px; font-size: 14px; }
+.absorb-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3a2c1c; }

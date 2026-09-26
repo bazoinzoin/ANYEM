@@ -5,7 +5,7 @@
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFloor, loseExpedition, escapeExpedition } from '../game/dungeon.js';
+import { floorCombat, winFloor, loseExpedition, escapeExpedition, subzoneOf } from '../game/dungeon.js';
 import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
@@ -71,7 +71,7 @@ function finish() {
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
     return;
   }
-  const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
+  const nextZone = r.boss ? subzoneOf(dungeonKey, state.expedition.floor) : null;
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu ! La sous-zone suivante, ${nextZone.name} (niv. ${nextZone.minLevel}-${nextZone.maxLevel}), devient un point de départ.` : null, loot: [], summary: r });
   goTo('dungeon');
 }

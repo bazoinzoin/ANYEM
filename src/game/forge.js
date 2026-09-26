@@ -4,14 +4,14 @@
 
 import { FORGE } from '../config.js';
 import {
-  RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES,
+  MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES,
 } from '../data/items.js';
 import { isWeapon, generateItem, primaryOptions } from './items.js';
 import { random, pick } from './rng.js';
 
 export function emptyMateria() {
   return Object.fromEntries(Object.keys(MATERIA_KINDS).map((kind) =>
-    [kind, Object.fromEntries(RARITY_ORDER.map((r) => [r, 0]))]));
+    [kind, Object.fromEntries(MATERIA_RARITIES.map((r) => [r, 0]))]));
 }
 
 export function materiaKind(item) {
@@ -21,8 +21,13 @@ export function materiaKind(item) {
 }
 
 // Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
+// Rareté des matéria d'un objet (un objet divin donne des matéria légendaires).
+function materiaRarity(rarity) {
+  return MATERIA_RARITIES.includes(rarity) ? rarity : MATERIA_RARITIES[MATERIA_RARITIES.length - 1];
+}
+
 export function decraftYield(item) {
-  return { kind: materiaKind(item), rarity: item.rarity, ...FORGE.decraftYield };
+  return { kind: materiaKind(item), rarity: materiaRarity(item.rarity), ...FORGE.decraftYield };
 }
 
 // Décrafte un objet du sac (jamais un objet porté). Retourne le gain { kind, rarity, amount }, ou null.
@@ -43,7 +48,7 @@ export function decraft(game, item) {
 export function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
-  const tiers = RARITY_ORDER.slice(0, RARITY_ORDER.indexOf(item.rarity) + 1);
+  const tiers = MATERIA_RARITIES.slice(0, MATERIA_RARITIES.indexOf(materiaRarity(item.rarity)) + 1);
   const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
@@ -122,7 +127,7 @@ export function craftLegendaries(order) {
 
 // Pourquoi la commande est impossible (texte), ou null si elle peut être passée.
 export function craftProblem(game, order) {
-  if (!CRAFT_FILTERS[order.kind] || !RARITY_ORDER.includes(order.rarity)) return 'Commande invalide.';
+  if (!CRAFT_FILTERS[order.kind] || !MATERIA_RARITIES.includes(order.rarity)) return 'Commande invalide.';
   const options = craftOptions(order.kind);
   for (const f of CRAFT_FILTERS[order.kind]) {
     if (order[f] && !options[f].includes(order[f])) return 'Commande invalide.';
@@ -166,4 +171,29 @@ export function craft(game, order) {
   game.materia[kind][rarity] -= amount;
   game.bag.push(item);
   return item;
+}
+
+// ---- Forge divine ----
+//
+// Un objet divin peut absorber le pouvoir unique d'un légendaire du sac, qui est
+// détruit. Le pouvoir est stocké dans `item.absorbed` (même forme que `item.legendary`,
+// plus le nom du légendaire) ; il s'applique comme celui d'un légendaire (getSkills),
+// sans réserver l'objet divin à une classe. Un nouveau pouvoir remplace l'ancien.
+
+// Pourquoi l'absorption est impossible (texte), ou null.
+export function absorbProblem(game, divine, legendary) {
+  if (divine?.rarity !== 'divin') return "Seul un objet divin peut absorber un pouvoir.";
+  if (!legendary?.legendary) return "Il faut un objet légendaire.";
+  if (!game.bag.includes(legendary)) return 'Le légendaire doit être dans le sac (retire-le d\'abord).';
+  return null;
+}
+
+// Absorbe le pouvoir de `legendary` dans `divine`. Retourne l'ancien pouvoir absorbé
+// (ou null s'il n'y en avait pas), ou false si c'est impossible.
+export function absorbLegendary(game, divine, legendary) {
+  if (absorbProblem(game, divine, legendary)) return false;
+  const previous = divine.absorbed ?? null;
+  divine.absorbed = { ...legendary.legendary, name: legendary.name };
+  game.bag.splice(game.bag.indexOf(legendary), 1);
+  return previous;
 }

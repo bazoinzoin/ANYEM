@@ -14,7 +14,7 @@ import { goTo } from '../router.js';
 const view = { confirm: null, flash: null };
 
 // Raretés dont la vente demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire'];
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
 
 export function openMerchant() {
   Object.assign(view, { confirm: null, flash: null });

@@ -1,7 +1,7 @@
 // Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
 
 import { state } from '../../state.js';
-import { RARITIES, RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } from '../../data/items.js';
+import { RARITIES, MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } from '../../data/items.js';
 import { STATS } from '../../data/stats.js';
 import { FORGE } from '../../config.js';
 import { getClass } from '../../game/party.js';
@@ -10,17 +10,20 @@ import { itemStats } from '../../game/items.js';
 import {
   decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade,
   CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries,
+  absorbProblem, absorbLegendary,
 } from '../../game/forge.js';
+import { CLASSES } from '../../data/classes.js';
 import { esc } from '../html.js';
 import { itemCard, itemMeta, itemName, formatStat, materiaTable } from '../items.js';
 import { goTo } from '../router.js';
 
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-// tab : 'items' (amélioration / décraft) ou 'craft' (fabrication) ; order : commande en cours.
-const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' } };
+// tab : 'items' (amélioration / décraft), 'craft' (fabrication) ou 'divine' (Forge divine) ;
+// order : commande en cours ; divineId : objet divin choisi à la Forge divine.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' }, divineId: null };
 
 // Raretés dont le décraft demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire'];
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
 
 export function openForge() {
   Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
@@ -42,8 +45,9 @@ export function renderForge(app) {
     <div class="tabs">
       <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
       <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+      <button data-tab="divine" class="${view.tab === 'divine' ? 'selected' : ''}" style="color:${RARITIES.divin.color}">✴️ Forge divine</button>
     </div>
-    ${view.tab === 'craft' ? craftPanel() : `
+    ${view.tab === 'craft' ? craftPanel() : view.tab === 'divine' ? divinePanel() : `
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -71,6 +75,7 @@ export function renderForge(app) {
     };
   });
   bindCraft(app);
+  bindDivine(app);
   app.querySelectorAll('[data-item]').forEach((row) => {
     row.onclick = () => {
       Object.assign(view, { selectedId: row.dataset.item, confirm: null });
@@ -217,7 +222,7 @@ function craftPanel() {
         ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
       </div>
       <div class="craft-row"><span>Rareté</span>
-        ${RARITY_ORDER.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+        ${MATERIA_RARITIES.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
       </div>
       ${CRAFT_FILTERS[order.kind].map((f) => `
         <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
@@ -260,5 +265,68 @@ function bindCraft(app) {
       view.crafted = item;
     }
     goTo('forge');
+  });
+}
+
+// ---- Forge divine ----
+
+function allItems() {
+  return [...state.party.flatMap((hero) => equippedItems(hero)), ...state.bag];
+}
+
+function divinePanel() {
+  const divines = [...new Set(allItems())].filter((i) => i.rarity === 'divin');
+  const divine = divines.find((i) => i.id === view.divineId) ?? null;
+  const legendaries = state.bag.filter((i) => i.legendary);
+  return `
+    <p class="hint">Un objet <b style="color:${RARITIES.divin.color}">divin</b> peut absorber le pouvoir unique d'un objet légendaire du sac. Le légendaire est détruit ; le pouvoir s'applique comme s'il était porté (il ne sert qu'à la classe concernée). Un nouveau pouvoir remplace l'ancien.</p>
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets divins</h3>
+        ${divines.length ? divines.map((i) => `
+          <button class="bag-row ${i === divine ? 'selected' : ''}" data-divine="${i.id}">
+            <span class="rarity-text" style="--rc:${RARITIES.divin.color}">${esc(itemName(i))}</span>
+            <small>${itemMeta(i)}${wearerOf(i) ? ` · porté par ${esc(wearerOf(i).name)}` : ''}</small>
+          </button>`).join('') : '<p class="hint">Aucun objet divin. Ils ne tombent que sur les boss, à partir de la difficulté Guerre.</p>'}
+      </div>
+      <div class="card detail">
+        ${divine ? `
+          ${itemCard(divine)}
+          <div class="forge-section">
+            <h3>Absorber un pouvoir légendaire</h3>
+            ${legendaries.length ? legendaries.map((leg) => {
+              const cls = CLASSES[leg.legendary.classKey];
+              const confirming = view.confirm === `absorb:${leg.id}`;
+              return `
+                <div class="absorb-row">
+                  <div><span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${cls.icon} ${cls.name})</small>` : ''}<br><small>${esc(leg.legendary.desc)}</small></div>
+                  <button data-absorb="${leg.id}" class="${confirming ? 'danger' : ''}" ${absorbProblem(state, divine, leg) ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : '✴️ Absorber'}</button>
+                </div>`;
+            }).join('') : '<p class="hint">Aucun objet légendaire dans le sac (un légendaire porté doit d\'abord être retiré).</p>'}
+            ${divine.absorbed && legendaries.length ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
+          </div>` : '<p class="hint">Choisis un objet divin.</p>'}
+      </div>
+    </div>`;
+}
+
+function bindDivine(app) {
+  app.querySelectorAll('[data-divine]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { divineId: btn.dataset.divine, confirm: null });
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-absorb]').forEach((btn) => {
+    btn.onclick = () => {
+      const leg = state.bag.find((i) => i.id === btn.dataset.absorb);
+      const divine = allItems().find((i) => i.id === view.divineId);
+      if (view.confirm !== `absorb:${leg.id}`) {
+        view.confirm = `absorb:${leg.id}`;
+      } else {
+        if (absorbLegendary(state, divine, leg) !== false) view.flash = `${itemName(divine)} absorbe le pouvoir de ${itemName(leg)}.`;
+        view.confirm = null;
+      }
+      goTo('forge');
+    };
   });
 }

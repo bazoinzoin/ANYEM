@@ -61,6 +61,7 @@ button.full { width: 100%; margin-top: 12px; }
 .item-stats { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
 .item-stats li.secondary { color: var(--r-peu-commun); }
 .item-legendary { color: var(--r-legendaire); font-size: 14px; margin-top: 6px; font-style: italic; }
+.item-absorbed { color: var(--r-divin); }
 
 /* Tableau de stats */
 .stat-row { display: flex; justify-content: space-between; gap: 8px; }

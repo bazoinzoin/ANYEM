@@ -14,7 +14,7 @@
 
 import { maybeTriggerEvent } from './events.js';
 import { difficultyOf, enemyPower } from './difficulty.js';
-import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
+import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
 import { recordKills } from './bestiary.js';
@@ -41,10 +41,21 @@ export function isBossFloor(key, floor) {
   return floor % DUNGEONS[key].bossEvery === 0;
 }
 
-// Niveau des ennemis : de minLevel (étage 1) à maxLevel (dernier étage).
+// Sous-zone d'un étage (voir data/dungeons.js).
+export function subzoneOf(key, floor) {
+  return DUNGEONS[key].subzones[tierOf(key, floor)];
+}
+
+// Étage dans sa sous-zone : 1 à FLOORS_PER_SUBZONE (le dernier est celui du boss).
+export function floorInSubzone(floor) {
+  return ((floor - 1) % FLOORS_PER_SUBZONE) + 1;
+}
+
+// Niveau des ennemis : de minLevel (1er étage de la sous-zone) à maxLevel (étage du boss).
 export function floorLevel(key, floor) {
-  const d = DUNGEONS[key];
-  return d.minLevel + Math.round(((floor - 1) * (d.maxLevel - d.minLevel)) / (d.floors - 1));
+  const { minLevel, maxLevel } = subzoneOf(key, floor);
+  const step = (floor - 1) % FLOORS_PER_SUBZONE;
+  return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
 }
 
 // Composition d'un étage : { enemies: [clés], boss, final }.
@@ -52,9 +63,12 @@ export function encounterFor(key, floor) {
   const d = DUNGEONS[key];
   const tier = tierOf(key, floor);
   const byTier = (list) => list[Math.min(tier, list.length - 1)];
-  const randomFoes = (n) => Array.from({ length: n }, () => pick(d.pool));
+  const sub = subzoneOf(key, floor);
+  // Un ennemi ordinaire est parfois remplacé par un élite de la sous-zone.
+  const foe = () => (sub.elites?.length && random() < DUNGEON.eliteChance ? pick(sub.elites) : pick(sub.pool));
+  const randomFoes = (n) => Array.from({ length: n }, foe);
   if (isBossFloor(key, floor)) {
-    return { enemies: [d.bosses[tier], ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
+    return { enemies: [sub.boss, ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
   }
   return { enemies: randomFoes(byTier(DUNGEON.enemiesByTier)), boss: false, final: false };
 }
@@ -98,7 +112,7 @@ export function floorCombat(game) {
     enemies,
     level: floorLevel(dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
-    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
+    title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }
 

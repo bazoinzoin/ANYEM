@@ -9,7 +9,7 @@ import { createParty } from '../src/game/party.js';
 import { applyVictory } from '../src/game/progression.js';
 import { emptyMateria } from '../src/game/forge.js';
 import { LOOT, MERCHANT } from '../src/config.js';
-import { RARITY_ORDER } from '../src/data/items.js';
+import { RARITY_ORDER, MATERIA_RARITIES } from '../src/data/items.js';
 
 beforeEach(() => setRandomSource(null));
 
@@ -54,7 +54,7 @@ test('les matéria sont moins rares que les équipements', () => {
   const aboveCommon = (s, n) => (n - (s.commun ?? 0)) / n;
   assert.ok(aboveCommon(share.materia, nMateria) > aboveCommon(share.items, nItems));
   // Poids configurés : chaque rareté au-dessus de commun est plus fréquente en matéria.
-  for (const r of RARITY_ORDER.slice(1)) {
+  for (const r of MATERIA_RARITIES.slice(1)) {
     const pct = (w) => w[r] / Object.values(w).reduce((a, b) => a + b, 0);
     assert.ok(pct(LOOT.materiaRarityWeights) > pct(LOOT.rarityWeights), r);
   }

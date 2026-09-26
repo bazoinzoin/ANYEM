@@ -83,7 +83,9 @@ test('un boss tous les 5 étages, dans l\'ordre, avec des acolytes selon le pali
   const e10 = encounterFor('foretMaudite', 10);
   assert.equal(e10.enemies[0], 'mereAraignee');
   assert.equal(e10.enemies.length, 2);
-  assert.equal(encounterFor('foretMaudite', 25).final, true);
+  assert.equal(encounterFor('foretMaudite', 15).enemies[0], 'reineSylvestre');
+  assert.equal(encounterFor('foretMaudite', 15).final, true);
+  assert.equal(encounterFor('foretMaudite', 10).final, false);
   assert.equal(encounterFor('foretMaudite', 3).enemies.length, 2);
   assert.equal(encounterFor('foretMaudite', 13).enemies.length, 3);
 });
@@ -140,10 +142,10 @@ test('défaite : fin de l\'expédition, progression conservée au dernier boss',
 
 test('dernier étage : donjon terminé, expédition finie, donjon suivant annoncé', () => {
   const game = newGame();
-  progressOf(game, 'foretMaudite').checkpoint = 20;
-  startExpedition(game, 'foretMaudite', 21);
+  progressOf(game, 'foretMaudite').checkpoint = 10;
+  startExpedition(game, 'foretMaudite', 11);
   let r;
-  for (let f = 21; f <= 25; f++) r = clearFloor(game);
+  for (let f = 11; f <= 15; f++) r = clearFloor(game);
   assert.equal(r.cleared, true);
   assert.equal(r.unlocked, 'catacombes');
   assert.equal(game.expedition, null);
@@ -215,4 +217,47 @@ test("entre deux étages ordinaires : ni soin, ni choix", () => {
   assert.equal(g.hp, 10);
   assert.equal(game.expedition.bossChoice, false);
   assert.equal(continueExpedition(game), false);
+});
+
+test('zones : 3 sous-zones de 5 étages par zone, niveaux 1 à 50 sans trou', () => {
+  let expected = 1;
+  for (const key of DUNGEON_ORDER) {
+    const d = DUNGEONS[key];
+    assert.equal(d.subzones.length, 3, key);
+    assert.equal(d.floors, 15, key);
+    for (const sub of d.subzones) {
+      assert.equal(sub.minLevel, expected, `${key} · ${sub.name}`);
+      assert.ok(sub.maxLevel > sub.minLevel);
+      expected = sub.maxLevel + 1;
+      for (const k of [...sub.pool, ...(sub.elites ?? [])]) assert.ok(ENEMIES[k] && !ENEMIES[k].boss, k);
+      assert.ok(ENEMIES[sub.boss].boss, sub.boss);
+    }
+  }
+  assert.equal(expected - 1, 50, 'la dernière zone finit au niveau 50');
+  assert.deepEqual(DUNGEONS.foretMaudite.subzones.map((s) => [s.minLevel, s.maxLevel]), [[1, 3], [4, 6], [7, 10]]);
+});
+
+test("niveau des étages : de min à max dans chaque sous-zone, boss au niveau max", () => {
+  const levels = Array.from({ length: 15 }, (_, i) => floorLevel('foretMaudite', i + 1));
+  assert.deepEqual(levels, [1, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 8, 9, 9, 10]);
+  assert.equal(floorLevel('abimeInfernal', 15), 50);
+  assert.match(floorCombat({ ...newGame(), expedition: { dungeonKey: 'foretMaudite', floor: 7, fight: 1, fights: 2 } }).title, /Sous-bois — étage 2\/5/);
+});
+
+test('élites : ennemis renforcés, seulement là où la sous-zone en prévoit', () => {
+  setRandomSource(() => 0.01); // sous la chance d'élite
+  assert.ok(encounterFor('foretMaudite', 12).enemies.every((k) => ENEMIES[k].elite));
+  assert.ok(encounterFor('foretMaudite', 2).enemies.every((k) => !ENEMIES[k].elite), 'pas d\'élite dans la première sous-zone');
+  setRandomSource(() => 0.5);
+  assert.ok(encounterFor('foretMaudite', 12).enemies.every((k) => !ENEMIES[k].elite));
+});
+
+test("butin : le niveau des objets est celui des ennemis vaincus", () => {
+  const game = newGame();
+  progressOf(game, 'foretMaudite').checkpoint = 10;
+  startExpedition(game, 'foretMaudite', 11);
+  setRandomSource(() => 0.01);
+  const r = winFight(game);
+  assert.ok(r.loot.length > 0);
+  r.loot.forEach((item) => assert.equal(item.level, floorLevel('foretMaudite', 11)));
 });

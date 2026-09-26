@@ -15,7 +15,7 @@
   --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
   --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a;
   --danger: #a33; --good: #5a8a5a;
-  --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a;
+  --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a; --r-divin: #e8413c;
   --font-title: 'Cinzel', serif;
   --font-body: 'EB Garamond', serif;
   padding-top: env(safe-area-inset-top, 0px);
@@ -117,6 +117,7 @@ button.full { width: 100%; margin-top: 12px; }
 .item-stats { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
 .item-stats li.secondary { color: var(--r-peu-commun); }
 .item-legendary { color: var(--r-legendaire); font-size: 14px; margin-top: 6px; font-style: italic; }
+.item-absorbed { color: var(--r-divin); }
 
 /* Tableau de stats */
 .stat-row { display: flex; justify-content: space-between; gap: 8px; }
@@ -155,6 +156,11 @@ button.full { width: 100%; margin-top: 12px; }
 .start-floors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .start-floors button { padding: 6px 10px; font-size: 14px; }
 .start-floors small { color: var(--dim); }
+.subzones { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.subzone { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+.subzone small { color: var(--dim); }
+.subzone.locked { opacity: .5; }
+.subzone button { padding: 5px 12px; font-size: 14px; }
 .portal h3 { font-size: 16px; }
 .portal p { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
 .services { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
@@ -380,6 +386,9 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .bestiary-stats td { padding: 2px 6px; text-align: right; }
 .abilities { text-align: left; padding-left: 18px; margin: 0; font-size: 14px; }
 .abilities li { margin-bottom: 6px; }
+.card.difficulty h4 { margin: 12px 0 2px; color: var(--gold); }
+.loot-lines { margin: 0; padding-left: 18px; font-size: 14px; }
+.absorb-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3a2c1c; }
 </style>
 
 </head>
@@ -475,7 +484,7 @@ const DIFFICULTIES = {
     loot: {
       dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
       rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
-      bossRarityWeights: { peuCommun: 10, rare: 35, epique: 38, legendaire: 17 },
+      bossRarityWeights: { peuCommun: 10, rare: 34, epique: 38, legendaire: 17, divin: 1 },
       materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
       bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
     },
@@ -485,7 +494,7 @@ const DIFFICULTIES = {
     loot: {
       dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
       rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
-      bossRarityWeights: { peuCommun: 5, rare: 30, epique: 42, legendaire: 23 },
+      bossRarityWeights: { peuCommun: 5, rare: 25, epique: 42, legendaire: 23, divin: 5 },
       materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
       bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
     },
@@ -494,13 +503,15 @@ const DIFFICULTIES = {
 const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
-// d'ennemis par étage ordinaire (selon le palier : 0 = étages 1-5…) et nombre
-// d'acolytes accompagnant un boss. Aucun soin automatique entre deux combats.
+// d'ennemis par étage ordinaire (selon la sous-zone : 0 = étages 1-5…), nombre
+// d'acolytes accompagnant un boss, chance qu'un ennemi ordinaire soit remplacé
+// par un élite de la sous-zone. Aucun soin automatique entre deux combats.
 const DUNGEON = {
   continueRegenPct: 40,
   fightsPerFloor: { min: 2, max: 3 }, // combats par étage ordinaire (un étage de boss : le boss seul)   // après un boss, choisir de continuer rend ce % des PV et de la ressource
-  enemiesByTier: [2, 2, 3, 3, 3],
-  bossAddsByTier: [0, 1, 1, 2, 2],
+  enemiesByTier: [2, 3, 3],
+  bossAddsByTier: [0, 1, 2],
+  eliteChance: 0.15,
 };
 
 // Événements d'expédition (data/events.js) : chance après chaque combat gagné
@@ -519,8 +530,8 @@ const EVENT_RULES = {
 const XP = {
   xpBase: 10,
   xpPerLevel: 5,
-  toNextBase: 80,
-  toNextPerLevel: 40,
+  toNextBase: 100,
+  toNextPerLevel: 70,
   maxLevel: 50,
 };
 
@@ -553,7 +564,7 @@ const FORGE = {
 // Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
 // prix en or selon la rareté de l'objet.
 const RUNES = {
-  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000, divin: 2500 },
 };
 
 // Marchand. Prix de revente d'un objet :
@@ -567,7 +578,7 @@ const INN = {
 const MERCHANT = {
   sellBase: 5,
   sellPerLevel: 2,
-  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16 },
+  sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16, divin: 32 },
   sellPerPlus: 0.2,
   buyMarkup: 4,
   stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon
@@ -629,9 +640,16 @@ const RARITIES = {
   rare: { label: 'Rare', color: 'var(--r-rare)', secondaries: 2, mult: 1.25, range: [0.9, 1.5] },
   epique: { label: 'Épique', color: 'var(--r-epique)', secondaries: 3, mult: 1.4, range: [1.4, 2.1] },
   legendaire: { label: 'Légendaire', color: 'var(--r-legendaire)', secondaries: 4, mult: 1.6, range: [2.0, 2.8] },
+  // Divin : uniquement sur les boss, à partir de la difficulté Guerre (voir DIFFICULTIES).
+  // Peut absorber le pouvoir unique d'un légendaire (Forge divine, game/forge.js).
+  divin: { label: 'Divin', color: 'var(--r-divin)', secondaries: 5, mult: 1.8, range: [2.8, 3.6] },
 };
 
 const RARITY_ORDER = Object.keys(RARITIES);
+
+// Raretés des matéria : pas de matéria divine (un objet divin se décrafte en
+// matéria légendaires et s'améliore avec elles).
+const MATERIA_RARITIES = RARITY_ORDER.filter((r) => r !== 'divin');
 
 // Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
 // d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.
@@ -793,7 +811,7 @@ const LEGENDARIES = {
   },
 };
 
-return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_RARITIES, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
 })();
 
 // ---- src/game/rng.js
@@ -1018,7 +1036,7 @@ return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel,
 // ---- src/game/forge.js
 __modules["src/game/forge.js"] = (() => {
 const { FORGE } = __modules["src/config.js"];
-const { RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES } = __modules["src/data/items.js"];
+const { MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES } = __modules["src/data/items.js"];
 const { isWeapon, generateItem, primaryOptions } = __modules["src/game/items.js"];
 const { random, pick } = __modules["src/game/rng.js"];
 // Forge : décraft des objets en matéria, amélioration de +1 à +5 et fabrication.
@@ -1032,7 +1050,7 @@ const { random, pick } = __modules["src/game/rng.js"];
 
 function emptyMateria() {
   return Object.fromEntries(Object.keys(MATERIA_KINDS).map((kind) =>
-    [kind, Object.fromEntries(RARITY_ORDER.map((r) => [r, 0]))]));
+    [kind, Object.fromEntries(MATERIA_RARITIES.map((r) => [r, 0]))]));
 }
 
 function materiaKind(item) {
@@ -1042,8 +1060,13 @@ function materiaKind(item) {
 }
 
 // Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
+// Rareté des matéria d'un objet (un objet divin donne des matéria légendaires).
+function materiaRarity(rarity) {
+  return MATERIA_RARITIES.includes(rarity) ? rarity : MATERIA_RARITIES[MATERIA_RARITIES.length - 1];
+}
+
 function decraftYield(item) {
-  return { kind: materiaKind(item), rarity: item.rarity, ...FORGE.decraftYield };
+  return { kind: materiaKind(item), rarity: materiaRarity(item.rarity), ...FORGE.decraftYield };
 }
 
 // Décrafte un objet du sac (jamais un objet porté). Retourne le gain { kind, rarity, amount }, ou null.
@@ -1064,7 +1087,7 @@ function decraft(game, item) {
 function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
-  const tiers = RARITY_ORDER.slice(0, RARITY_ORDER.indexOf(item.rarity) + 1);
+  const tiers = MATERIA_RARITIES.slice(0, MATERIA_RARITIES.indexOf(materiaRarity(item.rarity)) + 1);
   const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
@@ -1143,7 +1166,7 @@ function craftLegendaries(order) {
 
 // Pourquoi la commande est impossible (texte), ou null si elle peut être passée.
 function craftProblem(game, order) {
-  if (!CRAFT_FILTERS[order.kind] || !RARITY_ORDER.includes(order.rarity)) return 'Commande invalide.';
+  if (!CRAFT_FILTERS[order.kind] || !MATERIA_RARITIES.includes(order.rarity)) return 'Commande invalide.';
   const options = craftOptions(order.kind);
   for (const f of CRAFT_FILTERS[order.kind]) {
     if (order[f] && !options[f].includes(order[f])) return 'Commande invalide.';
@@ -1189,48 +1212,120 @@ function craft(game, order) {
   return item;
 }
 
-return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftFilterCount, craftCost, craftLegendaries, craftProblem, craft };
+// ---- Forge divine ----
+//
+// Un objet divin peut absorber le pouvoir unique d'un légendaire du sac, qui est
+// détruit. Le pouvoir est stocké dans `item.absorbed` (même forme que `item.legendary`,
+// plus le nom du légendaire) ; il s'applique comme celui d'un légendaire (getSkills),
+// sans réserver l'objet divin à une classe. Un nouveau pouvoir remplace l'ancien.
+
+// Pourquoi l'absorption est impossible (texte), ou null.
+function absorbProblem(game, divine, legendary) {
+  if (divine?.rarity !== 'divin') return "Seul un objet divin peut absorber un pouvoir.";
+  if (!legendary?.legendary) return "Il faut un objet légendaire.";
+  if (!game.bag.includes(legendary)) return 'Le légendaire doit être dans le sac (retire-le d\'abord).';
+  return null;
+}
+
+// Absorbe le pouvoir de `legendary` dans `divine`. Retourne l'ancien pouvoir absorbé
+// (ou null s'il n'y en avait pas), ou false si c'est impossible.
+function absorbLegendary(game, divine, legendary) {
+  if (absorbProblem(game, divine, legendary)) return false;
+  const previous = divine.absorbed ?? null;
+  divine.absorbed = { ...legendary.legendary, name: legendary.name };
+  game.bag.splice(game.bag.indexOf(legendary), 1);
+  return previous;
+}
+
+return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftFilterCount, craftCost, craftLegendaries, craftProblem, craft, absorbProblem, absorbLegendary };
 })();
 
 // ---- src/data/dungeons.js
 __modules["src/data/dungeons.js"] = (() => {
 
-// Donjons (DESIGN_DOC §5-6) : des lieux à thème de plusieurs étages, un boss
-// tous les `bossEvery` étages. Le niveau des ennemis monte de minLevel (étage 1)
-// à maxLevel (dernier étage), comme dans le design doc (1 à 20, puis 20 à 30).
-// Terminer un donjon débloque le suivant (ordre ci-dessous).
+// Zones (donjons) : une zone couvre environ 10 niveaux et se découpe en 3 sous-zones
+// de 5 étages ; le 5e étage d'une sous-zone est gardé par son boss. Le niveau des
+// ennemis monte de minLevel à maxLevel au fil des 5 étages de la sous-zone (le boss
+// est au niveau maximum). Terminer une zone ouvre la suivante (ordre ci-dessous),
+// jusqu'au niveau 50.
 //
-// pool   : ennemis des étages ordinaires (tirés au hasard)
-// bosses : boss dans l'ordre des paliers (un par palier : étages 5, 10, 15…)
+// Sous-zone : { name, minLevel, maxLevel, pool, elites, boss }
+//   pool   : ennemis ordinaires (tirés au hasard)
+//   elites : ennemis renforcés, qui remplacent parfois un ennemi ordinaire (DUNGEON.eliteChance)
+//   boss   : boss du 5e étage
+// Champs calculés par zone() : floors, bossEvery, minLevel, maxLevel, pool, bosses.
+
+const FLOORS_PER_SUBZONE = 5;
+
+function zone(def) {
+  const subs = def.subzones;
+  return {
+    ...def,
+    floors: subs.length * FLOORS_PER_SUBZONE,
+    bossEvery: FLOORS_PER_SUBZONE,
+    minLevel: subs[0].minLevel,
+    maxLevel: subs[subs.length - 1].maxLevel,
+    pool: [...new Set(subs.flatMap((s) => [...s.pool, ...(s.elites ?? [])]))],
+    bosses: subs.map((s) => s.boss),
+  };
+}
 
 const DUNGEONS = {
-  foretMaudite: {
+  foretMaudite: zone({
     name: 'Forêt Maudite',
     icon: '🌲',
     desc: 'Gobelins, loups et araignées rôdent sous les arbres morts.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 1,
-    maxLevel: 20,
-    pool: ['gobelin', 'loup', 'araignee'],
-    bosses: ['chefGobelin', 'mereAraignee', 'loupAlpha', 'sylvainCorrompu', 'reineSylvestre'],
-  },
-  catacombes: {
+    subzones: [
+      { name: 'La Lisière', minLevel: 1, maxLevel: 3, pool: ['gobelin', 'loup'], boss: 'chefGobelin' },
+      { name: 'Les Sous-bois', minLevel: 4, maxLevel: 6, pool: ['gobelin', 'loup', 'araignee'], elites: ['loupAlpha'], boss: 'mereAraignee' },
+      { name: 'Le Cœur de la forêt', minLevel: 7, maxLevel: 10, pool: ['loup', 'araignee', 'gobelin'], elites: ['loupAlpha', 'sylvainCorrompu'], boss: 'reineSylvestre' },
+    ],
+  }),
+  catacombes: zone({
     name: 'Catacombes oubliées',
     icon: '⚰️',
     desc: 'Les morts ne reposent pas en paix sous le vieux cimetière.',
-    floors: 25,
-    bossEvery: 5,
-    minLevel: 20,
-    maxLevel: 30,
-    pool: ['squelette', 'zombie', 'spectre'],
-    bosses: ['chevalierSquelette', 'necromancien', 'abomination', 'banshee', 'liche'],
-  },
+    subzones: [
+      { name: 'Le Vieux cimetière', minLevel: 11, maxLevel: 13, pool: ['squelette', 'zombie'], boss: 'chevalierSquelette' },
+      { name: "L'Ossuaire", minLevel: 14, maxLevel: 17, pool: ['squelette', 'zombie', 'spectre'], elites: ['abomination'], boss: 'necromancien' },
+      { name: 'La Crypte royale', minLevel: 18, maxLevel: 20, pool: ['spectre', 'squelette', 'zombie'], elites: ['abomination', 'banshee'], boss: 'liche' },
+    ],
+  }),
+  cavernesArdentes: zone({
+    name: 'Cavernes ardentes',
+    icon: '🌋',
+    desc: 'Sous la montagne, les galeries des kobolds plongent vers un lac de lave.',
+    subzones: [
+      { name: 'Les Galeries', minLevel: 21, maxLevel: 23, pool: ['kobold', 'salamandre'], boss: 'roiKobold' },
+      { name: 'Les Forges noyées', minLevel: 24, maxLevel: 27, pool: ['kobold', 'salamandre', 'diablotin'], elites: ['golemMagma'], boss: 'salamandreAncestrale' },
+      { name: 'Le Lac de lave', minLevel: 28, maxLevel: 30, pool: ['salamandre', 'diablotin', 'kobold'], elites: ['golemMagma'], boss: 'seigneurDesBraises' },
+    ],
+  }),
+  picsGeles: zone({
+    name: 'Pics gelés',
+    icon: '🏔️',
+    desc: 'Un blizzard éternel souffle sur les sommets où dort un dragon.',
+    subzones: [
+      { name: 'Les Contreforts', minLevel: 31, maxLevel: 33, pool: ['loupDeGivre', 'harpie'], boss: 'reineHarpie' },
+      { name: 'Le Col des tempêtes', minLevel: 34, maxLevel: 37, pool: ['loupDeGivre', 'harpie', 'elementaireDeGlace'], elites: ['yeti'], boss: 'geantDuGivre' },
+      { name: 'Le Nid du dragon', minLevel: 38, maxLevel: 40, pool: ['elementaireDeGlace', 'harpie', 'loupDeGivre'], elites: ['yeti'], boss: 'dragonDeGlace' },
+    ],
+  }),
+  abimeInfernal: zone({
+    name: 'Abîme infernal',
+    icon: '🔥',
+    desc: "Au fond du monde, une porte s'ouvre sur le royaume des démons.",
+    subzones: [
+      { name: 'La Porte', minLevel: 41, maxLevel: 43, pool: ['demon', 'chevalierInfernal'], boss: 'gardienDeLaPorte' },
+      { name: 'Le Palais des tourments', minLevel: 44, maxLevel: 47, pool: ['demon', 'succube', 'chevalierInfernal'], elites: ['behemoth'], boss: 'reineSuccube' },
+      { name: 'Le Trône de l\'Abîme', minLevel: 48, maxLevel: 50, pool: ['succube', 'chevalierInfernal', 'demon'], elites: ['behemoth'], boss: 'seigneurDeLAbime' },
+    ],
+  }),
 };
 
 const DUNGEON_ORDER = Object.keys(DUNGEONS);
 
-return { DUNGEONS, DUNGEON_ORDER };
+return { FLOORS_PER_SUBZONE, DUNGEONS, DUNGEON_ORDER };
 })();
 
 // ---- src/data/effects.js
@@ -2626,10 +2721,11 @@ function applySkillMod(skill, mod) {
 
 // Compétences du héros : celles apprises par ses talents (un héros commence sans
 // sort : les sorts de départ sont au palier 0 des orientations), sans doublon,
-// modifiées par les passifs des objets légendaires portés et des talents.
+// modifiées par les passifs des objets légendaires portés (ou absorbés par un objet
+// divin) et des talents.
 function getSkills(hero) {
   const fx = talentEffects(hero);
-  const mods = [...wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean), ...fx.skillMods];
+  const mods = [...wornItems(hero).map(([, item]) => (item.legendary ?? item.absorbed)?.passive).filter(Boolean), ...fx.skillMods];
   const unique = fx.skills.filter((skill, i) => fx.skills.findIndex((s) => s.id === skill.id) === i);
   return unique.map((skill) =>
     mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
@@ -3303,7 +3399,7 @@ return { statsList };
 // ---- src/ui/items.js
 __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
-const { RARITIES, RARITY_ORDER, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITIES, MATERIA_RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } = __modules["src/data/items.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { itemTypeLabel, itemStatLines } = __modules["src/game/items.js"];
@@ -3343,6 +3439,7 @@ function itemMeta(item) {
 function itemTooltipText(item) {
   const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
+  if (item.absorbed) lines.push(`Pouvoir absorbé (${item.absorbed.name}${absorbedOwner(item)}) : ${item.absorbed.desc}`);
   return lines.join('\n');
 }
 
@@ -3350,6 +3447,12 @@ function itemTooltipText(item) {
 function legendaryOwner(item) {
   const cls = CLASSES[item.legendary.classKey];
   return cls ? ` (${cls.icon} ${cls.name})` : '';
+}
+
+// « , ⚔️ Guerrier » : classe qui profite du pouvoir absorbé par un objet divin.
+function absorbedOwner(item) {
+  const cls = CLASSES[item.absorbed.classKey];
+  return cls ? `, ${cls.icon} ${cls.name}` : '';
 }
 
 // « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
@@ -3375,6 +3478,7 @@ function itemCard(item) {
       ${weaponLine(item) ? `<div class="item-meta">${weaponLine(item)}</div>` : ''}
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique${legendaryOwner(item)} : ${esc(item.legendary.desc)}</div>` : ''}
+      ${item.absorbed ? `<div class="item-legendary item-absorbed">Pouvoir absorbé — ${esc(item.absorbed.name)}${absorbedOwner(item)} : ${esc(item.absorbed.desc)}</div>` : ''}
     </div>`;
 }
 
@@ -3387,10 +3491,10 @@ function slotLabel(slot) {
 function materiaTable(materia, cell = (kind, rarity, n) => `${n}`) {
   return `
     <table class="materia-table">
-      <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
+      <thead><tr><th></th>${MATERIA_RARITIES.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
       <tbody>
         ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
-          <tr><th>${def.icon} ${def.label}</th>${RARITY_ORDER.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
+          <tr><th>${def.icon} ${def.label}</th>${MATERIA_RARITIES.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
       </tbody>
     </table>`;
 }
@@ -4485,7 +4589,8 @@ __modules["src/data/enemies.js"] = (() => {
 //   ranged     l'ennemi se tient à distance (sinon corps à corps : il peut riposter
 //              et ses attaques physiques peuvent déclencher la riposte des héros)
 //   riposte    chance (%) de riposter quand un héros le frappe au corps à corps
-//   boss       ennemi de fin de palier (butin garanti et meilleur, voir LOOT)
+//   boss       ennemi de fin de sous-zone (butin garanti et meilleur, voir LOOT)
+//   elite      ennemi ordinaire renforcé (plus rare dans les rencontres, plus d'XP et d'or)
 //   xpMult     multiplicateur d'XP (défaut 1) ; goldMult : multiplicateur d'or
 //   abilities  [{ chance, skill }] : à chaque tour, chaque capacité est tentée dans
 //              l'ordre avec sa chance ; sinon, attaque de base. Le format de `skill`
@@ -4500,6 +4605,8 @@ const poison = (power, turns = 3) => ({ id: 'poison', turns, power });
 const slow = (turns = 2) => ({ id: 'ralenti', turns });
 const confus = (turns = 2) => ({ id: 'confus', turns });
 const stun = { id: 'etourdi', turns: 1 };
+const burn = (power, turns = 3) => ({ id: 'brulure', turns, power });
+const dark = (power, turns = 3) => ({ id: 'tenebres', turns, power });
 
 const ENEMIES = {
   // ---- Forêt Maudite ----
@@ -4539,8 +4646,8 @@ const ENEMIES = {
     ],
   },
   loupAlpha: {
-    name: 'Loup alpha', icon: '🐺', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 180, perLevel: 25 }, atq: { base: 14, perLevel: 2.5 },
+    name: 'Loup alpha', icon: '🐺', riposte: 10, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 55, perLevel: 10 }, atq: { base: 9, perLevel: 2.3 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 12, max: 15 },
     abilities: [
       { chance: 0.3, skill: { name: 'Hurlement', kind: 'support', target: 'allAllies', effects: [{ id: 'puissance', turns: 3 }, { id: 'hate', turns: 3 }] } },
@@ -4548,8 +4655,8 @@ const ENEMIES = {
     ],
   },
   sylvainCorrompu: {
-    name: 'Sylvain corrompu', icon: '🌳', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 240, perLevel: 30 }, atq: { base: 12, perLevel: 2 },
+    name: 'Sylvain corrompu', icon: '🌳', riposte: 10, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 75, perLevel: 12 }, atq: { base: 8, perLevel: 2 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 2, perLevel: 1 }, vit: { min: 5, max: 7 },
     abilities: [
       { chance: 0.3, skill: { name: 'Étreinte des racines', kind: 'damage', target: 'hero', power: 0.8, effects: [stun] } },
@@ -4607,8 +4714,8 @@ const ENEMIES = {
     ],
   },
   abomination: {
-    name: 'Abomination', icon: '🧌', riposte: 10, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 320, perLevel: 35 }, atq: { base: 15, perLevel: 2.5 },
+    name: 'Abomination', icon: '🧌', riposte: 10, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 80, perLevel: 12 }, atq: { base: 9, perLevel: 2.3 },
     def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 4, max: 6 },
     abilities: [
       { chance: 0.3, skill: { name: 'Vomi putride', kind: 'damage', target: 'allHeroes', power: 0.5, effects: [poison(0.35)] } },
@@ -4616,8 +4723,8 @@ const ENEMIES = {
     ],
   },
   banshee: {
-    name: 'Banshee', icon: '😱', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
-    pv: { base: 210, perLevel: 25 }, atq: { base: 15, perLevel: 2.5 },
+    name: 'Banshee', icon: '😱', elite: true, xpMult: 1.5, goldMult: 1.5, magic: true, ranged: true,
+    pv: { base: 45, perLevel: 8 }, atq: { base: 10, perLevel: 2.4 },
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
       { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [{ id: 'terreur', turns: 2 }] } },
@@ -4633,6 +4740,177 @@ const ENEMIES = {
       { chance: 0.25, skill: { name: 'Nova de givre', kind: 'damage', target: 'allHeroes', power: 0.8, magic: true, effects: [slow(2)] } },
       { chance: 0.2, skill: { name: 'Doigt de mort', kind: 'damage', target: 'hero', power: 2.2, magic: true } },
       { chance: 0.2, skill: { name: 'Phylactère', kind: 'heal', target: 'self', power: 2 } },
+    ],
+  },
+  // ---- Cavernes ardentes ----
+  kobold: {
+    name: 'Kobold mineur', icon: '⛏️', riposte: 5,
+    pv: { base: 40, perLevel: 8 }, atq: { base: 8, perLevel: 2 },
+    def: { base: 3, perLevel: 1.1 }, defMag: { base: 1, perLevel: 0.8 }, vit: { min: 7, max: 11 },
+    abilities: [{ chance: 0.25, skill: { name: 'Coup de pioche', kind: 'damage', target: 'hero', power: 1.3, effects: [bleed(0.2)] } }],
+  },
+  salamandre: {
+    name: 'Salamandre', icon: '🦎',
+    pv: { base: 35, perLevel: 7.5 }, atq: { base: 8, perLevel: 2.1 },
+    def: { base: 2, perLevel: 0.8 }, defMag: { base: 3, perLevel: 1.2 }, vit: { min: 9, max: 13 },
+    abilities: [{ chance: 0.3, skill: { name: 'Souffle ardent', kind: 'damage', target: 'hero', power: 0.7, magic: true, effects: [burn(0.35)] } }],
+  },
+  diablotin: {
+    name: 'Diablotin', icon: '😈', magic: true, ranged: true,
+    pv: { base: 28, perLevel: 6 }, atq: { base: 10, perLevel: 2.2 },
+    def: { base: 1, perLevel: 0.6 }, defMag: { base: 4, perLevel: 1.4 }, vit: { min: 11, max: 15 },
+    abilities: [{ chance: 0.25, skill: { name: 'Pluie de braises', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, effects: [burn(0.2, 2)] } }],
+  },
+  golemMagma: {
+    name: 'Golem de magma', icon: '🗿', riposte: 15, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 85, perLevel: 13 }, atq: { base: 9, perLevel: 2.3 },
+    def: { base: 8, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 3, max: 6 },
+    abilities: [{ chance: 0.3, skill: { name: 'Poing de lave', kind: 'damage', target: 'hero', power: 1.4, effects: [burn(0.3), stun] } }],
+  },
+  roiKobold: {
+    name: 'Roi kobold', icon: '👑', riposte: 15, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 220, perLevel: 28 }, atq: { base: 13, perLevel: 2.6 },
+    def: { base: 6, perLevel: 1.4 }, defMag: { base: 4, perLevel: 1.1 }, vit: { min: 8, max: 10 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'À moi, la mine !', kind: 'support', target: 'allAllies', effects: [{ id: 'puissance', turns: 3 }, { id: 'protection', turns: 2 }] } },
+      { chance: 0.25, skill: { name: 'Éboulement', kind: 'damage', target: 'allHeroes', power: 0.7, effects: [stun] } },
+    ],
+  },
+  salamandreAncestrale: {
+    name: 'Salamandre ancestrale', icon: '🐉', boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 240, perLevel: 29 }, atq: { base: 13, perLevel: 2.7 },
+    def: { base: 5, perLevel: 1.2 }, defMag: { base: 7, perLevel: 1.6 }, vit: { min: 9, max: 12 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Flammes dévorantes', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [burn(0.35)] } },
+      { chance: 0.2, skill: { name: 'Mue brûlante', kind: 'heal', target: 'self', power: 1.6 } },
+      { chance: 0.2, skill: { name: 'Queue enflammée', kind: 'damage', target: 'hero', power: 1.5 } },
+    ],
+  },
+  seigneurDesBraises: {
+    name: 'Seigneur des braises', icon: '🔥', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
+    pv: { base: 380, perLevel: 38 }, atq: { base: 16, perLevel: 3 },
+    def: { base: 7, perLevel: 1.5 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 9, max: 11 },
+    abilities: [
+      { chance: 0.25, skill: { name: 'Éruption', kind: 'damage', target: 'allHeroes', power: 0.8, magic: true, effects: [burn(0.4)] } },
+      { chance: 0.2, skill: { name: 'Lance de feu', kind: 'damage', target: 'hero', power: 2.1, magic: true } },
+      { chance: 0.15, skill: { name: 'Fumées suffocantes', kind: 'support', target: 'allHeroes', effects: [{ id: 'affaibli', turns: 3 }] } },
+      { chance: 0.15, skill: { name: 'Cœur de lave', kind: 'support', target: 'self', effects: [{ id: 'regeneration', turns: 3, power: 0.9 }] } },
+    ],
+  },
+
+  // ---- Pics gelés ----
+  loupDeGivre: {
+    name: 'Loup de givre', icon: '🐺',
+    pv: { base: 32, perLevel: 7 }, atq: { base: 8, perLevel: 2.1 },
+    def: { base: 2, perLevel: 0.8 }, defMag: { base: 2, perLevel: 0.9 }, vit: { min: 11, max: 15 },
+    abilities: [{ chance: 0.3, skill: { name: 'Crocs gelés', kind: 'damage', target: 'hero', power: 1, effects: [slow(2)] } }],
+  },
+  harpie: {
+    name: 'Harpie', icon: '🦅', ranged: true,
+    pv: { base: 30, perLevel: 6.5 }, atq: { base: 9, perLevel: 2.2 },
+    def: { base: 2, perLevel: 0.7 }, defMag: { base: 2, perLevel: 0.9 }, vit: { min: 12, max: 16 },
+    abilities: [{ chance: 0.3, skill: { name: 'Serres lacérantes', kind: 'damage', target: 'hero', power: 0.9, effects: [bleed(0.3)] } }],
+  },
+  elementaireDeGlace: {
+    name: 'Élémentaire de glace', icon: '❄️', magic: true, ranged: true,
+    pv: { base: 38, perLevel: 7.5 }, atq: { base: 9, perLevel: 2.2 },
+    def: { base: 6, perLevel: 1.6 }, defMag: { base: 5, perLevel: 1.5 }, vit: { min: 6, max: 9 },
+    abilities: [{ chance: 0.3, skill: { name: 'Blizzard', kind: 'damage', target: 'allHeroes', power: 0.45, magic: true, effects: [slow(2)] } }],
+  },
+  yeti: {
+    name: 'Yéti', icon: '🦍', riposte: 10, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 90, perLevel: 13 }, atq: { base: 10, perLevel: 2.4 },
+    def: { base: 5, perLevel: 1.3 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 9 },
+    abilities: [{ chance: 0.3, skill: { name: 'Charge glaciale', kind: 'damage', target: 'hero', power: 1.5, effects: [stun] } }],
+  },
+  reineHarpie: {
+    name: 'Reine harpie', icon: '🪶', boss: true, xpMult: 5, goldMult: 4, ranged: true,
+    pv: { base: 220, perLevel: 27 }, atq: { base: 14, perLevel: 2.7 },
+    def: { base: 5, perLevel: 1.2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 12, max: 15 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Tornade', kind: 'damage', target: 'allHeroes', power: 0.6, effects: [bleed(0.25)] } },
+      { chance: 0.2, skill: { name: 'Chant strident', kind: 'support', target: 'hero', effects: [confus(2)] } },
+      { chance: 0.2, skill: { name: 'Envol', kind: 'support', target: 'self', effects: [{ id: 'hate', turns: 3 }] } },
+    ],
+  },
+  geantDuGivre: {
+    name: 'Géant du givre', icon: '🧊', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 280, perLevel: 32 }, atq: { base: 15, perLevel: 2.8 },
+    def: { base: 10, perLevel: 2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 5, max: 7 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Séisme glacé', kind: 'damage', target: 'allHeroes', power: 0.7, effects: [slow(2)] } },
+      { chance: 0.25, skill: { name: 'Massue de glace', kind: 'damage', target: 'hero', power: 1.8, effects: [stun] } },
+      { chance: 0.15, skill: { name: 'Peau de givre', kind: 'support', target: 'self', effects: [{ id: 'bouclier', turns: 2, power: 2 }] } },
+    ],
+  },
+  dragonDeGlace: {
+    name: 'Dragon de glace', icon: '🐲', boss: true, xpMult: 8, goldMult: 6, magic: true,
+    pv: { base: 400, perLevel: 40 }, atq: { base: 17, perLevel: 3.1 },
+    def: { base: 9, perLevel: 1.8 }, defMag: { base: 9, perLevel: 1.8 }, vit: { min: 9, max: 11 },
+    abilities: [
+      { chance: 0.25, skill: { name: 'Souffle glacial', kind: 'damage', target: 'allHeroes', power: 0.85, magic: true, effects: [slow(2)] } },
+      { chance: 0.2, skill: { name: 'Griffes de cristal', kind: 'damage', target: 'hero', power: 1.9, effects: [bleed(0.35)] } },
+      { chance: 0.15, skill: { name: 'Rugissement', kind: 'support', target: 'allHeroes', effects: [{ id: 'terreur', turns: 2 }] } },
+      { chance: 0.15, skill: { name: 'Armure de givre', kind: 'support', target: 'self', effects: [{ id: 'protection', turns: 2 }] } },
+    ],
+  },
+
+  // ---- Abîme infernal ----
+  demon: {
+    name: 'Démon mineur', icon: '👿', riposte: 10,
+    pv: { base: 42, perLevel: 8 }, atq: { base: 9, perLevel: 2.2 },
+    def: { base: 3, perLevel: 1.1 }, defMag: { base: 3, perLevel: 1.1 }, vit: { min: 8, max: 12 },
+    abilities: [{ chance: 0.25, skill: { name: 'Griffes infernales', kind: 'damage', target: 'hero', power: 1, effects: [burn(0.3)] } }],
+  },
+  succube: {
+    name: 'Succube', icon: '💋', magic: true, ranged: true,
+    pv: { base: 32, perLevel: 7 }, atq: { base: 10, perLevel: 2.3 },
+    def: { base: 2, perLevel: 0.8 }, defMag: { base: 5, perLevel: 1.4 }, vit: { min: 10, max: 14 },
+    abilities: [
+      { chance: 0.2, skill: { name: 'Baiser envoûtant', kind: 'support', target: 'hero', effects: [confus(2)] } },
+      { chance: 0.25, skill: { name: 'Fouet d\'ombre', kind: 'damage', target: 'hero', power: 0.9, magic: true, effects: [dark(0.3)] } },
+    ],
+  },
+  chevalierInfernal: {
+    name: 'Chevalier infernal', icon: '⚔️', riposte: 15,
+    pv: { base: 48, perLevel: 8.5 }, atq: { base: 9, perLevel: 2.2 },
+    def: { base: 6, perLevel: 1.6 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 9 },
+    abilities: [{ chance: 0.25, skill: { name: 'Lame maudite', kind: 'damage', target: 'hero', power: 1.3, effects: [{ id: 'affaibli', turns: 2 }] } }],
+  },
+  behemoth: {
+    name: 'Béhémoth', icon: '🐂', riposte: 10, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 95, perLevel: 14 }, atq: { base: 10, perLevel: 2.5 },
+    def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1.2 }, vit: { min: 5, max: 8 },
+    abilities: [{ chance: 0.3, skill: { name: 'Piétinement', kind: 'damage', target: 'allHeroes', power: 0.6, effects: [stun] } }],
+  },
+  gardienDeLaPorte: {
+    name: 'Gardien de la porte', icon: '🚪', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 290, perLevel: 33 }, atq: { base: 15, perLevel: 2.8 },
+    def: { base: 12, perLevel: 2.2 }, defMag: { base: 8, perLevel: 1.6 }, vit: { min: 6, max: 8 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Sceau infernal', kind: 'support', target: 'self', effects: [{ id: 'bouclier', turns: 2, power: 2.2 }] } },
+      { chance: 0.25, skill: { name: 'Jugement', kind: 'damage', target: 'hero', power: 1.8, effects: [{ id: 'terreur', turns: 2 }] } },
+    ],
+  },
+  reineSuccube: {
+    name: 'Reine succube', icon: '🦇', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
+    pv: { base: 250, perLevel: 30 }, atq: { base: 16, perLevel: 2.9 },
+    def: { base: 5, perLevel: 1.2 }, defMag: { base: 10, perLevel: 1.8 }, vit: { min: 11, max: 14 },
+    abilities: [
+      { chance: 0.25, skill: { name: 'Danse des ombres', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [dark(0.3)] } },
+      { chance: 0.2, skill: { name: 'Charme', kind: 'support', target: 'hero', effects: [confus(2)] } },
+      { chance: 0.2, skill: { name: 'Drain de vie', kind: 'heal', target: 'self', power: 1.8 } },
+    ],
+  },
+  seigneurDeLAbime: {
+    name: "Seigneur de l'Abîme", icon: '👹', boss: true, xpMult: 10, goldMult: 8, magic: true,
+    pv: { base: 450, perLevel: 44 }, atq: { base: 18, perLevel: 3.3 },
+    def: { base: 10, perLevel: 2 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 10, max: 12 },
+    abilities: [
+      { chance: 0.25, skill: { name: 'Apocalypse', kind: 'damage', target: 'allHeroes', power: 0.9, magic: true, effects: [burn(0.4), dark(0.3)] } },
+      { chance: 0.2, skill: { name: 'Main du néant', kind: 'damage', target: 'hero', power: 2.3, magic: true, effects: [stun] } },
+      { chance: 0.15, skill: { name: 'Terreur absolue', kind: 'support', target: 'allHeroes', effects: [{ id: 'terreur', turns: 2 }, { id: 'affaibli', turns: 2 }] } },
+      { chance: 0.15, skill: { name: 'Rage abyssale', kind: 'support', target: 'self', effects: [{ id: 'puissance', turns: 3 }, { id: 'hate', turns: 3 }] } },
     ],
   },
 };
@@ -4785,20 +5063,29 @@ function bestiaryPages() {
   }));
 }
 
+// Niveaux où l'on croise l'ennemi dans la zone : { minLevel, maxLevel } des sous-zones
+// qui le contiennent, ou null.
+function levelRange(dungeonKey, enemyKey) {
+  const subs = DUNGEONS[dungeonKey].subzones.filter((s) =>
+    s.boss === enemyKey || s.pool.includes(enemyKey) || s.elites?.includes(enemyKey));
+  if (!subs.length) return null;
+  return { minLevel: Math.min(...subs.map((s) => s.minLevel)), maxLevel: Math.max(...subs.map((s) => s.maxLevel)) };
+}
+
 // Nombre d'ennemis découverts / total.
 function bestiaryProgress(game) {
   const all = bestiaryPages().flatMap((p) => p.enemies);
   return { found: all.filter((k) => isDiscovered(game, k)).length, total: all.length };
 }
 
-return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, bestiaryProgress };
+return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, levelRange, bestiaryProgress };
 })();
 
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
 const { maybeTriggerEvent } = __modules["src/game/events.js"];
 const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
-const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
+const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
 const { recordKills } = __modules["src/game/bestiary.js"];
@@ -4847,10 +5134,21 @@ function isBossFloor(key, floor) {
   return floor % DUNGEONS[key].bossEvery === 0;
 }
 
-// Niveau des ennemis : de minLevel (étage 1) à maxLevel (dernier étage).
+// Sous-zone d'un étage (voir data/dungeons.js).
+function subzoneOf(key, floor) {
+  return DUNGEONS[key].subzones[tierOf(key, floor)];
+}
+
+// Étage dans sa sous-zone : 1 à FLOORS_PER_SUBZONE (le dernier est celui du boss).
+function floorInSubzone(floor) {
+  return ((floor - 1) % FLOORS_PER_SUBZONE) + 1;
+}
+
+// Niveau des ennemis : de minLevel (1er étage de la sous-zone) à maxLevel (étage du boss).
 function floorLevel(key, floor) {
-  const d = DUNGEONS[key];
-  return d.minLevel + Math.round(((floor - 1) * (d.maxLevel - d.minLevel)) / (d.floors - 1));
+  const { minLevel, maxLevel } = subzoneOf(key, floor);
+  const step = (floor - 1) % FLOORS_PER_SUBZONE;
+  return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
 }
 
 // Composition d'un étage : { enemies: [clés], boss, final }.
@@ -4858,9 +5156,12 @@ function encounterFor(key, floor) {
   const d = DUNGEONS[key];
   const tier = tierOf(key, floor);
   const byTier = (list) => list[Math.min(tier, list.length - 1)];
-  const randomFoes = (n) => Array.from({ length: n }, () => pick(d.pool));
+  const sub = subzoneOf(key, floor);
+  // Un ennemi ordinaire est parfois remplacé par un élite de la sous-zone.
+  const foe = () => (sub.elites?.length && random() < DUNGEON.eliteChance ? pick(sub.elites) : pick(sub.pool));
+  const randomFoes = (n) => Array.from({ length: n }, foe);
   if (isBossFloor(key, floor)) {
-    return { enemies: [d.bosses[tier], ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
+    return { enemies: [sub.boss, ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
   }
   return { enemies: randomFoes(byTier(DUNGEON.enemiesByTier)), boss: false, final: false };
 }
@@ -4904,7 +5205,7 @@ function floorCombat(game) {
     enemies,
     level: floorLevel(dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
-    title: `${d.name} — étage ${floor}/${d.floors}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
+    title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
   };
 }
 
@@ -4986,7 +5287,7 @@ function leaveExpedition(game) {
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, floorLevel, encounterFor, startFloors, fightsOnFloor, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, subzoneOf, floorInSubzone, floorLevel, encounterFor, startFloors, fightsOnFloor, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
 })();
 
 // ---- src/game/enemies.js
@@ -5804,7 +6105,7 @@ __modules["src/ui/encounter.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
-const { floorCombat, winFloor, loseExpedition, escapeExpedition } = __modules["src/game/dungeon.js"];
+const { floorCombat, winFloor, loseExpedition, escapeExpedition, subzoneOf } = __modules["src/game/dungeon.js"];
 const { recordEncounter } = __modules["src/game/bestiary.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
@@ -5881,8 +6182,8 @@ function finish() {
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
     return;
   }
-  const bossText = r.boss ? ' Le boss est vaincu !' : '';
-  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu !` : null, loot: [], summary: r });
+  const nextZone = r.boss ? subzoneOf(dungeonKey, state.expedition.floor) : null;
+  Object.assign(lastFloor, { message: r.boss ? `Le boss est vaincu ! La sous-zone suivante, ${nextZone.name} (niv. ${nextZone.minLevel}-${nextZone.maxLevel}), devient un point de départ.` : null, loot: [], summary: r });
   goTo('dungeon');
 }
 
@@ -6128,13 +6429,14 @@ return { openEquipment, renderEquipment };
 // ---- src/ui/screens/forge.js
 __modules["src/ui/screens/forge.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { RARITIES, RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
+const { RARITIES, MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { FORGE } = __modules["src/config.js"];
 const { getClass } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemStats } = __modules["src/game/items.js"];
-const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries } = __modules["src/game/forge.js"];
+const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries, absorbProblem, absorbLegendary } = __modules["src/game/forge.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
 const { goTo } = __modules["src/ui/router.js"];
@@ -6152,12 +6454,14 @@ const { goTo } = __modules["src/ui/router.js"];
 
 
 
+
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-// tab : 'items' (amélioration / décraft) ou 'craft' (fabrication) ; order : commande en cours.
-const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' } };
+// tab : 'items' (amélioration / décraft), 'craft' (fabrication) ou 'divine' (Forge divine) ;
+// order : commande en cours ; divineId : objet divin choisi à la Forge divine.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' }, divineId: null };
 
 // Raretés dont le décraft demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire'];
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
 
 function openForge() {
   Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
@@ -6179,8 +6483,9 @@ function renderForge(app) {
     <div class="tabs">
       <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
       <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+      <button data-tab="divine" class="${view.tab === 'divine' ? 'selected' : ''}" style="color:${RARITIES.divin.color}">✴️ Forge divine</button>
     </div>
-    ${view.tab === 'craft' ? craftPanel() : `
+    ${view.tab === 'craft' ? craftPanel() : view.tab === 'divine' ? divinePanel() : `
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -6208,6 +6513,7 @@ function renderForge(app) {
     };
   });
   bindCraft(app);
+  bindDivine(app);
   app.querySelectorAll('[data-item]').forEach((row) => {
     row.onclick = () => {
       Object.assign(view, { selectedId: row.dataset.item, confirm: null });
@@ -6354,7 +6660,7 @@ function craftPanel() {
         ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
       </div>
       <div class="craft-row"><span>Rareté</span>
-        ${RARITY_ORDER.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+        ${MATERIA_RARITIES.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
       </div>
       ${CRAFT_FILTERS[order.kind].map((f) => `
         <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
@@ -6397,6 +6703,69 @@ function bindCraft(app) {
       view.crafted = item;
     }
     goTo('forge');
+  });
+}
+
+// ---- Forge divine ----
+
+function allItems() {
+  return [...state.party.flatMap((hero) => equippedItems(hero)), ...state.bag];
+}
+
+function divinePanel() {
+  const divines = [...new Set(allItems())].filter((i) => i.rarity === 'divin');
+  const divine = divines.find((i) => i.id === view.divineId) ?? null;
+  const legendaries = state.bag.filter((i) => i.legendary);
+  return `
+    <p class="hint">Un objet <b style="color:${RARITIES.divin.color}">divin</b> peut absorber le pouvoir unique d'un objet légendaire du sac. Le légendaire est détruit ; le pouvoir s'applique comme s'il était porté (il ne sert qu'à la classe concernée). Un nouveau pouvoir remplace l'ancien.</p>
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets divins</h3>
+        ${divines.length ? divines.map((i) => `
+          <button class="bag-row ${i === divine ? 'selected' : ''}" data-divine="${i.id}">
+            <span class="rarity-text" style="--rc:${RARITIES.divin.color}">${esc(itemName(i))}</span>
+            <small>${itemMeta(i)}${wearerOf(i) ? ` · porté par ${esc(wearerOf(i).name)}` : ''}</small>
+          </button>`).join('') : '<p class="hint">Aucun objet divin. Ils ne tombent que sur les boss, à partir de la difficulté Guerre.</p>'}
+      </div>
+      <div class="card detail">
+        ${divine ? `
+          ${itemCard(divine)}
+          <div class="forge-section">
+            <h3>Absorber un pouvoir légendaire</h3>
+            ${legendaries.length ? legendaries.map((leg) => {
+              const cls = CLASSES[leg.legendary.classKey];
+              const confirming = view.confirm === `absorb:${leg.id}`;
+              return `
+                <div class="absorb-row">
+                  <div><span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${cls.icon} ${cls.name})</small>` : ''}<br><small>${esc(leg.legendary.desc)}</small></div>
+                  <button data-absorb="${leg.id}" class="${confirming ? 'danger' : ''}" ${absorbProblem(state, divine, leg) ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : '✴️ Absorber'}</button>
+                </div>`;
+            }).join('') : '<p class="hint">Aucun objet légendaire dans le sac (un légendaire porté doit d\'abord être retiré).</p>'}
+            ${divine.absorbed && legendaries.length ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
+          </div>` : '<p class="hint">Choisis un objet divin.</p>'}
+      </div>
+    </div>`;
+}
+
+function bindDivine(app) {
+  app.querySelectorAll('[data-divine]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { divineId: btn.dataset.divine, confirm: null });
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-absorb]').forEach((btn) => {
+    btn.onclick = () => {
+      const leg = state.bag.find((i) => i.id === btn.dataset.absorb);
+      const divine = allItems().find((i) => i.id === view.divineId);
+      if (view.confirm !== `absorb:${leg.id}`) {
+        view.confirm = `absorb:${leg.id}`;
+      } else {
+        if (absorbLegendary(state, divine, leg) !== false) view.flash = `${itemName(divine)} absorbe le pouvoir de ${itemName(leg)}.`;
+        view.confirm = null;
+      }
+      goTo('forge');
+    };
   });
 }
 
@@ -6597,7 +6966,7 @@ const { goTo } = __modules["src/ui/router.js"];
 const view = { confirm: null, flash: null };
 
 // Raretés dont la vente demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire'];
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
 
 function openMerchant() {
   Object.assign(view, { confirm: null, flash: null });
@@ -6987,8 +7356,8 @@ return { openInn, renderInn };
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
-const { isUnlocked, progressOf, startFloors, startExpedition, floorLevel } = __modules["src/game/dungeon.js"];
+const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
+const { isUnlocked, progressOf, startFloors, startExpedition } = __modules["src/game/dungeon.js"];
 const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
@@ -7041,7 +7410,7 @@ function renderHub(app) {
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card">
       <h2>Portails</h2>
-      <p class="hint">Un boss garde la fin de chaque palier de ${DUNGEONS[DUNGEON_ORDER[0]].bossEvery} étages. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu devient un point de départ.</p>
+      <p class="hint">Chaque zone compte 3 sous-zones de ${FLOORS_PER_SUBZONE} étages ; un boss garde le dernier étage de chaque sous-zone. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu ouvre la sous-zone suivante comme point de départ.</p>
       <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
     </div>
     <div class="card section">
@@ -7104,18 +7473,26 @@ function heroMini(hero) {
 function portal(key) {
   const d = DUNGEONS[key];
   if (!isUnlocked(state, key)) {
-    return `<div class="card portal locked"><h3>🔒 ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages. Terminez le donjon précédent pour l'ouvrir.</p></div>`;
+    return `<div class="card portal locked"><h3>🔒 Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel}. Terminez la zone précédente pour l'ouvrir.</p></div>`;
   }
   const progress = progressOf(state, key);
-  const status = progress.cleared ? '✓ Terminé' : progress.checkpoint ? `Dernier boss vaincu : étage ${progress.checkpoint}` : 'Jamais exploré';
+  const starts = startFloors(state, key);
   return `
     <div class="card portal">
-      <h3>${d.icon} ${d.name}</h3>
+      <h3>${d.icon} Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}${progress.cleared ? ' <b>✓</b>' : ''}</h3>
       <p>${d.desc}</p>
-      <p>Niveaux ${d.minLevel} à ${d.maxLevel} · ${d.floors} étages · <b>${status}</b></p>
-      <div class="start-floors">
-        ${startFloors(state, key).map((f) => `
-          <button data-dungeon="${key}" data-floor="${f}">Entrer — étage ${f} <small>(niv. ${floorLevel(key, f)})</small></button>`).join('')}
+      <p>Niveaux ${d.minLevel} à ${d.maxLevel}</p>
+      <div class="subzones">
+        ${d.subzones.map((sub, i) => {
+          const first = i * FLOORS_PER_SUBZONE + 1;
+          const beaten = progress.checkpoint >= first + FLOORS_PER_SUBZONE - 1;
+          const open = starts.includes(first);
+          return `
+            <div class="subzone ${open ? '' : 'locked'}">
+              <span>${i + 1}. ${esc(sub.name)} <small>niv. ${sub.minLevel}-${sub.maxLevel}${beaten ? ' · ✓ boss vaincu' : ''}</small></span>
+              ${open ? `<button data-dungeon="${key}" data-floor="${first}">Entrer</button>` : '<small>🔒</small>'}
+            </div>`;
+        }).join('')}
       </div>
     </div>`;
 }
@@ -7283,14 +7660,14 @@ return { isFieldSkill, fieldSkills, fieldTargets, cannotCastReason, castOutOfCom
 // ---- src/ui/screens/dungeon.js
 __modules["src/ui/screens/dungeon.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { DUNGEONS, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
 const { fieldSkills, castOutOfCombat, cannotCastReason } = __modules["src/game/field.js"];
 const { healAmount } = __modules["src/game/formulas.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
-const { isBossFloor, floorLevel, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
+const { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } = __modules["src/game/consumables.js"];
 const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
@@ -7350,7 +7727,7 @@ function renderDungeon(app) {
   const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>Étage ${exp.floor}/${d.floors}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
     ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
     ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${lastCombatLog(state.lastCombat)}
@@ -7378,7 +7755,7 @@ function renderDungeon(app) {
         </div>` : `
       <div class="actions">
         <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? `☠️ Affronter le boss (étage ${exp.floor})` : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${exp.floor} (${exp.fights} combats)`}
+          ${nextIsBoss ? '☠️ Affronter le boss' : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${floorInSubzone(exp.floor)} (${exp.fights} combats)`}
         </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
@@ -7474,7 +7851,7 @@ function renderDungeon(app) {
     const d2 = DUNGEONS[exp.dungeonKey];
     const { gold, xp, items, materia } = exp.gains;
     if (leaveExpedition(state)) {
-      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
+      showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${esc(subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name)}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   };
   app.querySelector('#equip').onclick = () => openEquipment();
@@ -7555,16 +7932,16 @@ function itemPanel() {
     </div>`;
 }
 
-// Frise des étages du palier en cours : étages passés, prochain étage, boss.
+// Frise des étages de la sous-zone en cours : étages passés, prochain étage, boss.
 function floorTrack(key, next) {
   const d = DUNGEONS[key];
   const first = Math.floor((next - 1) / d.bossEvery) * d.bossEvery + 1;
   const cells = [];
   for (let f = first; f < first + d.bossEvery && f <= d.floors; f++) {
     const cls = f < next ? 'done' : f === next ? 'next' : '';
-    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : f}</div>`);
+    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : floorInSubzone(f)}</div>`);
   }
-  return `<small>Palier ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.floors / d.bossEvery}</small><div class="floors">${cells.join('')}</div>`;
+  return `<small>Sous-zone ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.subzones.length} · ${esc(subzoneOf(key, next).name)}</small><div class="floors">${cells.join('')}</div>`;
 }
 
 function heroMini(hero) {
@@ -8150,7 +8527,7 @@ function renderDifficulty(app) {
     <div class="hero"><h1>⚖️ Difficulté</h1><p>Plus c'est dur, plus les monstres sont puissants… et plus le butin est riche</p></div>
     ${state.expedition ? '<div class="card notice">Impossible de changer de difficulté pendant une expédition.</div>' : ''}
     <div class="difficulty-grid">${DIFFICULTY_ORDER.map((k) => card(k, k === current)).join('')}</div>
-    <p class="hint center">L'or et l'expérience ne changent pas. Chances d'objets par ennemi ordinaire ; un boss laisse toujours au moins un équipement peu commun ou mieux.</p>
+    <p class="hint center">Les chances sont tirées pour chaque ennemi vaincu. Les tableaux donnent la rareté de chaque objet obtenu. La rareté <b style="color:${RARITIES.divin.color}">Divin</b> ne tombe que sur les boss. L'or et l'expérience ne changent pas.</p>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
   app.querySelectorAll('[data-difficulty]').forEach((btn) => {
@@ -8172,20 +8549,34 @@ function weights(w) {
 function card(key, selected) {
   const d = DIFFICULTIES[key];
   const loot = lootRules(key);
+  const head = `<thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="color:${RARITIES[r].color}" title="${RARITIES[r].label}">${short(RARITIES[r].label)}</th>`).join('')}</tr></thead>`;
+  const table = (items, materia) => `
+      <table class="rarity-table">
+        ${head}
+        <tbody>
+          <tr><th>Équipement</th>${weights(items)}</tr>
+          <tr><th>Matéria</th>${weights(materia)}</tr>
+        </tbody>
+      </table>`;
+  const amount = ({ min, max }) => (min === max ? `${min}` : `${min} à ${max}`);
   return `
     <div class="card difficulty ${selected ? 'selected' : ''}">
       <h2>${d.icon} ${d.name}</h2>
       <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
-      <p>Équipement ${pct(loot.dropChance)} · Matéria ${pct(loot.materiaChance)} · Consommable ${pct(loot.consumableChance)}</p>
-      <table class="rarity-table">
-        <thead><tr><th></th>${RARITY_ORDER.map((r) => `<th style="color:${RARITIES[r].color}" title="${RARITIES[r].label}">${short(RARITIES[r].label)}</th>`).join('')}</tr></thead>
-        <tbody>
-          <tr><th>Équipement</th>${weights(loot.rarityWeights)}</tr>
-          <tr><th>Boss</th>${weights(loot.bossRarityWeights)}</tr>
-          <tr><th>Matéria</th>${weights(loot.materiaRarityWeights)}</tr>
-          <tr><th>Matéria (boss)</th>${weights(loot.bossMateriaRarityWeights)}</tr>
-        </tbody>
-      </table>
+      <h4>Monstre normal</h4>
+      <ul class="loot-lines">
+        <li>Équipement : ${pct(loot.dropChance)} de chances</li>
+        <li>Matéria : ${pct(loot.materiaChance)} de chances (${amount(loot.materiaAmount)})</li>
+        <li>Consommable : ${pct(loot.consumableChance)} de chances</li>
+      </ul>
+      ${table(loot.rarityWeights, loot.materiaRarityWeights)}
+      <h4>Boss</h4>
+      <ul class="loot-lines">
+        <li>Équipement : ${loot.bossDrops} garanti${loot.bossDrops > 1 ? 's' : ''} (+1 pour le boss final)</li>
+        <li>Matéria : ${amount(loot.bossMateriaAmount)} garanties</li>
+        <li>Consommable : ${pct(loot.bossConsumableChance)} de chances</li>
+      </ul>
+      ${table(loot.bossRarityWeights, loot.bossMateriaRarityWeights)}
       <button data-difficulty="${key}" class="full ${selected ? 'selected' : ''}" ${selected || state.expedition ? 'disabled' : ''}>${selected ? '✔ Difficulté actuelle' : 'Choisir'}</button>
     </div>`;
 }
@@ -8202,7 +8593,7 @@ const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { enemyStats } = __modules["src/game/enemies.js"];
 const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
-const { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered } = __modules["src/game/bestiary.js"];
+const { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered, levelRange } = __modules["src/game/bestiary.js"];
 const { isUnlocked } = __modules["src/game/dungeon.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
@@ -8246,7 +8637,7 @@ function renderBestiary(app) {
         return `<button data-page="${p.dungeonKey}" class="${p === page ? 'selected' : ''}">${d.icon} ${isUnlocked(state, p.dungeonKey) || n ? esc(d.name) : '???'} <small>(${n}/${p.enemies.length})</small></button>`;
       }).join('')}
     </div>
-    <p class="hint">Stats au premier et au dernier étage du donjon (niveaux ${DUNGEONS[page.dungeonKey].minLevel} → ${DUNGEONS[page.dungeonKey].maxLevel}), en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
+    <p class="hint">Stats au niveau le plus bas et le plus haut où l'on croise la créature dans cette zone, en difficulté ${DIFFICULTIES[diff].icon} ${DIFFICULTIES[diff].name}.</p>
     <div class="bestiary-grid">${page.enemies.map((k) => enemyCard(k, page.dungeonKey, enemyPower(diff))).join('')}</div>
     <div class="center"><button id="backHub">${backLabel()}</button></div>
   `;
@@ -8264,13 +8655,14 @@ function enemyCard(key, dungeonKey, power) {
   if (!isDiscovered(state, key)) {
     return `<div class="card bestiary-card unknown"><div class="big-icon">❔</div><h3>???</h3><p class="hint">${def.boss ? 'Un boss' : 'Une créature'} encore jamais rencontré${def.boss ? '' : 'e'}.</p></div>`;
   }
-  const { minLevel, maxLevel } = DUNGEONS[dungeonKey];
+  const { minLevel, maxLevel } = levelRange(dungeonKey, key);
   const lo = enemyStats(key, minLevel, power);
   const hi = enemyStats(key, maxLevel, power);
   const row = (stat, label = STATS[stat].label) => `<tr><th>${label}</th><td>${lo[stat]}</td><td>→ ${hi[stat]}</td></tr>`;
   const { seen, kills } = bestiaryOf(state)[key];
   const traits = [
     def.boss ? '👑 Boss' : null,
+    def.elite ? '⭐ Élite' : null,
     def.ranged ? '🏹 À distance' : '⚔️ Corps à corps',
     def.magic ? '✨ Attaque magique' : '🗡️ Attaque physique',
     def.riposte ? `↩️ Riposte ${def.riposte} %` : null,
@@ -8280,6 +8672,7 @@ function enemyCard(key, dungeonKey, power) {
       <div class="big-icon">${def.icon}</div>
       <h3>${esc(def.name)}</h3>
       <p class="hint">${traits.join(' · ')}</p>
+      <p class="hint">Niveau ${minLevel} à ${maxLevel}</p>
       <table class="bestiary-stats">
         ${row('pv')}${row('atq')}${row('def')}${row('defMag')}
         <tr><th>Vitesse</th><td colspan="2">${def.vit.min} à ${def.vit.max}</td></tr>
