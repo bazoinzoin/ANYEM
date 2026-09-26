@@ -75,10 +75,10 @@ test("un choix payant n'est possible que si l'on peut payer ; le coût est prél
   game.consumables.potion = 0;
   assert.ok(cannotChooseReason(game, 0));
   game.consumables.potion = 1;
-  const rare = game.materia.arme.rare + game.materia.armure.rare;
+  const rare = game.materia.arme.rare + game.materia.armure.rare + game.materia.bijou.rare;
   assert.ok(chooseEvent(game, 0).ok);
   assert.equal(game.consumables.potion, 0);
-  assert.equal(game.materia.arme.rare + game.materia.armure.rare, rare + 1);
+  assert.equal(game.materia.arme.rare + game.materia.armure.rare + game.materia.bijou.rare, rare + 1);
 });
 
 test('source : soin des héros en vie', () => {

@@ -1,36 +1,49 @@
 // Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
 
 import { state } from '../../state.js';
-import { RARITIES, MATERIA_KINDS } from '../../data/items.js';
+import { RARITIES, RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } from '../../data/items.js';
+import { STATS } from '../../data/stats.js';
+import { FORGE } from '../../config.js';
 import { getClass } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { itemStats } from '../../game/items.js';
-import { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } from '../../game/forge.js';
+import {
+  decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade,
+  CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries,
+} from '../../game/forge.js';
 import { esc } from '../html.js';
 import { itemCard, itemMeta, itemName, formatStat, materiaTable } from '../items.js';
 import { goTo } from '../router.js';
 
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-const view = { selectedId: null, confirm: null, flash: null };
+// tab : 'items' (amélioration / décraft) ou 'craft' (fabrication) ; order : commande en cours.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' } };
 
 // Raretés dont le décraft demande une confirmation.
 const CONFIRM_RARITIES = ['epique', 'legendaire'];
 
 export function openForge() {
-  Object.assign(view, { selectedId: null, confirm: null, flash: null });
+  Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
   goTo('forge');
 }
 
 export function renderForge(app) {
   const item = findItem(view.selectedId);
   const flash = view.flash;
+  const crafted = view.crafted;
   view.flash = null;
+  view.crafted = null;
   const commons = state.bag.filter((i) => i.rarity === 'commun');
 
   app.innerHTML = `
     <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    ${flash ? `<div class="card notice">${esc(flash)}${crafted ? itemCard(crafted) : ''}</div>` : ''}
     <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
+    <div class="tabs">
+      <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
+      <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+    </div>
+    ${view.tab === 'craft' ? craftPanel() : `
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -47,10 +60,17 @@ export function renderForge(app) {
           </button>` : ''}
       </div>
       <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
-    </div>
+    </div>`}
     <div class="center"><button id="backHub">← Retour au village</button></div>
   `;
 
+  app.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { tab: btn.dataset.tab, confirm: null });
+      goTo('forge');
+    };
+  });
+  bindCraft(app);
   app.querySelectorAll('[data-item]').forEach((row) => {
     row.onclick = () => {
       Object.assign(view, { selectedId: row.dataset.item, confirm: null });
@@ -166,4 +186,79 @@ function decraftSection(item) {
       <p>Détruit l'objet et rapporte ${rangeYieldText(decraftYield(item))}.</p>
       <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
     </div>`;
+}
+
+// ---- Fabrication ----
+
+const KIND_FILTER_LABELS = {
+  weaponType: "Type d'arme", slotType: 'Pièce', armorType: "Type d'armure", primary: 'Stat principale',
+};
+
+function optionLabel(filter, value) {
+  if (filter === 'weaponType') return WEAPON_TYPES[value].name;
+  if (filter === 'armorType') return ARMOR_TYPES[value].label;
+  if (filter === 'primary') return STATS[value].label;
+  if (value === 'bouclier') return SHIELD.name;
+  if (JEWELS[value]) return JEWELS[value].name;
+  return SLOTS[value].label;
+}
+
+function craftPanel() {
+  const order = view.order;
+  const cost = craftCost(order);
+  const problem = craftProblem(state, order);
+  const have = state.materia[cost.kind][cost.rarity];
+  const options = craftOptions(order.kind);
+  const legendaries = order.rarity === 'legendaire' ? craftLegendaries(order) : [];
+  return `
+    <div class="card craft">
+      <p class="hint">Fabrique un objet du niveau le plus haut atteint (${state.dungeonLvl}) avec ${FORGE.craftBase} matéria de la rareté voulue, +${FORGE.craftPerFilter} par caractéristique imposée. Ce qui reste « au hasard » est tiré au sort.</p>
+      <div class="craft-row"><span>Catégorie</span>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
+      </div>
+      <div class="craft-row"><span>Rareté</span>
+        ${RARITY_ORDER.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+      </div>
+      ${CRAFT_FILTERS[order.kind].map((f) => `
+        <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
+          <select data-craft-filter="${f}">
+            <option value="">Au hasard</option>
+            ${options[f].map((v) => `<option value="${v}" ${order[f] === v ? 'selected' : ''}>${esc(optionLabel(f, v))}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+      ${order.rarity === 'legendaire' ? `<p class="hint">Légendaires possibles : ${legendaries.length ? legendaries.map((k) => `<b style="color:${RARITIES.legendaire.color}">${esc(LEGENDARIES[k].name)}</b>`).join(', ') : 'aucun'}.</p>` : ''}
+      <ul class="cost"><li class="${have < cost.amount ? 'lack' : 'ok'}">${cost.amount} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(cost.rarity)} <small>(possédé : ${have})</small></li></ul>
+      ${problem ? `<p class="hint">${esc(problem)}</p>` : ''}
+      <button id="craftBtn" ${problem ? 'disabled' : ''}>⚒️ Fabriquer</button>
+    </div>`;
+}
+
+function bindCraft(app) {
+  app.querySelectorAll('[data-craft-kind]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order = { kind: btn.dataset.craftKind, rarity: view.order.rarity };
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-rarity]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order.rarity = btn.dataset.craftRarity;
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-filter]').forEach((sel) => {
+    sel.onchange = () => {
+      if (sel.value) view.order[sel.dataset.craftFilter] = sel.value;
+      else delete view.order[sel.dataset.craftFilter];
+      goTo('forge');
+    };
+  });
+  app.querySelector('#craftBtn')?.addEventListener('click', () => {
+    const item = craft(state, view.order);
+    if (item) {
+      view.flash = `Fabriqué : ${itemName(item)} (dans le sac).`;
+      view.crafted = item;
+    }
+    goTo('forge');
+  });
 }

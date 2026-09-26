@@ -14,6 +14,7 @@ import { renderStrategy } from './ui/screens/strategy.js';
 import { renderInn } from './ui/screens/inn.js';
 import { renderBank } from './ui/screens/bank.js';
 import { renderDifficulty } from './ui/screens/difficulty.js';
+import { renderRunes } from './ui/screens/runes.js';
 
 registerScreens({
   create: renderCreate,
@@ -29,6 +30,7 @@ registerScreens({
   inn: renderInn,
   bank: renderBank,
   difficulty: renderDifficulty,
+  runes: renderRunes,
 });
 
 render();

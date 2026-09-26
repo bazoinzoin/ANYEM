@@ -15,7 +15,8 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 - **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Objet/Compétence/Passer le tour (plusieurs actions par tour pour le Voleur), ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
-- **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5.
+- **Forge** (voir détail ci-dessous) : décraft des objets du sac en matéria, amélioration +1 à +5, fabrication d'objets.
+- **Runomancien** (`game/runes.js`) : relance une stat secondaire choisie (nouvelle stat parmi celles absentes de l'objet, ou la même avec une autre valeur) ; prix selon la rareté (`RUNES` dans `config.js` : 60 / 150 / 400 / 1000 or).
 - **Donjons à étages** (voir détail ci-dessous) : Forêt Maudite et Catacombes oubliées, 25 étages chacun, un boss tous les 5 étages, expéditions sans retour possible avant le boss, points de départ après chaque boss, ennemis et boss avec capacités.
 - **Marchand** (voir détail ci-dessous) : revente du butin, achat de consommables et d'équipement ; action « Objet » en combat.
 - **Expérience et niveaux** : XP à chaque victoire, montée de niveau (PV et stat principale), 1 point de talent par niveau.
@@ -143,8 +144,9 @@ Réglages dans `src/config.js` (`MERCHANT`), consommables dans `src/data/consuma
 ## Forge (choix d'implémentation)
 
 Réglages dans `src/config.js` (`FORGE`), logique dans `src/game/forge.js`.
-- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte **1 à 3 matéria (au hasard)** de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour tout le reste (armures, boucliers, bijoux). Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
+- **Décraft** : uniquement les objets du sac (jamais un objet porté). Rapporte **1 à 3 matéria (au hasard)** de la rareté de l'objet : matéria d'arme pour une arme, matéria d'armure pour une armure ou un bouclier, matéria de bijou pour un bijou. Confirmation demandée pour un objet épique ou légendaire, et pour le décraft en lot de tous les communs du sac.
 - **Amélioration** (+1 à +5), possible sur un objet porté ou dans le sac. Coût du passage à +1/+2/+3/+4/+5 : **2/4/6/8/10 matéria de chaque rareté**, de commun jusqu'à celle de l'objet, plus (10 + 5 × niveau de l'objet) × niveau visé en pièces d'or. Exemple : une arme rare +1 demande 2 matéria d'arme commune, 2 peu commune, 2 rare.
+- **Fabrication** : 20 matéria de la rareté voulue (sorte de la catégorie), +10 par caractéristique imposée (arme : type, stat principale ; armure : pièce ou bouclier, type d'armure, stat principale ; bijou : anneau/collier, stat principale). Le reste est tiré au sort ; niveau = plus haut niveau atteint. En légendaire, un légendaire de la catégorie respectant les filtres est tiré (voir `craftLegendaries`).
 - **Effet** : chaque +1 augmente les stats de l'objet de 10 % (arrondi ; la stat obligatoire gagne au moins +1 par niveau). Les stats de base restent stockées dans `item.stats` ; les stats effectives se lisent via `itemStats(item)`.
 
 ## Système d'équipement (choix d'implémentation)

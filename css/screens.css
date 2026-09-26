@@ -219,3 +219,11 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .rarity-table { border-collapse: collapse; font-size: 12px; width: 100%; margin: 8px 0; }
 .rarity-table th, .rarity-table td { padding: 2px 3px; text-align: center; }
 .rarity-table tbody th { text-align: left; color: var(--dim); font-weight: 400; }
+
+/* ---- Forge : onglets et fabrication ; Runomancien ---- */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tabs button.selected, .craft-row button.selected { background: #3a2c1c; outline: 1px solid var(--gold); }
+.craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.craft-row > span { min-width: 130px; color: var(--dim); }
+.craft-row select { padding: 6px 8px; background: #221910; color: inherit; border: 1px solid #5a4630; border-radius: 6px; }
+.reroll-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3a2c1c; }

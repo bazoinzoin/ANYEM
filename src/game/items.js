@@ -90,7 +90,7 @@ export function rollBase() {
   return { slotType: pick(Object.keys(ARMOR_PIECES)), armorType: pick(Object.keys(ARMOR_TYPES)) };
 }
 
-function primaryOptions(base) {
+export function primaryOptions(base) {
   if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].primaries;
   if (base.slotType === 'bouclier') return SHIELD.primaries;
   if (JEWELS[base.slotType]) return ['force', 'agilite', 'intelligence'];
@@ -130,7 +130,7 @@ function primaryWeight(base) {
   return ARMOR_PIECES[base.slotType];
 }
 
-function secondaryValue(stat, level, range) {
+export function secondaryValue(stat, level, range) {
   const def = SECONDARY_STATS[stat];
   const unit = def.base + def.perLevel * level;
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));

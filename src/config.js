@@ -149,6 +149,16 @@ export const FORGE = {
   tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
+  // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),
+  // + craftPerFilter par caractéristique imposée (type, pièce, stat principale…).
+  craftBase: 20,
+  craftPerFilter: 10,
+};
+
+// Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
+// prix en or selon la rareté de l'objet.
+export const RUNES = {
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
 };
 
 // Marchand. Prix de revente d'un objet :

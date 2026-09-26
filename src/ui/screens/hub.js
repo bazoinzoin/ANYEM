@@ -13,6 +13,7 @@ import { DIFFICULTIES } from '../../config.js';
 import { difficultyOf } from '../../game/difficulty.js';
 import { openEquipment } from './equipment.js';
 import { openForge } from './forge.js';
+import { openRunes } from './runes.js';
 import { openTalents } from './talents.js';
 import { openMerchant } from './merchant.js';
 import { openInn } from './inn.js';
@@ -41,7 +42,8 @@ export function renderHub(app) {
         <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
         <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
-        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
+        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
@@ -60,6 +62,7 @@ export function renderHub(app) {
   app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
+  app.querySelector('#runesBtn').onclick = () => openRunes();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');

@@ -29,11 +29,13 @@ export const RARITIES = {
 
 export const RARITY_ORDER = Object.keys(RARITIES);
 
-// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
-// reste (armures, boucliers, bijoux) des matéria d'armure.
+// Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
+// d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.
+// Elles servent à améliorer et à fabriquer les objets de leur catégorie.
 export const MATERIA_KINDS = {
   arme: { label: "Matéria d'arme", icon: '⚔️' },
   armure: { label: "Matéria d'armure", icon: '🛡️' },
+  bijou: { label: 'Matéria de bijou', icon: '💍' },
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).

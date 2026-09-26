@@ -358,6 +358,14 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .rarity-table { border-collapse: collapse; font-size: 12px; width: 100%; margin: 8px 0; }
 .rarity-table th, .rarity-table td { padding: 2px 3px; text-align: center; }
 .rarity-table tbody th { text-align: left; color: var(--dim); font-weight: 400; }
+
+/* ---- Forge : onglets et fabrication ; Runomancien ---- */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tabs button.selected, .craft-row button.selected { background: #3a2c1c; outline: 1px solid var(--gold); }
+.craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.craft-row > span { min-width: 130px; color: var(--dim); }
+.craft-row select { padding: 6px 8px; background: #221910; color: inherit; border: 1px solid #5a4630; border-radius: 6px; }
+.reroll-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3a2c1c; }
 </style>
 
 </head>
@@ -522,6 +530,16 @@ const FORGE = {
   tierCost: [2, 4, 6, 8, 10],
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
+  // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),
+  // + craftPerFilter par caractéristique imposée (type, pièce, stat principale…).
+  craftBase: 20,
+  craftPerFilter: 10,
+};
+
+// Runomancien : relance d'une stat secondaire choisie (nouvelle stat et nouvelle valeur),
+// prix en or selon la rareté de l'objet.
+const RUNES = {
+  price: { peuCommun: 60, rare: 150, epique: 400, legendaire: 1000 },
 };
 
 // Marchand. Prix de revente d'un objet :
@@ -559,7 +577,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -596,11 +614,13 @@ const RARITIES = {
 
 const RARITY_ORDER = Object.keys(RARITIES);
 
-// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
-// reste (armures, boucliers, bijoux) des matéria d'armure.
+// Matéria : une sorte par catégorie d'équipement. Les armes donnent des matéria
+// d'arme, les armures et boucliers des matéria d'armure, les bijoux des matéria de bijou.
+// Elles servent à améliorer et à fabriquer les objets de leur catégorie.
 const MATERIA_KINDS = {
   arme: { label: "Matéria d'arme", icon: '⚔️' },
   armure: { label: "Matéria d'armure", icon: '🛡️' },
+  bijou: { label: 'Matéria de bijou', icon: '💍' },
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
@@ -973,18 +993,18 @@ function generateItem(opts = {}) {
   return item;
 }
 
-return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, secondaryRange, generateItem };
+return { budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, generateItem };
 })();
 
 // ---- src/game/forge.js
 __modules["src/game/forge.js"] = (() => {
 const { FORGE } = __modules["src/config.js"];
-const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
-const { isWeapon } = __modules["src/game/items.js"];
-const { random } = __modules["src/game/rng.js"];
-// Forge : décraft des objets en matéria et amélioration de +1 à +5.
+const { RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES } = __modules["src/data/items.js"];
+const { isWeapon, generateItem, primaryOptions } = __modules["src/game/items.js"];
+const { random, pick } = __modules["src/game/rng.js"];
+// Forge : décraft des objets en matéria, amélioration de +1 à +5 et fabrication.
 //
-// game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … } }
+// game.materia : { arme: { commun: n, peuCommun: n, … }, armure: { … }, bijou: { … } }
 
 
 
@@ -997,7 +1017,9 @@ function emptyMateria() {
 }
 
 function materiaKind(item) {
-  return isWeapon(item) ? 'arme' : 'armure';
+  if (isWeapon(item)) return 'arme';
+  if (JEWELS[item.slotType]) return 'bijou';
+  return 'armure';
 }
 
 // Gain possible : { kind, rarity, min, max } (la quantité est tirée au décraft).
@@ -1055,7 +1077,100 @@ function upgrade(game, item) {
   return true;
 }
 
-return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
+// ---- Fabrication ----
+//
+// Une commande : { kind: 'arme' | 'armure' | 'bijou', rarity, …filtres }.
+// Filtres possibles (chacun optionnel, tiré au hasard s'il est omis) :
+//   arme   : weaponType, primary
+//   armure : slotType (pièce d'armure ou 'bouclier'), armorType, primary
+//   bijou  : slotType ('anneau' | 'collier'), primary
+// Un légendaire est tiré parmi les légendaires de la catégorie qui respectent les filtres.
+
+const CRAFT_FILTERS = {
+  arme: ['weaponType', 'primary'],
+  armure: ['slotType', 'armorType', 'primary'],
+  bijou: ['slotType', 'primary'],
+};
+
+const PRIMARIES = ['force', 'agilite', 'intelligence'];
+
+// Valeurs proposées pour chaque filtre d'une catégorie.
+function craftOptions(kind) {
+  if (kind === 'arme') return { weaponType: Object.keys(WEAPON_TYPES), primary: PRIMARIES };
+  if (kind === 'bijou') return { slotType: Object.keys(JEWELS), primary: PRIMARIES };
+  return { slotType: [...Object.keys(ARMOR_PIECES), 'bouclier'], armorType: Object.keys(ARMOR_TYPES), primary: PRIMARIES };
+}
+
+function craftFilterCount(order) {
+  return (CRAFT_FILTERS[order.kind] ?? []).filter((f) => order[f]).length;
+}
+
+// Coût : { kind, rarity, amount } matéria.
+function craftCost(order) {
+  return { kind: order.kind, rarity: order.rarity, amount: FORGE.craftBase + FORGE.craftPerFilter * craftFilterCount(order) };
+}
+
+function legendaryKind(leg) {
+  return materiaKind({ slotType: leg.slotType });
+}
+
+// Légendaires pouvant sortir d'une commande légendaire.
+function craftLegendaries(order) {
+  return Object.keys(LEGENDARIES).filter((key) => {
+    const leg = LEGENDARIES[key];
+    return legendaryKind(leg) === order.kind && CRAFT_FILTERS[order.kind].every((f) => !order[f] || leg[f] === order[f]);
+  });
+}
+
+// Pourquoi la commande est impossible (texte), ou null si elle peut être passée.
+function craftProblem(game, order) {
+  if (!CRAFT_FILTERS[order.kind] || !RARITY_ORDER.includes(order.rarity)) return 'Commande invalide.';
+  const options = craftOptions(order.kind);
+  for (const f of CRAFT_FILTERS[order.kind]) {
+    if (order[f] && !options[f].includes(order[f])) return 'Commande invalide.';
+  }
+  if (order.slotType === 'bouclier') {
+    if (order.armorType) return "Un bouclier n'a pas de type d'armure.";
+    if (order.primary && !primaryOptions({ slotType: 'bouclier' }).includes(order.primary)) return "Un bouclier ne peut pas porter d'Agilité.";
+  }
+  if (order.rarity === 'legendaire' && !craftLegendaries(order).length) return 'Aucun légendaire ne correspond à ces critères.';
+  const { kind, rarity, amount } = craftCost(order);
+  const have = game.materia[kind][rarity];
+  if (have < amount) return `Il manque ${amount - have} matéria.`;
+  return null;
+}
+
+// Fabrique l'objet (niveau = plus haut niveau atteint) et le range dans le sac.
+// Retourne l'objet, ou null si la commande est impossible.
+function craft(game, order) {
+  if (craftProblem(game, order)) return null;
+  const { kind, rarity, amount } = craftCost(order);
+  const level = game.dungeonLvl ?? 1;
+  let item;
+  if (rarity === 'legendaire') {
+    item = generateItem({ level, legendary: pick(craftLegendaries(order)) });
+  } else {
+    const base = { slotType: order.slotType, weaponType: order.weaponType, armorType: order.armorType };
+    if (kind === 'arme') {
+      base.slotType = 'arme';
+      base.weaponType ??= pick(Object.keys(WEAPON_TYPES));
+    } else if (kind === 'bijou') {
+      base.slotType ??= pick(Object.keys(JEWELS));
+    } else {
+      // Un type d'armure ou l'Agilité imposés excluent le bouclier.
+      const shieldOk = !order.armorType && (!order.primary || primaryOptions({ slotType: 'bouclier' }).includes(order.primary));
+      base.slotType ??= pick(craftOptions('armure').slotType.filter((slot) => slot !== 'bouclier' || shieldOk));
+      if (base.slotType !== 'bouclier') base.armorType ??= pick(Object.keys(ARMOR_TYPES));
+    }
+    const primary = order.primary ?? pick(primaryOptions(base));
+    item = generateItem({ level, rarity, ...base, primary });
+  }
+  game.materia[kind][rarity] -= amount;
+  game.bag.push(item);
+  return item;
+}
+
+return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftFilterCount, craftCost, craftLegendaries, craftProblem, craft };
 })();
 
 // ---- src/data/dungeons.js
@@ -5922,11 +6037,13 @@ return { openEquipment, renderEquipment };
 // ---- src/ui/screens/forge.js
 __modules["src/ui/screens/forge.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITIES, RARITY_ORDER, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { FORGE } = __modules["src/config.js"];
 const { getClass } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { itemStats } = __modules["src/game/items.js"];
-const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade } = __modules["src/game/forge.js"];
+const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries } = __modules["src/game/forge.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
 const { goTo } = __modules["src/ui/router.js"];
@@ -5942,27 +6059,37 @@ const { goTo } = __modules["src/ui/router.js"];
 
 
 
+
+
 // État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-const view = { selectedId: null, confirm: null, flash: null };
+// tab : 'items' (amélioration / décraft) ou 'craft' (fabrication) ; order : commande en cours.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' } };
 
 // Raretés dont le décraft demande une confirmation.
 const CONFIRM_RARITIES = ['epique', 'legendaire'];
 
 function openForge() {
-  Object.assign(view, { selectedId: null, confirm: null, flash: null });
+  Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
   goTo('forge');
 }
 
 function renderForge(app) {
   const item = findItem(view.selectedId);
   const flash = view.flash;
+  const crafted = view.crafted;
   view.flash = null;
+  view.crafted = null;
   const commons = state.bag.filter((i) => i.rarity === 'commun');
 
   app.innerHTML = `
     <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    ${flash ? `<div class="card notice">${esc(flash)}${crafted ? itemCard(crafted) : ''}</div>` : ''}
     <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
+    <div class="tabs">
+      <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
+      <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+    </div>
+    ${view.tab === 'craft' ? craftPanel() : `
     <div class="equip-layout">
       <div class="card forge-list">
         <h3>Objets portés</h3>
@@ -5979,10 +6106,17 @@ function renderForge(app) {
           </button>` : ''}
       </div>
       <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
-    </div>
+    </div>`}
     <div class="center"><button id="backHub">← Retour au village</button></div>
   `;
 
+  app.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { tab: btn.dataset.tab, confirm: null });
+      goTo('forge');
+    };
+  });
+  bindCraft(app);
   app.querySelectorAll('[data-item]').forEach((row) => {
     row.onclick = () => {
       Object.assign(view, { selectedId: row.dataset.item, confirm: null });
@@ -6100,7 +6234,249 @@ function decraftSection(item) {
     </div>`;
 }
 
+// ---- Fabrication ----
+
+const KIND_FILTER_LABELS = {
+  weaponType: "Type d'arme", slotType: 'Pièce', armorType: "Type d'armure", primary: 'Stat principale',
+};
+
+function optionLabel(filter, value) {
+  if (filter === 'weaponType') return WEAPON_TYPES[value].name;
+  if (filter === 'armorType') return ARMOR_TYPES[value].label;
+  if (filter === 'primary') return STATS[value].label;
+  if (value === 'bouclier') return SHIELD.name;
+  if (JEWELS[value]) return JEWELS[value].name;
+  return SLOTS[value].label;
+}
+
+function craftPanel() {
+  const order = view.order;
+  const cost = craftCost(order);
+  const problem = craftProblem(state, order);
+  const have = state.materia[cost.kind][cost.rarity];
+  const options = craftOptions(order.kind);
+  const legendaries = order.rarity === 'legendaire' ? craftLegendaries(order) : [];
+  return `
+    <div class="card craft">
+      <p class="hint">Fabrique un objet du niveau le plus haut atteint (${state.dungeonLvl}) avec ${FORGE.craftBase} matéria de la rareté voulue, +${FORGE.craftPerFilter} par caractéristique imposée. Ce qui reste « au hasard » est tiré au sort.</p>
+      <div class="craft-row"><span>Catégorie</span>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
+      </div>
+      <div class="craft-row"><span>Rareté</span>
+        ${RARITY_ORDER.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+      </div>
+      ${CRAFT_FILTERS[order.kind].map((f) => `
+        <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
+          <select data-craft-filter="${f}">
+            <option value="">Au hasard</option>
+            ${options[f].map((v) => `<option value="${v}" ${order[f] === v ? 'selected' : ''}>${esc(optionLabel(f, v))}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+      ${order.rarity === 'legendaire' ? `<p class="hint">Légendaires possibles : ${legendaries.length ? legendaries.map((k) => `<b style="color:${RARITIES.legendaire.color}">${esc(LEGENDARIES[k].name)}</b>`).join(', ') : 'aucun'}.</p>` : ''}
+      <ul class="cost"><li class="${have < cost.amount ? 'lack' : 'ok'}">${cost.amount} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(cost.rarity)} <small>(possédé : ${have})</small></li></ul>
+      ${problem ? `<p class="hint">${esc(problem)}</p>` : ''}
+      <button id="craftBtn" ${problem ? 'disabled' : ''}>⚒️ Fabriquer</button>
+    </div>`;
+}
+
+function bindCraft(app) {
+  app.querySelectorAll('[data-craft-kind]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order = { kind: btn.dataset.craftKind, rarity: view.order.rarity };
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-rarity]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order.rarity = btn.dataset.craftRarity;
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-filter]').forEach((sel) => {
+    sel.onchange = () => {
+      if (sel.value) view.order[sel.dataset.craftFilter] = sel.value;
+      else delete view.order[sel.dataset.craftFilter];
+      goTo('forge');
+    };
+  });
+  app.querySelector('#craftBtn')?.addEventListener('click', () => {
+    const item = craft(state, view.order);
+    if (item) {
+      view.flash = `Fabriqué : ${itemName(item)} (dans le sac).`;
+      view.crafted = item;
+    }
+    goTo('forge');
+  });
+}
+
 return { openForge, renderForge };
+})();
+
+// ---- src/game/runes.js
+__modules["src/game/runes.js"] = (() => {
+const { RUNES } = __modules["src/config.js"];
+const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
+const { secondaryValue } = __modules["src/game/items.js"];
+const { pick } = __modules["src/game/rng.js"];
+// Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
+// et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
+
+
+
+
+
+
+// Prix d'une relance, ou null si l'objet n'a pas de secondaire.
+function rerollCost(item) {
+  if (!Object.keys(item.bonus ?? {}).length) return null;
+  return RUNES.price[item.rarity] ?? null;
+}
+
+// Stats pouvant remplacer `stat` : jamais une stat déjà présente sur l'objet
+// (sauf le Blocage d'un bouclier), mais la stat relancée peut ressortir avec une autre valeur.
+function rerollPool(item, stat) {
+  const repeatable = item.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  const others = Object.keys(item.bonus).filter((k) => k !== stat);
+  return Object.keys(SECONDARY_STATS).filter((k) =>
+    k === stat || (!others.includes(k) && (!(k in item.stats) || repeatable.includes(k))));
+}
+
+// Pourquoi la relance est impossible (texte), ou null.
+function rerollProblem(game, item, stat) {
+  if (!(stat in (item.bonus ?? {}))) return "Cette stat n'est pas une stat secondaire de l'objet.";
+  const cost = rerollCost(item);
+  if (game.gold < cost) return `Il manque ${cost - game.gold} pièces d'or.`;
+  return null;
+}
+
+// Relance la secondaire `stat` (l'ordre des lignes est conservé).
+// Retourne { from: { stat, value }, to: { stat, value } }, ou null si impossible.
+function rerollSecondary(game, item, stat) {
+  if (rerollProblem(game, item, stat)) return null;
+  game.gold -= rerollCost(item);
+  const from = { stat, value: item.bonus[stat] };
+  const newStat = pick(rerollPool(item, stat));
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
+  return { from, to };
+}
+
+return { rerollCost, rerollPool, rerollProblem, rerollSecondary };
+})();
+
+// ---- src/ui/screens/runes.js
+__modules["src/ui/screens/runes.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { itemStatLines } = __modules["src/game/items.js"];
+const { rerollCost, rerollPool, rerollProblem, rerollSecondary } = __modules["src/game/runes.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Runomancien : relance d'une stat secondaire d'un objet (porté ou dans le sac).
+
+
+
+
+
+
+
+
+
+
+
+
+const view = { selectedId: null, flash: null };
+
+function openRunes() {
+  Object.assign(view, { selectedId: null, flash: null });
+  goTo('runes');
+}
+
+// Objets relançables : au moins une secondaire.
+const rerollable = (item) => rerollCost(item) !== null;
+
+function renderRunes(app) {
+  const item = findItem(view.selectedId);
+  const flash = view.flash;
+  view.flash = null;
+  const bagItems = state.bag.filter(rerollable);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🔮 Runomancien</h1><p>Or : ${state.gold} · « Donne-moi une rune, je t'en graverai une autre. »</p></div>
+    ${flash ? `<div class="card notice">${flash}</div>` : ''}
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets portés</h3>
+        ${state.party.map((hero) => `
+          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
+          ${equippedItems(hero).filter(rerollable).map(itemRow).join('') || '<p class="hint">Rien à relancer.</p>'}`).join('')}
+        <h3 class="bag-title">Sac</h3>
+        ${bagItems.length ? bagItems.map(itemRow).join('') : '<p class="hint">Aucun objet à stats secondaires dans le sac.</p>'}
+      </div>
+      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Choisis un objet : le Runomancien relance une de ses stats secondaires (nouvelle stat, nouvelle valeur). Les objets communs n\'en ont pas.</p>'}</div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => {
+      view.selectedId = row.dataset.item;
+      goTo('runes');
+    };
+  });
+  app.querySelectorAll('[data-reroll]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = rerollSecondary(state, item, btn.dataset.reroll);
+      if (r) view.flash = `${esc(itemName(item))} : <s>${formatStat(r.from.stat, r.from.value)}</s> → <b>${formatStat(r.to.stat, r.to.value)}</b>`;
+      goTo('runes');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function findItem(id) {
+  if (!id) return null;
+  for (const hero of state.party) {
+    const found = equippedItems(hero).find((i) => i.id === id);
+    if (found) return found;
+  }
+  return state.bag.find((i) => i.id === id) ?? null;
+}
+
+function itemRow(item) {
+  return `
+    <button class="bag-row ${item.id === view.selectedId ? 'selected' : ''}" data-item="${item.id}">
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`;
+}
+
+function detailPanel(item) {
+  const cost = rerollCost(item);
+  const lines = itemStatLines(item).filter((l) => l.secondary);
+  return `
+    ${itemCard(item)}
+    <div class="forge-section">
+      <h3>Relancer une stat secondaire — ${cost} pièces d'or</h3>
+      <p class="hint">Une seule stat change à la fois ; elle peut devenir n'importe quelle stat absente de l'objet, ou ressortir avec une autre valeur.</p>
+      ${lines.map((l) => {
+        const problem = rerollProblem(state, item, l.stat);
+        const pool = rerollPool(item, l.stat).map((k) => STATS[k].label).join(', ');
+        return `
+          <div class="reroll-row">
+            <span>${formatStat(l.stat, l.value)}</span>
+            <button data-reroll="${l.stat}" ${problem ? 'disabled' : ''} title="Résultats possibles : ${esc(pool)}">🔮 Relancer</button>
+          </div>`;
+      }).join('')}
+      ${state.gold < cost ? `<p class="hint">Il te manque ${cost - state.gold} pièces d'or.</p>` : ''}
+    </div>`;
+}
+
+return { openRunes, renderRunes };
 })();
 
 // ---- src/ui/screens/merchant.js
@@ -6464,11 +6840,13 @@ const { DIFFICULTIES } = __modules["src/config.js"];
 const { difficultyOf } = __modules["src/game/difficulty.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
+const { openRunes } = __modules["src/ui/screens/runes.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
 const { openMerchant } = __modules["src/ui/screens/merchant.js"];
 const { openInn } = __modules["src/ui/screens/inn.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
 
 
 
@@ -6511,7 +6889,8 @@ function renderHub(app) {
         <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
         <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
         <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
-        <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
+        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
         <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
@@ -6530,6 +6909,7 @@ function renderHub(app) {
   app.querySelector('#bank').onclick = () => goTo('bank');
   app.querySelector('#merchant').onclick = () => openMerchant();
   app.querySelector('#forge').onclick = () => openForge();
+  app.querySelector('#runesBtn').onclick = () => openRunes();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
@@ -7666,7 +8046,9 @@ const { renderStrategy } = __modules["src/ui/screens/strategy.js"];
 const { renderInn } = __modules["src/ui/screens/inn.js"];
 const { renderBank } = __modules["src/ui/screens/bank.js"];
 const { renderDifficulty } = __modules["src/ui/screens/difficulty.js"];
+const { renderRunes } = __modules["src/ui/screens/runes.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -7697,6 +8079,7 @@ registerScreens({
   inn: renderInn,
   bank: renderBank,
   difficulty: renderDifficulty,
+  runes: renderRunes,
 });
 
 render();
