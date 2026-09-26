@@ -87,12 +87,12 @@ test('équipement impossible : rien ne change', () => {
 
 test('retirer un objet le range dans le sac et ramène les PV sous le nouveau maximum', () => {
   const [guerrier] = party();
-  const belt = generateItem({ level: 1, slotType: 'ceinture', armorType: 'lourde', rarity: 'rare' });
+  const belt = generateItem({ level: 1, slotType: 'bottes', armorType: 'lourde', rarity: 'rare' });
   belt.bonus.pv = 50;
   const bag = [belt];
-  equip(guerrier, bag, belt, 'ceinture');
+  equip(guerrier, bag, belt, 'bottes');
   guerrier.hp = getStats(guerrier).pv;
-  assert.ok(unequip(guerrier, bag, 'ceinture'));
+  assert.ok(unequip(guerrier, bag, 'bottes'));
   assert.deepEqual(bag, [belt]);
   assert.equal(guerrier.hp, getStats(guerrier).pv);
 });

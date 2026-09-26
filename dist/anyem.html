@@ -360,7 +360,6 @@ const ITEM = {
   armorDef: 1.5,          // défense = budget × armorDef × poids de la pièce × defMult du type
   shieldDef: 1.8,
   shieldBlock: { base: 5, perLevel: 0.2 }, // blocage (%) obligatoire d'un bouclier
-  jewelDefMag: 1.2,       // défense magique d'un bijou = budget × jewelDefMag × poids
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
 
@@ -474,7 +473,6 @@ const SLOTS = {
   epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
   plastron: { label: 'Plastron', accepts: ['plastron'] },
   gants: { label: 'Gants', accepts: ['gants'] },
-  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
   bottes: { label: 'Bottes', accepts: ['bottes'] },
   collier: { label: 'Collier', accepts: ['collier'] },
   anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
@@ -507,21 +505,21 @@ const MATERIA_KINDS = {
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
 const ARMOR_PIECES = {
-  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
+  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
 
 const ARMOR_TYPES = {
   lourde: {
-    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
-    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
+    label: 'Armure lourde', defMult: 1.5, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', bottes: 'Solerets' },
   },
   moyenne: {
-    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
-    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
+    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', bottes: 'Bottes de cuir' },
   },
   legere: {
-    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
-    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
+    label: 'Armure légère', defMult: 0.6, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', bottes: 'Sandales' },
   },
 };
 
@@ -554,9 +552,13 @@ const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
 const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
+// Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
+// stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
+// plus forte que sur les autres pièces (weight = poids de la stat principale ; une
+// arme à deux mains est à 1,6, un plastron à 1), puis les secondaires de la rareté.
 const JEWELS = {
-  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
-  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
+  anneau: { name: 'Anneau', label: 'Bijou', weight: 1.8 },
+  collier: { name: 'Collier', label: 'Bijou', weight: 2.2 },
 };
 
 // Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
@@ -783,7 +785,7 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat obligatoire : attaque (arme), défense (armure), défense magique (bijou) ;
+// Stat obligatoire : attaque (arme), défense (armure), aucune (bijou) ;
 // exception : défense + blocage pour un bouclier.
 // Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale.
 function mandatoryStats(base, level, mult) {
@@ -797,9 +799,7 @@ function mandatoryStats(base, level, mult) {
       blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
     };
   }
-  if (JEWELS[base.slotType]) {
-    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
-  }
+  if (JEWELS[base.slotType]) return {}; // bijou : aucune stat obligatoire
   const weight = ARMOR_PIECES[base.slotType];
   return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
 }
@@ -807,7 +807,7 @@ function mandatoryStats(base, level, mult) {
 function primaryWeight(base) {
   if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
   if (base.slotType === 'bouclier') return 0.8;
-  if (JEWELS[base.slotType]) return 1;
+  if (JEWELS[base.slotType]) return JEWELS[base.slotType].weight;
   return ARMOR_PIECES[base.slotType];
 }
 

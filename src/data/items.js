@@ -6,7 +6,6 @@ export const SLOTS = {
   epaulieres: { label: 'Épaulières', accepts: ['epaulieres'] },
   plastron: { label: 'Plastron', accepts: ['plastron'] },
   gants: { label: 'Gants', accepts: ['gants'] },
-  ceinture: { label: 'Ceinture', accepts: ['ceinture'] },
   bottes: { label: 'Bottes', accepts: ['bottes'] },
   collier: { label: 'Collier', accepts: ['collier'] },
   anneau1: { label: 'Anneau 1', accepts: ['anneau'] },
@@ -39,21 +38,21 @@ export const MATERIA_KINDS = {
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
 export const ARMOR_PIECES = {
-  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
+  casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
 
 export const ARMOR_TYPES = {
   lourde: {
-    label: 'Armure lourde', defMult: 1.5, primaries: ['force'],
-    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', ceinture: 'Ceinturon de plates', bottes: 'Solerets' },
+    label: 'Armure lourde', defMult: 1.5, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Heaume', epaulieres: 'Spallières', plastron: 'Cuirasse', gants: 'Gantelets', bottes: 'Solerets' },
   },
   moyenne: {
-    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite'],
-    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', ceinture: 'Ceinture de cuir', bottes: 'Bottes de cuir' },
+    label: 'Armure moyenne', defMult: 1.0, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Casque de cuir', epaulieres: 'Épaulières de cuir', plastron: 'Brigandine', gants: 'Gants de cuir', bottes: 'Bottes de cuir' },
   },
   legere: {
-    label: 'Armure légère', defMult: 0.6, primaries: ['intelligence'],
-    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', ceinture: 'Cordelière', bottes: 'Sandales' },
+    label: 'Armure légère', defMult: 0.6, primaries: ['force', 'agilite', 'intelligence'],
+    names: { casque: 'Capuche', epaulieres: 'Mantelet', plastron: 'Robe', gants: 'Mitaines', bottes: 'Sandales' },
   },
 };
 
@@ -86,9 +85,13 @@ export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
 export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
+// Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
+// stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
+// plus forte que sur les autres pièces (weight = poids de la stat principale ; une
+// arme à deux mains est à 1,6, un plastron à 1), puis les secondaires de la rareté.
 export const JEWELS = {
-  anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
-  collier: { name: 'Collier', label: 'Collier', weight: 0.6 },
+  anneau: { name: 'Anneau', label: 'Bijou', weight: 1.8 },
+  collier: { name: 'Collier', label: 'Bijou', weight: 2.2 },
 };
 
 // Suffixe de nom (rareté ≥ peu commun) selon la stat principale.
