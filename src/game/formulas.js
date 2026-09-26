@@ -1,30 +1,71 @@
 // Formules de dégâts et de soins, et leurs estimations affichées au joueur.
-// Les estimations utilisent exactement les mêmes fourchettes que les jets réels.
+// Les estimations utilisent exactement les mêmes calculs que les jets réels.
+//
+// Un coup : attaque × puissance × variance [× critique] × facteur de défense.
+// `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
 
-import { VARIANCE } from '../config.js';
-import { rand } from './rng.js';
+import { COMBAT, VARIANCE } from '../config.js';
+import { rand, random } from './rng.js';
 
-export function rollDamage(atq, power = 1, [lo, hi] = VARIANCE.hero) {
-  return Math.round(atq * power * rand(lo, hi));
+// Options d'un coup : { power, variance, magic, alwaysCrit }
+export const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false };
+export const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false };
+
+export function skillHitOptions(skill) {
+  return {
+    power: skill.power,
+    variance: skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero,
+    magic: !!skill.magic,
+    alwaysCrit: !!skill.alwaysCrit,
+  };
 }
 
-export function estimateDamage(atq, power = 1, [lo, hi] = VARIANCE.hero) {
-  return { lo: Math.round(atq * power * lo), hi: Math.round(atq * power * hi) };
+export function defenseFactor(defense) {
+  return COMBAT.defenseK / (COMBAT.defenseK + Math.max(0, defense));
+}
+
+export function critMultiplier(stats) {
+  return 1 + stats.critDmg / 100;
+}
+
+// Probabilité (0-1) plafonnée d'une stat en %, ex. chance(stats, 'esquive').
+export function chance(stats, stat) {
+  return Math.min(COMBAT.caps[stat] ?? 100, stats[stat] ?? 0) / 100;
+}
+
+function hitMultiplier(attacker, opts, defender, crit) {
+  let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
+  if (defender) mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+  return mult;
+}
+
+// Fourchette {lo, hi} hors critique aléatoire (inclut le critique s'il est garanti).
+// Sans `defender`, la défense de la cible n'est pas prise en compte.
+export function estimateHit(attacker, opts, defender = null) {
+  const mult = hitMultiplier(attacker, opts, defender, opts.alwaysCrit);
+  const [lo, hi] = opts.variance;
+  return {
+    lo: Math.max(1, Math.round(attacker.atq * mult * lo)),
+    hi: Math.max(1, Math.round(attacker.atq * mult * hi)),
+  };
+}
+
+export function rollHit(attacker, opts, defender) {
+  const crit = opts.alwaysCrit || random() < chance(attacker, 'critChance');
+  const mult = hitMultiplier(attacker, opts, defender, crit);
+  const [lo, hi] = opts.variance;
+  return { amount: Math.max(1, Math.round(attacker.atq * mult * rand(lo, hi))), crit };
 }
 
 export function healAmount(atq, power) {
   return Math.round(atq * power);
 }
 
-export function skillVariance(skill) {
-  return skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero;
-}
-
-// Estimation {lo, hi} de l'effet d'une compétence pour un lanceur d'attaque `atq`.
-export function estimateSkill(atq, skill) {
+// Estimation {lo, hi} de l'effet d'une compétence (soin exact, ou dégâts).
+export function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
-    const amount = healAmount(atq, skill.power);
+    const amount = healAmount(attacker.atq, skill.power);
     return { lo: amount, hi: amount };
   }
-  return estimateDamage(atq, skill.power, skillVariance(skill));
+  return estimateHit(attacker, skillHitOptions(skill), defender);
 }

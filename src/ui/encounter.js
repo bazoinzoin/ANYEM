@@ -39,7 +39,10 @@ function advance() {
 }
 
 function finish() {
-  const message = state.combat.result === 'victory' ? applyVictory(state) : applyDefeat(state);
+  const cb = state.combat;
+  const outcome = cb.result === 'victory'
+    ? applyVictory(state, { enemiesDefeated: cb.enemies.length })
+    : applyDefeat(state);
   state.combat = null;
-  showHub(message);
+  showHub(outcome.message, outcome.loot);
 }

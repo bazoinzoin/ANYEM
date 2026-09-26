@@ -2,10 +2,12 @@
 // même s'il ne reste qu'une seule cible possible.
 
 import { state } from '../../state.js';
+import { COMBAT } from '../../config.js';
 import { DUNGEONS } from '../../data/dungeons.js';
-import { getClass, getStats } from '../../game/party.js';
-import { estimateDamage } from '../../game/formulas.js';
+import { getClass, getStats, getSkills } from '../../game/party.js';
+import { estimateHit, estimateSkill, skillHitOptions, BASIC_ATTACK } from '../../game/formulas.js';
 import { targetsFor } from '../../game/combat.js';
+import { statsOf } from '../../game/units.js';
 import { esc, tip, bar, range } from '../html.js';
 import { skillEffectLabel, skillShortEstimate } from '../format.js';
 import { playerAction } from '../encounter.js';
@@ -72,20 +74,21 @@ function waitingPanel(acting) {
 
 function actionPanel(hero) {
   const cls = getClass(hero);
-  const { atq } = getStats(hero);
-  const atkEst = range(estimateDamage(atq));
+  const stats = getStats(hero);
+  const atkEst = range(estimateHit(stats, BASIC_ATTACK));
+  const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
   return `
     <div class="card">
       <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name})</p>
       <div class="actions">
-        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée. Dégâts estimés : ${atkEst}.`)}>Attaquer · ~${atkEst}</button>
+        <button id="actAttack" ${tip(`Attaque simple avec l'arme équipée. Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)}>Attaquer · ~${atkEst}</button>
         <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour.")}>Défendre</button>
         <span class="hint">Compétences ↓</span>
       </div>
       <div class="skillbox">
-        ${cls.skills.map((s, i) => `
-          <button data-skill="${i}" ${tip(`${s.desc} — ${skillEffectLabel(atq, s)}.`)} ${hero.res < s.cost ? 'disabled' : ''}>
-            ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(atq, s)}
+        ${getSkills(hero).map((s, i) => `
+          <button data-skill="${i}" ${tip(`${s.desc} — ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée par un objet légendaire.' : ''}`)} ${hero.res < s.cost ? 'disabled' : ''}>
+            ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(stats, s)}
           </button>`).join('')}
       </div>
       <div id="targetZone" class="target-zone"></div>
@@ -96,13 +99,23 @@ function wireActions(app, hero) {
   const cb = state.combat;
   const zone = app.querySelector('#targetZone');
 
+  const stats = getStats(hero);
+
+  // Estimation affichée sur chaque cible (défense de la cible comprise).
+  const targetEstimate = (action, unit) => {
+    if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
+    const skill = getSkills(hero)[action.skill];
+    if (skill.kind === 'heal') return `+${range(estimateSkill(stats, skill))} PV`;
+    return `~${range(estimateHit(stats, skillHitOptions(skill), statsOf(unit)))}`;
+  };
+
   // Affiche les cibles valides ; l'action n'est lancée qu'au clic sur une cible.
   const chooseTarget = (action) => {
     const targets = targetsFor(cb, action);
     if (!targets) return playerAction(action);
     const list = targets.side === 'enemy' ? cb.enemies : cb.party;
     zone.innerHTML = targets.units
-      .map((u) => `<button data-target="${list.indexOf(u)}">Cibler ${esc(u.name)}</button>`)
+      .map((u) => `<button data-target="${list.indexOf(u)}">Cibler ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
       .join('');
     zone.querySelectorAll('[data-target]').forEach((btn) => {
       btn.onclick = () => playerAction({ ...action, target: Number(btn.dataset.target) });

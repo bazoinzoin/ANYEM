@@ -5,13 +5,13 @@
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
 // le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
 
-import { COMBAT, VARIANCE } from '../config.js';
+import { COMBAT } from '../config.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { createEnemy } from './enemies.js';
-import { getClass, gainResource } from './party.js';
-import { rollDamage, healAmount, skillVariance } from './formulas.js';
+import { getClass, getSkills, gainResource } from './party.js';
+import { rollHit, healAmount, skillHitOptions, chance, BASIC_ATTACK, ENEMY_ATTACK } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { pick } from './rng.js';
+import { pick, random } from './rng.js';
 
 export function createCombat({ dungeonKey, level, party }) {
   const dungeon = DUNGEONS[dungeonKey];
@@ -105,7 +105,7 @@ function aliveAt(list, index) {
 export function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
   if (action.type === 'skill') {
-    const skill = getClass(cb.acting.unit).skills[action.skill];
+    const skill = getSkills(cb.acting.unit)[action.skill];
     if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
     if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
   }
@@ -122,8 +122,6 @@ export function targetsFor(cb, action) {
 export function heroAct(cb, action) {
   if (!cb.acting || cb.acting.side !== 'hero') return false;
   const hero = cb.acting.unit;
-  const cls = getClass(hero);
-  const atq = statsOf(hero).atq;
 
   if (action.type === 'defend') {
     hero.guard = true;
@@ -131,13 +129,13 @@ export function heroAct(cb, action) {
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
     if (!target) return false;
-    const dmg = rollDamage(atq);
-    const fell = damage(target, dmg);
-    log(cb, `${hero.name} attaque ${target.name} pour ${dmg} dégâts.`, true);
+    const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
+    const fell = damage(target, hit.amount);
+    log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
-    gainResource(hero, cls.resource.onAttack);
+    gainResource(hero, getClass(hero).resource.onAttack);
   } else if (action.type === 'skill') {
-    const skill = cls.skills[action.skill];
+    const skill = getSkills(hero)[action.skill];
     if (!skill || hero.res < skill.cost) return false;
     if (!useSkill(cb, hero, skill, action.target)) return false;
   } else {
@@ -147,14 +145,19 @@ export function heroAct(cb, action) {
   return true;
 }
 
+function critText(hit) {
+  return hit.crit ? ' (critique !)' : '';
+}
+
 function useSkill(cb, hero, skill, targetIndex) {
-  const atq = statsOf(hero).atq;
+  const stats = statsOf(hero);
+  const opts = skillHitOptions(skill);
 
   if (skill.target === 'ally') {
     const target = aliveAt(cb.party, targetIndex);
     if (!target) return false;
     hero.res -= skill.cost;
-    const amount = healAmount(atq, skill.power);
+    const amount = healAmount(stats.atq, skill.power);
     heal(target, amount);
     log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} (+${amount} PV).`, true);
     return true;
@@ -164,7 +167,7 @@ function useSkill(cb, hero, skill, targetIndex) {
     hero.res -= skill.cost;
     log(cb, `${hero.name} utilise ${skill.name}, frappant tous les ennemis !`, true);
     for (const enemy of cb.enemies.filter(isAlive)) {
-      if (damage(enemy, rollDamage(atq, skill.power, skillVariance(skill)))) logFall(cb, enemy);
+      if (damage(enemy, rollHit(stats, opts, statsOf(enemy)).amount)) logFall(cb, enemy);
     }
     return true;
   }
@@ -172,26 +175,35 @@ function useSkill(cb, hero, skill, targetIndex) {
   const target = aliveAt(cb.enemies, targetIndex);
   if (!target) return false;
   hero.res -= skill.cost;
-  const dmg = rollDamage(atq, skill.power, skillVariance(skill));
-  const fell = damage(target, dmg);
+  const hit = rollHit(stats, opts, statsOf(target));
+  const fell = damage(target, hit.amount);
   if (skill.bleed && !fell) target.bleed = skill.bleed;
-  log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} pour ${dmg} dégâts.`, true);
+  log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
   if (fell) logFall(cb, target);
   return true;
 }
 
 // IA ennemie : attaque un héros vivant au hasard.
+// Le héros peut esquiver (aucun dégât) ou bloquer (dégâts réduits).
 export function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
   const enemy = cb.acting.unit;
   const target = pick(cb.party.filter(isAlive));
   if (target) {
-    let dmg = rollDamage(statsOf(enemy).atq, 1, VARIANCE.enemy);
-    if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
-    const fell = damage(target, dmg);
-    log(cb, `${enemy.name} attaque ${target.name} pour ${dmg} dégâts.`, true);
-    if (fell) logFall(cb, target);
-    else gainResource(target, getClass(target).resource.onHitTaken);
+    const targetStats = statsOf(target);
+    if (random() < chance(targetStats, 'esquive')) {
+      log(cb, `${target.name} esquive l'attaque de ${enemy.name} !`, true);
+    } else {
+      const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, targetStats);
+      let dmg = hit.amount;
+      const blocked = random() < chance(targetStats, 'blocage');
+      if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
+      if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
+      const fell = damage(target, dmg);
+      log(cb, `${enemy.name} attaque ${target.name} pour ${dmg} dégâts${critText(hit)}${blocked ? ' (bloqué)' : ''}.`, true);
+      if (fell) logFall(cb, target);
+      else gainResource(target, getClass(target).resource.onHitTaken);
+    }
   }
   endTurn(cb);
 }

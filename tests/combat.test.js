@@ -64,7 +64,7 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
   cb.party[mage].hp = 10;
   turn.unit.res = 80;
   assert.ok(heroAct(cb, { type: 'skill', skill: 0, target: mage }));
-  assert.equal(cb.party[mage].hp, 10 + Math.round(9 * 2.6));
+  assert.equal(cb.party[mage].hp, 10 + Math.round(getStats(turn.unit).atq * 1.7));
   assert.equal(cb.party[guerrier].hp, 0);
 });
 
@@ -118,4 +118,41 @@ test('le combat se termine par une victoire quand tous les ennemis tombent', () 
   cb.enemies.forEach((e) => { e.alive = false; e.hp = 0; });
   assert.equal(nextTurn(cb), null);
   assert.equal(cb.result, 'victory');
+});
+
+test('la défense de la cible réduit les dégâts', () => {
+  const { cb } = newCombat();
+  playUntilHero(cb, voleur);
+  const [a, b] = cb.enemies;
+  b.stats.def = 100; // dégâts divisés par deux
+  const hpA = a.hp;
+  const hpB = b.hp;
+  heroAct(cb, { type: 'attack', target: 0 });
+  playUntilHero(cb, voleur);
+  heroAct(cb, { type: 'attack', target: 1 });
+  assert.equal(hpB - b.hp, Math.round((hpA - a.hp) / 2) || 1);
+});
+
+test('esquive : le héros ne subit aucun dégât', () => {
+  const { cb } = newCombat();
+  cb.party.forEach((h) => { h.equipment = {}; });
+  // esquive 100 % (plafonnée à 50 %) et jets à 0,4 : toujours esquivé
+  setRandomSource(() => 0.4);
+  cb.party.forEach((h) => { h.equipment.anneau1 = { stats: { esquive: 100 } }; });
+  const hp = cb.party.map((h) => h.hp);
+  for (let i = 0; i < 12; i++) {
+    const turn = nextTurn(cb);
+    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    else enemyAct(cb);
+  }
+  assert.deepEqual(cb.party.map((h) => h.hp), hp);
+  assert.ok(cb.log.some((l) => l.text.includes('esquive')));
+});
+
+test('Coup Vicieux est toujours critique', () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  turn.unit.res = 60;
+  heroAct(cb, { type: 'skill', skill: 0, target: 0 });
+  assert.ok(cb.log[0].text.includes('critique') || cb.log[1].text.includes('critique'));
 });

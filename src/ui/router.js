@@ -21,7 +21,8 @@ export function goTo(screen) {
   render();
 }
 
-export function showHub(message = null) {
+export function showHub(message = null, loot = []) {
   state.hubMessage = message;
+  state.hubLoot = loot;
   goTo('hub');
 }

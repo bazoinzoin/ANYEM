@@ -33,9 +33,25 @@ button.tooltip:disabled { cursor: not-allowed; }
 .tooltip:hover::after, .tooltip:focus-visible::after {
   content: attr(data-tip); position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 9px);
   background: #0c0904; border: 1px solid var(--line); color: var(--cream); padding: 9px 11px; border-radius: 5px;
-  font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: normal;
+  font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: pre-line; text-align: left;
 }
 .tooltip:hover::before, .tooltip:focus-visible::before {
   content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%;
   border: 6px solid transparent; border-top-color: var(--line); z-index: 30;
 }
+
+button.full { width: 100%; margin-top: 12px; }
+
+/* Objets */
+.rarity-text { color: var(--rc); }
+.item-chip { color: var(--rc); border-bottom-color: var(--rc); font-size: 14px; }
+.item-card { border-left: 3px solid var(--rc); padding: 4px 0 4px 12px; margin-bottom: 12px; }
+.item-card .item-name { font-family: var(--font-title); color: var(--rc); font-size: 16px; }
+.item-card .item-meta { color: var(--dim); font-size: 13px; }
+.item-stats { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
+.item-stats li.secondary { color: var(--r-peu-commun); }
+.item-legendary { color: var(--r-legendaire); font-size: 14px; margin-top: 6px; font-style: italic; }
+
+/* Tableau de stats */
+.stat-row { display: flex; justify-content: space-between; gap: 8px; }
+.stat-row small { color: var(--dim); }

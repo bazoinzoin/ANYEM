@@ -5,6 +5,7 @@
   --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
   --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a;
   --danger: #a33; --good: #5a8a5a;
+  --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a;
   --font-title: 'Cinzel', serif;
   --font-body: 'EB Garamond', serif;
   padding-top: env(safe-area-inset-top, 0px);

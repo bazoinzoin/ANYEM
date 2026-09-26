@@ -3,17 +3,19 @@
 import { estimateSkill } from '../game/formulas.js';
 import { range } from './html.js';
 
-// Ex. « ~34-41 dégâts (zone) + saignement » ou « +23 PV ».
-export function skillEffectLabel(atq, skill) {
-  const est = range(estimateSkill(atq, skill));
+// `stats` : stats du lanceur (getStats). Sans cible : défense ennemie non comptée.
+// Ex. « ~34-41 dégâts (zone) + saignement 3 tours » ou « Soin +23 PV ».
+export function skillEffectLabel(stats, skill) {
+  const est = range(estimateSkill(stats, skill));
   if (skill.kind === 'heal') return `Soin +${est} PV`;
-  let label = `~${est} dégâts`;
+  let label = `~${est} dégâts${skill.magic ? ' magiques' : ''}`;
+  if (skill.alwaysCrit) label += ' (critique garanti)';
   if (skill.target === 'allEnemies') label += ' (zone)';
   if (skill.bleed) label += ` + saignement ${skill.bleed} tours`;
   return label;
 }
 
-export function skillShortEstimate(atq, skill) {
-  const est = range(estimateSkill(atq, skill));
+export function skillShortEstimate(stats, skill) {
+  const est = range(estimateSkill(stats, skill));
   return skill.kind === 'heal' ? `+${est} PV` : `~${est}`;
 }

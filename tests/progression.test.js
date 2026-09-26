@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 
 import { createParty, getStats } from '../src/game/party.js';
 import { applyVictory, applyDefeat, restAtInn } from '../src/game/progression.js';
+import { generateItem } from '../src/game/items.js';
+import { setRandomSource } from '../src/game/rng.js';
 
 function newGame() {
-  return { party: createParty(['Arthas']), gold: 50, dungeonLvl: 1 };
+  return { party: createParty(['Arthas']), bag: [], gold: 50, dungeonLvl: 1 };
 }
 
 test('les noms saisis sont appliqués, un nom vide garde le nom de classe', () => {
@@ -43,4 +45,27 @@ test("défaite : perte d'or, retour à mi-vie", () => {
     assert.equal(h.alive, true);
     assert.equal(h.hp, Math.round(getStats(h).pv * 0.5));
   });
+});
+
+test('victoire : le butin arrive dans le sac, au niveau du donjon', () => {
+  setRandomSource(() => 0.1); // sous la chance de butin : chaque ennemi laisse un objet
+  const game = newGame();
+  game.dungeonLvl = 7;
+  const { loot } = applyVictory(game, { enemiesDefeated: 2 });
+  assert.equal(loot.length, 2);
+  assert.deepEqual(game.bag, loot);
+  loot.forEach((item) => assert.equal(item.level, 7));
+  setRandomSource(null);
+});
+
+test("défaite : une partie du sac est perdue, jamais l'équipement porté", () => {
+  const game = newGame();
+  const worn = game.party.map((h) => ({ ...h.equipment }));
+  game.bag = [1, 2, 3, 4].map(() => generateItem({ level: 1 }));
+  let n = 0;
+  setRandomSource(() => (n++ % 2 ? 0.9 : 0.1)); // un objet sur deux perdu
+  applyDefeat(game);
+  setRandomSource(null);
+  assert.equal(game.bag.length, 2);
+  game.party.forEach((h, i) => assert.deepEqual(h.equipment, worn[i]));
 });

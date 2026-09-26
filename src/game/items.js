@@ -1,0 +1,148 @@
+// Génération des objets d'équipement.
+//
+// Un objet est une donnée figée à sa création :
+// { id, name, level, rarity, slotType, weaponType?, armorType?, primary,
+//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
+// slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
+
+import { ITEM, LOOT } from '../config.js';
+import {
+  RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS,
+  PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES,
+} from '../data/items.js';
+import { rand, pick, random } from './rng.js';
+
+let nextId = 1;
+
+export function budget(level) {
+  return ITEM.budgetBase + ITEM.budgetPerLevel * level;
+}
+
+export function isWeapon(item) {
+  return item.slotType === 'arme';
+}
+
+export function isTwoHanded(item) {
+  return isWeapon(item) && !!WEAPON_TYPES[item.weaponType].twoHanded;
+}
+
+// Libellé du type, ex. « Armure lourde · Plastron », « Arme à deux mains ».
+export function itemTypeLabel(item) {
+  if (isWeapon(item)) return WEAPON_TYPES[item.weaponType].label;
+  if (item.slotType === 'bouclier') return SHIELD.label;
+  if (JEWELS[item.slotType]) return JEWELS[item.slotType].label;
+  return ARMOR_TYPES[item.armorType].label;
+}
+
+export function weightedPick(weights) {
+  const entries = Object.entries(weights);
+  let roll = random() * entries.reduce((sum, [, w]) => sum + w, 0);
+  for (const [key, w] of entries) {
+    roll -= w;
+    if (roll < 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
+export function rollRarity() {
+  return weightedPick(LOOT.rarityWeights);
+}
+
+// Tire une base d'objet aléatoire (hors légendaires).
+export function rollBase() {
+  const category = weightedPick(LOOT.categoryWeights);
+  if (category === 'weapon') return { slotType: 'arme', weaponType: pick(Object.keys(WEAPON_TYPES)) };
+  if (category === 'shield') return { slotType: 'bouclier' };
+  if (category === 'jewel') return { slotType: pick(Object.keys(JEWELS)) };
+  return { slotType: pick(Object.keys(ARMOR_PIECES)), armorType: pick(Object.keys(ARMOR_TYPES)) };
+}
+
+function primaryOptions(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].primaries;
+  if (base.slotType === 'bouclier') return SHIELD.primaries;
+  if (JEWELS[base.slotType]) return ['force', 'agilite', 'intelligence'];
+  return ARMOR_TYPES[base.armorType].primaries;
+}
+
+function baseName(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].name;
+  if (base.slotType === 'bouclier') return SHIELD.name;
+  if (JEWELS[base.slotType]) return JEWELS[base.slotType].name;
+  return ARMOR_TYPES[base.armorType].names[base.slotType];
+}
+
+// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
+// (bouclier), défense magique (bijou).
+function mandatoryStats(base, level, mult) {
+  const b = budget(level);
+  if (base.slotType === 'arme') {
+    const w = WEAPON_TYPES[base.weaponType];
+    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
+    if (w.vit) stats.vit = w.vit;
+    return stats;
+  }
+  if (base.slotType === 'bouclier') {
+    return {
+      def: Math.round(b * ITEM.shieldDef * mult),
+      blocage: Math.round((ITEM.shieldBlock.base + ITEM.shieldBlock.perLevel * level) * mult),
+    };
+  }
+  if (JEWELS[base.slotType]) {
+    return { defMag: Math.max(1, Math.round(b * ITEM.jewelDefMag * JEWELS[base.slotType].weight * mult)) };
+  }
+  const weight = ARMOR_PIECES[base.slotType];
+  return { def: Math.max(1, Math.round(b * ITEM.armorDef * weight * ARMOR_TYPES[base.armorType].defMult * mult)) };
+}
+
+function primaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].twoHanded ? 1.6 : 1;
+  if (base.slotType === 'bouclier') return 0.8;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_PIECES[base.slotType];
+}
+
+function secondaryValue(stat, level, range) {
+  const def = SECONDARY_STATS[stat];
+  const unit = def.base + def.perLevel * level;
+  return Math.max(1, Math.round(unit * rand(range[0], range[1])));
+}
+
+/**
+ * Crée un objet. Tout paramètre omis est tiré au hasard.
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ */
+export function generateItem(opts = {}) {
+  const level = Math.max(1, opts.level ?? 1);
+  let rarity = opts.rarity ?? rollRarity();
+  let legendaryKey = opts.legendary ?? null;
+  if (legendaryKey) rarity = 'legendaire';
+  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
+  const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
+
+  const base = legendary
+    ? { slotType: legendary.slotType, weaponType: legendary.weaponType, armorType: legendary.armorType }
+    : opts.slotType ? { slotType: opts.slotType, weaponType: opts.weaponType, armorType: opts.armorType } : rollBase();
+  const primary = legendary?.primary ?? opts.primary ?? pick(primaryOptions(base));
+  const r = RARITIES[rarity];
+
+  const stats = mandatoryStats(base, level, r.mult);
+  const mandatory = Object.keys(stats);
+  stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
+
+  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
+  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
+  const secondaries = [];
+  for (let i = 0; i < r.secondaries && pool.length; i++) {
+    const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
+    stats[stat] = secondaryValue(stat, level, r.range);
+    secondaries.push(stat);
+  }
+
+  let name = legendary ? legendary.name : baseName(base);
+  if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
+
+  const item = { id: `it${nextId++}`, name, level, rarity, ...base, primary, stats, mandatory, secondaries };
+  for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
+  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
+  return item;
+}

@@ -17,7 +17,9 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 - `src/ui/` : rendu par template strings, un fichier par écran dans `ui/screens/`, navigation via `ui/router.js` (`goTo`, `showHub`).
   `ui/encounter.js` rythme les combats (délais des tours ennemis) autour du moteur `game/combat.js`.
 - Chiffres d'équilibrage globaux : `src/config.js`.
-- Les stats d'un héros se lisent **toujours** via `getStats(hero)` (`game/party.js`) : c'est le point d'extension pour l'équipement, les talents et les buffs. Ne pas lire `CLASSES[...].base` directement ailleurs.
+- Les stats d'un héros se lisent **toujours** via `getStats(hero)` et ses compétences via `getSkills(hero)` (`game/party.js`) : c'est là que l'équipement (et plus tard talents et buffs) s'applique. Ne pas lire `CLASSES[...].base` ou `.skills` directement ailleurs.
+- Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
+- Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée.
 
 ## Conventions
 
