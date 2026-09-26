@@ -14,6 +14,7 @@
 //   offHand     types d'armes ou 'bouclier' en main gauche
 //   armor       types d'armure (bijoux : toujours autorisés)
 // starterKit  équipement commun de niveau 1 donné à la création
+// growth      stats gagnées à chaque niveau au-delà du premier
 //
 // skills[] :
 //   id        identifiant stable (référencé par les légendaires)
@@ -23,8 +24,17 @@
 //   magic     sort : utilise la puissance magique (Intelligence) et est réduit par la
 //             défense magique ; sinon puissance physique (arme + Force/Agilité).
 //             Les soins utilisent toujours la puissance magique.
-//   bleed     nombre de tours de saignement infligés (optionnel)
 //   alwaysCrit  coup critique garanti (optionnel)
+// Champs avancés (voir aussi data/talents.js) :
+//   kind 'revive' (power = part des PV rendus) ou 'support' (effets seuls, sans dégâts/soin)
+//   target 'allAllies' | 'self' | 'deadAlly'
+//   hits      nombre de coups (multi-frappe)
+//   critBonus % de chance de critique en plus pour cette compétence
+//   dot       { key, name, icon?, power, turns } dégâts par round = puissance × power
+//   hot       { key, name, power, turns }        soin par round = puissance magique × power
+//   shield    { key, name, power, turns }        bouclier = puissance × power
+//   status    statut appliqué à chaque cible (voir game/statuses.js)
+//   selfStatus statut appliqué au lanceur
 
 export const CLASSES = {
   guerrier: {
@@ -35,6 +45,7 @@ export const CLASSES = {
     physStat: 'force',
     desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
     base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    growth: { pv: 12, force: 1 },
     resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
@@ -58,6 +69,7 @@ export const CLASSES = {
     physStat: 'agilite',
     desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
     base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    growth: { pv: 8, agilite: 1 },
     resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'dague'],
@@ -70,7 +82,7 @@ export const CLASSES = {
     ],
     skills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, bleed: 3, desc: 'Saignement sur 3 tours' },
+      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, dot: { key: 'saignement', name: 'Saignement', power: 0.35, turns: 3 }, desc: 'Saignement sur 3 tours' },
     ],
   },
   pretre: {
@@ -81,6 +93,7 @@ export const CLASSES = {
     physStat: 'force',
     desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
     base: { pv: 88, atq: 0, vit: 9, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
       weapons: ['baton', 'dague'],
@@ -104,6 +117,7 @@ export const CLASSES = {
     physStat: 'force',
     desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
     base: { pv: 78, atq: 0, vit: 10, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    growth: { pv: 7, intelligence: 1 },
     resource: { name: 'Mana', max: 90, start: 90, regen: 10 },
     gear: {
       weapons: ['baton'],

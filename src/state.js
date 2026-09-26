@@ -4,7 +4,7 @@ import { START_GOLD, START_DUNGEON_LEVEL } from './config.js';
 import { emptyMateria } from './game/forge.js';
 
 export const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'combat'
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'combat'
   party: [],
   bag: [],              // objets non équipés, partagés par l'équipe
   materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }

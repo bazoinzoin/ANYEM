@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
-import { COMBAT } from '../src/config.js';
 
 // Aléatoire déterministe : chaque jet vaut le milieu de sa fourchette.
 beforeEach(() => setRandomSource(() => 0.5));
@@ -70,21 +69,23 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
 
 test('Lacération fait saigner la cible à chaque fin de round', () => {
   const { cb } = newCombat();
-  playUntilHero(cb, voleur);
+  const turn = playUntilHero(cb, voleur);
   assert.ok(heroAct(cb, { type: 'skill', skill: 1, target: 0 }));
   const target = cb.enemies[0];
-  assert.equal(target.bleed, 3);
+  const bleed = target.statuses.find((s) => s.key === 'saignement');
+  assert.equal(bleed.turns, 3);
+  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.35)));
   const hpAfterHit = target.hp;
-  // Termine le round en cours : le saignement s'applique avant le suivant.
+  // Termine le round en cours (héros en défense, ennemis ciblant les héros).
   while (cb.qIndex < cb.queue.length) {
-    const turn = nextTurn(cb);
+    const t = nextTurn(cb);
     if (cb.round > 1) break;
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (t.side === 'hero') heroAct(cb, { type: 'defend' });
     else enemyAct(cb);
   }
   nextTurn(cb);
-  assert.equal(target.hp, hpAfterHit - COMBAT.bleedDamage);
-  assert.equal(target.bleed, 2);
+  assert.equal(target.hp, hpAfterHit - bleed.dot);
+  assert.equal(target.statuses.find((s) => s.key === 'saignement').turns, 2);
 });
 
 test('la garde se lève au tour suivant du héros', () => {

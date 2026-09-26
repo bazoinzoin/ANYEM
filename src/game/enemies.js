@@ -25,6 +25,6 @@ export function createEnemy(key, level, label) {
     },
     alive: true,
     guard: false,
-    bleed: 0,
+    statuses: [],
   };
 }

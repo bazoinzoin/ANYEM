@@ -102,7 +102,7 @@ export const SECONDARY_STATS = {
 };
 
 // Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
+// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
 export const LEGENDARIES = {
   colereAncestrale: {
     name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
@@ -114,7 +114,7 @@ export const LEGENDARIES = {
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
   },
   murmureDeLOmbre: {
     name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',

@@ -152,7 +152,10 @@ button.portal:hover { background: var(--panel2); }
 .unit .row1 { display: flex; justify-content: space-between; align-items: baseline; }
 .unit .row1 b { font-family: var(--font-title); font-size: 14px; }
 .unit small { color: var(--dim); }
-.unit .status { font-size: 12px; color: var(--gold); margin-top: 4px; }
+.unit .status { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tag { font-size: 12px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); background: #1a130c; }
+.tag.buff { color: #9fd08f; border-color: #3f6b45; }
+.tag.debuff { color: #e6a59a; border-color: #7a3a33; }
 .active-turn { outline: 2px solid var(--gold); }
 .hero-name { color: var(--c); }
 
@@ -215,6 +218,31 @@ button.portal:hover { background: var(--panel2); }
 .cost small { color: var(--dim); }
 .forge-section .diff { margin-bottom: 10px; }
 button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
+
+/* ---- Talents ---- */
+.badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--gold); color: #1a130c; font-size: 12px; font-weight: 700; text-align: center; }
+.pmini .xp-label { display: block; margin-top: 4px; font-size: 11px; color: var(--dim); }
+.xp small { color: var(--dim); font-size: 12px; }
+.talent-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 3px solid var(--c); margin-bottom: 10px; }
+.talent-summary .xp { min-width: 180px; }
+.talent-summary .points.has b { color: var(--gold); font-size: 20px; }
+.talent-branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.branch h3 { font-size: 17px; }
+.branch h3 small { color: var(--dim); font-family: var(--font-body); font-size: 13px; }
+.branch > .hint { font-size: 13px; margin: 4px 0 10px; }
+.talent { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; background: var(--panel2); font-size: 14px; }
+.talent.skill, .talent.passive { border-left: 3px solid var(--gold); }
+.talent.locked { opacity: .5; }
+.talent.learned { border-color: #3f6b45; }
+.talent.maxed { border-color: #6cc15a; background: #1f2a1a; }
+.talent-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.talent-head b { font-family: var(--font-title); font-size: 14px; color: var(--cream); }
+.talent-head .tier, .talent-head .kind { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.talent-head .rank { margin-left: auto; font-weight: 700; color: var(--gold); }
+.talent-body { margin: 4px 0 6px; color: var(--cream); }
+.talent-body small { color: var(--dim); }
+.talent button { padding: 4px 12px; font-size: 14px; }
+.talent .reason { color: var(--dim); font-style: italic; }
 </style>
 
 </head>
@@ -240,7 +268,7 @@ const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
-  bleedDamage: 6,         // dégâts d'un saignement par fin de round
+  confuseChance: 0.5,     // chance qu'une unité confuse frappe un de ses alliés
   // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor[stat]
   // (l'Agilité rapporte un peu plus que la Force : à stat égale, un voleur frappe plus fort)
   // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
@@ -269,6 +297,24 @@ const LOOT = {
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+};
+
+// Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
+// passer du niveau L à L+1 demande toNextBase + toNextPerLevel × L points d'XP.
+const XP = {
+  xpBase: 10,
+  xpPerLevel: 5,
+  toNextBase: 40,
+  toNextPerLevel: 20,
+};
+
+// Arbres de compétences : 1 point par niveau (dès le niveau 1) ; le palier t d'une
+// branche demande t × tierPoints points déjà investis dans cette branche.
+// Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
+const TALENT_RULES = {
+  pointsPerLevel: 1,
+  tierPoints: 2,
+  resetCostPerLevel: 10,
 };
 
 // Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.
@@ -304,7 +350,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, FORGE, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, XP, TALENT_RULES, FORGE, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -414,7 +460,7 @@ const SECONDARY_STATS = {
 };
 
 // Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
+// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
 const LEGENDARIES = {
   colereAncestrale: {
     name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
@@ -426,7 +472,7 @@ const LEGENDARIES = {
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
   },
   murmureDeLOmbre: {
     name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
@@ -753,7 +799,7 @@ const { emptyMateria } = __modules["src/game/forge.js"];
 
 
 const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'combat'
+  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'combat'
   party: [],
   bag: [],              // objets non équipés, partagés par l'équipe
   materia: emptyMateria(), // { arme: { commun: n, … }, armure: { … } }
@@ -821,6 +867,7 @@ __modules["src/data/classes.js"] = (() => {
 //   offHand     types d'armes ou 'bouclier' en main gauche
 //   armor       types d'armure (bijoux : toujours autorisés)
 // starterKit  équipement commun de niveau 1 donné à la création
+// growth      stats gagnées à chaque niveau au-delà du premier
 //
 // skills[] :
 //   id        identifiant stable (référencé par les légendaires)
@@ -830,8 +877,17 @@ __modules["src/data/classes.js"] = (() => {
 //   magic     sort : utilise la puissance magique (Intelligence) et est réduit par la
 //             défense magique ; sinon puissance physique (arme + Force/Agilité).
 //             Les soins utilisent toujours la puissance magique.
-//   bleed     nombre de tours de saignement infligés (optionnel)
 //   alwaysCrit  coup critique garanti (optionnel)
+// Champs avancés (voir aussi data/talents.js) :
+//   kind 'revive' (power = part des PV rendus) ou 'support' (effets seuls, sans dégâts/soin)
+//   target 'allAllies' | 'self' | 'deadAlly'
+//   hits      nombre de coups (multi-frappe)
+//   critBonus % de chance de critique en plus pour cette compétence
+//   dot       { key, name, icon?, power, turns } dégâts par round = puissance × power
+//   hot       { key, name, power, turns }        soin par round = puissance magique × power
+//   shield    { key, name, power, turns }        bouclier = puissance × power
+//   status    statut appliqué à chaque cible (voir game/statuses.js)
+//   selfStatus statut appliqué au lanceur
 
 const CLASSES = {
   guerrier: {
@@ -842,6 +898,7 @@ const CLASSES = {
     physStat: 'force',
     desc: "Combattant robuste au corps à corps. Accumule de la Rage en combattant et en encaissant des coups, qu'il dépense dans des frappes dévastatrices.",
     base: { pv: 130, atq: 7, vit: 8, force: 6, agilite: 2, intelligence: 1, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    growth: { pv: 12, force: 1 },
     resource: { name: 'Rage', max: 100, start: 20, regen: 5, onAttack: 8, onHitTaken: 15 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'epee2m', 'hache2m', 'marteau2m'],
@@ -865,6 +922,7 @@ const CLASSES = {
     physStat: 'agilite',
     desc: "Combattant agile et rapide. Son Énergie se régénère chaque tour, lui permettant d'enchaîner coups vicieux et poisons.",
     base: { pv: 95, atq: 7, vit: 15, force: 2, agilite: 6, intelligence: 1, critChance: 10, critDmg: 50, esquive: 6 },
+    growth: { pv: 8, agilite: 1 },
     resource: { name: 'Énergie', max: 60, start: 60, regen: 20 },
     gear: {
       weapons: ['epee', 'hache', 'marteau', 'dague'],
@@ -877,7 +935,7 @@ const CLASSES = {
     ],
     skills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, bleed: 3, desc: 'Saignement sur 3 tours' },
+      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, dot: { key: 'saignement', name: 'Saignement', power: 0.35, turns: 3 }, desc: 'Saignement sur 3 tours' },
     ],
   },
   pretre: {
@@ -888,6 +946,7 @@ const CLASSES = {
     physStat: 'force',
     desc: 'Soigneur polyvalent. Dépense son Mana pour soigner ses alliés et infliger des dégâts de lumière.',
     base: { pv: 88, atq: 0, vit: 9, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
       weapons: ['baton', 'dague'],
@@ -911,6 +970,7 @@ const CLASSES = {
     physStat: 'force',
     desc: 'Lanceur de sorts destructeur. Dépense son Mana pour infliger de lourds dégâts élémentaires à distance.',
     base: { pv: 78, atq: 0, vit: 10, force: 1, agilite: 2, intelligence: 6, critChance: 5, critDmg: 50, esquive: 2 },
+    growth: { pv: 7, intelligence: 1 },
     resource: { name: 'Mana', max: 90, start: 90, regen: 10 },
     gear: {
       weapons: ['baton'],
@@ -971,19 +1031,417 @@ function zeroStats() {
 return { STATS, PRIMARY_STATS, STAT_ORDER, zeroStats };
 })();
 
+// ---- src/data/talents.js
+__modules["src/data/talents.js"] = (() => {
+
+// Arbres de compétences (DESIGN_DOC §3). Données pures.
+//
+// Chaque classe a une orientation par branche. Une branche compte 5 paliers
+// (tier 0 à 4) ; un palier se débloque quand assez de points sont investis dans
+// la branche (voir TALENTS_RULES dans config.js).
+//
+// Nœud : { id, name, tier, ranks, kind, desc, ...effet }
+//   kind 'minor'   nœud secondaire : petit bonus, plusieurs rangs
+//        'skill'   nœud principal : nouvelle compétence (champ `skill`)
+//        'passive' nœud principal : nouveau passif ou amélioration de compétence
+// Effets, cumulés par rang :
+//   flat     { stat: valeur }  ajout aux stats (voir data/stats.js)
+//   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
+//   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen
+//   skill    compétence accordée (même format que data/classes.js)
+//   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, set }
+
+const slow = (turns) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
+
+const TALENTS = {
+  guerrier: [
+    {
+      key: 'gardien', name: 'Gardien', icon: '🛡️',
+      desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
+      nodes: [
+        { id: 'peau-de-fer', name: 'Peau de fer', tier: 0, ranks: 3, kind: 'minor', desc: '+5 % PV par rang.', pct: { pv: 5 } },
+        {
+          id: 'provocation', name: 'Provocation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
+            selfStatus: { key: 'provocation', name: 'Provocation', icon: '📣', kind: 'buff', turns: 2, taunt: true, mods: { def: 30 } },
+            desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
+          },
+        },
+        { id: 'maitrise-bouclier', name: 'Maîtrise du bouclier', tier: 2, ranks: 3, kind: 'minor', desc: '+3 % Blocage et +2 Défense par rang.', flat: { blocage: 3, def: 2 } },
+        { id: 'rempart', name: 'Rempart', tier: 3, ranks: 1, kind: 'passive', desc: 'Défendre donne aussi un bouclier égal à 15 % des PV max.', passive: { guardShieldPct: 15 } },
+        {
+          id: 'mur-de-boucliers', name: 'Mur de boucliers', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
+            shield: { key: 'mur', name: 'Mur de boucliers', power: 0.9, turns: 2 },
+            desc: "Bouclier sur toute l'équipe pendant 2 tours",
+          },
+        },
+      ],
+    },
+    {
+      key: 'berserker', name: 'Berserker', icon: '🪓',
+      desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
+      nodes: [
+        { id: 'soif-de-sang', name: 'Soif de sang', tier: 0, ranks: 3, kind: 'minor', desc: '+5 % Puissance physique par rang.', pct: { physPower: 5 } },
+        {
+          id: 'frappe-sauvage', name: 'Frappe sauvage', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, critBonus: 25, desc: 'Coup violent, +25 % de chance de critique' },
+        },
+        { id: 'furie', name: 'Furie', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
+        { id: 'berserk', name: 'Berserk', tier: 3, ranks: 1, kind: 'passive', desc: '+3 % de puissance physique par tranche de 10 % de PV manquants.', passive: { berserk: 3 } },
+        {
+          id: 'dechainement', name: 'Déchaînement', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'dechainement', name: 'Déchaînement', cost: 60, kind: 'damage', target: 'allEnemies', power: 1.6,
+            selfStatus: { key: 'enrage', name: 'Enragé', icon: '🔥', kind: 'buff', turns: 2, mods: { physPower: 30, def: -20 } },
+            desc: 'Frappe tous les ennemis puis enrage (+30 % puissance physique, −20 % Défense, 2 tours)',
+          },
+        },
+      ],
+    },
+  ],
+
+  voleur: [
+    {
+      key: 'assassin', name: 'Assassin', icon: '🗡️',
+      desc: 'Dégâts rapides : nombreux coups, critiques, ralentissements. Dagues, armure moyenne.',
+      nodes: [
+        { id: 'precision', name: 'Précision', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
+        {
+          id: 'taillade', name: 'Taillade', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, status: slow(2), desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
+        },
+        { id: 'lames-aiguisees', name: 'Lames aiguisées', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
+        { id: 'opportuniste', name: 'Opportuniste', tier: 3, ranks: 1, kind: 'passive', desc: "+25 % de dégâts contre une cible affaiblie (ralentie, empoisonnée…).", passive: { vsDebuffedPct: 25 } },
+        {
+          id: 'deluge-de-lames', name: 'Déluge de lames', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'deluge-de-lames', name: 'Déluge de lames', cost: 40, kind: 'damage', target: 'enemy', power: 0.55, hits: 4, desc: 'Quatre coups rapides sur un ennemi' },
+        },
+      ],
+    },
+    {
+      key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
+      desc: 'Dégâts sur la durée : poisons et affaiblissements. Dagues, armure moyenne.',
+      nodes: [
+        { id: 'toxines', name: 'Toxines', tier: 0, ranks: 3, kind: 'minor', desc: '+10 % de dégâts des poisons et saignements par rang.', passive: { dotPct: 10 } },
+        {
+          id: 'lame-empoisonnee', name: 'Lame empoisonnée', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 15, kind: 'damage', target: 'enemy', power: 0.5,
+            dot: { key: 'poison', name: 'Poison', icon: '🧪', power: 0.35, turns: 4 },
+            desc: 'Empoisonne la cible pendant 4 tours',
+          },
+        },
+        { id: 'dexterite', name: 'Dextérité', tier: 2, ranks: 3, kind: 'minor', desc: '+4 Agilité par rang.', flat: { agilite: 4 } },
+        {
+          id: 'venin-virulent', name: 'Venin virulent', tier: 3, ranks: 1, kind: 'passive',
+          desc: 'Lame empoisonnée : poison +50 % et affaiblit la cible (−15 % puissance physique).',
+          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, set: { status: { key: 'affaibli', name: 'Affaibli', icon: '💧', kind: 'debuff', turns: 4, mods: { physPower: -15 } } } },
+        },
+        {
+          id: 'fiole-de-peste', name: 'Fiole de peste', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'fiole-de-peste', name: 'Fiole de peste', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4,
+            dot: { key: 'peste', name: 'Peste', icon: '☠️', power: 0.4, turns: 4 },
+            desc: 'Empoisonne tous les ennemis pendant 4 tours',
+          },
+        },
+      ],
+    },
+  ],
+
+  pretre: [
+    {
+      key: 'clerc', name: 'Clerc', icon: '✨',
+      desc: 'Soins puissants : soins de groupe et résurrection. Bâton, armure légère.',
+      nodes: [
+        { id: 'devotion', name: 'Dévotion', tier: 0, ranks: 3, kind: 'minor', desc: '+6 % de soins par rang.', passive: { healPct: 6 } },
+        {
+          id: 'priere-de-soins', name: 'Prière de soins', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'priere-de-soins', name: 'Prière de soins', cost: 40, kind: 'heal', target: 'allAllies', power: 0.55, desc: "Soigne toute l'équipe" },
+        },
+        { id: 'meditation', name: 'Méditation', tier: 2, ranks: 3, kind: 'minor', desc: '+3 Mana regagné par tour, par rang.', passive: { resRegen: 3 } },
+        {
+          id: 'grace', name: 'Grâce', tier: 3, ranks: 1, kind: 'passive', desc: 'Soin Majeur coûte 10 Mana de moins et soigne 20 % de plus.',
+          skillMod: { skill: 'soin-majeur', costDelta: -10, powerPct: 20 },
+        },
+        {
+          id: 'resurrection', name: 'Résurrection', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'resurrection', name: 'Résurrection', cost: 60, kind: 'revive', target: 'deadAlly', power: 0.4, desc: 'Ramène un allié tombé avec 40 % de ses PV' },
+        },
+      ],
+    },
+    {
+      key: 'precheur', name: 'Prêcheur', icon: '📖',
+      desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
+      nodes: [
+        { id: 'foi', name: 'Foi', tier: 0, ranks: 3, kind: 'minor', desc: '+3 Intelligence par rang.', flat: { intelligence: 3 } },
+        {
+          id: 'renovation', name: 'Rénovation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
+            hot: { key: 'renovation', name: 'Rénovation', power: 0.35, turns: 4 },
+            desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
+          },
+        },
+        { id: 'lumiere-interieure', name: 'Lumière intérieure', tier: 2, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
+        {
+          id: 'bouclier-sacre', name: 'Bouclier sacré', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'bouclier-sacre', name: 'Bouclier sacré', cost: 30, kind: 'support', target: 'ally', magic: true,
+            shield: { key: 'bouclier-sacre', name: 'Bouclier sacré', power: 1.2, turns: 3 },
+            desc: 'Protège un allié par un bouclier pendant 3 tours',
+          },
+        },
+        {
+          id: 'benediction', name: 'Bénédiction', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'benediction', name: 'Bénédiction', cost: 50, kind: 'support', target: 'allAllies',
+            status: { key: 'beni', name: 'Béni', icon: '🌟', kind: 'buff', turns: 3, mods: { physPower: 20, magPower: 20 } },
+            desc: "Toute l'équipe gagne +20 % de puissance physique et magique pendant 3 tours",
+          },
+        },
+      ],
+    },
+    {
+      key: 'profane', name: 'Profane', icon: '🌑',
+      desc: 'Ténèbres : dégâts magiques sur la durée et confusion. Bâton, armure légère.',
+      nodes: [
+        { id: 'ombre', name: 'Ombre', tier: 0, ranks: 3, kind: 'minor', desc: '+10 % de dégâts sur la durée par rang.', passive: { dotPct: 10 } },
+        {
+          id: 'mot-de-douleur', name: 'Mot de douleur', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
+            dot: { key: 'douleur', name: 'Mot de douleur', icon: '🌑', power: 0.4, turns: 4 },
+            desc: 'Dégâts de ténèbres sur 4 tours',
+          },
+        },
+        { id: 'esprit-sombre', name: 'Esprit sombre', tier: 2, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
+        {
+          id: 'confusion', name: 'Confusion', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'confusion', name: 'Confusion', cost: 30, kind: 'support', target: 'enemy',
+            status: { key: 'confus', name: 'Confus', icon: '💫', kind: 'debuff', turns: 2, confuse: true },
+            desc: 'La cible a une chance sur deux de frapper ses alliés pendant 2 tours',
+          },
+        },
+        {
+          id: 'fleau', name: 'Fléau', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'fleau', name: 'Fléau', cost: 45, kind: 'support', target: 'allEnemies', magic: true,
+            dot: { key: 'fleau', name: 'Fléau', icon: '🌑', power: 0.5, turns: 3 },
+            desc: 'Dégâts de ténèbres sur 3 tours à tous les ennemis',
+          },
+        },
+      ],
+    },
+  ],
+
+  mage: [
+    {
+      key: 'feu', name: 'Mage de feu', icon: '🔥',
+      desc: 'Dégâts magiques de feu, brûlures et dégâts de zone sur la durée.',
+      nodes: [
+        { id: 'chaleur', name: 'Chaleur', tier: 0, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
+        {
+          id: 'immolation', name: 'Immolation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
+            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.4, turns: 3 },
+            desc: 'Enflamme la cible (brûlure sur 3 tours)',
+          },
+        },
+        { id: 'combustion', name: 'Combustion', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % de dégâts de brûlure par rang.', passive: { dotPct: 10 } },
+        {
+          id: 'boule-ardente', name: 'Boule ardente', tier: 3, ranks: 1, kind: 'passive', desc: 'Boule de Feu enflamme aussi la cible (brûlure sur 3 tours).',
+          skillMod: { skill: 'boule-de-feu', set: { dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 } } },
+        },
+        {
+          id: 'pluie-de-feu', name: 'Pluie de feu', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'pluie-de-feu', name: 'Pluie de feu', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, magic: true,
+            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 },
+            desc: 'Frappe et enflamme tous les ennemis',
+          },
+        },
+      ],
+    },
+    {
+      key: 'glace', name: 'Mage de glace', icon: '❄️',
+      desc: 'Contrôle : ralentissements et étourdissements, avec de bons dégâts.',
+      nodes: [
+        { id: 'givre', name: 'Givre', tier: 0, ranks: 3, kind: 'minor', desc: '+3 Défense et +3 Défense magique par rang.', flat: { def: 3, defMag: 3 } },
+        {
+          id: 'eclat-de-glace', name: 'Éclat de glace', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true, status: slow(2), desc: 'Dégâts de glace, ralentit la cible 2 tours' },
+        },
+        { id: 'hiver', name: 'Hiver', tier: 2, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
+        {
+          id: 'nova-de-givre', name: 'Nova de givre', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true, status: slow(2), desc: 'Dégâts de glace et ralentissement sur tous les ennemis' },
+        },
+        {
+          id: 'prison-de-glace', name: 'Prison de glace', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'prison-de-glace', name: 'Prison de glace', cost: 45, kind: 'damage', target: 'enemy', power: 1.0, magic: true,
+            status: { key: 'etourdi', name: 'Étourdi', icon: '🧊', kind: 'debuff', turns: 1, stun: true },
+            desc: 'Dégâts de glace, la cible perd son prochain tour',
+          },
+        },
+      ],
+    },
+    {
+      key: 'foudre', name: 'Mage de foudre', icon: '⚡',
+      desc: 'Gros dégâts directs et renforcement des alliés.',
+      nodes: [
+        { id: 'conductivite', name: 'Conductivité', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
+        {
+          id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true, desc: 'Foudroie tous les ennemis' },
+        },
+        { id: 'surtension', name: 'Surtension', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
+        {
+          id: 'surcharge', name: 'Surcharge', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: {
+            id: 'surcharge', name: 'Surcharge', cost: 25, kind: 'support', target: 'ally',
+            status: { key: 'surcharge', name: 'Surchargé', icon: '⚡', kind: 'buff', turns: 3, mods: { physPower: 25, magPower: 25 } },
+            desc: 'Un allié gagne +25 % de puissance physique et magique pendant 3 tours',
+          },
+        },
+        {
+          id: 'tempete', name: 'Tempête', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
+          skill: { id: 'tempete', name: 'Tempête', cost: 60, kind: 'damage', target: 'enemy', power: 3.3, magic: true, desc: 'Énorme décharge de foudre sur un ennemi' },
+        },
+      ],
+    },
+  ],
+};
+
+return { TALENTS };
+})();
+
+// ---- src/game/talents.js
+__modules["src/game/talents.js"] = (() => {
+const { TALENTS } = __modules["src/data/talents.js"];
+const { TALENT_RULES } = __modules["src/config.js"];
+// Arbres de compétences : points, paliers, apprentissage, réinitialisation,
+// et effets cumulés des talents appris (lus par getStats / getSkills).
+//
+// hero.talents : { idDuNœud: rang }
+
+
+
+
+function branchesOf(hero) {
+  return TALENTS[hero.classKey] ?? [];
+}
+
+function findNode(hero, nodeId) {
+  for (const branch of branchesOf(hero)) {
+    const node = branch.nodes.find((n) => n.id === nodeId);
+    if (node) return { branch, node };
+  }
+  return null;
+}
+
+function rankOf(hero, nodeId) {
+  return hero.talents?.[nodeId] ?? 0;
+}
+
+function pointsTotal(hero) {
+  return hero.level * TALENT_RULES.pointsPerLevel;
+}
+
+function pointsSpent(hero) {
+  return Object.values(hero.talents ?? {}).reduce((sum, r) => sum + r, 0);
+}
+
+function pointsAvailable(hero) {
+  return pointsTotal(hero) - pointsSpent(hero);
+}
+
+function pointsInBranch(hero, branch) {
+  return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
+}
+
+function tierRequirement(tier) {
+  return tier * TALENT_RULES.tierPoints;
+}
+
+// Raison pour laquelle le nœud ne peut pas être appris maintenant, ou null.
+function cannotLearnReason(hero, nodeId) {
+  const found = findNode(hero, nodeId);
+  if (!found) return 'Talent inconnu';
+  const { branch, node } = found;
+  if (rankOf(hero, nodeId) >= node.ranks) return 'Rang maximum atteint';
+  const need = tierRequirement(node.tier);
+  if (pointsInBranch(hero, branch) < need) return `Demande ${need} points investis dans ${branch.name}`;
+  if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
+  return null;
+}
+
+function learn(hero, nodeId) {
+  if (cannotLearnReason(hero, nodeId)) return false;
+  hero.talents = { ...hero.talents, [nodeId]: rankOf(hero, nodeId) + 1 };
+  return true;
+}
+
+function resetCost(hero) {
+  return TALENT_RULES.resetCostPerLevel * hero.level;
+}
+
+// Rend tous les points du héros contre de l'or. Retourne false si impossible.
+function resetTalents(game, hero) {
+  const cost = resetCost(hero);
+  if (pointsSpent(hero) === 0 || game.gold < cost) return false;
+  game.gold -= cost;
+  hero.talents = {};
+  return true;
+}
+
+/**
+ * Effets cumulés des talents appris :
+ * { flat: {stat}, pct: {stat}, passive: {clé}, skills: [compétence], skillMods: [mod] }
+ */
+function talentEffects(hero) {
+  const fx = { flat: {}, pct: {}, passive: {}, skills: [], skillMods: [] };
+  const add = (target, values, rank) => {
+    for (const [k, v] of Object.entries(values ?? {})) target[k] = (target[k] ?? 0) + v * rank;
+  };
+  for (const branch of branchesOf(hero)) {
+    for (const node of branch.nodes) {
+      const rank = rankOf(hero, node.id);
+      if (!rank) continue;
+      add(fx.flat, node.flat, rank);
+      add(fx.pct, node.pct, rank);
+      add(fx.passive, node.passive, rank);
+      if (node.skill) fx.skills.push(node.skill);
+      if (node.skillMod) fx.skillMods.push(node.skillMod);
+    }
+  }
+  return fx;
+}
+
+return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetCost, resetTalents, talentEffects };
+})();
+
 // ---- src/game/party.js
 __modules["src/game/party.js"] = (() => {
 const { CLASSES } = __modules["src/data/classes.js"];
 const { SLOT_ORDER } = __modules["src/data/items.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
-const { PARTY_ORDER, COMBAT } = __modules["src/config.js"];
+const { PARTY_ORDER, COMBAT, XP } = __modules["src/config.js"];
 const { generateItem, itemStats } = __modules["src/game/items.js"];
+const { talentEffects } = __modules["src/game/talents.js"];
 // Héros et équipe.
 //
-// Un héros ne stocke que son état variable (PV, ressource, statuts, équipement).
-// Ses stats sont toujours calculées par getStats() et ses compétences par
-// getSkills() : ce sont les points d'extension pour l'équipement, les arbres de
-// compétences et les buffs.
+// Un héros ne stocke que son état variable (niveau, XP, PV, ressource, statuts,
+// équipement, talents). Ses stats sont toujours calculées par getStats() et ses
+// compétences par getSkills() : c'est là que s'appliquent niveau, équipement et
+// talents (les buffs de combat s'ajoutent ensuite dans units.statsOf).
+
 
 
 
@@ -1008,7 +1466,10 @@ function wornItems(hero) {
  */
 function getStats(hero) {
   const cls = getClass(hero);
+  const fx = talentEffects(hero);
   const total = { ...zeroStats(), ...cls.base };
+  for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
+  for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
   for (const [slot, item] of wornItems(hero)) {
     for (const [stat, value] of Object.entries(itemStats(item))) {
       // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
@@ -1017,29 +1478,66 @@ function getStats(hero) {
     }
   }
   const physFromStat = Math.round(total[cls.physStat] * COMBAT.physStatFactor[cls.physStat]);
-  return {
+  const stats = {
     ...total,
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
     resMax: cls.resource.max,
+    // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct).
+    ...fx.passive,
   };
+  for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
+  return stats;
 }
 
-// Compétences du héros, modifiées par les passifs des objets légendaires portés.
+/**
+ * Modificateurs de compétence (objets légendaires et talents) :
+ *   powerPct       +% de puissance      costDelta     ± coût
+ *   dotTurnsDelta  ± tours de l'effet sur la durée
+ *   dotPowerPct    +% de dégâts de l'effet sur la durée
+ *   set            champs remplacés ou ajoutés (ex. ajouter une brûlure)
+ */
+function applySkillMod(skill, mod) {
+  const s = { ...skill, ...(mod.set ?? {}), boosted: true };
+  if (mod.powerPct) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
+  if (mod.costDelta) s.cost = Math.max(0, s.cost + mod.costDelta);
+  if (s.dot && (mod.dotTurnsDelta || mod.dotPowerPct)) {
+    s.dot = {
+      ...s.dot,
+      turns: s.dot.turns + (mod.dotTurnsDelta ?? 0),
+      power: +(s.dot.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
+    };
+  }
+  return s;
+}
+
+// Compétences du héros : celles de sa classe puis celles de ses talents, modifiées
+// par les passifs des objets légendaires portés et des talents.
 function getSkills(hero) {
-  const passives = wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean);
-  return getClass(hero).skills.map((skill) => {
-    const mods = passives.filter((p) => p.skill === skill.id);
-    if (!mods.length) return skill;
-    const s = { ...skill, boosted: true };
-    for (const p of mods) {
-      if (p.powerPct) s.power = +(s.power * (1 + p.powerPct / 100)).toFixed(3);
-      if (p.costDelta) s.cost = Math.max(0, s.cost + p.costDelta);
-      if (p.bleedDelta) s.bleed = (s.bleed ?? 0) + p.bleedDelta;
-    }
-    return s;
-  });
+  const fx = talentEffects(hero);
+  const mods = [...wornItems(hero).map(([, item]) => item.legendary?.passive).filter(Boolean), ...fx.skillMods];
+  return [...getClass(hero).skills, ...fx.skills].map((skill) =>
+    mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
+}
+
+function xpToNext(level) {
+  return XP.toNextBase + XP.toNextPerLevel * level;
+}
+
+// Ajoute de l'XP ; retourne le nombre de niveaux gagnés. PV et ressource
+// gagnés avec le niveau sont ajoutés aux valeurs actuelles.
+function gainXp(hero, amount) {
+  hero.xp += amount;
+  let levels = 0;
+  while (hero.xp >= xpToNext(hero.level)) {
+    const before = getStats(hero).pv;
+    hero.xp -= xpToNext(hero.level);
+    hero.level++;
+    levels++;
+    if (hero.alive) hero.hp += getStats(hero).pv - before;
+  }
+  return levels;
 }
 
 function createHero(classKey, name) {
@@ -1049,10 +1547,13 @@ function createHero(classKey, name) {
     name: name || cls.name,
     hp: 0,
     res: cls.resource.start,
+    level: 1,
+    xp: 0,
     alive: true,
     guard: false,
-    bleed: 0,
+    statuses: [],
     equipment: {},
+    talents: {},
   };
   for (const piece of cls.starterKit) {
     const item = generateItem({ level: 1, rarity: 'commun', ...piece });
@@ -1085,10 +1586,10 @@ function restoreFully(hero) {
   hero.hp = stats.pv;
   hero.res = stats.resMax;
   hero.guard = false;
-  hero.bleed = 0;
+  hero.statuses = [];
 }
 
-return { getClass, getStats, getSkills, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/ui/html.js
@@ -1189,32 +1690,141 @@ const DUNGEONS = {
 return { DUNGEONS };
 })();
 
+// ---- src/game/statuses.js
+__modules["src/game/statuses.js"] = (() => {
+
+// Statuts de combat (effets à durée) portés par une unité : unit.statuses = [statut].
+//
+// Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
+//   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
+//   dot      dégâts infligés à chaque fin de round (poison, saignement, brûlure…)
+//   hot      soins reçus à chaque fin de round
+//   shield   points de bouclier : absorbent les dégâts avant les PV
+//   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
+//   taunt    les ennemis doivent attaquer cette unité
+//   confuse  l'unité peut frapper ses propres alliés
+// Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
+// Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+
+function statusesOf(unit) {
+  if (!unit.statuses) unit.statuses = [];
+  return unit.statuses;
+}
+
+function addStatus(unit, status) {
+  const list = statusesOf(unit);
+  const i = list.findIndex((s) => s.key === status.key);
+  if (i === -1) list.push({ ...status });
+  else list[i] = { ...status };
+}
+
+function hasStatus(unit, flag) {
+  return statusesOf(unit).some((s) => s[flag]);
+}
+
+function isDebuffed(unit) {
+  return statusesOf(unit).some((s) => s.kind === 'debuff');
+}
+
+// Somme des modificateurs en % par stat.
+function statusMods(unit) {
+  const mods = {};
+  for (const s of statusesOf(unit)) {
+    for (const [stat, pct] of Object.entries(s.mods ?? {})) mods[stat] = (mods[stat] ?? 0) + pct;
+  }
+  return mods;
+}
+
+// Les boucliers absorbent les dégâts en premier. Retourne la part absorbée.
+function absorbWithShields(unit, amount) {
+  let absorbed = 0;
+  for (const s of statusesOf(unit)) {
+    if (!s.shield || absorbed >= amount) continue;
+    const take = Math.min(s.shield, amount - absorbed);
+    s.shield -= take;
+    absorbed += take;
+  }
+  unit.statuses = statusesOf(unit).filter((s) => !('shield' in s) || s.shield > 0);
+  return absorbed;
+}
+
+// Consomme un tour d'étourdissement. Retourne true si l'unité doit passer son tour.
+function consumeStun(unit) {
+  const stun = statusesOf(unit).find((s) => s.stun);
+  if (!stun) return false;
+  stun.turns--;
+  if (stun.turns <= 0) unit.statuses = statusesOf(unit).filter((s) => s !== stun);
+  return true;
+}
+
+// Fin de round : liste des effets périodiques à appliquer, puis décompte des durées.
+// Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
+function tickStatuses(unit) {
+  const ticks = statusesOf(unit).filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+  for (const s of statusesOf(unit)) if (!s.stun) s.turns--;
+  unit.statuses = statusesOf(unit).filter((s) => s.stun || s.turns > 0);
+  return ticks;
+}
+
+function clearStatuses(unit) {
+  unit.statuses = [];
+}
+
+return { statusesOf, addStatus, hasStatus, isDebuffed, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
+})();
+
 // ---- src/game/units.js
 __modules["src/game/units.js"] = (() => {
 const { getStats } = __modules["src/game/party.js"];
+const { statusMods, isDebuffed, absorbWithShields } = __modules["src/game/statuses.js"];
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
+
 
 
 
 const isHero = (unit) => 'classKey' in unit;
 const isAlive = (unit) => unit.alive;
 
+/**
+ * Stats de combat d'une unité : stats de base (getStats() pour un héros),
+ * modifiées par ses statuts (buffs/debuffs en %) et, pour un héros, par Berserk
+ * (+x % de puissance physique par tranche de 10 % de PV manquants).
+ * `debuffed` indique si l'unité subit au moins un effet négatif.
+ */
 function statsOf(unit) {
-  return isHero(unit) ? getStats(unit) : unit.stats;
+  const s = { ...(isHero(unit) ? getStats(unit) : unit.stats) };
+  for (const [stat, pct] of Object.entries(statusMods(unit))) {
+    if (typeof s[stat] === 'number') s[stat] = Math.round(s[stat] * (1 + pct / 100));
+  }
+  if (s.berserk) {
+    const missingTenths = Math.floor((1 - unit.hp / s.pv) * 10);
+    s.physPower = Math.round(s.physPower * (1 + (s.berserk * missingTenths) / 100));
+  }
+  s.debuffed = isDebuffed(unit);
+  return s;
 }
 
-// Inflige des dégâts ; retourne true si l'unité vient de tomber.
+/**
+ * Inflige des dégâts (absorbés d'abord par les boucliers).
+ * Retourne { taken, absorbed, fell } ; fell = l'unité vient de tomber.
+ */
 function damage(unit, amount) {
-  unit.hp = Math.max(0, unit.hp - amount);
+  const absorbed = absorbWithShields(unit, amount);
+  const taken = amount - absorbed;
+  unit.hp = Math.max(0, unit.hp - taken);
+  let fell = false;
   if (unit.hp === 0 && unit.alive) {
     unit.alive = false;
-    return true;
+    unit.statuses = [];
+    fell = true;
   }
-  return false;
+  return { taken, absorbed, fell };
 }
 
 function heal(unit, amount) {
+  const before = unit.hp;
   unit.hp = Math.min(statsOf(unit).pv, unit.hp + amount);
+  return unit.hp - before;
 }
 
 return { isHero, isAlive, statsOf, damage, heal };
@@ -1245,8 +1855,8 @@ return { rollLoot };
 
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
-const { REWARDS, LOOT } = __modules["src/config.js"];
-const { getStats, restoreFully } = __modules["src/game/party.js"];
+const { REWARDS, LOOT, XP } = __modules["src/config.js"];
+const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
 const { random } = __modules["src/game/rng.js"];
@@ -1260,9 +1870,16 @@ const { random } = __modules["src/game/rng.js"];
 
 
 
+function xpReward(dungeonLvl, enemiesDefeated) {
+  return enemiesDefeated * (XP.xpBase + XP.xpPerLevel * dungeonLvl);
+}
+
+// Victoire : or, butin, et la même XP pour chaque héros (tombés compris).
 function applyVictory(game, { enemiesDefeated = 0 } = {}) {
   const gold = REWARDS.goldBase + game.dungeonLvl * REWARDS.goldPerLevel;
+  const xp = xpReward(game.dungeonLvl, enemiesDefeated);
   const loot = rollLoot(game.dungeonLvl, enemiesDefeated);
+  const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
   game.dungeonLvl++;
@@ -1270,7 +1887,13 @@ function applyVictory(game, { enemiesDefeated = 0 } = {}) {
     if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
   }
   const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
-  return { message: `Victoire ! Vous rapportez ${gold} pièces d'or.${lootText} Le prochain passage est plus dangereux.`, loot };
+  const levelText = levelUps.length
+    ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
+    : '';
+  return {
+    message: `Victoire ! Vous rapportez ${gold} pièces d'or et ${xp} XP.${lootText}${levelText} Le prochain passage est plus dangereux.`,
+    loot,
+  };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
@@ -1293,7 +1916,7 @@ function restAtInn(game) {
   return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
 }
 
-return { applyVictory, applyDefeat, restAtInn };
+return { xpReward, applyVictory, applyDefeat, restAtInn };
 })();
 
 // ---- src/data/enemies.js
@@ -1350,7 +1973,7 @@ function createEnemy(key, level, label) {
     },
     alive: true,
     guard: false,
-    bleed: 0,
+    statuses: [],
   };
 }
 
@@ -1372,9 +1995,9 @@ const { rand, random } = __modules["src/game/rng.js"];
 
 
 
-// Options d'un coup : { power, variance, magic, alwaysCrit }
-const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false };
-const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false };
+// Options d'un coup : { power, variance, magic, alwaysCrit, critBonus }
+const BASIC_ATTACK = { power: 1, variance: VARIANCE.hero, magic: false, alwaysCrit: false, critBonus: 0 };
+const ENEMY_ATTACK = { power: 1, variance: VARIANCE.enemy, magic: false, alwaysCrit: false, critBonus: 0 };
 
 function skillHitOptions(skill) {
   return {
@@ -1382,6 +2005,7 @@ function skillHitOptions(skill) {
     variance: skill.target === 'allEnemies' ? VARIANCE.aoe : VARIANCE.hero,
     magic: !!skill.magic,
     alwaysCrit: !!skill.alwaysCrit,
+    critBonus: skill.critBonus ?? 0,
   };
 }
 
@@ -1404,7 +2028,11 @@ function powerOf(attacker, magic) {
 
 function hitMultiplier(attacker, opts, defender, crit) {
   let mult = opts.power * (crit ? critMultiplier(attacker) : 1);
-  if (defender) mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+  if (defender) {
+    mult *= defenseFactor(opts.magic ? defender.defMag : defender.def);
+    // Talent « Opportuniste » : bonus contre une cible affaiblie (debuff actif).
+    if (defender.debuffed && attacker.vsDebuffedPct) mult *= 1 + attacker.vsDebuffedPct / 100;
+  }
   return mult;
 }
 
@@ -1417,27 +2045,46 @@ function estimateHit(attacker, opts, defender = null) {
 }
 
 function rollHit(attacker, opts, defender) {
-  const crit = opts.alwaysCrit || random() < chance(attacker, 'critChance');
+  const critChance = Math.min(COMBAT.caps.critChance, (attacker.critChance ?? 0) + (opts.critBonus ?? 0)) / 100;
+  const crit = opts.alwaysCrit || random() < critChance;
   const base = powerOf(attacker, opts.magic) * hitMultiplier(attacker, opts, defender, crit);
   const [lo, hi] = opts.variance;
   return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
 }
 
-// Soins : toujours sur la puissance magique.
+// Soins : toujours sur la puissance magique (+ bonus de soins des talents).
 function healAmount(stats, power) {
-  return Math.round(stats.magPower * power);
+  return Math.round(stats.magPower * power * (1 + (stats.healPct ?? 0) / 100));
 }
 
-// Estimation {lo, hi} de l'effet d'une compétence (soin exact, ou dégâts).
+// Dégâts par round d'un effet sur la durée (poison, saignement, brûlure…) :
+// puissance du lanceur × dot.power, + bonus des talents. Ignore la défense.
+function dotTick(stats, skill) {
+  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.dot.power * (1 + (stats.dotPct ?? 0) / 100)));
+}
+
+// Soins par round d'un soin sur la durée.
+function hotTick(stats, skill) {
+  return Math.max(1, healAmount(stats, skill.hot.power));
+}
+
+// Points de bouclier : puissance du lanceur (magique ou physique) × shield.power.
+function shieldAmount(stats, skill) {
+  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.shield.power));
+}
+
+// Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,
+// soin (exact), ou null si la compétence n'inflige ni dégâts ni soin directs.
 function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
     const amount = healAmount(attacker, skill.power);
     return { lo: amount, hi: amount };
   }
+  if (skill.kind !== 'damage') return null;
   return estimateHit(attacker, skillHitOptions(skill), defender);
 }
 
-return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, estimateSkill };
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, shieldAmount, estimateSkill };
 })();
 
 // ---- src/game/combat.js
@@ -1446,8 +2093,9 @@ const { COMBAT } = __modules["src/config.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { createEnemy } = __modules["src/game/enemies.js"];
 const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
-const { rollHit, healAmount, skillHitOptions, chance, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
+const { rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
+const { addStatus, hasStatus, consumeStun, tickStatuses } = __modules["src/game/statuses.js"];
 const { pick, random } = __modules["src/game/rng.js"];
 // Moteur de combat tour par tour. Logique pure : pas de DOM, pas de timers.
 // Le rythme (délais des tours ennemis) et l'affichage sont gérés par ui/encounter.js.
@@ -1455,6 +2103,10 @@ const { pick, random } = __modules["src/game/rng.js"];
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
 // le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
+//
+// Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
+// passe au combattant suivant.
+
 
 
 
@@ -1469,7 +2121,7 @@ function createCombat({ dungeonKey, level, party }) {
   const enemies = dungeon.encounter.map((key, i) => createEnemy(key, level, i + 1));
   party.forEach((hero) => {
     hero.guard = false;
-    hero.bleed = 0;
+    hero.statuses = [];
   });
   const cb = { dungeonKey, level, party, enemies, log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null };
   log(cb, `Vous entrez dans ${dungeon.name} (niveau ${level}).`);
@@ -1489,7 +2141,7 @@ function checkOutcome(cb) {
   return cb.result;
 }
 
-// Avance jusqu'au prochain combattant vivant et prépare son tour.
+// Avance jusqu'au prochain combattant vivant (et non étourdi) et prépare son tour.
 function nextTurn(cb) {
   cb.acting = null;
   while (!checkOutcome(cb)) {
@@ -1501,6 +2153,11 @@ function nextTurn(cb) {
     }
     const turn = cb.queue[cb.qIndex];
     if (!turn.unit.alive) {
+      cb.qIndex++;
+      continue;
+    }
+    if (consumeStun(turn.unit)) {
+      log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
       cb.qIndex++;
       continue;
     }
@@ -1523,19 +2180,28 @@ function startRound(cb) {
   cb.round++;
 }
 
+// Fin de round : effets sur la durée (dégâts, soins), puis décompte des statuts.
 function endRound(cb) {
   for (const unit of [...cb.party, ...cb.enemies]) {
-    if (!unit.alive || unit.bleed <= 0) continue;
-    unit.bleed--;
-    const fell = damage(unit, COMBAT.bleedDamage);
-    log(cb, `${unit.name} souffre d'un saignement (-${COMBAT.bleedDamage} PV).`, true);
-    if (fell) logFall(cb, unit);
+    if (!unit.alive) continue;
+    for (const tick of tickStatuses(unit)) {
+      if (!unit.alive) break;
+      if (tick.dot) {
+        const { taken, fell } = damage(unit, tick.dot);
+        log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
+        if (fell) logFall(cb, unit);
+      }
+      if (tick.hot) {
+        const healed = heal(unit, tick.hot);
+        log(cb, `${unit.name} est soigné par ${tick.status.name} (+${healed} PV).`, true);
+      }
+    }
   }
 }
 
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
-  gainResource(hero, getClass(hero).resource.regen);
+  gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
 }
 
 function endTurn(cb) {
@@ -1552,15 +2218,26 @@ function aliveAt(list, index) {
   return unit && unit.alive ? unit : null;
 }
 
-// Liste des cibles valides d'une action du héros actif (indices dans cb.enemies / cb.party).
+/**
+ * Cibles possibles d'une action du héros actif : { side, units } où side vaut
+ * 'enemy' (indices dans cb.enemies) ou 'hero' (indices dans cb.party), ou null
+ * si l'action ne demande pas de cible (défense, zone, groupe, soi-même).
+ */
 function targetsFor(cb, action) {
   if (action.type === 'attack') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
-  if (action.type === 'skill') {
-    const skill = getSkills(cb.acting.unit)[action.skill];
-    if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
-    if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
-  }
-  return null; // pas de ciblage (défense, compétence de zone)
+  if (action.type !== 'skill') return null;
+  const skill = getSkills(cb.acting.unit)[action.skill];
+  if (skill.target === 'enemy') return { side: 'enemy', units: cb.enemies.filter(isAlive) };
+  if (skill.target === 'ally') return { side: 'hero', units: cb.party.filter(isAlive) };
+  if (skill.target === 'deadAlly') return { side: 'hero', units: cb.party.filter((h) => !h.alive) };
+  return null;
+}
+
+// Une compétence est-elle utilisable maintenant (ressource, cible possible) ?
+function canUseSkill(cb, hero, skill) {
+  if (hero.res < skill.cost) return false;
+  if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
+  return true;
 }
 
 /**
@@ -1577,18 +2254,27 @@ function heroAct(cb, action) {
   if (action.type === 'defend') {
     hero.guard = true;
     log(cb, `${hero.name} se met en garde.`, true);
+    const stats = statsOf(hero);
+    if (stats.guardShieldPct) {
+      const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
+      addStatus(hero, { key: 'rempart', name: 'Rempart', icon: '🛡️', kind: 'buff', turns: 2, shield: amount });
+      log(cb, `${hero.name} lève un rempart (bouclier de ${amount}).`, true);
+    }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
     if (!target) return false;
     const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(target));
-    const fell = damage(target, hit.amount);
+    const { fell } = damage(target, hit.amount);
     log(cb, `${hero.name} attaque ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
     if (fell) logFall(cb, target);
     gainResource(hero, getClass(hero).resource.onAttack);
   } else if (action.type === 'skill') {
     const skill = getSkills(hero)[action.skill];
-    if (!skill || hero.res < skill.cost) return false;
-    if (!useSkill(cb, hero, skill, action.target)) return false;
+    if (!skill || !canUseSkill(cb, hero, skill)) return false;
+    const targets = skillTargets(cb, hero, skill, action.target);
+    if (!targets) return false;
+    hero.res -= skill.cost;
+    useSkill(cb, hero, skill, targets);
   } else {
     return false;
   }
@@ -1600,46 +2286,100 @@ function critText(hit) {
   return hit.crit ? ' (critique !)' : '';
 }
 
-function useSkill(cb, hero, skill, targetIndex) {
-  const stats = statsOf(hero);
-  const opts = skillHitOptions(skill);
-
-  if (skill.target === 'ally') {
-    const target = aliveAt(cb.party, targetIndex);
-    if (!target) return false;
-    hero.res -= skill.cost;
-    const amount = healAmount(stats, skill.power);
-    heal(target, amount);
-    log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} (+${amount} PV).`, true);
-    return true;
-  }
-
-  if (skill.target === 'allEnemies') {
-    hero.res -= skill.cost;
-    log(cb, `${hero.name} utilise ${skill.name}, frappant tous les ennemis !`, true);
-    for (const enemy of cb.enemies.filter(isAlive)) {
-      if (damage(enemy, rollHit(stats, opts, statsOf(enemy)).amount)) logFall(cb, enemy);
-    }
-    return true;
-  }
-
-  const target = aliveAt(cb.enemies, targetIndex);
-  if (!target) return false;
-  hero.res -= skill.cost;
-  const hit = rollHit(stats, opts, statsOf(target));
-  const fell = damage(target, hit.amount);
-  if (skill.bleed && !fell) target.bleed = skill.bleed;
-  log(cb, `${hero.name} utilise ${skill.name} sur ${target.name} pour ${hit.amount} dégâts${critText(hit)}.`, true);
-  if (fell) logFall(cb, target);
-  return true;
+// « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
+function hitsText(hits) {
+  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}`;
+  const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
+  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}`;
 }
 
-// IA ennemie : attaque un héros vivant au hasard.
-// Le héros peut esquiver (aucun dégât) ou bloquer (dégâts réduits).
+function skillTargets(cb, hero, skill, index) {
+  switch (skill.target) {
+    case 'enemy': { const t = aliveAt(cb.enemies, index); return t ? [t] : null; }
+    case 'ally': { const t = aliveAt(cb.party, index); return t ? [t] : null; }
+    case 'deadAlly': { const t = cb.party[index]; return t && !t.alive ? [t] : null; }
+    case 'allEnemies': return cb.enemies.filter(isAlive);
+    case 'allAllies': return cb.party.filter(isAlive);
+    case 'self': return [hero];
+    default: return null;
+  }
+}
+
+function targetLabel(skill, targets) {
+  if (skill.target === 'allEnemies') return ', visant tous les ennemis';
+  if (skill.target === 'allAllies') return ", sur toute l'équipe";
+  if (skill.target === 'self') return '';
+  return ` sur ${targets[0].name}`;
+}
+
+// Applique une compétence (coût déjà payé) à ses cibles.
+function useSkill(cb, hero, skill, targets) {
+  const stats = statsOf(hero);
+  const parts = [];
+
+  for (const target of targets) {
+    if (skill.kind === 'damage') {
+      const hits = [];
+      for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
+        const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
+        hits.push(hit);
+        if (damage(target, hit.amount).fell) logFall(cb, target);
+      }
+      parts.push(`${target.name} : ${hitsText(hits)}`);
+    } else if (skill.kind === 'heal') {
+      const healed = heal(target, healAmount(stats, skill.power));
+      parts.push(`${target.name} : +${healed} PV`);
+    } else if (skill.kind === 'revive') {
+      target.alive = true;
+      target.statuses = [];
+      target.hp = Math.max(1, Math.round(statsOf(target).pv * skill.power));
+      parts.push(`${target.name} revient à la vie (${target.hp} PV)`);
+    }
+    if (!target.alive) continue;
+
+    if (skill.dot) {
+      addStatus(target, { key: skill.dot.key, name: skill.dot.name, icon: skill.dot.icon ?? '🩸', kind: 'debuff', turns: skill.dot.turns, dot: dotTick(stats, skill) });
+    }
+    if (skill.hot) {
+      addStatus(target, { key: skill.hot.key, name: skill.hot.name, icon: '💚', kind: 'buff', turns: skill.hot.turns, hot: hotTick(stats, skill) });
+    }
+    if (skill.shield) {
+      const amount = shieldAmount(stats, skill);
+      addStatus(target, { key: skill.shield.key, name: skill.shield.name, icon: '🛡️', kind: 'buff', turns: skill.shield.turns, shield: amount });
+      parts.push(`${target.name} : bouclier de ${amount}`);
+    }
+    if (skill.status) addStatus(target, skill.status);
+  }
+  if (skill.selfStatus) addStatus(hero, skill.selfStatus);
+
+  const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
+  log(cb, `${hero.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
+}
+
+// Cible d'un ennemi : un héros qui provoque en priorité, sinon un héros au hasard.
+function enemyTarget(cb) {
+  const alive = cb.party.filter(isAlive);
+  const taunting = alive.filter((h) => hasStatus(h, 'taunt'));
+  return pick(taunting.length ? taunting : alive);
+}
+
+// IA ennemie : attaque un héros (esquive / blocage / garde / boucliers possibles).
+// Une unité confuse a une chance sur deux de frapper l'un de ses alliés.
 function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
   const enemy = cb.acting.unit;
-  const target = pick(cb.party.filter(isAlive));
+  const others = cb.enemies.filter((e) => e.alive && e !== enemy);
+  if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
+    const victim = pick(others);
+    const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
+    const { fell } = damage(victim, hit.amount);
+    log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
+    if (fell) logFall(cb, victim);
+    endTurn(cb);
+    return;
+  }
+
+  const target = enemyTarget(cb);
   if (target) {
     const targetStats = statsOf(target);
     if (random() < chance(targetStats, 'esquive')) {
@@ -1650,8 +2390,9 @@ function enemyAct(cb) {
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
       if (target.guard) dmg = Math.round(dmg * COMBAT.guardFactor);
-      const fell = damage(target, dmg);
-      log(cb, `${enemy.name} attaque ${target.name} pour ${dmg} dégâts${critText(hit)}${blocked ? ' (bloqué)' : ''}.`, true);
+      const { taken, absorbed, fell } = damage(target, dmg);
+      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : ''].join('');
+      log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
       else gainResource(target, getClass(target).resource.onHitTaken);
     }
@@ -1659,7 +2400,7 @@ function enemyAct(cb) {
   endTurn(cb);
 }
 
-return { createCombat, log, checkOutcome, nextTurn, targetsFor, heroAct, enemyAct };
+return { createCombat, log, checkOutcome, nextTurn, targetsFor, canUseSkill, heroAct, enemyAct };
 })();
 
 // ---- src/ui/encounter.js
@@ -2282,11 +3023,206 @@ function decraftSection(item) {
 return { openForge, renderForge };
 })();
 
+// ---- src/ui/format.js
+__modules["src/ui/format.js"] = (() => {
+const { estimateSkill, dotTick, hotTick, shieldAmount } = __modules["src/game/formulas.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { range } = __modules["src/ui/html.js"];
+// Libellés partagés entre plusieurs écrans : description et estimation des compétences.
+// Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
+
+
+
+
+
+const TARGET_LABELS = {
+  allEnemies: 'tous les ennemis',
+  allAllies: "toute l'équipe",
+  self: 'soi-même',
+  deadAlly: 'un allié tombé',
+};
+
+const POWER_LABELS = { physPower: 'puissance physique', magPower: 'puissance magique' };
+
+function statusLabel(status) {
+  const effects = [];
+  for (const [stat, pct] of Object.entries(status.mods ?? {})) {
+    effects.push(`${pct > 0 ? '+' : ''}${pct} % ${POWER_LABELS[stat] ?? STATS[stat]?.label ?? stat}`);
+  }
+  if (status.stun) effects.push('perd son prochain tour');
+  if (status.taunt) effects.push('attire les attaques');
+  if (status.confuse) effects.push('peut frapper ses alliés');
+  const duration = status.stun ? '' : `, ${status.turns} tour${status.turns > 1 ? 's' : ''}`;
+  return `${status.name} (${effects.join(', ')}${duration})`;
+}
+
+/**
+ * Description complète d'une compétence pour un lanceur de stats `stats`
+ * (et une cible de stats `target` si fournie : sa défense est alors comptée).
+ * Ex. « 4 × ~9-12 dégâts physiques · Poison ~6/tour pendant 4 tours ».
+ */
+function skillEffectLabel(stats, skill, target = null) {
+  const parts = [];
+  const est = estimateSkill(stats, skill, target);
+  if (skill.kind === 'damage') {
+    let text = `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
+    if (skill.alwaysCrit) text += ' (critique garanti)';
+    if (skill.critBonus) text += ` (+${skill.critBonus} % de critique)`;
+    parts.push(text);
+  } else if (skill.kind === 'heal') {
+    parts.push(`Soin +${range(est)} PV`);
+  } else if (skill.kind === 'revive') {
+    parts.push(`Relève avec ${Math.round(skill.power * 100)} % des PV`);
+  }
+  if (skill.dot) parts.push(`${skill.dot.name} ~${dotTick(stats, skill)}/tour pendant ${skill.dot.turns} tours`);
+  if (skill.hot) parts.push(`Soin +${hotTick(stats, skill)}/tour pendant ${skill.hot.turns} tours`);
+  if (skill.shield) parts.push(`Bouclier de ${shieldAmount(stats, skill)} (${skill.shield.turns} tours)`);
+  if (skill.status) parts.push(statusLabel(skill.status));
+  if (skill.selfStatus) parts.push(`Lanceur : ${statusLabel(skill.selfStatus)}`);
+  const who = TARGET_LABELS[skill.target];
+  return `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
+}
+
+// Estimation courte pour un bouton : « ~12-15 », « 4 × ~9-12 », « +23 PV », « 🛡️ 30 »…
+function skillShortEstimate(stats, skill, target = null) {
+  const est = estimateSkill(stats, skill, target);
+  if (skill.kind === 'damage') return `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)}`;
+  if (skill.kind === 'heal') return `+${range(est)} PV`;
+  if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
+  if (skill.shield) return `🛡️ ${shieldAmount(stats, skill)}`;
+  if (skill.hot) return `+${hotTick(stats, skill)}/tour`;
+  if (skill.dot) return `~${dotTick(stats, skill)}/tour`;
+  return skill.status?.name ?? skill.selfStatus?.name ?? '';
+}
+
+return { skillEffectLabel, skillShortEstimate };
+})();
+
+// ---- src/ui/screens/talents.js
+__modules["src/ui/screens/talents.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent } = __modules["src/game/talents.js"];
+const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Maître des compétences : arbres de talents de chaque héros.
+
+
+
+
+
+
+
+
+// État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
+const view = { heroIndex: 0, confirmReset: false, flash: null };
+
+const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif' };
+
+function openTalents(heroIndex = view.heroIndex) {
+  Object.assign(view, { heroIndex, confirmReset: false, flash: null });
+  goTo('talents');
+}
+
+function renderTalents(app) {
+  const hero = state.party[view.heroIndex];
+  const cls = getClass(hero);
+  const flash = view.flash;
+  view.flash = null;
+  const available = pointsAvailable(hero);
+  const cost = resetCost(hero);
+
+  app.innerHTML = `
+    <div class="hero"><h1>📖 Maître des compétences</h1><p>Or : ${state.gold}</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    <div class="hero-tabs">
+      ${state.party.map((h, i) => `
+        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
+          ${getClass(h).icon} ${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}
+        </button>`).join('')}
+    </div>
+    <div class="card talent-summary" style="--c:${cls.color}">
+      <div>
+        <b>${cls.icon} ${esc(hero.name)}</b> — ${cls.name} niveau ${hero.level}
+        <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
+      </div>
+      <div class="points ${available ? 'has' : ''}">Points disponibles : <b>${available}</b> / ${pointsTotal(hero)}</div>
+      <button id="reset" class="${view.confirmReset ? 'danger' : ''}" ${pointsSpent(hero) && state.gold >= cost ? '' : 'disabled'}
+        ${tip(`Rend tous les points de talent de ${hero.name} contre ${cost} pièces d'or.`)}>
+        ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
+      </button>
+    </div>
+    <p class="hint">Chaque niveau rapporte 1 point. Un palier se débloque en investissant des points dans la même orientation (palier 1 : 2 points, palier 2 : 4, palier 3 : 6, palier 4 : 8).</p>
+    <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-hero]').forEach((btn) => {
+    btn.onclick = () => openTalents(Number(btn.dataset.hero));
+  });
+  app.querySelectorAll('[data-learn]').forEach((btn) => {
+    btn.onclick = () => {
+      if (learn(hero, btn.dataset.learn)) view.flash = `${hero.name} apprend ${btn.dataset.name}.`;
+      view.confirmReset = false;
+      goTo('talents');
+    };
+  });
+  app.querySelector('#reset').onclick = () => {
+    if (!view.confirmReset) view.confirmReset = true;
+    else {
+      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
+      view.confirmReset = false;
+    }
+    goTo('talents');
+  };
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function branchCard(hero, branch) {
+  const invested = pointsInBranch(hero, branch);
+  return `
+    <div class="card branch">
+      <h3>${branch.icon} ${branch.name} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
+      <p class="hint">${branch.desc}</p>
+      ${branch.nodes.map((n) => nodeCard(hero, branch, n)).join('')}
+    </div>`;
+}
+
+function nodeCard(hero, branch, node) {
+  const rank = rankOf(hero, node.id);
+  const reason = cannotLearnReason(hero, node.id);
+  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
+  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
+  let body = esc(node.desc);
+  if (node.skill) {
+    const s = node.skill;
+    body = `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`;
+  }
+  const action = reason
+    ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
+    : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
+  return `
+    <div class="talent ${node.kind} ${status}">
+      <div class="talent-head">
+        <span class="tier">Palier ${node.tier}</span>
+        <b>${esc(node.name)}</b>
+        <span class="kind">${KIND_LABELS[node.kind]}</span>
+        <span class="rank">${rank}/${node.ranks}</span>
+      </div>
+      <div class="talent-body">${body}</div>
+      ${action}
+    </div>`;
+}
+
+return { openTalents, renderTalents };
+})();
+
 // ---- src/ui/screens/hub.js
 __modules["src/ui/screens/hub.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { restAtInn } = __modules["src/game/progression.js"];
 const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
@@ -2294,7 +3230,11 @@ const { startEncounter } = __modules["src/ui/encounter.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openForge } = __modules["src/ui/screens/forge.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { pointsAvailable } = __modules["src/game/talents.js"];
 // Village : équipe, portails vers les donjons et services.
+
+
 
 
 
@@ -2332,6 +3272,7 @@ function renderHub(app) {
         <button id="inn" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Auberge — Se reposer (gratuit)</button>
         <button id="merchant" ${tip('Achète et vend équipement, potions et consommables. Bientôt disponible.')}>🛒 Marchand</button>
         <button id="forge" ${tip("Décrafte le butin en matéria et améliore ton équipement jusqu'à +5.")}>🔨 Forge</button>
+        <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
         <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
         <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
       </div>
@@ -2345,6 +3286,7 @@ function renderHub(app) {
   app.querySelector('#merchant').onclick = () => showHub('Le marchand prépare son étal — bientôt disponible.');
   app.querySelector('#forge').onclick = () => openForge();
   app.querySelector('#equipBtn').onclick = () => openEquipment();
+  app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => goTo('stats');
 }
 
@@ -2354,41 +3296,19 @@ function heroMini(hero) {
   return `
     <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
       <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b></div>
+      <small>Niv. ${hero.level}${pointsAvailable(hero) ? ` · <span class="badge">${pointsAvailable(hero)} pt</span>` : ''}</small><br>
       <small>${hero.alive ? `PV ${hero.hp}/${pv}` : 'Tombé au combat'}</small>
       ${bar(hero.hp, pv, cls.color)}
+      <small class="xp-label">XP ${hero.xp}/${xpToNext(hero.level)}</small>
+      ${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}
     </div>`;
 }
 
+function talentPoints() {
+  return state.party.reduce((sum, h) => sum + pointsAvailable(h), 0);
+}
+
 return { renderHub };
-})();
-
-// ---- src/ui/format.js
-__modules["src/ui/format.js"] = (() => {
-const { estimateSkill } = __modules["src/game/formulas.js"];
-const { range } = __modules["src/ui/html.js"];
-// Libellés partagés entre plusieurs écrans.
-
-
-
-
-// `stats` : stats du lanceur (getStats). Sans cible : défense ennemie non comptée.
-// Ex. « ~34-41 dégâts (zone) + saignement 3 tours » ou « Soin +23 PV ».
-function skillEffectLabel(stats, skill) {
-  const est = range(estimateSkill(stats, skill));
-  if (skill.kind === 'heal') return `Soin +${est} PV`;
-  let label = `~${est} dégâts ${skill.magic ? 'magiques' : 'physiques'}`;
-  if (skill.alwaysCrit) label += ' (critique garanti)';
-  if (skill.target === 'allEnemies') label += ' (zone)';
-  if (skill.bleed) label += ` + saignement ${skill.bleed} tours`;
-  return label;
-}
-
-function skillShortEstimate(stats, skill) {
-  const est = range(estimateSkill(stats, skill));
-  return skill.kind === 'heal' ? `+${est} PV` : `~${est}`;
-}
-
-return { skillEffectLabel, skillShortEstimate };
 })();
 
 // ---- src/ui/screens/stats.js
@@ -2403,7 +3323,15 @@ const { itemChip } = __modules["src/ui/items.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { xpToNext } = __modules["src/game/party.js"];
+const { pointsAvailable } = __modules["src/game/talents.js"];
+const { bar } = __modules["src/ui/html.js"];
 // Feuilles de personnage.
+
+
+
+
 
 
 
@@ -2422,6 +3350,9 @@ function renderStats(app) {
     <div class="slots">${state.party.map(sheet).join('')}</div>
     <div class="center"><button id="backHub">← Retour au village</button></div>
   `;
+  app.querySelectorAll('[data-talent-hero]').forEach((btn) => {
+    btn.onclick = () => openTalents(Number(btn.dataset.talentHero));
+  });
   app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
     btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
   });
@@ -2436,12 +3367,13 @@ function sheet(hero, index) {
     <div class="card slot" style="--c:${cls.color}">
       <div class="icon">${cls.icon}</div>
       <div class="cname">${esc(hero.name)}</div>
-      <div class="role">${cls.name} · Stat principale : ${STATS[cls.mainStat].label} ★</div>
+      <div class="role">${cls.name} niveau ${hero.level} · Stat principale : ${STATS[cls.mainStat].label} ★</div>
+      <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
       <div class="stats sheet">${statsList(hero)}</div>
       <div class="skillbox">
         ${getSkills(hero).map((s) => `
           <div class="skill-line">
-            <b>${s.name}</b>${s.boosted ? ' <span class="boosted">★ légendaire</span>' : ''} — ${s.cost} ${cls.resource.name}<br>
+            <b>${s.name}</b>${s.boosted ? ' <span class="boosted">★ renforcée</span>' : ''} — ${s.cost} ${cls.resource.name}<br>
             ${skillEffectLabel(stats, s)}
           </div>`).join('')}
       </div>
@@ -2449,6 +3381,7 @@ function sheet(hero, index) {
         ${items.length ? items.map(itemChip).join('') : '<span class="hint">Aucun équipement</span>'}
       </div>
       <button class="full" data-equip-hero="${index}">🎒 Gérer l'équipement</button>
+      <button class="full" data-talent-hero="${index}">📖 Talents${pointsAvailable(hero) ? ` <span class="badge">${pointsAvailable(hero)}</span>` : ''}</button>
     </div>`;
 }
 
@@ -2461,15 +3394,18 @@ const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
-const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
-const { estimateHit, estimateSkill, skillHitOptions, BASIC_ATTACK } = __modules["src/game/formulas.js"];
-const { targetsFor } = __modules["src/game/combat.js"];
+const { getClass, getSkills } = __modules["src/game/party.js"];
+const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
+const { targetsFor, canUseSkill } = __modules["src/game/combat.js"];
 const { statsOf } = __modules["src/game/units.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, tip, bar, range } = __modules["src/ui/html.js"];
 const { skillEffectLabel, skillShortEstimate } = __modules["src/ui/format.js"];
 const { playerAction } = __modules["src/ui/encounter.js"];
-// Écran de combat. Le ciblage est toujours demandé explicitement,
-// même s'il ne reste qu'une seule cible possible.
+// Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
+// reste qu'une seule cible possible ; une compétence de zone, de groupe ou
+// personnelle demande une confirmation qui montre qui sera touché.
+
 
 
 
@@ -2509,7 +3445,7 @@ function renderCombat(app) {
 
 function heroUnit(hero, active) {
   const cls = getClass(hero);
-  const stats = getStats(hero);
+  const stats = statsOf(hero);
   const res = cls.resource.name;
   return `
     <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
@@ -2533,9 +3469,13 @@ function enemyUnit(enemy, active) {
 function statusTags(unit) {
   if (!unit.alive) return '';
   const tags = [];
-  if (unit.guard) tags.push('🛡️ En garde');
-  if (unit.bleed > 0) tags.push(`🩸 Saignement (${unit.bleed})`);
-  return tags.length ? `<div class="status">${tags.join(' · ')}</div>` : '';
+  if (unit.guard) tags.push('<span class="tag buff">🛡️ En garde</span>');
+  for (const s of statusesOf(unit)) {
+    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
+    const turns = s.stun ? '' : ` (${s.turns})`;
+    tags.push(`<span class="tag ${s.kind}">${s.icon ?? ''} ${esc(s.name)}${value}${turns}</span>`);
+  }
+  return tags.length ? `<div class="status">${tags.join('')}</div>` : '';
 }
 
 function waitingPanel(acting) {
@@ -2544,8 +3484,9 @@ function waitingPanel(acting) {
 }
 
 function actionPanel(hero) {
+  const cb = state.combat;
   const cls = getClass(hero);
-  const stats = getStats(hero);
+  const stats = statsOf(hero);
   const atkEst = range(estimateHit(stats, BASIC_ATTACK));
   const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
   return `
@@ -2558,7 +3499,7 @@ function actionPanel(hero) {
       </div>
       <div class="skillbox">
         ${getSkills(hero).map((s, i) => `
-          <button data-skill="${i}" ${tip(`${s.desc} — ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée par un objet légendaire.' : ''}`)} ${hero.res < s.cost ? 'disabled' : ''}>
+          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}`)} ${canUseSkill(cb, hero, s) ? '' : 'disabled'}>
             ${s.name} (${s.cost} ${cls.resource.name}) · ${skillShortEstimate(stats, s)}
           </button>`).join('')}
       </div>
@@ -2570,23 +3511,29 @@ function wireActions(app, hero) {
   const cb = state.combat;
   const zone = app.querySelector('#targetZone');
 
-  const stats = getStats(hero);
+  const stats = statsOf(hero);
 
   // Estimation affichée sur chaque cible (défense de la cible comprise).
   const targetEstimate = (action, unit) => {
     if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
     const skill = getSkills(hero)[action.skill];
-    if (skill.kind === 'heal') return `+${range(estimateSkill(stats, skill))} PV`;
-    return `~${range(estimateHit(stats, skillHitOptions(skill), statsOf(unit)))}`;
+    return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
   };
 
   // Affiche les cibles valides ; l'action n'est lancée qu'au clic sur une cible.
+  // Sans cible unique (zone, groupe, soi-même) : bouton de confirmation.
   const chooseTarget = (action) => {
     const targets = targetsFor(cb, action);
-    if (!targets) return playerAction(action);
+    if (!targets) {
+      const skill = getSkills(hero)[action.skill];
+      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(skill.name)} — ${esc(skillEffectLabel(stats, skill))}</button>`;
+      zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
+      return;
+    }
     const list = targets.side === 'enemy' ? cb.enemies : cb.party;
+    const verb = targets.units.some((u) => !u.alive) ? 'Relever' : 'Cibler';
     zone.innerHTML = targets.units
-      .map((u) => `<button data-target="${list.indexOf(u)}">Cibler ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
+      .map((u) => `<button data-target="${list.indexOf(u)}">${verb} ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
       .join('');
     zone.querySelectorAll('[data-target]').forEach((btn) => {
       btn.onclick = () => playerAction({ ...action, target: Number(btn.dataset.target) });
@@ -2611,8 +3558,10 @@ const { renderHub } = __modules["src/ui/screens/hub.js"];
 const { renderStats } = __modules["src/ui/screens/stats.js"];
 const { renderEquipment } = __modules["src/ui/screens/equipment.js"];
 const { renderForge } = __modules["src/ui/screens/forge.js"];
+const { renderTalents } = __modules["src/ui/screens/talents.js"];
 const { renderCombat } = __modules["src/ui/screens/combat.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -2628,6 +3577,7 @@ registerScreens({
   stats: renderStats,
   equipment: renderEquipment,
   forge: renderForge,
+  talents: renderTalents,
   combat: renderCombat,
 });
 

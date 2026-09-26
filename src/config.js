@@ -10,7 +10,7 @@ export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 export const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
-  bleedDamage: 6,         // dégâts d'un saignement par fin de round
+  confuseChance: 0.5,     // chance qu'une unité confuse frappe un de ses alliés
   // Puissance physique = Attaque (armes) + stat physique de la classe × physStatFactor[stat]
   // (l'Agilité rapporte un peu plus que la Force : à stat égale, un voleur frappe plus fort)
   // Puissance magique  = Intelligence × magicPerInt (sorts et soins uniquement)
@@ -39,6 +39,24 @@ export const LOOT = {
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+};
+
+// Expérience et niveaux. XP d'un ennemi = xpBase + xpPerLevel × niveau du donjon ;
+// passer du niveau L à L+1 demande toNextBase + toNextPerLevel × L points d'XP.
+export const XP = {
+  xpBase: 10,
+  xpPerLevel: 5,
+  toNextBase: 40,
+  toNextPerLevel: 20,
+};
+
+// Arbres de compétences : 1 point par niveau (dès le niveau 1) ; le palier t d'une
+// branche demande t × tierPoints points déjà investis dans cette branche.
+// Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
+export const TALENT_RULES = {
+  pointsPerLevel: 1,
+  tierPoints: 2,
+  resetCostPerLevel: 10,
 };
 
 // Forge (DESIGN_DOC §2) : décraft en matéria, amélioration de +1 à +5.

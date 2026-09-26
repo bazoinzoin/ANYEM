@@ -105,9 +105,9 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
 test('un légendaire porté modifie la compétence visée', () => {
   const [, voleur] = party();
   const croc = generateItem({ legendary: 'crocSanglant' });
-  assert.equal(getSkills(voleur)[1].bleed, 3);
+  assert.equal(getSkills(voleur)[1].dot.turns, 3);
   equip(voleur, [croc], croc, 'mainDroite');
   const laceration = getSkills(voleur)[1];
-  assert.equal(laceration.bleed, 5);
+  assert.equal(laceration.dot.turns, 5);
   assert.equal(laceration.boosted, true);
 });
