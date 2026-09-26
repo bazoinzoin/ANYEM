@@ -2,15 +2,22 @@
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
 
-import { REWARDS, LOOT } from '../config.js';
-import { getStats, restoreFully } from './party.js';
+import { REWARDS, LOOT, XP } from '../config.js';
+import { getStats, restoreFully, gainXp } from './party.js';
 import { heal } from './units.js';
 import { rollLoot } from './loot.js';
 import { random } from './rng.js';
 
+export function xpReward(dungeonLvl, enemiesDefeated) {
+  return enemiesDefeated * (XP.xpBase + XP.xpPerLevel * dungeonLvl);
+}
+
+// Victoire : or, butin, et la même XP pour chaque héros (tombés compris).
 export function applyVictory(game, { enemiesDefeated = 0 } = {}) {
   const gold = REWARDS.goldBase + game.dungeonLvl * REWARDS.goldPerLevel;
+  const xp = xpReward(game.dungeonLvl, enemiesDefeated);
   const loot = rollLoot(game.dungeonLvl, enemiesDefeated);
+  const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
   game.dungeonLvl++;
@@ -18,7 +25,13 @@ export function applyVictory(game, { enemiesDefeated = 0 } = {}) {
     if (hero.alive) heal(hero, Math.round(getStats(hero).pv * REWARDS.victoryHealPct));
   }
   const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
-  return { message: `Victoire ! Vous rapportez ${gold} pièces d'or.${lootText} Le prochain passage est plus dangereux.`, loot };
+  const levelText = levelUps.length
+    ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
+    : '';
+  return {
+    message: `Victoire ! Vous rapportez ${gold} pièces d'or et ${xp} XP.${lootText}${levelText} Le prochain passage est plus dangereux.`,
+    loot,
+  };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).

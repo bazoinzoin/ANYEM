@@ -7,6 +7,8 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 
 - `npm start` — serveur local sur http://localhost:8000
 - `npm test` — tests unitaires (`node --test`)
+- `npm run build` — régénère `dist/anyem.html` (jeu en un seul fichier, jouable en double-clic). **À lancer et commiter après toute modification de `index.html`, `css/` ou `src/`** : un test vérifie qu'il est à jour. Le joueur utilise ce fichier, il n'a pas Node.
+- `tools/build.mjs` ne gère que `import { … } from '…'` et `export function|const|let|class` : s'en tenir à ces formes.
 
 ## Architecture : couches à respecter
 
@@ -18,8 +20,12 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
   `ui/encounter.js` rythme les combats (délais des tours ennemis) autour du moteur `game/combat.js`.
 - Chiffres d'équilibrage globaux : `src/config.js`.
 - Les stats d'un héros se lisent **toujours** via `getStats(hero)` et ses compétences via `getSkills(hero)` (`game/party.js`) : c'est là que l'équipement (et plus tard talents et buffs) s'applique. Ne pas lire `CLASSES[...].base` ou `.skills` directement ailleurs.
+- Talents : contenu dans `data/talents.js`, règles dans `game/talents.js` ; leurs effets passent par `getStats` (flat/pct/passive) et `getSkills` (skill/skillMod). Nouveaux effets de combat = statuts (`game/statuses.js`) appliqués via les champs de compétence `dot`, `hot`, `shield`, `status`, `selfStatus` : préférer ces champs génériques à du code spécifique.
+- En combat, lire les stats via `statsOf(unit)` (`game/units.js`) : il ajoute les buffs/debuffs et Berserk à `getStats`.
 - Équiper/retirer passe par `game/equipment.js` (`equip`, `unequip`, `slotsFor`) : règles de maîtrise, deux mains, retour au sac.
-- Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée.
+- Stats d'un objet : toujours via `itemStats(item)` (`game/items.js`), qui applique l'amélioration +1..+5 ; `item.stats` = stats de base. Nom affiché : `itemName(item)` (`ui/items.js`).
+- Dégâts : `rollHit` / `estimateHit` (`game/formulas.js`) — mêmes calculs pour le jet et l'estimation affichée. Physique = `physPower` (Attaque des armes + Force/Agilité selon `physStat` de la classe) ; magique (`skill.magic`) et soins = `magPower` (Intelligence). L'Intelligence ne doit jamais renforcer une attaque à l'arme.
+- Objets communs : exactement stat(s) obligatoire(s) + stat principale (bouclier : Défense + Blocage obligatoires) ; secondaires (`item.bonus`) à partir de peu commun. Affichage des lignes de stats : `itemStatLines(item)`.
 
 ## Conventions
 

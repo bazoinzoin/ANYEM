@@ -7,7 +7,7 @@ export const STATS = {
   agilite: { label: 'Agilité' },
   intelligence: { label: 'Intelligence' },
   // Secondaires offensives
-  atq: { label: 'Attaque' },
+  atq: { label: 'Attaque' },            // dégâts des armes (stat d'objet)
   vit: { label: 'Vitesse' },
   critChance: { label: 'Taux critique', suffix: '%' },
   critDmg: { label: 'Dégâts critiques', suffix: '%' },

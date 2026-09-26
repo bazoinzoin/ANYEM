@@ -1,11 +1,15 @@
 // Génération des objets d'équipement.
 //
-// Un objet est une donnée figée à sa création :
-// { id, name, level, rarity, slotType, weaponType?, armorType?, primary,
-//   stats: { clé: valeur }, mandatory: [clés], secondaries: [clés], legendary? }
+// Un objet est une donnée figée à sa création, sauf son niveau d'amélioration :
+// { id, name, level, rarity, plus, slotType, weaponType?, armorType?, primary,
+//   stats: { clé: valeur },   stat(s) obligatoire(s) + stat principale
+//   mandatory: [clés],        stat(s) obligatoire(s)
+//   bonus: { clé: valeur },   stats secondaires (rareté ≥ peu commun)
+//   legendary? }
+// Valeurs de base : les stats effectives se lisent via itemStats() / itemStatLines().
 // slotType : 'arme' | 'bouclier' | 'anneau' | 'collier' | pièce d'armure (voir ARMOR_PIECES).
 
-import { ITEM, LOOT } from '../config.js';
+import { ITEM, LOOT, FORGE } from '../config.js';
 import {
   RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS,
   PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES,
@@ -16,6 +20,31 @@ let nextId = 1;
 
 export function budget(level) {
   return ITEM.budgetBase + ITEM.budgetPerLevel * level;
+}
+
+function boost(value, plus, isMandatory) {
+  if (!plus) return value;
+  const v = Math.round(value * (1 + FORGE.statBonusPerPlus * plus));
+  return isMandatory ? Math.max(v, value + plus) : v;
+}
+
+// Lignes de stats à afficher, amélioration comprise, dans l'ordre :
+// obligatoire(s), principale, secondaires. [{ stat, value, secondary }]
+// Une stat peut apparaître deux fois (Blocage obligatoire + secondaire d'un bouclier).
+export function itemStatLines(item) {
+  const plus = item.plus ?? 0;
+  const main = Object.entries(item.stats).map(([stat, value]) =>
+    ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
+  const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) =>
+    ({ stat, value: boost(value, plus, false), secondary: true }));
+  return [...main, ...bonus];
+}
+
+// Stats effectives totales de l'objet, amélioration comprise.
+export function itemStats(item) {
+  const total = {};
+  for (const { stat, value } of itemStatLines(item)) total[stat] = (total[stat] ?? 0) + value;
+  return total;
 }
 
 export function isWeapon(item) {
@@ -71,15 +100,13 @@ function baseName(base) {
   return ARMOR_TYPES[base.armorType].names[base.slotType];
 }
 
-// Stat(s) obligatoire(s) : attaque (arme), défense (armure), défense + blocage
-// (bouclier), défense magique (bijou).
+// Stat obligatoire : attaque (arme), défense (armure), défense magique (bijou) ;
+// exception : défense + blocage pour un bouclier.
+// Un objet commun ne porte que sa/ses stat(s) obligatoire(s) et sa stat principale.
 function mandatoryStats(base, level, mult) {
   const b = budget(level);
   if (base.slotType === 'arme') {
-    const w = WEAPON_TYPES[base.weaponType];
-    const stats = { atq: Math.round(b * ITEM.weaponAtq * w.atqMult * mult) };
-    if (w.vit) stats.vit = w.vit;
-    return stats;
+    return { atq: Math.round(b * ITEM.weaponAtq * WEAPON_TYPES[base.weaponType].atqMult * mult) };
   }
   if (base.slotType === 'bouclier') {
     return {
@@ -129,19 +156,20 @@ export function generateItem(opts = {}) {
   const mandatory = Object.keys(stats);
   stats[primary] = Math.max(1, Math.round(budget(level) * ITEM.primaryPerBudget * primaryWeight(base) * r.mult));
 
-  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet.
-  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats));
-  const secondaries = [];
+  // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet
+  // (sauf exception : le Blocage d'un bouclier).
+  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+  const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    stats[stat] = secondaryValue(stat, level, r.range);
-    secondaries.push(stat);
+    bonus[stat] = secondaryValue(stat, level, r.range);
   }
 
   let name = legendary ? legendary.name : baseName(base);
   if (!legendary && rarity !== 'commun') name += ` ${PRIMARY_SUFFIX[primary]}`;
 
-  const item = { id: `it${nextId++}`, name, level, rarity, ...base, primary, stats, mandatory, secondaries };
+  const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, bonus };
   for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
   if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
   return item;

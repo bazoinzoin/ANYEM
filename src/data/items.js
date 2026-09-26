@@ -30,6 +30,13 @@ export const RARITIES = {
 
 export const RARITY_ORDER = Object.keys(RARITIES);
 
+// Matéria obtenues au décraft : les armes donnent des matéria d'arme, tout le
+// reste (armures, boucliers, bijoux) des matéria d'armure.
+export const MATERIA_KINDS = {
+  arme: { label: "Matéria d'arme", icon: '⚔️' },
+  armure: { label: "Matéria d'armure", icon: '🛡️' },
+};
+
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
 export const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, ceinture: 0.4, bottes: 0.5,
@@ -50,20 +57,23 @@ export const ARMOR_TYPES = {
   },
 };
 
-// Armes. atqMult : puissance relative ; vit : bonus/malus de vitesse ;
-// twoHanded : occupe les deux mains.
+// Armes. atqMult : puissance relative ; twoHanded : occupe les deux mains.
+// (Un objet commun ne porte que sa stat obligatoire et sa stat principale : pas de
+// bonus de vitesse lié au type d'arme.)
 export const WEAPON_TYPES = {
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, vit: 1, primaries: ['force', 'agilite'] },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, vit: 0, primaries: ['force', 'agilite'] },
-  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, vit: -1, primaries: ['force', 'agilite'] },
-  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, vit: 2, primaries: ['agilite', 'intelligence'] },
-  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, vit: -1, primaries: ['force'], twoHanded: true },
-  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, vit: -2, primaries: ['force'], twoHanded: true },
-  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, vit: -3, primaries: ['force'], twoHanded: true },
-  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, vit: 0, primaries: ['intelligence'], twoHanded: true },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, primaries: ['force', 'agilite'] },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
+  marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
+  dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
+  epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
+  hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
+  marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
+  baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
 };
 
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'] };
+// Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
+// peut en plus ressortir en stat secondaire (repeatableSecondaries).
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
 
 export const JEWELS = {
   anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
@@ -92,7 +102,7 @@ export const SECONDARY_STATS = {
 };
 
 // Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (powerPct : +% de puissance, costDelta : coût, bleedDelta : tours de saignement).
+// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
 export const LEGENDARIES = {
   colereAncestrale: {
     name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
@@ -104,7 +114,7 @@ export const LEGENDARIES = {
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', bleedDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
   },
   murmureDeLOmbre: {
     name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',

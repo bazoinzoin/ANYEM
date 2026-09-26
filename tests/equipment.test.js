@@ -49,11 +49,11 @@ test("équiper remplace l'objet en place, qui retourne au sac, et met à jour le
   const oldWeapon = guerrier.equipment.mainDroite;
   const axe = item({ slotType: 'arme', weaponType: 'hache', level: 10, primary: 'force' });
   const bag = [axe];
-  const before = getStats(guerrier).atq;
+  const before = getStats(guerrier).physPower;
   assert.ok(equip(guerrier, bag, axe, 'mainDroite'));
   assert.equal(guerrier.equipment.mainDroite, axe);
   assert.deepEqual(bag, [oldWeapon]);
-  assert.ok(getStats(guerrier).atq > before);
+  assert.ok(getStats(guerrier).physPower > before);
 });
 
 test("une arme à deux mains libère la main gauche, et inversement", () => {
@@ -84,7 +84,7 @@ test('équipement impossible : rien ne change', () => {
 test('retirer un objet le range dans le sac et ramène les PV sous le nouveau maximum', () => {
   const [guerrier] = party();
   const belt = generateItem({ level: 1, slotType: 'ceinture', armorType: 'lourde', rarity: 'rare' });
-  belt.stats.pv = 50;
+  belt.bonus.pv = 50;
   const bag = [belt];
   equip(guerrier, bag, belt, 'ceinture');
   guerrier.hp = getStats(guerrier).pv;
@@ -99,16 +99,15 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
   const before = getStats(voleur);
   equip(voleur, [dagger], dagger, 'mainGauche');
   const after = getStats(voleur);
-  const mainGain = Math.round(dagger.stats.agilite * 0.5 + before.agilite * 0.5) - Math.round(before.agilite * 0.5);
-  assert.equal(after.atq - before.atq, Math.round(dagger.stats.atq * 0.5) + mainGain);
+  assert.equal(after.atq - before.atq, Math.round(dagger.stats.atq * 0.5));
 });
 
 test('un légendaire porté modifie la compétence visée', () => {
   const [, voleur] = party();
   const croc = generateItem({ legendary: 'crocSanglant' });
-  assert.equal(getSkills(voleur)[1].bleed, 3);
+  assert.equal(getSkills(voleur)[1].dot.turns, 3);
   equip(voleur, [croc], croc, 'mainDroite');
   const laceration = getSkills(voleur)[1];
-  assert.equal(laceration.bleed, 5);
+  assert.equal(laceration.dot.turns, 5);
   assert.equal(laceration.boosted, true);
 });

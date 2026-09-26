@@ -6,7 +6,7 @@ import { getClass, getStats } from '../game/party.js';
 import { tip } from './html.js';
 
 const STAT_TIPS = {
-  atq: "Base des dégâts et des soins. Comprend le bonus de la stat principale.",
+  atq: 'Attaque apportée par les armes (et bonus d\'objets). Compte pour la puissance physique.',
   critChance: `Chance de coup critique (max ${COMBAT.caps.critChance} %).`,
   critDmg: 'Dégâts supplémentaires infligés par un coup critique.',
   def: 'Réduit les dégâts physiques subis.',
@@ -15,18 +15,26 @@ const STAT_TIPS = {
   blocage: `Chance de bloquer une attaque, ce qui réduit ses dégâts de moitié (max ${COMBAT.caps.blocage} %).`,
 };
 
+function row(label, value, tipText) {
+  const labelHtml = tipText ? `<span ${tip(tipText)}>${label}</span>` : label;
+  return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+}
+
 export function statsList(hero) {
   const cls = getClass(hero);
   const stats = getStats(hero);
+  const phys = STATS[cls.physStat].label;
   const rows = STAT_ORDER.map((k) => {
-    let label = STATS[k].label;
-    if (k === cls.mainStat) label += ' ★';
-    let value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
-    if (k === 'atq') value += ` <small>(dont +${stats.atqFromMain} ${STATS[cls.mainStat].label})</small>`;
-    const labelHtml = STAT_TIPS[k] ? `<span ${tip(STAT_TIPS[k])}>${label}</span>` : label;
-    return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
+    const label = STATS[k].label + (k === cls.mainStat ? ' ★' : '');
+    const value = `${k === 'pv' ? `${hero.hp}/` : ''}${stats[k]}${STATS[k].suffix ? ` ${STATS[k].suffix}` : ''}`;
+    return row(label, value, STAT_TIPS[k]);
   });
-  rows.splice(STAT_ORDER.indexOf('pv'), 0,
-    `<div class="stat-row"><span>${cls.resource.name}</span><span>${hero.res}/${stats.resMax}</span></div>`);
+  // Puissances dérivées, juste après les stats principales.
+  rows.splice(STAT_ORDER.indexOf('atq'), 0,
+    row('Puissance physique', `${stats.physPower} <small>(Attaque ${stats.atq} + ${stats.physFromStat} ${phys})</small>`,
+      `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
+    row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
+      'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
+  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
   return rows.join('');
 }

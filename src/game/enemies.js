@@ -17,12 +17,14 @@ export function createEnemy(key, level, label) {
       critDmg: 50,
       pv,
       atq: scaled(def.atq, level),
+      physPower: scaled(def.atq, level),
+      magPower: scaled(def.atq, level),
       def: scaled(def.def, level),
       defMag: scaled(def.defMag, level),
       vit: Math.round(rand(def.vit.min, def.vit.max)),
     },
     alive: true,
     guard: false,
-    bleed: 0,
+    statuses: [],
   };
 }

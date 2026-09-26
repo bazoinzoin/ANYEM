@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
-import { COMBAT } from '../src/config.js';
 
 // Aléatoire déterministe : chaque jet vaut le milieu de sa fourchette.
 beforeEach(() => setRandomSource(() => 0.5));
@@ -64,27 +63,29 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
   cb.party[mage].hp = 10;
   turn.unit.res = 80;
   assert.ok(heroAct(cb, { type: 'skill', skill: 0, target: mage }));
-  assert.equal(cb.party[mage].hp, 10 + Math.round(getStats(turn.unit).atq * 1.7));
+  assert.equal(cb.party[mage].hp, 10 + Math.round(getStats(turn.unit).magPower * 1.1));
   assert.equal(cb.party[guerrier].hp, 0);
 });
 
 test('Lacération fait saigner la cible à chaque fin de round', () => {
   const { cb } = newCombat();
-  playUntilHero(cb, voleur);
+  const turn = playUntilHero(cb, voleur);
   assert.ok(heroAct(cb, { type: 'skill', skill: 1, target: 0 }));
   const target = cb.enemies[0];
-  assert.equal(target.bleed, 3);
+  const bleed = target.statuses.find((s) => s.key === 'saignement');
+  assert.equal(bleed.turns, 3);
+  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.35)));
   const hpAfterHit = target.hp;
-  // Termine le round en cours : le saignement s'applique avant le suivant.
+  // Termine le round en cours (héros en défense, ennemis ciblant les héros).
   while (cb.qIndex < cb.queue.length) {
-    const turn = nextTurn(cb);
+    const t = nextTurn(cb);
     if (cb.round > 1) break;
-    if (turn.side === 'hero') heroAct(cb, { type: 'defend' });
+    if (t.side === 'hero') heroAct(cb, { type: 'defend' });
     else enemyAct(cb);
   }
   nextTurn(cb);
-  assert.equal(target.hp, hpAfterHit - COMBAT.bleedDamage);
-  assert.equal(target.bleed, 2);
+  assert.equal(target.hp, hpAfterHit - bleed.dot);
+  assert.equal(target.statuses.find((s) => s.key === 'saignement').turns, 2);
 });
 
 test('la garde se lève au tour suivant du héros', () => {
@@ -138,7 +139,7 @@ test('esquive : le héros ne subit aucun dégât', () => {
   cb.party.forEach((h) => { h.equipment = {}; });
   // esquive 100 % (plafonnée à 50 %) et jets à 0,4 : toujours esquivé
   setRandomSource(() => 0.4);
-  cb.party.forEach((h) => { h.equipment.anneau1 = { stats: { esquive: 100 } }; });
+  cb.party.forEach((h) => { h.equipment.anneau1 = { stats: { esquive: 100 }, mandatory: [] }; });
   const hp = cb.party.map((h) => h.hp);
   for (let i = 0; i < 12; i++) {
     const turn = nextTurn(cb);
@@ -155,4 +156,49 @@ test('Coup Vicieux est toujours critique', () => {
   turn.unit.res = 60;
   heroAct(cb, { type: 'skill', skill: 0, target: 0 });
   assert.ok(cb.log[0].text.includes('critique') || cb.log[1].text.includes('critique'));
+});
+
+test("l'attaque de base est physique : elle ignore l'Intelligence, même pour un mage", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, mage);
+  const target = cb.enemies[0];
+  target.stats.def = 0;
+  const hp = target.hp;
+  heroAct(cb, { type: 'attack', target: 0 });
+  const stats = getStats(turn.unit);
+  assert.equal(stats.physPower, stats.atq + Math.round(stats.force * 0.5));
+  assert.equal(hp - target.hp, Math.round(stats.physPower * (0.9 + 0.5 * 0.25)));
+  turn.unit.equipment.anneau1 = { stats: { intelligence: 100 }, mandatory: [] };
+  assert.equal(getStats(turn.unit).physPower, stats.physPower, "l'Intelligence ne change pas la puissance physique");
+});
+
+test("un sort est magique : il utilise l'Intelligence et la défense magique", () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, mage);
+  const target = cb.enemies[0];
+  Object.assign(target.stats, { def: 1000, defMag: 0 });
+  turn.unit.res = 90;
+  const hp = target.hp;
+  heroAct(cb, { type: 'skill', skill: 0, target: 0 }); // Boule de Feu
+  const stats = getStats(turn.unit);
+  assert.equal(stats.magPower, stats.intelligence * 2);
+  assert.equal(hp - target.hp, Math.round(stats.magPower * 2.1 * (0.9 + 0.5 * 0.25)));
+});
+
+test("la puissance physique du voleur dépend de l'Agilité, celle du guerrier de la Force", () => {
+  const { cb } = newCombat();
+  const v = getStats(cb.party[voleur]);
+  const g = getStats(cb.party[guerrier]);
+  assert.equal(v.physPower, v.atq + Math.round(v.agilite * 0.6));
+  assert.equal(g.physPower, g.atq + Math.round(g.force * 0.5));
+});
+
+test("à stat principale et arme égales, le voleur frappe plus fort que le guerrier", () => {
+  const { cb } = newCombat();
+  const [g, v] = [cb.party[guerrier], cb.party[voleur]];
+  for (const hero of [g, v]) hero.equipment = { anneau1: { stats: { force: 40, agilite: 40 }, mandatory: [] } };
+  const gs = getStats(g);
+  const vs = getStats(v);
+  assert.ok(vs.physFromStat > gs.physFromStat);
+  assert.ok(vs.physPower - vs.atq > gs.physPower - gs.atq);
 });
