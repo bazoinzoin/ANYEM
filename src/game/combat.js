@@ -27,6 +27,7 @@ import { statsOf, isHero, isAlive, damage, heal } from './units.js';
 import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } from './statuses.js';
 import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
+import { EFFECTS } from '../data/effects.js';
 import { pick, random } from './rng.js';
 
 /**
@@ -82,6 +83,11 @@ export function nextTurn(cb) {
       cb.qIndex++;
       continue;
     }
+    triggerTraps(cb, turn.unit);
+    if (!turn.unit.alive) {
+      cb.qIndex++;
+      continue;
+    }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
       cb.qIndex++;
@@ -96,6 +102,21 @@ export function nextTurn(cb) {
     return turn;
   }
   return null;
+}
+
+// Pièges posés sur l'unité : ils se déclenchent au début de son tour (dégâts,
+// puis effets du piège, ex. étourdissement qui lui fait perdre ce tour).
+function triggerTraps(cb, unit) {
+  for (const trap of statusesOf(unit).filter((s) => s.trap)) {
+    unit.statuses = statusesOf(unit).filter((s) => s !== trap);
+    const { taken, fell } = hurt(cb, unit, trap.trap);
+    log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
+    if (fell) {
+      logFall(cb, unit);
+      return;
+    }
+    for (const e of EFFECTS[trap.key].trap.effects ?? []) addStatus(unit, makeStatus(e.id, e.turns));
+  }
 }
 
 // Ordre de jeu : vitesse décroissante (tri stable : à égalité, les héros d'abord).
@@ -117,7 +138,7 @@ function endRound(cb) {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
-        const { taken, fell } = damage(unit, tick.dot);
+        const { taken, fell } = hurt(cb, unit, tick.dot);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
@@ -135,7 +156,7 @@ function confusedHeroStrikes(cb, hero) {
   if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
   const victim = pick(allies);
   const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
-  const { taken, fell } = damage(victim, hit.amount);
+  const { taken, fell } = hurt(cb, victim, hit.amount);
   log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
   if (fell) logFall(cb, victim);
   return true;
@@ -289,10 +310,23 @@ export function heroAct(cb, action) {
 
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
-    log(cb, `${hero.name} n'a plus assez de ${getClass(hero).resource.name} : fin du tour.`);
+    const res = getClass(hero).resource.name;
+    log(cb, `${hero.name} n'a plus assez ${/^[AEIOUÉÈ]/.test(res) ? "d'" : 'de '}${res} : fin du tour.`);
   }
   endTurn(cb);
   return true;
+}
+
+// Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
+function hurt(cb, unit, amount) {
+  const r = damage(unit, amount);
+  if (r.protector?.fell) logFall(cb, r.protector.unit);
+  return r;
+}
+
+// « (12 encaissés par Aldric) » quand une Intercession a pris une part des dégâts.
+function redirectText(r) {
+  return r.redirected ? ` (${r.redirected} encaissés par ${r.protector.unit.name})` : '';
 }
 
 // Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
@@ -321,9 +355,10 @@ function critText(hit) {
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}`;
+  const notes = hits.map((h) => h.note ?? '').join('');
+  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
   const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
-  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}`;
+  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
 function skillTargets(cb, hero, skill, index) {
@@ -361,8 +396,9 @@ function useSkill(cb, caster, skill, targets) {
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
         hit.amount = guarded(target, hit.amount);
-        const { taken, fell } = damage(target, hit.amount);
-        hits.push({ ...hit, amount: taken });
+        const r = hurt(cb, target, hit.amount);
+        const { taken, fell } = r;
+        hits.push({ ...hit, amount: taken, note: redirectText(r) });
         dealt += taken;
         crit ||= hit.crit;
         if (fell) logFall(cb, target);
@@ -370,7 +406,7 @@ function useSkill(cb, caster, skill, targets) {
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
-      const healed = heal(target, healAmount(stats, skill.power));
+      const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -387,6 +423,10 @@ function useSkill(cb, caster, skill, targets) {
     }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+      if (status.redirect) {
+        if (target === caster) continue; // on ne s'intercède pas pour soi-même
+        status.source = caster;
+      }
       addStatus(target, status);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
@@ -440,7 +480,7 @@ export function enemyAct(cb) {
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
     const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = damage(victim, hit.amount);
+    const { fell } = hurt(cb, victim, hit.amount);
     log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
     if (fell) logFall(cb, victim);
     endTurn(cb);
@@ -465,8 +505,9 @@ export function enemyAct(cb) {
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
       dmg = guarded(target, dmg);
-      const { taken, absorbed, fell } = damage(target, dmg);
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : ''].join('');
+      const r = hurt(cb, target, dmg);
+      const { taken, absorbed, fell } = r;
+      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
       else onHitTaken(target);

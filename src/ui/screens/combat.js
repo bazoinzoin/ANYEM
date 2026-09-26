@@ -90,7 +90,7 @@ function statusTags(unit) {
   const tags = [];
   if (unit.guard) tags.push('<span class="tag buff">🛡️ En garde</span>');
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
+    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : s.trap ? ` ${s.trap}` : s.source ? ` (${esc(s.source.name)})` : '';
     const turns = s.stun ? '' : ` (${s.turns})`;
     tags.push(`<span class="tag ${s.kind}">${s.icon ?? ''} ${esc(s.name)}${value}${turns}</span>`);
   }

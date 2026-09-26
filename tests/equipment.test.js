@@ -5,6 +5,10 @@ import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
 import { generateItem } from '../src/game/items.js';
 import { equip, unequip, slotsFor, cannotEquipReason } from '../src/game/equipment.js';
+import { learn } from '../src/game/talents.js';
+import { LEGENDARIES } from '../src/data/items.js';
+import { CLASSES } from '../src/data/classes.js';
+import { TALENTS } from '../src/data/talents.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
 
@@ -102,13 +106,42 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
   assert.equal(after.atq - before.atq, Math.round(dagger.stats.atq * 0.5));
 });
 
-test('un légendaire porté modifie la compétence visée', () => {
+test('un légendaire porté modifie la compétence visée (talent compris)', () => {
   const [, voleur] = party();
+  voleur.level = 50;
+  for (const id of ['toxines', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) learn(voleur, id);
   const croc = generateItem({ legendary: 'crocSanglant' });
-  const laceration0 = getSkills(voleur).find((s) => s.id === 'laceration');
-  assert.equal(laceration0.effects[0].turns, 4);
+  const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
+  assert.equal(lame0.effects[0].turns, 4);
   equip(voleur, [croc], croc, 'mainDroite');
-  const laceration = getSkills(voleur).find((s) => s.id === 'laceration');
-  assert.equal(laceration.effects[0].turns, 6);
-  assert.equal(laceration.boosted, true);
+  const lame = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
+  assert.equal(lame.effects[0].turns, 6);
+  assert.equal(lame.boosted, true);
+});
+
+test('chaque légendaire vise une compétence de sa classe (de base ou de talent) ; il y en a un par orientation', () => {
+  for (const [key, leg] of Object.entries(LEGENDARIES)) {
+    const skills = [...CLASSES[leg.classKey].skills, ...TALENTS[leg.classKey].flatMap((b) => b.nodes).map((n) => n.skill).filter(Boolean)];
+    assert.ok(skills.some((s) => s.id === leg.passive.skill), `${key} vise une compétence inconnue`);
+    const item = generateItem({ legendary: key });
+    const [hero] = createParty([], [leg.classKey]);
+    assert.equal(cannotEquipReason(hero, item), null, `${key} doit être équipable par sa classe`);
+  }
+  for (const [classKey, branches] of Object.entries(TALENTS)) {
+    const count = Object.values(LEGENDARIES).filter((l) => l.classKey === classKey).length;
+    assert.equal(count, branches.length, `${classKey} : un légendaire par orientation`);
+  }
+});
+
+test('Paladin : armes de Force et d\'Intelligence, bouclier, armures lourde et légère ; Chasseur : arc et armure moyenne', () => {
+  const [paladin, chasseur] = createParty([], ['paladin', 'chasseur']);
+  assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'sceptre' })), ['mainDroite']);
+  assert.deepEqual(slotsFor(paladin, item({ slotType: 'bouclier' })), ['mainGauche']);
+  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), null);
+  assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })));
+  assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'arc' })));
+  assert.equal(chasseur.equipment.mainDroite.weaponType, 'arc');
+  assert.ok(cannotEquipReason(chasseur, item({ slotType: 'arme', weaponType: 'dague' })));
+  assert.equal(item({ slotType: 'arme', weaponType: 'sceptre' }).primary, 'intelligence');
+  assert.equal(item({ slotType: 'arme', weaponType: 'arc' }).primary, 'agilite');
 });

@@ -4,7 +4,9 @@
 export const START_GOLD = 50;
 export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Marchand)
 
-// Ordre d'affichage et de création de l'équipe.
+// Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
+// (4 héros, classes au choix, doublons permis).
+export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin'];
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
 export const COMBAT = {

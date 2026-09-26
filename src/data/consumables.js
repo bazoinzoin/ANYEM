@@ -74,6 +74,10 @@ export const CONSUMABLES = {
     name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
+  outilsDeDesamorcage: {
+    name: 'Outils de désamorçage', icon: '🔧', price: 15, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['piege', 'piegeDeGivre'] }, desc: "Désamorce les pièges posés sur un allié.",
+  },
   remede: {
     name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",

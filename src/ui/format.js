@@ -23,6 +23,7 @@ function effectLabel(stats, skill, entry) {
   if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
   if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
   if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
+  if (def.value === 'trap') return `${def.name} (~${value} dégâts à son prochain tour, puis ${def.desc.split(', et ')[1]?.replace(/\.$/, '') ?? 'effet'})`;
   return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
 }
 
@@ -72,6 +73,7 @@ export function skillShortEstimate(stats, skill, target = null) {
   if (def.value === 'shield') return `🛡️ ${value}`;
   if (def.value === 'hot') return `+${value}/tour`;
   if (def.value === 'dot') return `~${value}/tour`;
+  if (def.value === 'trap') return `🪤 ~${value}`;
   return def.name;
 }
 

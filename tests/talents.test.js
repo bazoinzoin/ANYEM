@@ -21,6 +21,9 @@ test('chaque classe a ses orientations du design doc : 10 paliers, 50 rangs, une
   assert.deepEqual(names('voleur'), ['assassin', 'empoisonneur']);
   assert.deepEqual(names('pretre'), ['clerc', 'precheur', 'profane']);
   assert.deepEqual(names('mage'), ['feu', 'glace', 'foudre']);
+  assert.deepEqual(names('chasseur'), ['oeilDeFaucon', 'traqueur']);
+  assert.deepEqual(names('paladin'), ['templier', 'lumiere']);
+  assert.deepEqual(Object.keys(TALENTS).sort(), Object.keys(CLASSES).sort());
   const ids = new Set();
   for (const branches of Object.values(TALENTS)) {
     for (const b of branches) {

@@ -65,6 +65,7 @@ export function getStats(hero) {
  *   effectPowerPct  +% de valeur de tous les effets à valeur (soins/tour, boucliers…)
  *   addEffects      effets supplémentaires appliqués aux cibles (ex. une brûlure)
  *   addSelfEffects  effets supplémentaires appliqués au lanceur
+ *   cleanse         la compétence retire aussi les effets négatifs des cibles
  */
 function applySkillMod(skill, mod) {
   const s = { ...skill, boosted: true };
@@ -78,6 +79,7 @@ function applySkillMod(skill, mod) {
     if (!turns && !(pct && e.power)) return e;
     return { ...e, turns: e.turns + turns, ...(e.power ? { power: +(e.power * (1 + pct / 100)).toFixed(3) } : {}) };
   });
+  if (mod.cleanse) s.cleanse = true;
   if (mod.addSelfEffects) s.selfEffects = [...(skill.selfEffects ?? []), ...mod.addSelfEffects];
   return s;
 }
@@ -135,8 +137,9 @@ export function createHero(classKey, name) {
   return hero;
 }
 
-export function createParty(names = []) {
-  return PARTY_ORDER.map((key, i) => createHero(key, names[i]?.trim()));
+// Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
+export function createParty(names = [], classes = PARTY_ORDER) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim()));
 }
 
 export function gainResource(hero, amount) {

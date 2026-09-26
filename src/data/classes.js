@@ -40,6 +40,9 @@
 //               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
 //               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
 //   selfEffects effets appliqués au lanceur (même format)
+//   physHeal    soin (et Régénération) sur la puissance physique au lieu de la
+//               magique (Paladin Templier, qui monte la Force)
+//   cleanse     retire tous les effets négatifs des cibles
 //   comboGain   points de combo gagnés par le lanceur (compétence « générateur »)
 //   finisher    dépense tous les points de combo (au moins 1) : `power` et la
 //               valeur des effets (power) sont donnés PAR point de combo
@@ -106,7 +109,7 @@ export const CLASSES = {
     growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['baton', 'dague'],
+      weapons: ['baton', 'dague', 'sceptre'],
       offHand: [],
       armor: ['legere'],
     },
@@ -141,6 +144,54 @@ export const CLASSES = {
     skills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
       { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
+    ],
+  },
+  chasseur: {
+    name: 'Chasseur',
+    icon: '🏹',
+    color: 'var(--chasseur)',
+    mainStat: 'agilite',
+    physStat: 'agilite',
+    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
+    base: { pv: 100, atq: 6, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 8, critDmg: 50, esquive: 4 },
+    growth: { pv: 9, agilite: 1 },
+    resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
+    gear: {
+      weapons: ['arc'],
+      offHand: [],
+      armor: ['moyenne'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
+    ],
+    skills: [
+      { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
+      { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
+    ],
+  },
+  paladin: {
+    name: 'Paladin',
+    icon: '⚜️',
+    color: 'var(--paladin)',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, porte l'armure légère et soigne son groupe.",
+    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    growth: { pv: 11, force: 1, intelligence: 1 },
+    resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
+    gear: {
+      weapons: ['epee', 'hache', 'marteau', 'sceptre', 'epee2m', 'hache2m', 'marteau2m'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'marteau', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+    ],
+    skills: [
+      { id: 'frappe-du-croise', name: 'Frappe du croisé', cost: 20, kind: 'damage', target: 'enemy', power: 1.4, desc: "Coup d'arme béni (dégâts physiques, Force)" },
+      { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],
   },
 };

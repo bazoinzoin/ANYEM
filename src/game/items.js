@@ -136,14 +136,19 @@ function secondaryValue(stat, level, range) {
 
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
- * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES),
+ *          classKeys (légendaire tiré parmi ceux de ces classes) }
  */
 export function generateItem(opts = {}) {
   const level = Math.max(1, opts.level ?? 1);
   let rarity = opts.rarity ?? rollRarity();
   let legendaryKey = opts.legendary ?? null;
   if (legendaryKey) rarity = 'legendaire';
-  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
+  if (rarity === 'legendaire' && !legendaryKey) {
+    const all = Object.keys(LEGENDARIES);
+    const forParty = opts.classKeys ? all.filter((k) => opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
+    legendaryKey = pick(forParty.length ? forParty : all);
+  }
   const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
 
   const base = legendary

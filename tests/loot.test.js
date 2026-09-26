@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { rollLoot } from '../src/game/loot.js';
+import { generateItem } from '../src/game/items.js';
 import { createEnemies } from '../src/game/enemies.js';
 import { createParty } from '../src/game/party.js';
 import { applyVictory } from '../src/game/progression.js';
@@ -82,4 +83,12 @@ test('la victoire range matéria et consommables ; au-delà du maximum, le conso
   assert.deepEqual(r2.consumables, [], 'même tirage (aléatoire fixe) : consommable déjà au maximum');
   assert.equal(game.consumables[key], MERCHANT.maxConsumable);
   assert.match(r2.message, /faute de place/);
+});
+
+test("un légendaire tiré est réservé à une classe de l'équipe", () => {
+  for (let i = 0; i < 30; i++) {
+    setRandomSource(() => (i + 0.5) / 30);
+    const item = generateItem({ rarity: 'legendaire', classKeys: ['chasseur', 'paladin'] });
+    assert.ok(['chasseur', 'paladin'].includes(item.legendary.classKey), item.name);
+  }
 });

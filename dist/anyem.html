@@ -13,7 +13,7 @@
 :root {
   --bg: #161009; --panel: #241b12; --panel2: #2e2216; --line: #4a3a26;
   --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
-  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a;
+  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a;
   --danger: #a33; --good: #5a8a5a;
   --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a;
   --font-title: 'Cinzel', serif;
@@ -79,6 +79,8 @@ input[type=text] {
 .slot .cname { font-family: var(--font-title); font-size: 15px; margin: 6px 0 2px; }
 .slot .role { color: var(--dim); font-size: 13px; margin-bottom: 8px; }
 .slot .stats { font-size: 13px; color: var(--dim); margin: 8px 0; }
+.slot select { width: 100%; margin: 6px 0; font-family: var(--font-title); font-size: 15px; background: var(--panel2); color: var(--cream); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
+.slot .class-desc { font-size: 12px; color: var(--dim); margin: 6px 0 10px; line-height: 1.35; }
 
 .skillbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 
@@ -308,7 +310,9 @@ __modules["src/config.js"] = (() => {
 const START_GOLD = 50;
 const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Marchand)
 
-// Ordre d'affichage et de création de l'équipe.
+// Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
+// (4 héros, classes au choix, doublons permis).
+const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin'];
 const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
 const COMBAT = {
@@ -436,7 +440,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DUNGEON, XP, TALENT_RULES, FORGE, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -509,15 +513,17 @@ const WEAPON_TYPES = {
   hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
   marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
   dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
+  sceptre: { name: 'Sceptre', label: 'Arme à une main', atqMult: 0.8, primaries: ['intelligence'] },
   epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
   hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
   marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
   baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
+  arc: { name: 'Arc', label: 'Arc (distance)', atqMult: 1.5, primaries: ['agilite'], twoHanded: true },
 };
 
 // Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 const JEWELS = {
   anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
@@ -545,40 +551,72 @@ const SECONDARY_STATS = {
   blocage: { base: 1, perLevel: 0.1 },
 };
 
-// Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
+// Objets légendaires : liés à une classe, avec un passif unique qui renforce une
+// compétence d'une orientation (même format que les skillMod des talents, voir
+// applySkillMod dans game/party.js : powerPct, costDelta, dotPowerPct,
+// effectTurnsDelta, effectPowerPct…). Un par orientation.
 const LEGENDARIES = {
-  colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
-    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
-  },
+  // Guerrier
   rempartDeKaldor: {
     name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
-    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
+    passive: { skill: 'mur-de-boucliers', costDelta: -15, effectPowerPct: 20 }, desc: 'Gardien — Mur de boucliers coûte 15 Rage de moins et protège 20 % de plus.',
+  },
+  colereAncestrale: {
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    passive: { skill: 'tourbillon', powerPct: 30 }, desc: 'Berserker — Tourbillon inflige 30 % de dégâts en plus.',
+  },
+  // Voleur
+  murmureDeLOmbre: {
+    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'deluge-de-lames', powerPct: 25 }, desc: 'Assassin — Déluge de lames inflige 25 % de dégâts en plus.',
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'lame-empoisonnee', dotTurnsDelta: 2 }, desc: 'Empoisonneur — le poison de Lame empoisonnée dure 2 tours de plus.',
   },
-  murmureDeLOmbre: {
-    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
-    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
-  },
+  // Prêtre
   benedictionDAube: {
     name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
+    passive: { skill: 'priere-de-soins', powerPct: 25 }, desc: 'Clerc — Prière de soins soigne 25 % de plus.',
   },
   etoleDuPelerin: {
     name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
+    passive: { skill: 'renovation', effectTurnsDelta: 2 }, desc: 'Prêcheur — Rénovation dure 2 tours de plus.',
   },
+  voileDuNeant: {
+    name: 'Voile du Néant', classKey: 'pretre', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'mot-de-douleur', dotPowerPct: 30 }, desc: 'Profane — Mot de douleur inflige 30 % de dégâts de ténèbres en plus.',
+  },
+  // Mage
   coeurDeBrasier: {
     name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
+    passive: { skill: 'immolation', dotPowerPct: 30 }, desc: 'Feu — Immolation brûle 30 % plus fort.',
+  },
+  larmeDeGlace: {
+    name: 'Larme de Glace éternelle', classKey: 'mage', slotType: 'collier', primary: 'intelligence',
+    passive: { skill: 'nova-de-givre', powerPct: 25, costDelta: -5 }, desc: 'Glace — Nova de givre inflige 25 % de dégâts en plus et coûte 5 Mana de moins.',
   },
   couronneDOrage: {
     name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
+    passive: { skill: 'tempete', costDelta: -15 }, desc: 'Foudre — Tempête coûte 15 Mana de moins.',
+  },
+  // Chasseur
+  serreDuFaucon: {
+    name: 'Serre du Faucon', classKey: 'chasseur', slotType: 'arme', weaponType: 'arc', primary: 'agilite',
+    passive: { skill: 'tir-percant', powerPct: 30 }, desc: 'Œil de Faucon — Tir perçant inflige 30 % de dégâts en plus.',
+  },
+  bottesDuTraqueur: {
+    name: 'Bottes du Traqueur', classKey: 'chasseur', slotType: 'bottes', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'piege-a-machoires', effectPowerPct: 40, costDelta: -5 }, desc: 'Traqueur — Piège à mâchoires inflige 40 % de dégâts en plus et coûte 5 Énergie de moins.',
+  },
+  // Paladin
+  egideDuCroise: {
+    name: 'Égide du Croisé', classKey: 'paladin', slotType: 'bouclier', primary: 'force',
+    passive: { skill: 'sceau-de-vie', powerPct: 30, effectPowerPct: 30 }, desc: 'Templier — Sceau de vie soigne 30 % de plus.',
+  },
+  sceptreDeLAurore: {
+    name: "Sceptre de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'sceptre', primary: 'intelligence',
+    passive: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 }, desc: 'Lumière — Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.',
   },
 };
 
@@ -751,14 +789,19 @@ function secondaryValue(stat, level, range) {
 
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
- * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
+ * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES),
+ *          classKeys (légendaire tiré parmi ceux de ces classes) }
  */
 function generateItem(opts = {}) {
   const level = Math.max(1, opts.level ?? 1);
   let rarity = opts.rarity ?? rollRarity();
   let legendaryKey = opts.legendary ?? null;
   if (legendaryKey) rarity = 'legendaire';
-  if (rarity === 'legendaire' && !legendaryKey) legendaryKey = pick(Object.keys(LEGENDARIES));
+  if (rarity === 'legendaire' && !legendaryKey) {
+    const all = Object.keys(LEGENDARIES);
+    const forParty = opts.classKeys ? all.filter((k) => opts.classKeys.includes(LEGENDARIES[k].classKey)) : [];
+    legendaryKey = pick(forParty.length ? forParty : all);
+  }
   const legendary = legendaryKey ? LEGENDARIES[legendaryKey] : null;
 
   const base = legendary
@@ -894,9 +937,14 @@ __modules["src/data/effects.js"] = (() => {
 //             'dot'    dégâts à chaque fin de tour (ignorent la défense)
 //             'hot'    soins à chaque fin de tour (puissance magique)
 //             'shield' points de bouclier, absorbés avant les PV
+//             'trap'   dégâts du piège quand il se déclenche
 //   stun    la cible perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt   les ennemis doivent attaquer cette unité
 //   confuse l'unité peut frapper ses propres alliés
+//   redirect % des dégâts subis par l'unité reportés sur le lanceur de l'effet
+//            (Intercession du Paladin), s'il est en vie
+//   trap    piège : se déclenche au début du prochain tour de l'unité (elle subit
+//           ses dégâts, puis les effets `trap.effects`) et disparaît
 // Le même effet appliqué une seconde fois remplace le premier (durée et valeur rafraîchies).
 
 const EFFECTS = {
@@ -908,6 +956,7 @@ const EFFECTS = {
   protection: { name: 'Protection', icon: '🔰', kind: 'buff', mods: { def: 50, defMag: 50 }, desc: '+50 % de Défense et de Défense magique.' },
   provocation: { name: 'Provocation', icon: '📣', kind: 'buff', taunt: true, mods: { def: 30 }, desc: 'Les ennemis doivent attaquer cette unité ; +30 % de Défense.' },
   enrage: { name: 'Enragé', icon: '🔥', kind: 'buff', mods: { physPower: 30, def: -20 }, desc: '+30 % de puissance physique, mais −20 % de Défense.' },
+  intercession: { name: 'Intercession', icon: '🤝', kind: 'buff', redirect: 50, desc: 'La moitié des dégâts subis est encaissée par le protecteur.' },
 
   // ---- Debuffs ----
   poison: { name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', desc: 'Dégâts de poison à chaque fin de tour.' },
@@ -919,6 +968,14 @@ const EFFECTS = {
   confus: { name: 'Confus', icon: '🌀', kind: 'debuff', confuse: true, desc: 'Une chance sur deux de frapper un allié au lieu d\'agir.' },
   affaibli: { name: 'Affaibli', icon: '💧', kind: 'debuff', mods: { physPower: -20, magPower: -20 }, desc: '−20 % de puissance physique et magique.' },
   terreur: { name: 'Terreur', icon: '😨', kind: 'debuff', mods: { def: -30, defMag: -30 }, desc: '−30 % de Défense et de Défense magique.' },
+  piege: {
+    name: 'Piège à mâchoires', icon: '🪤', kind: 'debuff', value: 'trap', trap: { effects: [{ id: 'etourdi', turns: 1 }] },
+    desc: 'Se referme au prochain tour : dégâts, et la cible perd ce tour.',
+  },
+  piegeDeGivre: {
+    name: 'Piège de givre', icon: '🧊', kind: 'debuff', value: 'trap', trap: { effects: [{ id: 'ralenti', turns: 3 }] },
+    desc: 'Se déclenche au prochain tour : dégâts, et la cible est Ralentie 3 tours.',
+  },
 };
 
 const EFFECT_ORDER = Object.keys(EFFECTS);
@@ -1005,6 +1062,10 @@ const CONSUMABLES = {
     name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
+  outilsDeDesamorcage: {
+    name: 'Outils de désamorçage', icon: '🔧', price: 15, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
+    effect: { cure: ['piege', 'piegeDeGivre'] }, desc: "Désamorce les pièges posés sur un allié.",
+  },
   remede: {
     name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",
@@ -1081,6 +1142,9 @@ __modules["src/data/classes.js"] = (() => {
 //               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
 //               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
 //   selfEffects effets appliqués au lanceur (même format)
+//   physHeal    soin (et Régénération) sur la puissance physique au lieu de la
+//               magique (Paladin Templier, qui monte la Force)
+//   cleanse     retire tous les effets négatifs des cibles
 //   comboGain   points de combo gagnés par le lanceur (compétence « générateur »)
 //   finisher    dépense tous les points de combo (au moins 1) : `power` et la
 //               valeur des effets (power) sont donnés PAR point de combo
@@ -1147,7 +1211,7 @@ const CLASSES = {
     growth: { pv: 8, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['baton', 'dague'],
+      weapons: ['baton', 'dague', 'sceptre'],
       offHand: [],
       armor: ['legere'],
     },
@@ -1182,6 +1246,54 @@ const CLASSES = {
     skills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
       { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
+    ],
+  },
+  chasseur: {
+    name: 'Chasseur',
+    icon: '🏹',
+    color: 'var(--chasseur)',
+    mainStat: 'agilite',
+    physStat: 'agilite',
+    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
+    base: { pv: 100, atq: 6, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 8, critDmg: 50, esquive: 4 },
+    growth: { pv: 9, agilite: 1 },
+    resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
+    gear: {
+      weapons: ['arc'],
+      offHand: [],
+      armor: ['moyenne'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
+    ],
+    skills: [
+      { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
+      { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
+    ],
+  },
+  paladin: {
+    name: 'Paladin',
+    icon: '⚜️',
+    color: 'var(--paladin)',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, porte l'armure légère et soigne son groupe.",
+    base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3 },
+    growth: { pv: 11, force: 1, intelligence: 1 },
+    resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
+    gear: {
+      weapons: ['epee', 'hache', 'marteau', 'sceptre', 'epee2m', 'hache2m', 'marteau2m'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'marteau', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+    ],
+    skills: [
+      { id: 'frappe-du-croise', name: 'Frappe du croisé', cost: 20, kind: 'damage', target: 'enemy', power: 1.4, desc: "Coup d'arme béni (dégâts physiques, Force)" },
+      { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],
   },
 };
@@ -1269,6 +1381,7 @@ __modules["src/data/talents.js"] = (() => {
 //     resMaxBonus    ressource maximum en plus
 //     resOnAttack / resOnHitTaken  Rage en plus par attaque / par coup encaissé
 //     critCombo      point de combo en plus quand un générateur fait un critique
+//     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
 //   skill    compétence accordée (même format que data/classes.js)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
@@ -1743,6 +1856,187 @@ const TALENTS = {
       ],
     },
   ],
+
+  chasseur: [
+    {
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
+      desc: "Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.",
+      nodes: [
+        minor('oeil-percant', 'Œil perçant', 0, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        minor('tension-de-la-corde', 'Tension de la corde', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
+        skill(1, {
+          id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 1.75, critBonus: 10,
+          desc: 'Flèche lourde qui transperce la cible (+10 % de chance de critique)',
+        }),
+        minor('reserve-d-energie', "Réserve d'énergie", 1, 4, '+8 Énergie max par rang.', { passive: { resMaxBonus: 8 } }),
+        minor('visee', 'Visée', 2, 3, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
+        minor('souffle-retenu', 'Souffle retenu', 2, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
+        passive('tir-ajuste', 'Tir ajusté', 3, 'Tir visé frappe 25 % plus fort.', {
+          skillMod: { skill: 'tir-vise', powerPct: 25 },
+        }),
+        minor('precision-mortelle', 'Précision mortelle', 3, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        skill(4, {
+          id: 'salve', name: 'Salve', cost: 60, kind: 'damage', target: 'allEnemies', power: 0.95,
+          desc: 'Pluie de flèches sur tous les ennemis',
+        }),
+        minor('puissance-du-tir', 'Puissance du tir', 4, 5, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        minor('chasseur-de-tetes', 'Chasseur de têtes', 5, 3, '+8 % de dégâts contre une cible sous 30 % de PV, par rang.', { passive: { executePct: 8 } }),
+        minor('endurance-du-chasseur', 'Endurance du chasseur', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        passive('calme-du-tireur', 'Calme du tireur', 6, '+20 Énergie max et +5 Énergie regagnée par tour.', { passive: { resMaxBonus: 20, resRegen: 5 } }),
+        minor('balistique', 'Balistique', 6, 4, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
+        skill(7, {
+          id: 'tir-de-l-aigle', name: "Tir de l'aigle", cost: 80, kind: 'damage', target: 'enemy', power: 3.0, critBonus: 20,
+          desc: 'Tir dévastateur sur un ennemi (+20 % de chance de critique)',
+        }),
+        minor('oeil-du-faucon', 'Œil du faucon', 7, 5, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        passive('fleche-perforante', 'Flèche perforante', 8, 'Tir perçant coûte 10 Énergie de moins et frappe 20 % plus fort.', {
+          skillMod: { skill: 'tir-percant', costDelta: -10, powerPct: 20 },
+        }),
+        minor('visee-parfaite', 'Visée parfaite', 8, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        signature({
+          id: 'tir-fatal', name: 'Tir fatal', cost: 90, kind: 'damage', target: 'enemy', power: 4.5, alwaysCrit: true, executePct: 50,
+          desc: 'La flèche parfaite : critique garanti, +50 % de dégâts contre une cible sous 30 % de PV',
+        }),
+      ],
+    },
+    {
+      key: 'traqueur', name: 'Traqueur', icon: '🐾',
+      desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
+      nodes: [
+        minor('pisteur', 'Pisteur', 0, 3, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
+        minor('reflexes-du-traqueur', 'Réflexes du traqueur', 0, 2, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
+        skill(1, {
+          id: 'piege-a-machoires', name: 'Piège à mâchoires', cost: 25, kind: 'support', target: 'enemy',
+          effects: [fx('piege', 3, 0.8)],
+          desc: "Pose un piège sur un ennemi : il se referme à son prochain tour (dégâts, et il perd ce tour)",
+        }),
+        minor('tir-agile', 'Tir agile', 1, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        minor('economie', 'Économie', 2, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
+        minor('camouflage', 'Camouflage', 2, 3, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
+        passive('fleches-barbelees', 'Flèches barbelées', 3, 'Tir rapide fait saigner la cible (2 tours).', {
+          skillMod: { skill: 'tir-rapide', addEffects: [fx('saignement', 2, 0.15)] },
+        }),
+        minor('harcelement', 'Harcèlement', 3, 4, '+4 % de dégâts contre une cible affaiblie (ralentie, piégée…) par rang.', { passive: { vsDebuffedPct: 4 } }),
+        skill(4, {
+          id: 'tir-incapacitant', name: 'Tir incapacitant', cost: 20, kind: 'damage', target: 'enemy', power: 0.5,
+          effects: [fx('ralenti', 2)],
+          desc: 'Petite flèche qui ralentit la cible (−30 % Vitesse, 2 tours)',
+        }),
+        minor('pieges-affutes', 'Pièges affûtés', 4, 5, '+8 % de dégâts des pièges par rang.', { passive: { trapPct: 8 } }),
+        minor('vivacite-du-traqueur', 'Vivacité du traqueur', 5, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
+        minor('instinct', 'Instinct', 5, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        passive('maitre-piegeur', 'Maître piégeur', 6, 'Piège à mâchoires coûte 10 Énergie de moins et inflige 30 % de dégâts en plus.', {
+          skillMod: { skill: 'piege-a-machoires', costDelta: -10, effectPowerPct: 30 },
+        }),
+        minor('tir-continu', 'Tir continu', 6, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        skill(7, {
+          id: 'champ-de-givre', name: 'Champ de givre', cost: 35, kind: 'support', target: 'allEnemies',
+          effects: [fx('piegeDeGivre', 3, 0.5)],
+          desc: 'Piège de givre sous tous les ennemis : dégâts à leur prochain tour, puis Ralentis 3 tours',
+        }),
+        minor('harcelement-continu', 'Harcèlement continu', 7, 5, '+3 % de dégâts contre une cible affaiblie, par rang.', { passive: { vsDebuffedPct: 3 } }),
+        passive('tir-eclair', 'Tir éclair', 8, 'Tir rapide coûte 5 Énergie de moins et frappe 15 % plus fort.', {
+          skillMod: { skill: 'tir-rapide', costDelta: -5, powerPct: 15 },
+        }),
+        minor('endurance-du-traqueur', 'Endurance du traqueur', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        signature({
+          id: 'terrain-piege', name: 'Terrain piégé', cost: 60, kind: 'damage', target: 'allEnemies', power: 0.6,
+          effects: [fx('piege', 3, 1.0), fx('ralenti', 3)],
+          desc: 'Flèches et pièges partout : dégâts sur tous les ennemis, Ralentis, et un Piège à mâchoires sous chacun',
+        }),
+      ],
+    },
+  ],
+
+  paladin: [
+    {
+      key: 'templier', name: 'Templier', icon: '🛡️',
+      desc: "Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.",
+      nodes: [
+        minor('armure-sacree', 'Armure sacrée', 0, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
+        minor('vigueur', 'Vigueur', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
+        skill(1, {
+          id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
+          effects: [fx('intercession', 3)],
+          desc: 'Le Paladin encaisse la moitié des dégâts subis par un allié pendant 3 tours',
+        }),
+        minor('foi-inebranlable', 'Foi inébranlable', 1, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
+        minor('bouclier-beni', 'Bouclier béni', 2, 3, '+3 % Blocage par rang.', { flat: { blocage: 3 } }),
+        minor('robustesse-du-croise', 'Robustesse du croisé', 2, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        passive('vengeance-sacree', 'Vengeance sacrée', 3, 'Vol de vie : 10 % des dégâts directs infligés rendus en PV.', { passive: { lifestealPct: 10 } }),
+        minor('ferveur-du-croise', 'Ferveur du croisé', 3, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        skill(4, {
+          id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1.0, physHeal: true,
+          effects: [fx('regeneration', 3, 0.25)],
+          desc: 'Le Paladin se soigne et se régénère pendant 3 tours (soins sur la Force)',
+        }),
+        minor('rempart-de-foi', 'Rempart de foi', 4, 5, '+6 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 6 } }),
+        minor('consecration', 'Consécration', 5, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
+        minor('aura-de-devotion', 'Aura de dévotion', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        passive('garde-du-croise', 'Garde du croisé', 6, 'Défendre donne aussi un Bouclier égal à 12 % des PV max.', { passive: { guardShieldPct: 12 } }),
+        minor('endurance-sainte', 'Endurance sainte', 6, 4, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
+        skill(7, {
+          id: 'aura-de-protection', name: 'Aura de protection', cost: 45, kind: 'support', target: 'allAllies',
+          effects: [fx('intercession', 2), fx('bouclier', 2, 0.6)],
+          desc: "Bouclier sur toute l'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours",
+        }),
+        minor('bouclier-des-justes', 'Bouclier des justes', 7, 5, '+5 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 5 } }),
+        passive('martyr', 'Martyr', 8, 'Intercession coûte 5 Mana de moins et dure 2 tours de plus.', {
+          skillMod: { skill: 'intercession', costDelta: -5, effectTurnsDelta: 2 },
+        }),
+        minor('colosse-sacre', 'Colosse sacré', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        signature({
+          id: 'sacrifice-divin', name: 'Sacrifice divin', cost: 70, kind: 'support', target: 'allAllies',
+          effects: [fx('intercession', 3)],
+          selfEffects: [fx('bouclier', 3, 2.0), fx('protection', 3), fx('provocation', 3)],
+          desc: "Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l'équipe, protégé par un énorme Bouclier et Protection (3 tours)",
+        }),
+      ],
+    },
+    {
+      key: 'lumiere', name: 'Lumière', icon: '☀️',
+      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, sceptre ou arme d'Intelligence.",
+      nodes: [
+        minor('eclat-sacre', 'Éclat sacré', 0, 3, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
+        minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
+        skill(1, {
+          id: 'lumiere-de-l-aube', name: "Lumière de l'aube", cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
+          desc: "Soigne toute l'équipe",
+        }),
+        minor('illumination-sainte', 'Illumination sainte', 1, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        minor('meditation-sacree', 'Méditation sacrée', 2, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
+        minor('devouement', 'Dévouement', 2, 3, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
+        passive('main-de-lumiere', 'Main de lumière', 3, 'Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.', {
+          skillMod: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 },
+        }),
+        minor('armure-de-foi', 'Armure de foi', 3, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
+        skill(4, {
+          id: 'epuration', name: 'Épuration', cost: 20, kind: 'support', target: 'ally', cleanse: true,
+          desc: "Retire tous les effets négatifs d'un allié",
+        }),
+        minor('grace-du-paladin', 'Grâce du paladin', 4, 5, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
+        minor('rayonnement', 'Rayonnement', 5, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        minor('benediction-du-paladin', 'Bénédiction du paladin', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        passive('lumiere-purifiante', 'Lumière purifiante', 6, "Lumière de l'aube retire aussi tous les effets négatifs de l'équipe.", {
+          skillMod: { skill: 'lumiere-de-l-aube', cleanse: true },
+        }),
+        minor('ferveur-lumineuse', 'Ferveur lumineuse', 6, 4, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
+        skill(7, {
+          id: 'sceau-de-protection', name: 'Sceau de protection', cost: 35, kind: 'support', target: 'ally', magic: true,
+          effects: [fx('bouclier', 3, 1.0), fx('regeneration', 3, 0.25)],
+          desc: 'Bouclier et Régénération sur un allié pendant 3 tours',
+        }),
+        minor('aube-eternelle', 'Aube éternelle', 7, 5, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
+        passive('aura-de-guerison', 'Aura de guérison', 8, '+10 % de soins et +3 Mana regagné par tour.', { passive: { healPct: 10, resRegen: 3 } }),
+        minor('clarte-sainte', 'Clarté sainte', 8, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        signature({
+          id: 'lumiere-divine', name: 'Lumière divine', cost: 80, kind: 'heal', target: 'allAllies', power: 0.9, cleanse: true,
+          effects: [fx('regeneration', 3, 0.3), fx('protection', 2)],
+          desc: "Grand soin de toute l'équipe : retire ses effets négatifs, puis Régénération et Protection",
+        }),
+      ],
+    },
+  ],
 };
 
 return { TALENTS };
@@ -1929,6 +2223,7 @@ function getStats(hero) {
  *   effectPowerPct  +% de valeur de tous les effets à valeur (soins/tour, boucliers…)
  *   addEffects      effets supplémentaires appliqués aux cibles (ex. une brûlure)
  *   addSelfEffects  effets supplémentaires appliqués au lanceur
+ *   cleanse         la compétence retire aussi les effets négatifs des cibles
  */
 function applySkillMod(skill, mod) {
   const s = { ...skill, boosted: true };
@@ -1942,6 +2237,7 @@ function applySkillMod(skill, mod) {
     if (!turns && !(pct && e.power)) return e;
     return { ...e, turns: e.turns + turns, ...(e.power ? { power: +(e.power * (1 + pct / 100)).toFixed(3) } : {}) };
   });
+  if (mod.cleanse) s.cleanse = true;
   if (mod.addSelfEffects) s.selfEffects = [...(skill.selfEffects ?? []), ...mod.addSelfEffects];
   return s;
 }
@@ -1999,8 +2295,9 @@ function createHero(classKey, name) {
   return hero;
 }
 
-function createParty(names = []) {
-  return PARTY_ORDER.map((key, i) => createHero(key, names[i]?.trim()));
+// Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
+function createParty(names = [], classes = PARTY_ORDER) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim()));
 }
 
 function gainResource(hero, amount) {
@@ -2043,6 +2340,8 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt    les ennemis doivent attaquer cette unité
 //   confuse  l'unité peut frapper ses propres alliés
+//   redirect % des dégâts reportés sur status.source (Intercession)
+//   trap     dégâts d'un piège, déclenché au début du prochain tour de l'unité
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
 // Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
 
@@ -2056,6 +2355,7 @@ function makeStatus(id, turns, value) {
   const status = { key: id, name: def.name, icon: def.icon, kind: def.kind, turns };
   if (def.mods) status.mods = def.mods;
   for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
+  if (def.redirect) status.redirect = def.redirect;
   if (def.value) status[def.value] = value;
   return status;
 }
@@ -2130,7 +2430,7 @@ return { makeStatus, statusesOf, addStatus, hasStatus, isDebuffed, statusMods, a
 // ---- src/game/units.js
 __modules["src/game/units.js"] = (() => {
 const { getStats } = __modules["src/game/party.js"];
-const { statusMods, isDebuffed, absorbWithShields } = __modules["src/game/statuses.js"];
+const { statusMods, isDebuffed, absorbWithShields, statusesOf } = __modules["src/game/statuses.js"];
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
 
 
@@ -2160,10 +2460,25 @@ function statsOf(unit) {
 }
 
 /**
- * Inflige des dégâts (absorbés d'abord par les boucliers).
- * Retourne { taken, absorbed, fell } ; fell = l'unité vient de tomber.
+ * Inflige des dégâts (absorbés d'abord par les boucliers ; une part peut être
+ * reportée sur un protecteur, voir l'effet Intercession).
+ * Retourne { taken, absorbed, fell, redirected?, protector? } ; fell = l'unité vient de tomber.
  */
 function damage(unit, amount) {
+  // Intercession : une part des dégâts est encaissée par le protecteur.
+  const guard = statusesOf(unit).find((s) => s.redirect && s.source && s.source !== unit && s.source.alive);
+  if (guard && amount > 0) {
+    const protector = guard.source;
+    const moved = Math.round(amount * guard.redirect / 100);
+    const r = damage(protector, moved);
+    const own = applyDamage(unit, amount - moved);
+    return { ...own, redirected: moved, protector: { ...r, unit: protector } };
+  }
+  return applyDamage(unit, amount);
+}
+
+// Dégâts sans report : boucliers, puis PV.
+function applyDamage(unit, amount) {
   const absorbed = absorbWithShields(unit, amount);
   const taken = amount - absorbed;
   unit.hp = Math.max(0, unit.hp - taken);
@@ -2416,12 +2731,14 @@ return { esc, tip, bar, range };
 // ---- src/ui/screens/create.js
 __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { PARTY_ORDER } = __modules["src/config.js"];
+const { PARTY_ORDER, CLASS_ORDER } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { TALENTS } = __modules["src/data/talents.js"];
 const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
-// Création de l'équipe.
+// Création de l'équipe : quatre héros, chacun d'une classe au choix (doublons permis).
 
 
 
@@ -2429,35 +2746,61 @@ const { goTo } = __modules["src/ui/router.js"];
 
 
 
+
+
+
+// Choix en cours (classes et noms), conservés quand on change une classe.
+const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name) };
 
 function renderCreate(app) {
   app.innerHTML = `
     <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
     <div class="slots">
-      ${PARTY_ORDER.map((key, i) => classCard(key, i)).join('')}
+      ${draft.classes.map((key, i) => classCard(key, i)).join('')}
     </div>
     <div class="center"><button id="startBtn" class="btn-primary">Commencer l'aventure</button></div>
   `;
 
+  app.querySelectorAll('[data-class-slot]').forEach((select) => {
+    select.onchange = () => {
+      const i = Number(select.dataset.classSlot);
+      const before = draft.classes[i];
+      readNames(app);
+      // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
+      if (draft.names[i] === CLASSES[before].name) draft.names[i] = CLASSES[select.value].name;
+      draft.classes[i] = select.value;
+      renderCreate(app);
+    };
+  });
   app.querySelector('#startBtn').onclick = () => {
-    const names = PARTY_ORDER.map((_, i) => app.querySelector(`#name${i}`).value);
-    state.party = createParty(names);
+    readNames(app);
+    state.party = createParty(draft.names, draft.classes);
     goTo('hub');
   };
+}
+
+function readNames(app) {
+  draft.names = draft.classes.map((_, i) => app.querySelector(`#name${i}`).value);
 }
 
 function classCard(key, i) {
   const cls = CLASSES[key];
   const stats = getStats(createHero(key)); // avec l'équipement de départ
-  const power = cls.skills.some((s) => s.magic || s.kind === 'heal')
-    ? `Magie ${stats.magPower}` : `Puissance ${stats.physPower}`;
+  const phys = cls.skills.some((s) => s.kind === 'damage' && !s.magic);
+  const magic = cls.skills.some((s) => s.magic || s.kind === 'heal');
+  const power = [phys ? `Puissance ${stats.physPower}` : '', magic ? `Magie ${stats.magPower}` : ''].filter(Boolean).join(' · ');
+  const branches = TALENTS[key].map((b) => `${b.icon} ${b.name}`).join(', ');
   return `
     <div class="card slot" style="--c:${cls.color}">
       <div ${tip(cls.desc, 'icon')}>${cls.icon}</div>
-      <div class="cname">${cls.name}</div>
-      <div class="role">Ressource : ${cls.resource.name}</div>
+      <select data-class-slot="${i}" aria-label="Classe du héros ${i + 1}">
+        ${CLASS_ORDER.map((k) => `<option value="${k}" ${k === key ? 'selected' : ''}>${CLASSES[k].icon} ${CLASSES[k].name}</option>`).join('')}
+      </select>
+      <div class="role">Ressource : ${cls.resource.name} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''}</div>
       <div class="stats">PV ${stats.pv} · ${power} · Vitesse ${stats.vit}</div>
-      <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(cls.name)}" maxlength="24">
+      <div class="role">${branches}</div>
+      <p class="class-desc">${esc(cls.desc)}</p>
+      <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
     </div>`;
 }
 
@@ -2705,16 +3048,17 @@ function addMateria(list, kind, rarity, amount) {
  * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
  * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
-function rollLoot(level, enemies, { final = false } = {}) {
+// classKeys : classes de l'équipe (les légendaires tirés leur sont réservés).
+function rollLoot(level, enemies, { final = false, classKeys = null } = {}) {
   const loot = { items: [], materia: [], consumables: [] };
   const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
     if (enemy.boss) {
       const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights), classKeys }));
       addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
     } else {
-      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level, classKeys }));
       if (random() < LOOT.materiaChance) {
         addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
       }
@@ -2782,7 +3126,7 @@ function materiaText(materia) {
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, classKeys: game.party.map((h) => h.classKey) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
@@ -3182,9 +3526,10 @@ function rollHit(attacker, opts, defender) {
   return { amount: Math.max(1, Math.round(base * rand(lo, hi))), crit };
 }
 
-// Soins : toujours sur la puissance magique (+ bonus de soins des talents).
-function healAmount(stats, power) {
-  return Math.round(stats.magPower * power * (1 + (stats.healPct ?? 0) / 100));
+// Soins : sur la puissance magique (+ bonus de soins des talents), ou sur la
+// puissance physique pour une compétence `physHeal` (Paladin Templier, Force).
+function healAmount(stats, power, phys = false) {
+  return Math.round((phys ? stats.physPower : stats.magPower) * power * (1 + (stats.healPct ?? 0) / 100));
 }
 
 // Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
@@ -3194,8 +3539,13 @@ function dotTick(stats, power, magic) {
 }
 
 // Soins par tour (Régénération) : puissance magique × power.
-function hotTick(stats, power) {
-  return Math.max(1, healAmount(stats, power));
+function hotTick(stats, power, phys = false) {
+  return Math.max(1, healAmount(stats, power, phys));
+}
+
+// Dégâts d'un piège : puissance du lanceur × power, + bonus des talents (trapPct).
+function trapDamage(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.trapPct ?? 0) / 100)));
 }
 
 // Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
@@ -3208,7 +3558,8 @@ function shieldAmount(stats, power, magic) {
 function effectValue(stats, skill, entry) {
   switch (EFFECTS[entry.id].value) {
     case 'dot': return dotTick(stats, entry.power, skill.magic);
-    case 'hot': return hotTick(stats, entry.power);
+    case 'hot': return hotTick(stats, entry.power, skill.physHeal);
+    case 'trap': return trapDamage(stats, entry.power, skill.magic);
     case 'shield': return shieldAmount(stats, entry.power, skill.magic);
     default: return undefined;
   }
@@ -3218,14 +3569,14 @@ function effectValue(stats, skill, entry) {
 // soin (exact), ou null si la compétence n'inflige ni dégâts ni soin directs.
 function estimateSkill(attacker, skill, defender = null) {
   if (skill.kind === 'heal') {
-    const amount = healAmount(attacker, skill.power);
+    const amount = healAmount(attacker, skill.power, skill.physHeal);
     return { lo: amount, hi: amount };
   }
   if (skill.kind !== 'damage') return null;
   return estimateHit(attacker, skillHitOptions(skill), defender);
 }
 
-return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, shieldAmount, effectValue, estimateSkill };
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, trapDamage, shieldAmount, effectValue, estimateSkill };
 })();
 
 // ---- src/game/combat.js
@@ -3240,6 +3591,7 @@ const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"
 const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } = __modules["src/game/statuses.js"];
 const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { pick, random } = __modules["src/game/rng.js"];
 // Moteur de combat tour par tour. Logique pure : pas de DOM, pas de timers.
 // Le rythme (délais des tours ennemis) et l'affichage sont gérés par ui/encounter.js.
@@ -3256,6 +3608,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 // (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
 // { type: 'endTurn' } finit son tour. Les autres classes n'ont qu'une action par
 // tour, mais peuvent aussi passer leur tour.
+
 
 
 
@@ -3322,6 +3675,11 @@ function nextTurn(cb) {
       cb.qIndex++;
       continue;
     }
+    triggerTraps(cb, turn.unit);
+    if (!turn.unit.alive) {
+      cb.qIndex++;
+      continue;
+    }
     if (consumeStun(turn.unit)) {
       log(cb, `${turn.unit.name} est étourdi et passe son tour.`, true);
       cb.qIndex++;
@@ -3336,6 +3694,21 @@ function nextTurn(cb) {
     return turn;
   }
   return null;
+}
+
+// Pièges posés sur l'unité : ils se déclenchent au début de son tour (dégâts,
+// puis effets du piège, ex. étourdissement qui lui fait perdre ce tour).
+function triggerTraps(cb, unit) {
+  for (const trap of statusesOf(unit).filter((s) => s.trap)) {
+    unit.statuses = statusesOf(unit).filter((s) => s !== trap);
+    const { taken, fell } = hurt(cb, unit, trap.trap);
+    log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
+    if (fell) {
+      logFall(cb, unit);
+      return;
+    }
+    for (const e of EFFECTS[trap.key].trap.effects ?? []) addStatus(unit, makeStatus(e.id, e.turns));
+  }
 }
 
 // Ordre de jeu : vitesse décroissante (tri stable : à égalité, les héros d'abord).
@@ -3357,7 +3730,7 @@ function endRound(cb) {
     for (const tick of tickStatuses(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
-        const { taken, fell } = damage(unit, tick.dot);
+        const { taken, fell } = hurt(cb, unit, tick.dot);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
@@ -3375,7 +3748,7 @@ function confusedHeroStrikes(cb, hero) {
   if (!hasStatus(hero, 'confuse') || !allies.length || random() >= COMBAT.confuseChance) return false;
   const victim = pick(allies);
   const hit = rollHit(statsOf(hero), BASIC_ATTACK, statsOf(victim));
-  const { taken, fell } = damage(victim, hit.amount);
+  const { taken, fell } = hurt(cb, victim, hit.amount);
   log(cb, `${hero.name}, confus, frappe ${victim.name} pour ${taken} dégâts !`, true);
   if (fell) logFall(cb, victim);
   return true;
@@ -3529,10 +3902,23 @@ function heroAct(cb, action) {
 
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
-    log(cb, `${hero.name} n'a plus assez de ${getClass(hero).resource.name} : fin du tour.`);
+    const res = getClass(hero).resource.name;
+    log(cb, `${hero.name} n'a plus assez ${/^[AEIOUÉÈ]/.test(res) ? "d'" : 'de '}${res} : fin du tour.`);
   }
   endTurn(cb);
   return true;
+}
+
+// Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
+function hurt(cb, unit, amount) {
+  const r = damage(unit, amount);
+  if (r.protector?.fell) logFall(cb, r.protector.unit);
+  return r;
+}
+
+// « (12 encaissés par Aldric) » quand une Intercession a pris une part des dégâts.
+function redirectText(r) {
+  return r.redirected ? ` (${r.redirected} encaissés par ${r.protector.unit.name})` : '';
 }
 
 // Vol de vie (talent) : le héros récupère une part des dégâts directs infligés.
@@ -3561,9 +3947,10 @@ function critText(hit) {
 
 // « 28 dégâts », « 28 dégâts critiques » ou, en multi-frappe, « 12 + 15* + 11 dégâts, * = critique ».
 function hitsText(hits) {
-  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}`;
+  const notes = hits.map((h) => h.note ?? '').join('');
+  if (hits.length === 1) return `${hits[0].amount} dégâts${hits[0].crit ? ' critiques' : ''}${notes}`;
   const text = hits.map((h) => `${h.amount}${h.crit ? '*' : ''}`).join(' + ');
-  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}`;
+  return `${text} dégâts${hits.some((h) => h.crit) ? ', * = critique' : ''}${notes}`;
 }
 
 function skillTargets(cb, hero, skill, index) {
@@ -3601,8 +3988,9 @@ function useSkill(cb, caster, skill, targets) {
       for (let i = 0; i < (skill.hits ?? 1) && target.alive; i++) {
         const hit = rollHit(stats, skillHitOptions(skill), statsOf(target));
         hit.amount = guarded(target, hit.amount);
-        const { taken, fell } = damage(target, hit.amount);
-        hits.push({ ...hit, amount: taken });
+        const r = hurt(cb, target, hit.amount);
+        const { taken, fell } = r;
+        hits.push({ ...hit, amount: taken, note: redirectText(r) });
         dealt += taken;
         crit ||= hit.crit;
         if (fell) logFall(cb, target);
@@ -3610,7 +3998,7 @@ function useSkill(cb, caster, skill, targets) {
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
     } else if (skill.kind === 'heal') {
-      const healed = heal(target, healAmount(stats, skill.power));
+      const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -3627,6 +4015,10 @@ function useSkill(cb, caster, skill, targets) {
     }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+      if (status.redirect) {
+        if (target === caster) continue; // on ne s'intercède pas pour soi-même
+        status.source = caster;
+      }
       addStatus(target, status);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
@@ -3680,7 +4072,7 @@ function enemyAct(cb) {
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
     const hit = rollHit(statsOf(enemy), ENEMY_ATTACK, statsOf(victim));
-    const { fell } = damage(victim, hit.amount);
+    const { fell } = hurt(cb, victim, hit.amount);
     log(cb, `${enemy.name}, confus, frappe ${victim.name} pour ${hit.amount} dégâts !`, true);
     if (fell) logFall(cb, victim);
     endTurn(cb);
@@ -3705,8 +4097,9 @@ function enemyAct(cb) {
       const blocked = random() < chance(targetStats, 'blocage');
       if (blocked) dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
       dmg = guarded(target, dmg);
-      const { taken, absorbed, fell } = damage(target, dmg);
-      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : ''].join('');
+      const r = hurt(cb, target, dmg);
+      const { taken, absorbed, fell } = r;
+      const notes = [critText(hit), blocked ? ' (bloqué)' : '', absorbed ? ` (${absorbed} absorbés)` : '', redirectText(r)].join('');
       log(cb, `${enemy.name} attaque ${target.name} pour ${taken} dégâts${notes}.`, true);
       if (fell) logFall(cb, target);
       else onHitTaken(target);
@@ -4397,6 +4790,7 @@ function effectLabel(stats, skill, entry) {
   if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
   if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
   if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
+  if (def.value === 'trap') return `${def.name} (~${value} dégâts à son prochain tour, puis ${def.desc.split(', et ')[1]?.replace(/\.$/, '') ?? 'effet'})`;
   return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
 }
 
@@ -4446,6 +4840,7 @@ function skillShortEstimate(stats, skill, target = null) {
   if (def.value === 'shield') return `🛡️ ${value}`;
   if (def.value === 'hot') return `+${value}/tour`;
   if (def.value === 'dot') return `~${value}/tour`;
+  if (def.value === 'trap') return `🪤 ~${value}`;
   return def.name;
 }
 
@@ -5295,7 +5690,7 @@ function statusTags(unit) {
   const tags = [];
   if (unit.guard) tags.push('<span class="tag buff">🛡️ En garde</span>');
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
+    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : s.trap ? ` ${s.trap}` : s.source ? ` (${esc(s.source.name)})` : '';
     const turns = s.stun ? '' : ` (${s.turns})`;
     tags.push(`<span class="tag ${s.kind}">${s.icon ?? ''} ${esc(s.name)}${value}${turns}</span>`);
   }

@@ -65,15 +65,17 @@ export const WEAPON_TYPES = {
   hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, primaries: ['force', 'agilite'] },
   marteau: { name: 'Marteau', label: 'Arme à une main', atqMult: 1.15, primaries: ['force', 'agilite'] },
   dague: { name: 'Dague', label: 'Dague', atqMult: 0.7, primaries: ['agilite', 'intelligence'] },
+  sceptre: { name: 'Sceptre', label: 'Arme à une main', atqMult: 0.8, primaries: ['intelligence'] },
   epee2m: { name: 'Espadon', label: 'Arme à deux mains', atqMult: 1.5, primaries: ['force'], twoHanded: true },
   hache2m: { name: 'Grande hache', label: 'Arme à deux mains', atqMult: 1.65, primaries: ['force'], twoHanded: true },
   marteau2m: { name: 'Maillet de guerre', label: 'Arme à deux mains', atqMult: 1.8, primaries: ['force'], twoHanded: true },
   baton: { name: 'Bâton', label: 'Bâton magique', atqMult: 1.4, primaries: ['intelligence'], twoHanded: true },
+  arc: { name: 'Arc', label: 'Arc (distance)', atqMult: 1.5, primaries: ['agilite'], twoHanded: true },
 };
 
 // Bouclier : exception, deux stats obligatoires (Défense et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force'], repeatableSecondaries: ['blocage'] };
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 export const JEWELS = {
   anneau: { name: 'Anneau', label: 'Anneau', weight: 0.4 },
@@ -101,39 +103,71 @@ export const SECONDARY_STATS = {
   blocage: { base: 1, perLevel: 0.1 },
 };
 
-// Objets légendaires : liés à une classe, avec un passif unique qui modifie
-// une compétence (voir SKILL_MODS dans game/party.js : powerPct, costDelta, dotTurnsDelta…).
+// Objets légendaires : liés à une classe, avec un passif unique qui renforce une
+// compétence d'une orientation (même format que les skillMod des talents, voir
+// applySkillMod dans game/party.js : powerPct, costDelta, dotPowerPct,
+// effectTurnsDelta, effectPowerPct…). Un par orientation.
 export const LEGENDARIES = {
-  colereAncestrale: {
-    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
-    passive: { skill: 'frappe-brutale', powerPct: 30 }, desc: 'Frappe Brutale inflige 30 % de dégâts en plus.',
-  },
+  // Guerrier
   rempartDeKaldor: {
     name: 'Rempart de Kaldor', classKey: 'guerrier', slotType: 'bouclier', primary: 'force',
-    passive: { skill: 'cri-de-guerre', costDelta: -15 }, desc: 'Cri de Guerre coûte 15 Rage de moins.',
+    passive: { skill: 'mur-de-boucliers', costDelta: -15, effectPowerPct: 20 }, desc: 'Gardien — Mur de boucliers coûte 15 Rage de moins et protège 20 % de plus.',
+  },
+  colereAncestrale: {
+    name: 'Colère Ancestrale', classKey: 'guerrier', slotType: 'arme', weaponType: 'marteau2m', primary: 'force',
+    passive: { skill: 'tourbillon', powerPct: 30 }, desc: 'Berserker — Tourbillon inflige 30 % de dégâts en plus.',
+  },
+  // Voleur
+  murmureDeLOmbre: {
+    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'deluge-de-lames', powerPct: 25 }, desc: 'Assassin — Déluge de lames inflige 25 % de dégâts en plus.',
   },
   crocSanglant: {
     name: 'Croc Sanglant', classKey: 'voleur', slotType: 'arme', weaponType: 'dague', primary: 'agilite',
-    passive: { skill: 'laceration', dotTurnsDelta: 2 }, desc: 'Lacération fait saigner 2 tours de plus.',
+    passive: { skill: 'lame-empoisonnee', dotTurnsDelta: 2 }, desc: 'Empoisonneur — le poison de Lame empoisonnée dure 2 tours de plus.',
   },
-  murmureDeLOmbre: {
-    name: "Murmure de l'Ombre", classKey: 'voleur', slotType: 'gants', armorType: 'moyenne', primary: 'agilite',
-    passive: { skill: 'coup-vicieux', powerPct: 25 }, desc: 'Coup Vicieux inflige 25 % de dégâts en plus.',
-  },
+  // Prêtre
   benedictionDAube: {
     name: "Bénédiction d'Aube", classKey: 'pretre', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'soin-majeur', powerPct: 25 }, desc: 'Soin Majeur soigne 25 % de plus.',
+    passive: { skill: 'priere-de-soins', powerPct: 25 }, desc: 'Clerc — Prière de soins soigne 25 % de plus.',
   },
   etoleDuPelerin: {
     name: 'Étole du Pèlerin', classKey: 'pretre', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclat-de-lumiere', costDelta: -8 }, desc: 'Éclat de Lumière coûte 8 Mana de moins.',
+    passive: { skill: 'renovation', effectTurnsDelta: 2 }, desc: 'Prêcheur — Rénovation dure 2 tours de plus.',
   },
+  voileDuNeant: {
+    name: 'Voile du Néant', classKey: 'pretre', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
+    passive: { skill: 'mot-de-douleur', dotPowerPct: 30 }, desc: 'Profane — Mot de douleur inflige 30 % de dégâts de ténèbres en plus.',
+  },
+  // Mage
   coeurDeBrasier: {
     name: 'Cœur de Brasier', classKey: 'mage', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
-    passive: { skill: 'boule-de-feu', powerPct: 30 }, desc: 'Boule de Feu inflige 30 % de dégâts en plus.',
+    passive: { skill: 'immolation', dotPowerPct: 30 }, desc: 'Feu — Immolation brûle 30 % plus fort.',
+  },
+  larmeDeGlace: {
+    name: 'Larme de Glace éternelle', classKey: 'mage', slotType: 'collier', primary: 'intelligence',
+    passive: { skill: 'nova-de-givre', powerPct: 25, costDelta: -5 }, desc: 'Glace — Nova de givre inflige 25 % de dégâts en plus et coûte 5 Mana de moins.',
   },
   couronneDOrage: {
     name: "Couronne d'Orage", classKey: 'mage', slotType: 'casque', armorType: 'legere', primary: 'intelligence',
-    passive: { skill: 'eclair', costDelta: -10 }, desc: 'Éclair coûte 10 Mana de moins.',
+    passive: { skill: 'tempete', costDelta: -15 }, desc: 'Foudre — Tempête coûte 15 Mana de moins.',
+  },
+  // Chasseur
+  serreDuFaucon: {
+    name: 'Serre du Faucon', classKey: 'chasseur', slotType: 'arme', weaponType: 'arc', primary: 'agilite',
+    passive: { skill: 'tir-percant', powerPct: 30 }, desc: 'Œil de Faucon — Tir perçant inflige 30 % de dégâts en plus.',
+  },
+  bottesDuTraqueur: {
+    name: 'Bottes du Traqueur', classKey: 'chasseur', slotType: 'bottes', armorType: 'moyenne', primary: 'agilite',
+    passive: { skill: 'piege-a-machoires', effectPowerPct: 40, costDelta: -5 }, desc: 'Traqueur — Piège à mâchoires inflige 40 % de dégâts en plus et coûte 5 Énergie de moins.',
+  },
+  // Paladin
+  egideDuCroise: {
+    name: 'Égide du Croisé', classKey: 'paladin', slotType: 'bouclier', primary: 'force',
+    passive: { skill: 'sceau-de-vie', powerPct: 30, effectPowerPct: 30 }, desc: 'Templier — Sceau de vie soigne 30 % de plus.',
+  },
+  sceptreDeLAurore: {
+    name: "Sceptre de l'Aurore", classKey: 'paladin', slotType: 'arme', weaponType: 'sceptre', primary: 'intelligence',
+    passive: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 }, desc: 'Lumière — Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.',
   },
 };

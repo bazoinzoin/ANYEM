@@ -10,6 +10,8 @@
 //   stun     l'unité perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt    les ennemis doivent attaquer cette unité
 //   confuse  l'unité peut frapper ses propres alliés
+//   redirect % des dégâts reportés sur status.source (Intercession)
+//   trap     dégâts d'un piège, déclenché au début du prochain tour de l'unité
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
 // Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
 
@@ -23,6 +25,7 @@ export function makeStatus(id, turns, value) {
   const status = { key: id, name: def.name, icon: def.icon, kind: def.kind, turns };
   if (def.mods) status.mods = def.mods;
   for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
+  if (def.redirect) status.redirect = def.redirect;
   if (def.value) status[def.value] = value;
   return status;
 }

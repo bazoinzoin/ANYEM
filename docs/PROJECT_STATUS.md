@@ -11,7 +11,7 @@ Ce fichier résume l'état du projet pour reprendre le développement sans perdr
 
 ## Ce qui est déjà fonctionnel
 
-- **Création d'équipe** : 4 classes jouables (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana), avec nom personnalisable.
+- **Création d'équipe** : 4 héros, chacun d'une classe au choix parmi 6 (Guerrier/Rage, Voleur/Énergie, Prêtre/Mana, Mage/Mana, Chasseur/Énergie, Paladin/Mana ; doublons permis), avec nom personnalisable.
 - **Village (hub)** : affichage de l'équipe, portails vers les donjons (progression, points de départ), Auberge (soin complet fonctionnel), Forge, Marchand, écran de statistiques détaillées par personnage.
 - **Combat tour par tour** : ordre de jeu basé sur la vitesse, actions Attaquer/Défendre/Objet/Compétence/Passer le tour (plusieurs actions par tour pour le Voleur), ciblage toujours demandé explicitement (même s'il ne reste qu'une cible), tours ennemis avec délai visible (pas instantanés, ~0.8s + mise en évidence de l'unité qui agit), estimation de dégâts/soins affichée sur les boutons et en tooltip, tooltips descriptifs sur toutes les actions/classes/services, victoire → or + progression du niveau de donjon, défaite → perte d'or + retour au village.
 - **Équipement** (voir détail ci-dessous) : 11 emplacements, 5 raretés, objets nivelés, butin en fin de combat, sac partagé, écran Équipement avec comparaison des stats avant d'équiper, objets légendaires liés à une classe.
@@ -43,6 +43,10 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
   - Feu (dégâts sur la durée) : Immolation / Mur de flammes / Pluie de feu / **Météore** — Boule ardente, Feu persistant, Embrasement.
   - Glace (dégâts directs + ralentissements) : Éclat de glace / Nova de givre / Lance de glace / **Blizzard** — Givre persistant, Éclatement, Gel profond.
   - Foudre (gros dégâts directs + étourdissement) : Chaîne d'éclairs / Onde de choc (étourdit) / Tempête / **Jugement céleste** (zone, étourdit) — Éclair renforcé, Électrocution, Paralysie.
+  - Œil de Faucon (Chasseur, gros tirs coûteux) : Tir perçant / Salve (zone) / Tir de l'aigle / **Tir fatal** (critique garanti, bonus d'exécution) — Tir ajusté, Calme du tireur (+Énergie), Flèche perforante.
+  - Traqueur (Chasseur, petits tirs, contrôle, pièges) : Piège à mâchoires / Tir incapacitant (ralentit) / Champ de givre (pièges de givre sur tous) / **Terrain piégé** — Flèches barbelées, Maître piégeur, Tir éclair.
+  - Templier (Paladin tank, Force) : Intercession (encaisse la moitié des dégâts d'un allié) / Sceau de vie (auto-soin sur la Force) / Aura de protection / **Sacrifice divin** — Vengeance sacrée (vol de vie), Garde du croisé, Martyr.
+  - Lumière (Paladin soigneur, Intelligence) : Lumière de l'aube (soin de groupe) / Épuration (retire les effets négatifs) / Sceau de protection / **Lumière divine** — Main de lumière, Lumière purifiante, Aura de guérison. Soins un peu moins forts que le Prêtre (Lumière sacrée 0,9 contre Soin Majeur 1,1 ; soin de groupe 0,45 contre 0,55), compensés par une meilleure survie et la purification.
 - **Effets (buffs / debuffs)** : un **catalogue unique** (`src/data/effects.js`). Un effet est défini une seule fois ; une compétence (héros ou ennemi) ne fait que l'appliquer via `effects` (à ses cibles) ou `selfEffects` (au lanceur), avec sa durée et, pour les effets à valeur, sa puissance. C'est la compétence qui décide qui est touché (un ennemi, un allié, toute l'équipe…), jamais l'effet.
   - Buffs : **Bouclier** (absorbe des dégâts), **Régénération** (soin par tour), **Puissance** (+25 % puissance physique et magique), **Hâte** (+25 % Vitesse), **Protection** (+50 % Défense et Défense magique), **Provocation** (attire les attaques, +30 % Défense), **Enragé** (+30 % puissance physique, −20 % Défense).
   - Debuffs : **Poison**, **Saignement**, **Brûlure**, **Ténèbres** (dégâts par tour), **Ralenti** (−30 % Vitesse), **Étourdi** (perd son prochain tour), **Confus** (1 chance sur 2 de frapper un allié), **Affaibli** (−20 % puissance physique et magique), **Terreur** (−30 % Défense et Défense magique).
@@ -57,6 +61,15 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Points de combo** (inspiré de WoW), 5 max, remis à zéro à chaque combat : les **générateurs** (Coup Vicieux, Taillade, Lame empoisonnée) en donnent 1 ; les **finishers** (Éviscération, Lacération, Déluge de lames, Fiole de peste) les dépensent tous et exigent au moins 1 point. Puissance et valeur des effets d'un finisher sont données **par point de combo** (`finisher: true`, voir `game/combo.js`, `atCombo`).
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
+
+## Chasseur et Paladin (choix d'implémentation)
+
+- **Chasseur** : classe à Énergie comme le Voleur (plusieurs actions par tour, mêmes coûts d'actions de base), mais **sans points de combo** ; Agilité, arc, armure moyenne. Tir visé (45 Énergie) et Tir rapide (20).
+- **Pièges** (effets du catalogue `piege`, `piegeDeGivre`) : posés sur un ennemi, ils se déclenchent au début de son prochain tour (dégâts, puis Étourdi ou Ralenti). Remède : Outils de désamorçage.
+- **Paladin** : Mana, Force **et** Intelligence (+1 de chaque par niveau ; chaque orientation n'en utilise qu'une). Frappe du croisé (physique, Force) et Lumière sacrée (soin, Intelligence).
+- **Intercession** (effet `intercession`) : la moitié des dégâts subis par l'allié est encaissée par le Paladin qui l'a lancée (s'il est en vie).
+- **Soins sur la Force** (`physHeal`) : les auto-soins du Templier utilisent la puissance physique.
+- Simulation : le Chasseur Œil de Faucon est au niveau du Voleur (meilleurs DPS mono-cible) ; une équipe avec un Paladin (Templier) à la place du Guerrier termine les donjons actuels.
 
 ## Donjons (choix d'implémentation)
 
@@ -101,8 +114,9 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Raretés** : commun (gris, 0 secondaire), peu commun (vert, 1), rare (bleu, 2), épique (violet, 3), légendaire (orange, 4 + passif unique). Les stats obligatoire/principale sont aussi multipliées par la rareté.
 - **Niveau** : un objet a le niveau du donjon où il est trouvé ; ses stats en dépendent.
 - **Armes** : épée moins puissante, hache intermédiaire, marteau plus puissant ; versions 2 mains plus fortes ; dague faible ; bâton à deux mains. La notion de vitesse d'arme du design doc n'est pas encore rendue (elle ne peut pas être une stat, les communs n'ayant que 2 stats). Arme en main gauche (Voleur, ambidextrie) : son attaque compte à 50 %.
-- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, armure légère), Mage (bâton, armure légère).
-- **Légendaires** : 2 par classe, chacun modifie une compétence de base (puissance, coût ou durée du saignement). Pourront plus tard viser les compétences d'orientation.
+- **Maîtrises** : Guerrier (armes 1M/2M, bouclier, armure lourde/moyenne), Voleur (armes 1M et dagues dans les deux mains, armure moyenne), Prêtre (bâton, dague, sceptre, armure légère), Mage (bâton, armure légère), Chasseur (arc, armure moyenne), Paladin (armes 1M/2M, sceptre, bouclier, armure lourde/légère).
+- **Nouvelles armes** : Arc (deux mains, Agilité) ; Sceptre (une main, Intelligence). Les boucliers peuvent porter Force ou Intelligence.
+- **Légendaires** : un par orientation (14), chacun renforce une compétence de cette orientation (voir `LEGENDARIES`). Un légendaire tiré est réservé à une classe présente dans l'équipe.
 - **Combat** : dégâts × 100 / (100 + Défense ou Défense magique de la cible) ; critique selon Taux/Dégâts critiques ; Esquive = attaque évitée ; Blocage = dégâts réduits de moitié. Le Voleur utilise des points de combo (voir plus haut).
 
 ## Dégâts physiques et magiques
