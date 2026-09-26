@@ -49,6 +49,7 @@ test('les ennemis sont plus puissants selon la difficulté', () => {
   const game = newGame();
   setDifficulty(game, 'guerre');
   startExpedition(game, 'foretMaudite');
+  game.expedition.engaged = game.expedition.map.mobs[0].id;
   const params = floorCombat(game);
   assert.equal(params.power, 1.7);
   const cb = createCombat({ party: game.party, ...params });

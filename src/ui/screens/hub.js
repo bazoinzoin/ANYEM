@@ -6,7 +6,6 @@ import { isUnlocked, progressOf, startFloors, startExpedition } from '../../game
 import { getClass, getStats, getSkills, xpToNext } from '../../game/party.js';
 import { esc, tip, bar } from '../html.js';
 import { goTo } from '../router.js';
-import { startFloor } from '../encounter.js';
 import { itemChip } from '../items.js';
 import { lastCombatLog } from '../combatLog.js';
 import { DIFFICULTIES } from '../../config.js';
@@ -57,7 +56,7 @@ export function renderHub(app) {
 
   app.querySelectorAll('[data-dungeon]').forEach((btn) => {
     btn.onclick = () => {
-      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
+      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) goTo('dungeon');
     };
   });
   app.querySelector('#inn').onclick = () => openInn();

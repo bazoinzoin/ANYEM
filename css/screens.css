@@ -249,3 +249,16 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .card.difficulty h4 { margin: 12px 0 2px; color: var(--gold); }
 .loot-lines { margin: 0; padding-left: 18px; font-size: 14px; }
 .absorb-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3a2c1c; }
+
+/* ---- Carte de l'étage ---- */
+.map-card { padding: 10px; }
+.map-card canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; border-radius: 6px; cursor: pointer; touch-action: manipulation; }
+.map-controls { display: flex; gap: 14px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.map-help { flex: 1; min-width: 220px; }
+.map-help p { margin: 2px 0 6px; }
+.dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 40px); gap: 4px; }
+.dpad button { padding: 0; font-size: 16px; }
+.dpad [data-step="0,-1"] { grid-column: 2; grid-row: 1; }
+.dpad [data-step="-1,0"] { grid-column: 1; grid-row: 2; }
+.dpad [data-step="1,0"] { grid-column: 3; grid-row: 2; }
+.dpad [data-step="0,1"] { grid-column: 2; grid-row: 3; }

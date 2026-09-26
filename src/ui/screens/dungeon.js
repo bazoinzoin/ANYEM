@@ -1,6 +1,6 @@
-// Expédition : entre deux étages d'un donjon. On y voit la progression et l'état
-// de l'équipe, et on choisit de descendre à l'étage suivant ou (après un boss)
-// de rentrer au village.
+// Expédition : exploration de la carte de l'étage (ui/mapView.js), état de l'équipe,
+// objets et sorts hors combat, événements, et après un boss le choix entre rentrer
+// au village et continuer.
 
 import { state } from '../../state.js';
 import { DUNGEONS, FLOORS_PER_SUBZONE } from '../../data/dungeons.js';
@@ -10,7 +10,7 @@ import { fieldSkills, castOutOfCombat, cannotCastReason } from '../../game/field
 import { healAmount } from '../../game/formulas.js';
 import { statusesOf } from '../../game/statuses.js';
 import { EFFECTS } from '../../data/effects.js';
-import { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } from '../../game/dungeon.js';
+import { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
 import {
@@ -23,7 +23,8 @@ import { esc, tip, bar } from '../html.js';
 import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
 import { consumableEstimate } from '../format.js';
 import { goTo, showHub } from '../router.js';
-import { startFloor, lastFloor } from '../encounter.js';
+import { lastFloor } from '../encounter.js';
+import { mapCard, bindMap } from '../mapView.js';
 import { victorySummary, lastCombatLog } from '../combatLog.js';
 import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
@@ -42,13 +43,13 @@ export function renderDungeon(app) {
   Object.assign(lastFloor, { message: null, loot: [], summary: null });
   view.flash = null;
   view.flashLoot = [];
-  const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''} de monstres</p></div>
     ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
     ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${lastCombatLog(state.lastCombat)}
+    ${exp.event || exp.bossChoice ? '' : mapCard()}
     <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
@@ -72,9 +73,6 @@ export function renderDungeon(app) {
           </div>
         </div>` : `
       <div class="actions">
-        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? '☠️ Affronter le boss' : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${floorInSubzone(exp.floor)} (${exp.fights} combats)`}
-        </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
           🏠 Rentrer au village
@@ -145,10 +143,7 @@ export function renderDungeon(app) {
   app.querySelectorAll('[data-spell-target]').forEach((btn) => {
     btn.onclick = () => castSpell(view.pendingSpell, Number(btn.dataset.spellTarget));
   });
-  app.querySelector('#nextFloor')?.addEventListener('click', () => {
-    view.pendingItem = null;
-    startFloor();
-  });
+  bindMap(app);
   app.querySelector('#continue')?.addEventListener('click', () => {
     if (continueExpedition(state)) view.flash = `L'équipe reprend son souffle (+${DUNGEON.continueRegenPct} % de PV et de ressource) et s'enfonce dans ${d.name}.`;
     goTo('dungeon');
@@ -226,7 +221,7 @@ function useItem(key, targetIndex) {
   goTo('dungeon');
 }
 
-// Objets utilisables entre deux étages (soins, plume, tente, corde).
+// Objets utilisables pendant l'exploration (soins, plume, tente, corde).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
   if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
@@ -321,7 +316,7 @@ function eventPanel(event) {
       <p>${esc(def.text)}</p>
       ${body}
       <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
-      <p class="hint">Il faut régler cet événement avant de descendre à l'étage suivant.</p>
+      <p class="hint">Il faut régler cet événement avant de reprendre l'exploration.</p>
     </div>`;
 }
 

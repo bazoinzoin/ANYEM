@@ -15,3 +15,32 @@ export function learnStarters(heroes) {
   }
   return heroes;
 }
+
+// ---- Expédition sur carte (voir game/dungeon.js) ----
+
+import { floorCombat, winFight, takeLadder } from '../src/game/dungeon.js';
+import { createCombat } from '../src/game/combat.js';
+
+// Engage le premier groupe de monstres de la carte (le boss en dernier) et gagne le
+// combat sans le jouer. Retourne le résultat de winFight.
+export function winNextFight(game, { boss = false } = {}) {
+  const exp = game.expedition;
+  const mobs = exp.map.mobs.filter((m) => m.boss === boss);
+  exp.engaged = (mobs[0] ?? exp.map.mobs[0]).id;
+  const cb = createCombat({ party: game.party, ...floorCombat(game) });
+  cb.enemies.forEach((e) => { e.alive = false; e.hp = 0; });
+  return winFight(game, cb);
+}
+
+// Franchit l'étage : bat tous les groupes (boss compris) ; à un étage ordinaire, se
+// place sur l'échelle et descend. Retourne le dernier résultat de combat.
+export function clearFloor(game) {
+  const exp = game.expedition;
+  exp.event = null;
+  let r = null;
+  while (exp.map.mobs.some((m) => !m.boss)) r = winNextFight(game);
+  if (exp.map.mobs.some((m) => m.boss)) return winNextFight(game, { boss: true });
+  exp.map.party = { ...exp.map.ladder };
+  takeLadder(game);
+  return r;
+}

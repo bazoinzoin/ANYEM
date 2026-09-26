@@ -389,6 +389,19 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .card.difficulty h4 { margin: 12px 0 2px; color: var(--gold); }
 .loot-lines { margin: 0; padding-left: 18px; font-size: 14px; }
 .absorb-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #3a2c1c; }
+
+/* ---- Carte de l'étage ---- */
+.map-card { padding: 10px; }
+.map-card canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; border-radius: 6px; cursor: pointer; touch-action: manipulation; }
+.map-controls { display: flex; gap: 14px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.map-help { flex: 1; min-width: 220px; }
+.map-help p { margin: 2px 0 6px; }
+.dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 40px); gap: 4px; }
+.dpad button { padding: 0; font-size: 16px; }
+.dpad [data-step="0,-1"] { grid-column: 2; grid-row: 1; }
+.dpad [data-step="-1,0"] { grid-column: 1; grid-row: 2; }
+.dpad [data-step="1,0"] { grid-column: 3; grid-row: 2; }
+.dpad [data-step="0,1"] { grid-column: 2; grid-row: 3; }
 </style>
 
 </head>
@@ -512,12 +525,25 @@ const DUNGEON = {
   enemiesByTier: [2, 3, 3],
   bossAddsByTier: [0, 1, 2],
   eliteChance: 0.15,
+  bossFloorGroups: 1,              // groupes de monstres ordinaires en plus du boss, à l'étage du boss
+  mapEventChances: [0.7, 0.25],    // chance d'un 1er, d'un 2e événement sur la carte d'un étage ordinaire
 };
 
-// Événements d'expédition (data/events.js) : chance après chaque combat gagné
-// hors boss ; stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
+// Cartes d'étage (game/floorMap.js) : taille en cases, salles, vue et comportement des monstres.
+const MAP = {
+  width: 36,
+  height: 24,
+  rooms: 7,
+  roomSize: { min: 5, max: 9 },
+  sightRadius: 6,    // rayon de vue du groupe (brouillard)
+  aggroRadius: 5,    // un monstre qui voit le groupe à cette distance le poursuit
+  loseRadius: 9,     // … et abandonne au-delà
+  wanderChance: 0.5, // sinon, chance de faire un pas dans sa salle
+};
+
+// Événements d'expédition (data/events.js ; nombre par étage : DUNGEON.mapEventChances) :
+// stock du marchand ambulant (meilleures raretés, prix plus bas qu'au village).
 const EVENT_RULES = {
-  chance: 0.35,
   merchantItems: 3,
   merchantRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
   merchantPriceMult: 2,        // prix = prix de revente × 2 (village : × 4)
@@ -607,7 +633,7 @@ const TIMING = {
   enemyAfterMs: 500,
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -837,7 +863,21 @@ function pick(list) {
   return list[Math.floor(source() * list.length)];
 }
 
-return { setRandomSource, random, rand, pick };
+// Générateur local (mulberry32) initialisé par un tirage de la source : pour les
+// générations qui demandent beaucoup de tirages variés (cartes d'étage), même quand
+// la source est remplacée par une constante dans les tests.
+function seededRandom(seed = source()) {
+  let a = Math.floor(seed * 4294967296) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+return { setRandomSource, random, rand, pick, seededRandom };
 })();
 
 // ---- src/game/items.js
@@ -3189,7 +3229,7 @@ function goTo(screen) {
   render();
 }
 
-// Écran de base : le village, ou l'expédition en cours (entre deux étages).
+// Écran de base : le village, ou l'expédition en cours (exploration de l'étage).
 function goBack() {
   goTo(state.expedition ? 'dungeon' : 'hub');
 }
@@ -4404,9 +4444,10 @@ const { getStats } = __modules["src/game/party.js"];
 const { random, pick } = __modules["src/game/rng.js"];
 // Événements d'expédition (données : data/events.js).
 //
-// Après un combat gagné hors boss, EVENT_RULES.chance qu'un événement survienne :
+// Les événements sont posés sur la carte de l'étage (DUNGEON.mapEventChances) et se
+// déclenchent quand le groupe marche dessus (stepParty, game/dungeon.js) :
 // game.expedition.event = { key, level, stock?, consumables? }. Tant qu'il n'est
-// pas réglé (un choix, ou « passer son chemin »), l'étage suivant attend.
+// pas réglé (un choix, ou « passer son chemin »), le groupe ne peut plus bouger.
 
 
 
@@ -4437,11 +4478,6 @@ function rollEvent(level) {
 }
 
 // Après une victoire : peut-être un événement.
-function maybeTriggerEvent(game, level) {
-  if (!game.expedition || random() >= EVENT_RULES.chance) return null;
-  game.expedition.event = rollEvent(level);
-  return game.expedition.event;
-}
 
 function currentEvent(game) {
   return game.expedition?.event ?? null;
@@ -4574,7 +4610,231 @@ function buyEventConsumable(game, index) {
   return true;
 }
 
-return { rollEvent, maybeTriggerEvent, currentEvent, choiceCost, cannotChooseReason, chooseEvent, skipEvent, eventItemPrice, buyEventItem, buyEventConsumable };
+return { rollEvent, currentEvent, choiceCost, cannotChooseReason, chooseEvent, skipEvent, eventItemPrice, buyEventItem, buyEventConsumable };
+})();
+
+// ---- src/game/floorMap.js
+__modules["src/game/floorMap.js"] = (() => {
+const { MAP } = __modules["src/config.js"];
+const { random, pick, seededRandom } = __modules["src/game/rng.js"];
+// Carte d'un étage : salles reliées par des couloirs, brouillard, monstres qui
+// patrouillent ou poursuivent le groupe, événements et échelle. Règles pures (sans
+// DOM) ; tout aléatoire passe par game/rng.js.
+//
+// map = {
+//   w, h,
+//   tiles: [0 | 1]   (w × h, ligne par ligne) 0 = mur, 1 = sol
+//   seen:  [0 | 1]   cases déjà découvertes (brouillard)
+//   rooms: [{ x, y, w, h }]
+//   party: { x, y }
+//   ladder: { x, y } | null     (null à l'étage d'un boss : le boss garde la fin)
+//   mobs:  [{ id, x, y, room, enemies: [clés], boss, chasing }]
+//   events: [{ id, x, y }]
+// }
+
+
+
+
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+const idx = (map, x, y) => y * map.w + x;
+const inside = (map, x, y) => x >= 0 && y >= 0 && x < map.w && y < map.h;
+const isFloor = (map, x, y) => inside(map, x, y) && map.tiles[idx(map, x, y)] === 1;
+// Tirages de la génération (générateur local, voir seededRandom) ; ailleurs : random().
+let gen = random;
+const randInt = (min, max) => min + Math.floor(gen() * (max - min + 1));
+const genPick = (list) => list[Math.floor(gen() * list.length)];
+const center = (r) => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) });
+
+function carveRect(map, { x, y, w, h }) {
+  for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) map.tiles[idx(map, i, j)] = 1;
+}
+
+// Couloir en L entre deux points.
+function carveCorridor(map, a, b) {
+  const horizontalFirst = gen() < 0.5;
+  const corner = horizontalFirst ? { x: b.x, y: a.y } : { x: a.x, y: b.y };
+  for (const [p, q] of [[a, corner], [corner, b]]) {
+    for (let x = Math.min(p.x, q.x); x <= Math.max(p.x, q.x); x++) map.tiles[idx(map, x, p.y)] = 1;
+    for (let y = Math.min(p.y, q.y); y <= Math.max(p.y, q.y); y++) map.tiles[idx(map, p.x, y)] = 1;
+  }
+}
+
+function overlaps(a, b) {
+  return a.x - 1 <= b.x + b.w && b.x - 1 <= a.x + a.w && a.y - 1 <= b.y + b.h && b.y - 1 <= a.y + a.h;
+}
+
+// Distances (en pas) depuis `from` sur le sol ; Infinity si inaccessible.
+function distances(map, from) {
+  const dist = new Array(map.w * map.h).fill(Infinity);
+  dist[idx(map, from.x, from.y)] = 0;
+  const queue = [from];
+  while (queue.length) {
+    const { x, y } = queue.shift();
+    const d = dist[idx(map, x, y)];
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (isFloor(map, nx, ny) && dist[idx(map, nx, ny)] === Infinity) {
+        dist[idx(map, nx, ny)] = d + 1;
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+  return dist;
+}
+
+// Premier pas du plus court chemin de `from` vers `to` (en évitant `blocked(x, y)`), ou null.
+function stepToward(map, from, to, blocked = () => false) {
+  const dist = distances(map, to);
+  let best = null;
+  let bestD = dist[idx(map, from.x, from.y)];
+  for (const [dx, dy] of DIRS) {
+    const x = from.x + dx;
+    const y = from.y + dy;
+    if (!isFloor(map, x, y) || (blocked(x, y) && !(x === to.x && y === to.y))) continue;
+    const d = dist[idx(map, x, y)];
+    if (d < bestD) {
+      bestD = d;
+      best = { x, y };
+    }
+  }
+  return best;
+}
+
+// Ligne de vue (Bresenham) : aucune case de mur entre a et b (b exclu).
+function lineOfSight(map, a, b) {
+  let { x, y } = a;
+  const dx = Math.abs(b.x - x);
+  const dy = -Math.abs(b.y - y);
+  const sx = x < b.x ? 1 : -1;
+  const sy = y < b.y ? 1 : -1;
+  let err = dx + dy;
+  while (x !== b.x || y !== b.y) {
+    if (!(x === a.x && y === a.y) && !isFloor(map, x, y)) return false;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+  return true;
+}
+
+// Cases visibles depuis le groupe : rayon MAP.sightRadius, ligne de vue (murs compris,
+// pour qu'ils s'affichent).
+function visibleFrom(map, pos, radius = MAP.sightRadius) {
+  const visible = new Set();
+  for (let y = pos.y - radius; y <= pos.y + radius; y++) {
+    for (let x = pos.x - radius; x <= pos.x + radius; x++) {
+      if (!inside(map, x, y) || (x - pos.x) ** 2 + (y - pos.y) ** 2 > radius * radius) continue;
+      if (lineOfSight(map, pos, { x, y })) visible.add(idx(map, x, y));
+    }
+  }
+  return visible;
+}
+
+function reveal(map) {
+  for (const i of visibleFrom(map, map.party)) map.seen[i] = 1;
+}
+
+// Case de sol libre au hasard dans une salle (ni occupée, ni sur `taken`).
+function freeTileIn(map, room, taken) {
+  for (let tries = 0; tries < 60; tries++) {
+    const x = randInt(room.x, room.x + room.w - 1);
+    const y = randInt(room.y, room.y + room.h - 1);
+    if (!taken.some((p) => p.x === x && p.y === y)) return { x, y };
+  }
+  return null;
+}
+
+/**
+ * Génère la carte d'un étage.
+ * groups : [{ enemies, boss }] groupes de monstres (un boss se place dans la salle
+ *          la plus éloignée du départ et ne bouge pas) ; events : nombre d'événements.
+ */
+function generateFloorMap({ groups, events = 0 }) {
+  gen = seededRandom();
+  const { width: w, height: h } = MAP;
+  const map = { w, h, tiles: new Array(w * h).fill(0), seen: new Array(w * h).fill(0), rooms: [], mobs: [], events: [], ladder: null };
+  for (let tries = 0; map.rooms.length < MAP.rooms && tries < 400; tries++) {
+    const room = { w: randInt(MAP.roomSize.min, MAP.roomSize.max), h: randInt(MAP.roomSize.min - 1, MAP.roomSize.max - 2) };
+    room.x = randInt(1, w - room.w - 1);
+    room.y = randInt(1, h - room.h - 1);
+    if (map.rooms.some((r) => overlaps(r, room))) continue;
+    map.rooms.push(room);
+  }
+  // Salles reliées de gauche à droite (plus une boucle), pour un étage qui se parcourt.
+  map.rooms.sort((a, b) => a.x - b.x);
+  map.rooms.forEach((r) => carveRect(map, r));
+  for (let i = 1; i < map.rooms.length; i++) carveCorridor(map, center(map.rooms[i - 1]), center(map.rooms[i]));
+  if (map.rooms.length > 3) carveCorridor(map, center(map.rooms[0]), center(map.rooms[Math.floor(map.rooms.length / 2) + 1]));
+
+  const startRoom = 0;
+  map.party = center(map.rooms[startRoom]);
+  const dist = distances(map, map.party);
+  const farthest = map.rooms.reduce((best, r, i) =>
+    (dist[idx(map, center(r).x, center(r).y)] > dist[idx(map, center(map.rooms[best]).x, center(map.rooms[best]).y)] ? i : best), 0);
+
+  const taken = [map.party];
+  const hasBoss = groups.some((g) => g.boss);
+  if (!hasBoss) {
+    map.ladder = center(map.rooms[farthest]);
+    taken.push(map.ladder);
+  }
+  const otherRooms = map.rooms.map((_, i) => i).filter((i) => i !== startRoom);
+  groups.forEach((g, n) => {
+    const room = g.boss ? farthest : genPick(otherRooms.filter((i) => i !== farthest || !hasBoss));
+    const pos = g.boss ? center(map.rooms[room]) : freeTileIn(map, map.rooms[room], taken);
+    if (!pos) return;
+    taken.push(pos);
+    map.mobs.push({ id: `m${n + 1}`, ...pos, room, enemies: g.enemies, boss: !!g.boss, chasing: false });
+  });
+  for (let n = 0; n < events; n++) {
+    const pos = freeTileIn(map, map.rooms[genPick(otherRooms)], taken);
+    if (!pos) continue;
+    taken.push(pos);
+    map.events.push({ id: `e${n + 1}`, ...pos });
+  }
+  reveal(map);
+  gen = random;
+  return map;
+}
+
+const inRoom = (room, p) => p.x >= room.x && p.x < room.x + room.w && p.y >= room.y && p.y < room.y + room.h;
+
+const mobAt = (map, x, y) => map.mobs.find((m) => m.x === x && m.y === y) ?? null;
+
+// Déplacement des monstres après un pas du groupe. Un monstre qui voit le groupe
+// (rayon MAP.aggroRadius, ligne de vue) le poursuit, et lâche prise au-delà de
+// MAP.loseRadius ; sinon il erre dans sa salle. Un boss ne bouge pas.
+// Retourne le monstre qui atteint le groupe (combat), ou null.
+function moveMobs(map) {
+  for (const mob of map.mobs) {
+    if (mob.boss) continue;
+    const d2 = (mob.x - map.party.x) ** 2 + (mob.y - map.party.y) ** 2;
+    if (d2 <= MAP.aggroRadius ** 2 && lineOfSight(map, mob, map.party)) mob.chasing = true;
+    else if (d2 > MAP.loseRadius ** 2) mob.chasing = false;
+    const blocked = (x, y) => !!mobAt(map, x, y) || (map.ladder?.x === x && map.ladder?.y === y);
+    let next = null;
+    if (mob.chasing) {
+      next = stepToward(map, mob, map.party, blocked);
+    } else if (!inRoom(map.rooms[mob.room], mob)) {
+      next = stepToward(map, mob, center(map.rooms[mob.room]), blocked); // retour dans sa salle
+    } else if (random() < MAP.wanderChance) {
+      const room = map.rooms[mob.room];
+      const options = DIRS.map(([dx, dy]) => ({ x: mob.x + dx, y: mob.y + dy })).filter((p) =>
+        isFloor(map, p.x, p.y) && !blocked(p.x, p.y) && !(p.x === map.party.x && p.y === map.party.y)
+        && inRoom(room, p));
+      if (options.length) next = pick(options);
+    }
+    if (!next) continue;
+    if (next.x === map.party.x && next.y === map.party.y) return mob;
+    mob.x = next.x;
+    mob.y = next.y;
+  }
+  return null;
+}
+
+return { idx, inside, isFloor, distances, stepToward, lineOfSight, visibleFrom, reveal, generateFloorMap, mobAt, moveMobs };
 })();
 
 // ---- src/data/enemies.js
@@ -5083,7 +5343,8 @@ return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, 
 
 // ---- src/game/dungeon.js
 __modules["src/game/dungeon.js"] = (() => {
-const { maybeTriggerEvent } = __modules["src/game/events.js"];
+const { rollEvent } = __modules["src/game/events.js"];
+const { generateFloorMap, reveal, moveMobs, mobAt, isFloor } = __modules["src/game/floorMap.js"];
 const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
@@ -5096,14 +5357,18 @@ const { pick, random } = __modules["src/game/rng.js"];
 // game.dungeons[clé] = { checkpoint, cleared }
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
-// game.expedition = { dungeonKey, floor, fight, fights, canLeave, bossChoice, event, gains } | null
-//   fight / fights : combat en cours de l'étage / nombre de combats de l'étage (1 pour un boss)
+// game.expedition = { dungeonKey, floor, map, engaged, canLeave, bossChoice, event, gains } | null
+//   floor      : étage en cours d'exploration
+//   map        : carte de l'étage (voir game/floorMap.js) : le groupe s'y déplace case par
+//                case, les monstres visibles bougent à chaque pas, toucher un groupe de
+//                monstres lance le combat, l'échelle mène à l'étage suivant
+//   engaged    : id du groupe de monstres combattu (combat en cours), ou null
 //   event      : événement en attente de choix (voir game/events.js), ou null
-//   floor      : prochain étage à combattre
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
+
 
 
 
@@ -5151,8 +5416,9 @@ function floorLevel(key, floor) {
   return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
 }
 
-// Composition d'un étage : { enemies: [clés], boss, final }.
-function encounterFor(key, floor) {
+// Composition d'une rencontre de l'étage : { enemies: [clés], boss, final }.
+// À l'étage d'un boss : le boss et ses acolytes (sauf `ordinary`).
+function encounterFor(key, floor, opts = {}) {
   const d = DUNGEONS[key];
   const tier = tierOf(key, floor);
   const byTier = (list) => list[Math.min(tier, list.length - 1)];
@@ -5160,10 +5426,15 @@ function encounterFor(key, floor) {
   // Un ennemi ordinaire est parfois remplacé par un élite de la sous-zone.
   const foe = () => (sub.elites?.length && random() < DUNGEON.eliteChance ? pick(sub.elites) : pick(sub.pool));
   const randomFoes = (n) => Array.from({ length: n }, foe);
-  if (isBossFloor(key, floor)) {
+  if (isBossFloor(key, floor) && !opts.ordinary) {
     return { enemies: [sub.boss, ...randomFoes(byTier(DUNGEON.bossAddsByTier))], boss: true, final: floor === d.floors };
   }
   return { enemies: randomFoes(byTier(DUNGEON.enemiesByTier)), boss: false, final: false };
+}
+
+// Groupe de monstres ordinaire de l'étage (clés d'ennemis).
+function ordinaryEncounter(key, floor) {
+  return encounterFor(key, floor, { ordinary: true }).enemies;
 }
 
 // Étages de départ possibles : 1, puis l'étage qui suit chaque boss déjà vaincu.
@@ -5175,78 +5446,142 @@ function startFloors(game, key) {
   return floors;
 }
 
-// Nombre de combats d'un étage : un seul pour un boss, sinon DUNGEON.fightsPerFloor.
+// Nombre de groupes de monstres ordinaires d'un étage : DUNGEON.fightsPerFloor
+// (à l'étage d'un boss : DUNGEON.bossFloorGroups, en plus du boss).
 function fightsOnFloor(key, floor) {
-  if (isBossFloor(key, floor)) return 1;
+  if (isBossFloor(key, floor)) return DUNGEON.bossFloorGroups;
   const { min, max } = DUNGEON.fightsPerFloor;
   return min + Math.floor(random() * (max - min + 1));
 }
 
-// Arrivée à un étage : premier de ses combats.
+// Carte d'un étage : groupes de monstres (compositions tirées maintenant), boss, événements.
+function buildFloorMap(key, floor) {
+  const groups = [];
+  for (let n = fightsOnFloor(key, floor); n > 0; n--) groups.push({ enemies: ordinaryEncounter(key, floor) });
+  if (isBossFloor(key, floor)) groups.push({ enemies: encounterFor(key, floor).enemies, boss: true });
+  const events = isBossFloor(key, floor) ? 0 : DUNGEON.mapEventChances.filter((c) => random() < c).length;
+  return generateFloorMap({ groups, events });
+}
+
+// Arrivée à un étage : nouvelle carte.
 function enterFloor(exp, floor) {
   exp.floor = floor;
-  exp.fight = 1;
-  exp.fights = fightsOnFloor(exp.dungeonKey, floor);
+  exp.engaged = null;
+  exp.map = buildFloorMap(exp.dungeonKey, floor);
 }
 
 function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, fight: 1, fights: 1, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
+  game.expedition = { dungeonKey: key, floor, map: null, engaged: null, canLeave: true, bossChoice: false, event: null, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
   enterFloor(game.expedition, floor);
   return true;
 }
 
-// Paramètres du combat de l'étage courant (pour createCombat).
+// Groupe de monstres combattu (ou null).
+function engagedMob(game) {
+  const exp = game.expedition;
+  return exp?.map?.mobs.find((m) => m.id === exp.engaged) ?? null;
+}
+
+// Paramètres du combat contre le groupe engagé (pour createCombat).
 function floorCombat(game) {
-  const { dungeonKey, floor, fight, fights } = game.expedition;
+  const { dungeonKey, floor } = game.expedition;
   const d = DUNGEONS[dungeonKey];
-  const { enemies, boss } = encounterFor(dungeonKey, floor);
+  const mob = engagedMob(game);
   return {
-    enemies,
+    enemies: mob.enemies,
     level: floorLevel(dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
-    title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${boss ? ' — BOSS' : ` — combat ${fight}/${fights}`}`,
+    title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${mob.boss ? ' — BOSS' : ''}`,
   };
 }
 
+// Peut-on explorer (se déplacer, combattre) ? Pas pendant un choix d'après-boss ou un
+// événement en attente, ni sans héros debout.
+function canExplore(game) {
+  const exp = game.expedition;
+  return !!exp?.map && !exp.bossChoice && !exp.event && !exp.engaged && game.party.some((h) => h.alive);
+}
+
 /**
- * Combat gagné : récompenses. S'il reste des combats sur l'étage, on passe au
- * suivant ; sinon l'étage est franchi : point de passage si c'était un boss,
- * étage suivant, et peut-être un événement. Si c'était le dernier étage, le
- * donjon est terminé et l'expédition s'achève.
- * Retourne le résultat d'applyVictory, plus { boss, floorDone, cleared, unlocked, event }.
+ * Un pas du groupe dans la direction { dx, dy } (une case). Puis les monstres bougent.
+ * Retourne { moved, encounter: groupe de monstres touché (combat à lancer) | null,
+ *   event: événement déclenché | null, ladder: vrai si le groupe est sur l'échelle }.
+ * Toucher un groupe (en marchant dessus, ou s'il nous rattrape) l'engage : exp.engaged.
  */
-function winFloor(game, combat) {
+function stepParty(game, dx, dy) {
+  const none = { moved: false, encounter: null, event: null, ladder: false };
+  if (!canExplore(game) || Math.abs(dx) + Math.abs(dy) !== 1) return none;
+  const exp = game.expedition;
+  const map = exp.map;
+  const x = map.party.x + dx;
+  const y = map.party.y + dy;
+  if (!isFloor(map, x, y)) return none;
+  const target = mobAt(map, x, y);
+  if (target) {
+    exp.engaged = target.id;
+    return { ...none, encounter: target };
+  }
+  map.party = { x, y };
+  reveal(map);
+  let event = null;
+  const marker = map.events.find((e) => e.x === x && e.y === y);
+  if (marker) {
+    map.events = map.events.filter((e) => e !== marker);
+    event = rollEvent(floorLevel(exp.dungeonKey, exp.floor));
+    exp.event = event;
+  }
+  const catcher = event ? null : moveMobs(map);
+  if (catcher) exp.engaged = catcher.id;
+  return { moved: true, encounter: catcher, event, ladder: !!map.ladder && map.ladder.x === x && map.ladder.y === y };
+}
+
+// Descendre par l'échelle (le groupe doit être dessus) : étage suivant, nouvelle carte.
+function takeLadder(game) {
+  const exp = game.expedition;
+  if (!canExplore(game) || !exp.map.ladder || exp.map.party.x !== exp.map.ladder.x || exp.map.party.y !== exp.map.ladder.y) return false;
+  enterFloor(exp, exp.floor + 1);
+  exp.canLeave = false;
+  return true;
+}
+
+/**
+ * Combat gagné contre le groupe engagé : récompenses, le groupe disparaît de la carte.
+ * Contre un boss, l'étage est franchi : point de passage, étage suivant (choix
+ * rentrer / continuer), ou fin de la zone si c'était le dernier boss.
+ * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ */
+function winFight(game, combat) {
   const exp = game.expedition;
   const key = exp.dungeonKey;
-  const { boss, final } = encounterFor(key, exp.floor);
+  const mob = engagedMob(game);
+  const boss = !!mob?.boss;
+  const final = boss && exp.floor === DUNGEONS[key].floors;
   recordKills(game, combat.enemies);
   const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
   exp.gains.materia = (exp.gains.materia ?? 0) + result.materia.reduce((sum, m) => sum + m.amount, 0);
-  if (!boss && exp.fight < exp.fights) {
-    exp.fight++;
-    return { ...result, boss, floorDone: false, cleared: false, unlocked: null, event: null };
-  }
-  const progress = progressOf(game, key);
+  exp.map.mobs = exp.map.mobs.filter((m) => m !== mob);
+  exp.engaged = null;
   let cleared = false;
   let unlocked = null;
-  if (boss) progress.checkpoint = Math.max(progress.checkpoint, exp.floor);
-  if (final) {
-    cleared = true;
-    progress.cleared = true;
-    unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
-    game.expedition = null;
-  } else {
-    enterFloor(exp, exp.floor + 1);
-    exp.canLeave = boss;
-    exp.bossChoice = boss;
+  if (boss) {
+    const progress = progressOf(game, key);
+    progress.checkpoint = Math.max(progress.checkpoint, exp.floor);
+    if (final) {
+      cleared = true;
+      progress.cleared = true;
+      unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
+      game.expedition = null;
+    } else {
+      enterFloor(exp, exp.floor + 1);
+      exp.canLeave = true;
+      exp.bossChoice = true;
+    }
   }
-  // Étage ordinaire franchi : peut-être un événement (voir game/events.js).
-  const event = !boss && game.expedition ? maybeTriggerEvent(game, combat.level) : null;
-  return { ...result, boss, floorDone: true, cleared, unlocked, event };
+  return { ...result, boss, cleared, unlocked };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
@@ -5256,12 +5591,6 @@ function loseExpedition(game, combat = null) {
   if (combat) recordKills(game, combat.enemies);
   game.expedition = null;
   return applyDefeat(game);
-}
-
-// Le combat de l'étage suivant peut-il commencer ? (Pas tant qu'un choix d'après-boss
-// ou un événement est en attente.)
-function canFightNextFloor(game) {
-  return !!game.expedition && !game.expedition.bossChoice && !game.expedition.event && game.party.some((h) => h.alive);
 }
 
 // Après un boss : continuer le donjon. L'équipe (héros en vie) récupère 40 % de
@@ -5287,7 +5616,1472 @@ function leaveExpedition(game) {
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, subzoneOf, floorInSubzone, floorLevel, encounterFor, startFloors, fightsOnFloor, startExpedition, floorCombat, winFloor, loseExpedition, canFightNextFloor, continueExpedition, escapeExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, subzoneOf, floorInSubzone, floorLevel, encounterFor, startFloors, fightsOnFloor, buildFloorMap, startExpedition, engagedMob, floorCombat, canExplore, stepParty, takeLadder, winFight, loseExpedition, continueExpedition, escapeExpedition, leaveExpedition };
+})();
+
+// ---- src/ui/combatLog.js
+__modules["src/ui/combatLog.js"] = (() => {
+const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+// Journal de combat et résumé de victoire (partagés par les écrans de combat,
+// d'expédition et du village).
+
+
+
+
+
+
+// Lignes du journal : les coups critiques ressortent, et le calcul des dégâts
+// s'affiche au survol quand il est connu.
+function logLines(entries) {
+  return entries.map((l) => {
+    const cls = `${l.hit ? 'hit' : ''} ${l.crit ? 'crit' : ''}`;
+    if (!l.detail) return `<div class="${cls}">${l.crit ? '💥 ' : ''}${esc(l.text)}</div>`;
+    return `<div ${tip(l.detail, `${cls} has-detail`)}>${l.crit ? '💥 ' : ''}${esc(l.text)} <span class="why">ⓘ</span></div>`;
+  }).join('');
+}
+
+// Journal du dernier combat, repliable (après la fin du combat).
+function lastCombatLog(last) {
+  if (!last?.log?.length) return '';
+  return `
+    <details class="card last-log">
+      <summary>📜 Journal du dernier combat (${esc(last.title)})</summary>
+      <div class="log">${logLines(last.log)}</div>
+    </details>`;
+}
+
+// Résumé détaillé d'une victoire (résultat de applyVictory / winFight).
+function victorySummary(r) {
+  if (!r) return '';
+  const rows = [
+    ['💰 Or', `+${r.gold}`],
+    ['⭐ Expérience', `+${r.xp} XP pour chaque héros`],
+  ];
+  if (r.levelUps?.length) rows.push(['🎉 Niveau supérieur', r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
+  rows.push(['🎒 Équipement', r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
+  rows.push(['💎 Matéria', r.materia?.length
+    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${MATERIA_KINDS[m.kind].icon} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
+    : '<span class="hint">aucune</span>']);
+  rows.push(['🧪 Consommables', r.consumables?.length ? r.consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', ') : '<span class="hint">aucun</span>']);
+  return `
+    <div class="victory-summary">
+      <h3>Victoire !</h3>
+      <table>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    </div>`;
+}
+
+return { logLines, lastCombatLog, victorySummary };
+})();
+
+// ---- src/ui/screens/equipment.js
+__modules["src/ui/screens/equipment.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { isTwoHanded } = __modules["src/game/items.js"];
+const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
+const { STAT_ORDER } = __modules["src/data/stats.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+const { statsList } = __modules["src/ui/heroStats.js"];
+// Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
+
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran (pas de l'état de jeu).
+const view = { heroIndex: 0, selected: null }; // selected : { from: 'bag', id } | { from: 'slot', slot }
+
+function openEquipment(heroIndex = view.heroIndex) {
+  view.heroIndex = heroIndex;
+  view.selected = null;
+  goTo('equipment');
+}
+
+function renderEquipment(app) {
+  const hero = state.party[view.heroIndex];
+  const cls = getClass(hero);
+
+  app.innerHTML = `
+    <div class="hero"><h1>Équipement</h1><p>Sac de l'équipe : ${state.bag.length} objet${state.bag.length > 1 ? 's' : ''}</p></div>
+    <div class="hero-tabs">
+      ${state.party.map((h, i) => `
+        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
+          ${getClass(h).icon} ${esc(h.name)}
+        </button>`).join('')}
+    </div>
+    <div class="equip-layout">
+      <div class="card slot-list" style="--c:${cls.color}">
+        <h3>${cls.icon} ${esc(hero.name)} <small>— ${cls.name}</small></h3>
+        ${SLOT_ORDER.map((slot) => slotRow(hero, slot)).join('')}
+        <div class="equip-stats">${statsList(hero)}</div>
+      </div>
+      <div>
+        <div class="card detail">${detailPanel(hero)}</div>
+        <div class="card bag">
+          <h3>Sac</h3>
+          ${bagList(hero)}
+          <h3>Matéria</h3>
+          ${materiaTable(state.materia)}
+          <h3>Consommables</h3>
+          <p class="hint">${consumablesLine(state.consumables)}</p>
+        </div>
+      </div>
+    </div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+
+  app.querySelectorAll('[data-hero]').forEach((btn) => {
+    btn.onclick = () => openEquipment(Number(btn.dataset.hero));
+  });
+  app.querySelectorAll('[data-slot]').forEach((row) => {
+    row.onclick = () => select({ from: 'slot', slot: row.dataset.slot });
+  });
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => select({ from: 'bag', id: row.dataset.item });
+  });
+  app.querySelectorAll('[data-equip]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = selectedItem(hero);
+      if (equip(hero, state.bag, item, btn.dataset.equip)) select({ from: 'slot', slot: btn.dataset.equip });
+    };
+  });
+  app.querySelector('#unequip')?.addEventListener('click', () => {
+    const item = selectedItem(hero);
+    if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function select(selection) {
+  view.selected = selection;
+  goTo('equipment');
+}
+
+function selectedItem(hero) {
+  const sel = view.selected;
+  if (!sel) return null;
+  if (sel.from === 'slot') return hero.equipment[sel.slot] ?? null;
+  return state.bag.find((item) => item.id === sel.id) ?? null;
+}
+
+function isSelected(sel) {
+  const cur = view.selected;
+  return !!cur && cur.from === sel.from && (cur.slot ?? cur.id) === (sel.slot ?? sel.id);
+}
+
+function slotRow(hero, slot) {
+  const item = hero.equipment[slot];
+  const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
+  // Une arme à deux mains occupe aussi la main gauche.
+  const twoHand = hero.equipment.mainDroite;
+  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
+    return `
+    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
+    </button>`;
+  }
+  if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
+  return `
+    <button class="slot-row ${selected}" data-slot="${slot}">
+      <span class="slot-name">${slotLabel(slot)}</span>
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))} <small>· ${RARITIES[item.rarity].label}</small></span>
+    </button>`;
+}
+
+function bagList(hero) {
+  if (!state.bag.length) return '<p class="hint">Le sac est vide. Le butin des donjons arrive ici.</p>';
+  const sorted = [...state.bag].sort((a, b) =>
+    RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level);
+  return sorted.map((item) => {
+    const usable = !cannotEquipReason(hero, item);
+    const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
+    return `
+      <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+        <small>${itemMeta(item)}</small>
+      </button>`;
+  }).join('');
+}
+
+function detailPanel(hero) {
+  const item = selectedItem(hero);
+  if (!item) return '<p class="hint">Sélectionne un objet équipé ou un objet du sac pour voir ses détails et le comparer.</p>';
+
+  if (view.selected.from === 'slot') {
+    return `${itemCard(item)}<div class="actions"><button id="unequip">Retirer (vers le sac)</button></div>`;
+  }
+
+  const reason = cannotEquipReason(hero, item);
+  if (reason) return `${itemCard(item)}<p class="warning">${esc(hero.name)} ne peut pas l'équiper : ${reason}.</p>`;
+
+  const options = slotsFor(hero, item).map((slot) => {
+    const current = hero.equipment[slot];
+    return `
+      <div class="equip-option">
+        <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
+        <small>${current ? `remplace ${esc(itemName(current))}` : 'emplacement vide'}</small>
+        ${statDiff(hero, previewEquip(hero, item, slot))}
+      </div>`;
+  });
+  return `${itemCard(item)}${options.join('')}`;
+}
+
+// Différence de stats du héros entre maintenant et après l'échange.
+function statDiff(hero, preview) {
+  if (!preview) return '';
+  const before = getStats(hero);
+  const after = getStats(preview);
+  const changes = STAT_ORDER
+    .map((k) => [k, after[k] - before[k]])
+    .filter(([, d]) => d !== 0)
+    .map(([k, d]) => `<span class="${d > 0 ? 'up' : 'down'}">${formatStat(k, d)}</span>`);
+  return `<div class="diff">${changes.length ? changes.join('') : '<span>Aucun changement de stats</span>'}</div>`;
+}
+
+return { openEquipment, renderEquipment };
+})();
+
+// ---- src/ui/screens/forge.js
+__modules["src/ui/screens/forge.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES, MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { FORGE } = __modules["src/config.js"];
+const { getClass } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { itemStats } = __modules["src/game/items.js"];
+const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries, absorbProblem, absorbLegendary } = __modules["src/game/forge.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
+// tab : 'items' (amélioration / décraft), 'craft' (fabrication) ou 'divine' (Forge divine) ;
+// order : commande en cours ; divineId : objet divin choisi à la Forge divine.
+const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' }, divineId: null };
+
+// Raretés dont le décraft demande une confirmation.
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
+
+function openForge() {
+  Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
+  goTo('forge');
+}
+
+function renderForge(app) {
+  const item = findItem(view.selectedId);
+  const flash = view.flash;
+  const crafted = view.crafted;
+  view.flash = null;
+  view.crafted = null;
+  const commons = state.bag.filter((i) => i.rarity === 'commun');
+
+  app.innerHTML = `
+    <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}${crafted ? itemCard(crafted) : ''}</div>` : ''}
+    <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
+    <div class="tabs">
+      <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
+      <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
+      <button data-tab="divine" class="${view.tab === 'divine' ? 'selected' : ''}" style="color:${RARITIES.divin.color}">✴️ Forge divine</button>
+    </div>
+    ${view.tab === 'craft' ? craftPanel() : view.tab === 'divine' ? divinePanel() : `
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets portés</h3>
+        ${state.party.map((hero) => `
+          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
+          ${equippedItems(hero).map(itemRow).join('')}`).join('')}
+        <h3 class="bag-title">Sac (${state.bag.length})</h3>
+        ${state.bag.length ? state.bag.map(itemRow).join('') : '<p class="hint">Le sac est vide.</p>'}
+        ${commons.length ? `
+          <button id="decraftCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
+            ${view.confirm === 'commons'
+              ? `Confirmer : décrafter ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''}`
+              : `Décrafter tous les objets communs du sac (${commons.length})`}
+          </button>` : ''}
+      </div>
+      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
+    </div>`}
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { tab: btn.dataset.tab, confirm: null });
+      goTo('forge');
+    };
+  });
+  bindCraft(app);
+  bindDivine(app);
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => {
+      Object.assign(view, { selectedId: row.dataset.item, confirm: null });
+      goTo('forge');
+    };
+  });
+  app.querySelector('#upgrade')?.addEventListener('click', () => {
+    if (upgrade(state, item)) view.flash = `${itemName(item)} : amélioration réussie !`;
+    goTo('forge');
+  });
+  app.querySelector('#decraft')?.addEventListener('click', () => {
+    if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
+      view.confirm = item.id;
+    } else {
+      const gain = decraft(state, item);
+      if (gain) view.flash = `${itemName(item)} décrafté : ${yieldText(gain)}.`;
+      Object.assign(view, { selectedId: null, confirm: null });
+    }
+    goTo('forge');
+  });
+  app.querySelector('#decraftCommons')?.addEventListener('click', () => {
+    if (view.confirm !== 'commons') {
+      view.confirm = 'commons';
+    } else {
+      const gains = commons.map((i) => decraft(state, i)).filter(Boolean);
+      const byKind = Object.keys(MATERIA_KINDS)
+        .map((kind) => [kind, gains.filter((g) => g.kind === kind).reduce((sum, g) => sum + g.amount, 0)])
+        .filter(([, n]) => n > 0)
+        .map(([kind, n]) => `${n} × ${MATERIA_KINDS[kind].label} commun`);
+      view.flash = `${gains.length} objet${gains.length > 1 ? 's' : ''} décrafté${gains.length > 1 ? 's' : ''} : ${byKind.join(', ')}.`;
+      if (commons.some((i) => i.id === view.selectedId)) view.selectedId = null;
+      view.confirm = null;
+    }
+    goTo('forge');
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function findItem(id) {
+  if (!id) return null;
+  for (const hero of state.party) {
+    const found = equippedItems(hero).find((i) => i.id === id);
+    if (found) return found;
+  }
+  return state.bag.find((i) => i.id === id) ?? null;
+}
+
+function wearerOf(item) {
+  return state.party.find((hero) => equippedItems(hero).includes(item)) ?? null;
+}
+
+function rarityLabel(rarity) {
+  return `<span class="rarity-text" style="--rc:${RARITIES[rarity].color}">${RARITIES[rarity].label.toLowerCase()}</span>`;
+}
+
+function rangeYieldText({ kind, rarity, min, max }) {
+  return `${min} à ${max} × ${MATERIA_KINDS[kind].label} ${RARITIES[rarity].label.toLowerCase()} (au hasard)`;
+}
+
+function yieldText(gain) {
+  return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
+}
+
+function itemRow(item) {
+  const selected = item.id === view.selectedId ? 'selected' : '';
+  return `
+    <button class="bag-row ${selected}" data-item="${item.id}">
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`;
+}
+
+function detailPanel(item) {
+  const wearer = wearerOf(item);
+  return `
+    ${itemCard(item)}
+    <p class="hint">${wearer ? `Porté par ${esc(wearer.name)}` : 'Dans le sac'}</p>
+    ${upgradeSection(item)}
+    ${wearer ? '<p class="hint">Un objet porté ne peut pas être décrafté : retire-le d\'abord (écran Équipement).</p>' : decraftSection(item)}`;
+}
+
+function upgradeSection(item) {
+  const cost = upgradeCost(item);
+  if (!cost) return '<div class="forge-section"><h3>Amélioration</h3><p>Amélioration maximale atteinte (+5).</p></div>';
+
+  const missing = missingForUpgrade(state, item);
+  const lines = Object.entries(cost.materia).map(([tier, need]) => {
+    const have = state.materia[cost.kind][tier];
+    return `<li class="${missing.materia[tier] ? 'lack' : 'ok'}">${need} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(tier)} <small>(possédé : ${have})</small></li>`;
+  });
+  lines.push(`<li class="${missing.gold ? 'lack' : 'ok'}">${cost.gold} pièces d'or <small>(possédé : ${state.gold})</small></li>`);
+
+  const before = itemStats(item);
+  const after = itemStats({ ...item, plus: cost.plus });
+  const gains = Object.keys(after)
+    .filter((k) => after[k] !== before[k])
+    .map((k) => `<span class="up">${formatStat(k, after[k] - before[k])}</span>`);
+
+  return `
+    <div class="forge-section">
+      <h3>Amélioration +${cost.plus}</h3>
+      <ul class="cost">${lines.join('')}</ul>
+      <div class="diff">${gains.length ? gains.join('') : '<span>Aucun gain visible à ce niveau</span>'}</div>
+      <button id="upgrade" ${canUpgrade(state, item) ? '' : 'disabled'}>Améliorer (+${cost.plus})</button>
+    </div>`;
+}
+
+function decraftSection(item) {
+  const confirming = view.confirm === item.id;
+  return `
+    <div class="forge-section">
+      <h3>Décraft</h3>
+      <p>Détruit l'objet et rapporte ${rangeYieldText(decraftYield(item))}.</p>
+      <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
+    </div>`;
+}
+
+// ---- Fabrication ----
+
+const KIND_FILTER_LABELS = {
+  weaponType: "Type d'arme", slotType: 'Pièce', armorType: "Type d'armure", primary: 'Stat principale',
+};
+
+function optionLabel(filter, value) {
+  if (filter === 'weaponType') return WEAPON_TYPES[value].name;
+  if (filter === 'armorType') return ARMOR_TYPES[value].label;
+  if (filter === 'primary') return STATS[value].label;
+  if (value === 'bouclier') return SHIELD.name;
+  if (JEWELS[value]) return JEWELS[value].name;
+  return SLOTS[value].label;
+}
+
+function craftPanel() {
+  const order = view.order;
+  const cost = craftCost(order);
+  const problem = craftProblem(state, order);
+  const have = state.materia[cost.kind][cost.rarity];
+  const options = craftOptions(order.kind);
+  const legendaries = order.rarity === 'legendaire' ? craftLegendaries(order) : [];
+  return `
+    <div class="card craft">
+      <p class="hint">Fabrique un objet du niveau le plus haut atteint (${state.dungeonLvl}) avec ${FORGE.craftBase} matéria de la rareté voulue, +${FORGE.craftPerFilter} par caractéristique imposée. Ce qui reste « au hasard » est tiré au sort.</p>
+      <div class="craft-row"><span>Catégorie</span>
+        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
+      </div>
+      <div class="craft-row"><span>Rareté</span>
+        ${MATERIA_RARITIES.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
+      </div>
+      ${CRAFT_FILTERS[order.kind].map((f) => `
+        <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
+          <select data-craft-filter="${f}">
+            <option value="">Au hasard</option>
+            ${options[f].map((v) => `<option value="${v}" ${order[f] === v ? 'selected' : ''}>${esc(optionLabel(f, v))}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+      ${order.rarity === 'legendaire' ? `<p class="hint">Légendaires possibles : ${legendaries.length ? legendaries.map((k) => `<b style="color:${RARITIES.legendaire.color}">${esc(LEGENDARIES[k].name)}</b>`).join(', ') : 'aucun'}.</p>` : ''}
+      <ul class="cost"><li class="${have < cost.amount ? 'lack' : 'ok'}">${cost.amount} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(cost.rarity)} <small>(possédé : ${have})</small></li></ul>
+      ${problem ? `<p class="hint">${esc(problem)}</p>` : ''}
+      <button id="craftBtn" ${problem ? 'disabled' : ''}>⚒️ Fabriquer</button>
+    </div>`;
+}
+
+function bindCraft(app) {
+  app.querySelectorAll('[data-craft-kind]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order = { kind: btn.dataset.craftKind, rarity: view.order.rarity };
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-rarity]').forEach((btn) => {
+    btn.onclick = () => {
+      view.order.rarity = btn.dataset.craftRarity;
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-craft-filter]').forEach((sel) => {
+    sel.onchange = () => {
+      if (sel.value) view.order[sel.dataset.craftFilter] = sel.value;
+      else delete view.order[sel.dataset.craftFilter];
+      goTo('forge');
+    };
+  });
+  app.querySelector('#craftBtn')?.addEventListener('click', () => {
+    const item = craft(state, view.order);
+    if (item) {
+      view.flash = `Fabriqué : ${itemName(item)} (dans le sac).`;
+      view.crafted = item;
+    }
+    goTo('forge');
+  });
+}
+
+// ---- Forge divine ----
+
+function allItems() {
+  return [...state.party.flatMap((hero) => equippedItems(hero)), ...state.bag];
+}
+
+function divinePanel() {
+  const divines = [...new Set(allItems())].filter((i) => i.rarity === 'divin');
+  const divine = divines.find((i) => i.id === view.divineId) ?? null;
+  const legendaries = state.bag.filter((i) => i.legendary);
+  return `
+    <p class="hint">Un objet <b style="color:${RARITIES.divin.color}">divin</b> peut absorber le pouvoir unique d'un objet légendaire du sac. Le légendaire est détruit ; le pouvoir s'applique comme s'il était porté (il ne sert qu'à la classe concernée). Un nouveau pouvoir remplace l'ancien.</p>
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets divins</h3>
+        ${divines.length ? divines.map((i) => `
+          <button class="bag-row ${i === divine ? 'selected' : ''}" data-divine="${i.id}">
+            <span class="rarity-text" style="--rc:${RARITIES.divin.color}">${esc(itemName(i))}</span>
+            <small>${itemMeta(i)}${wearerOf(i) ? ` · porté par ${esc(wearerOf(i).name)}` : ''}</small>
+          </button>`).join('') : '<p class="hint">Aucun objet divin. Ils ne tombent que sur les boss, à partir de la difficulté Guerre.</p>'}
+      </div>
+      <div class="card detail">
+        ${divine ? `
+          ${itemCard(divine)}
+          <div class="forge-section">
+            <h3>Absorber un pouvoir légendaire</h3>
+            ${legendaries.length ? legendaries.map((leg) => {
+              const cls = CLASSES[leg.legendary.classKey];
+              const confirming = view.confirm === `absorb:${leg.id}`;
+              return `
+                <div class="absorb-row">
+                  <div><span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${cls.icon} ${cls.name})</small>` : ''}<br><small>${esc(leg.legendary.desc)}</small></div>
+                  <button data-absorb="${leg.id}" class="${confirming ? 'danger' : ''}" ${absorbProblem(state, divine, leg) ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : '✴️ Absorber'}</button>
+                </div>`;
+            }).join('') : '<p class="hint">Aucun objet légendaire dans le sac (un légendaire porté doit d\'abord être retiré).</p>'}
+            ${divine.absorbed && legendaries.length ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
+          </div>` : '<p class="hint">Choisis un objet divin.</p>'}
+      </div>
+    </div>`;
+}
+
+function bindDivine(app) {
+  app.querySelectorAll('[data-divine]').forEach((btn) => {
+    btn.onclick = () => {
+      Object.assign(view, { divineId: btn.dataset.divine, confirm: null });
+      goTo('forge');
+    };
+  });
+  app.querySelectorAll('[data-absorb]').forEach((btn) => {
+    btn.onclick = () => {
+      const leg = state.bag.find((i) => i.id === btn.dataset.absorb);
+      const divine = allItems().find((i) => i.id === view.divineId);
+      if (view.confirm !== `absorb:${leg.id}`) {
+        view.confirm = `absorb:${leg.id}`;
+      } else {
+        if (absorbLegendary(state, divine, leg) !== false) view.flash = `${itemName(divine)} absorbe le pouvoir de ${itemName(leg)}.`;
+        view.confirm = null;
+      }
+      goTo('forge');
+    };
+  });
+}
+
+return { openForge, renderForge };
+})();
+
+// ---- src/game/runes.js
+__modules["src/game/runes.js"] = (() => {
+const { RUNES } = __modules["src/config.js"];
+const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
+const { secondaryValue } = __modules["src/game/items.js"];
+const { pick } = __modules["src/game/rng.js"];
+// Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
+// et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
+
+
+
+
+
+
+// Prix d'une relance, ou null si l'objet n'a pas de secondaire.
+function rerollCost(item) {
+  if (!Object.keys(item.bonus ?? {}).length) return null;
+  return RUNES.price[item.rarity] ?? null;
+}
+
+// Stats pouvant remplacer `stat` : jamais une stat déjà présente sur l'objet
+// (sauf le Blocage d'un bouclier), mais la stat relancée peut ressortir avec une autre valeur.
+function rerollPool(item, stat) {
+  const repeatable = item.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  const others = Object.keys(item.bonus).filter((k) => k !== stat);
+  return Object.keys(SECONDARY_STATS).filter((k) =>
+    k === stat || (!others.includes(k) && (!(k in item.stats) || repeatable.includes(k))));
+}
+
+// Pourquoi la relance est impossible (texte), ou null.
+function rerollProblem(game, item, stat) {
+  if (!(stat in (item.bonus ?? {}))) return "Cette stat n'est pas une stat secondaire de l'objet.";
+  const cost = rerollCost(item);
+  if (game.gold < cost) return `Il manque ${cost - game.gold} pièces d'or.`;
+  return null;
+}
+
+// Relance la secondaire `stat` (l'ordre des lignes est conservé).
+// Retourne { from: { stat, value }, to: { stat, value } }, ou null si impossible.
+function rerollSecondary(game, item, stat) {
+  if (rerollProblem(game, item, stat)) return null;
+  game.gold -= rerollCost(item);
+  const from = { stat, value: item.bonus[stat] };
+  const newStat = pick(rerollPool(item, stat));
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
+  return { from, to };
+}
+
+return { rerollCost, rerollPool, rerollProblem, rerollSecondary };
+})();
+
+// ---- src/ui/screens/runes.js
+__modules["src/ui/screens/runes.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { itemStatLines } = __modules["src/game/items.js"];
+const { rerollCost, rerollPool, rerollProblem, rerollSecondary } = __modules["src/game/runes.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Runomancien : relance d'une stat secondaire d'un objet (porté ou dans le sac).
+
+
+
+
+
+
+
+
+
+
+
+
+const view = { selectedId: null, flash: null };
+
+function openRunes() {
+  Object.assign(view, { selectedId: null, flash: null });
+  goTo('runes');
+}
+
+// Objets relançables : au moins une secondaire.
+const rerollable = (item) => rerollCost(item) !== null;
+
+function renderRunes(app) {
+  const item = findItem(view.selectedId);
+  const flash = view.flash;
+  view.flash = null;
+  const bagItems = state.bag.filter(rerollable);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🔮 Runomancien</h1><p>Or : ${state.gold} · « Donne-moi une rune, je t'en graverai une autre. »</p></div>
+    ${flash ? `<div class="card notice">${flash}</div>` : ''}
+    <div class="equip-layout">
+      <div class="card forge-list">
+        <h3>Objets portés</h3>
+        ${state.party.map((hero) => `
+          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
+          ${equippedItems(hero).filter(rerollable).map(itemRow).join('') || '<p class="hint">Rien à relancer.</p>'}`).join('')}
+        <h3 class="bag-title">Sac</h3>
+        ${bagItems.length ? bagItems.map(itemRow).join('') : '<p class="hint">Aucun objet à stats secondaires dans le sac.</p>'}
+      </div>
+      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Choisis un objet : le Runomancien relance une de ses stats secondaires (nouvelle stat, nouvelle valeur). Les objets communs n\'en ont pas.</p>'}</div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-item]').forEach((row) => {
+    row.onclick = () => {
+      view.selectedId = row.dataset.item;
+      goTo('runes');
+    };
+  });
+  app.querySelectorAll('[data-reroll]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = rerollSecondary(state, item, btn.dataset.reroll);
+      if (r) view.flash = `${esc(itemName(item))} : <s>${formatStat(r.from.stat, r.from.value)}</s> → <b>${formatStat(r.to.stat, r.to.value)}</b>`;
+      goTo('runes');
+    };
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function findItem(id) {
+  if (!id) return null;
+  for (const hero of state.party) {
+    const found = equippedItems(hero).find((i) => i.id === id);
+    if (found) return found;
+  }
+  return state.bag.find((i) => i.id === id) ?? null;
+}
+
+function itemRow(item) {
+  return `
+    <button class="bag-row ${item.id === view.selectedId ? 'selected' : ''}" data-item="${item.id}">
+      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+      <small>${itemMeta(item)}</small>
+    </button>`;
+}
+
+function detailPanel(item) {
+  const cost = rerollCost(item);
+  const lines = itemStatLines(item).filter((l) => l.secondary);
+  return `
+    ${itemCard(item)}
+    <div class="forge-section">
+      <h3>Relancer une stat secondaire — ${cost} pièces d'or</h3>
+      <p class="hint">Une seule stat change à la fois ; elle peut devenir n'importe quelle stat absente de l'objet, ou ressortir avec une autre valeur.</p>
+      ${lines.map((l) => {
+        const problem = rerollProblem(state, item, l.stat);
+        const pool = rerollPool(item, l.stat).map((k) => STATS[k].label).join(', ');
+        return `
+          <div class="reroll-row">
+            <span>${formatStat(l.stat, l.value)}</span>
+            <button data-reroll="${l.stat}" ${problem ? 'disabled' : ''} title="Résultats possibles : ${esc(pool)}">🔮 Relancer</button>
+          </div>`;
+      }).join('')}
+      ${state.gold < cost ? `<p class="hint">Il te manque ${cost - state.gold} pièces d'or.</p>` : ''}
+    </div>`;
+}
+
+return { openRunes, renderRunes };
+})();
+
+// ---- src/ui/screens/merchant.js
+__modules["src/ui/screens/merchant.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { MERCHANT } = __modules["src/config.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES } = __modules["src/data/consumables.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } = __modules["src/game/merchant.js"];
+const { countOf } = __modules["src/game/consumables.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
+const { goTo } = __modules["src/ui/router.js"];
+// Marchand : achat de consommables et d'équipement, revente du butin.
+
+
+
+
+
+
+
+
+
+
+
+// État propre à l'écran : vente en attente de confirmation, dernier message.
+const view = { confirm: null, flash: null };
+
+// Raretés dont la vente demande une confirmation.
+const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
+
+function openMerchant() {
+  Object.assign(view, { confirm: null, flash: null });
+  goTo('merchant');
+}
+
+function renderMerchant(app) {
+  const stock = ensureStock(state);
+  const flash = view.flash;
+  view.flash = null;
+  const commons = state.bag.filter((i) => i.rarity === 'commun');
+  const commonsValue = commons.reduce((sum, i) => sum + sellPrice(i), 0);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🛒 Marchand</h1><p>Or : <b class="gold">${state.gold}</b></p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    <div class="equip-layout">
+      <div>
+        <div class="card shop-section">
+          <h3>Consommables</h3>
+          <p class="hint">En combat avec l'action « Objet », et pour certains pendant l'exploration d'un donjon (maximum ${MERCHANT.maxConsumable} de chaque).</p>
+          ${Object.entries(CONSUMABLE_CATEGORIES).map(([cat, label]) => `
+            <h4 class="shop-cat">${label}</h4>
+            ${CONSUMABLE_ORDER.filter((k) => CONSUMABLES[k].category === cat).map(consumableRow).join('')}`).join('')}
+        </div>
+        <div class="card shop-section">
+          <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
+          <p class="hint">Au plus haut niveau atteint dans les donjons, renouvelé quand il augmente. Les objets achetés vont dans le sac.</p>
+          ${stock.length ? stock.map(stockRow).join('') : '<p class="hint">Tout a été vendu : revenez après le prochain donjon.</p>'}
+        </div>
+      </div>
+      <div class="card shop-section">
+        <h3>Vendre le butin <small>${state.bag.length} objet${state.bag.length > 1 ? 's' : ''} dans le sac</small></h3>
+        <p class="hint">Seuls les objets du sac se vendent (retire d'abord un objet porté pour le vendre).</p>
+        ${commons.length ? `
+          <button id="sellCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
+            ${view.confirm === 'commons'
+              ? `Confirmer : vendre ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''} pour ${commonsValue} or`
+              : `Vendre tous les objets communs (${commons.length}) — ${commonsValue} or`}
+          </button>` : ''}
+        ${state.bag.length ? state.bag.map(sellRow).join('') : '<p class="hint">Le sac est vide.</p>'}
+      </div>
+    </div>
+    <div class="center"><button id="backHub">← Retour au village</button></div>
+  `;
+
+  app.querySelectorAll('[data-buy-consumable]').forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.buyConsumable;
+      if (buyConsumable(state, key)) view.flash = `Vous achetez : ${CONSUMABLES[key].name}.`;
+      rerender();
+    };
+  });
+  app.querySelectorAll('[data-buy-item]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = stock.find((i) => i.id === btn.dataset.buyItem);
+      if (item && buyItem(state, item)) view.flash = `Vous achetez ${itemName(item)} pour ${buyPrice(item)} or. Il est dans le sac.`;
+      rerender();
+    };
+  });
+  app.querySelectorAll('[data-sell]').forEach((btn) => {
+    btn.onclick = () => {
+      const item = state.bag.find((i) => i.id === btn.dataset.sell);
+      if (!item) return rerender();
+      if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
+        view.confirm = item.id;
+        return goTo('merchant');
+      }
+      const price = sellPrice(item);
+      if (sell(state, item)) view.flash = `${itemName(item)} vendu pour ${price} or.`;
+      rerender();
+    };
+  });
+  app.querySelector('#sellCommons')?.addEventListener('click', () => {
+    if (view.confirm !== 'commons') {
+      view.confirm = 'commons';
+      return goTo('merchant');
+    }
+    const sold = commons.filter((i) => sell(state, i));
+    view.flash = `${sold.length} objet${sold.length > 1 ? 's' : ''} vendu${sold.length > 1 ? 's' : ''} pour ${commonsValue} or.`;
+    rerender();
+  });
+  app.querySelector('#backHub').onclick = () => goTo('hub');
+}
+
+function rerender() {
+  view.confirm = null;
+  goTo('merchant');
+}
+
+function consumableRow(key) {
+  const c = CONSUMABLES[key];
+  const owned = countOf(state.consumables, key);
+  return `
+    <div class="shop-row">
+      <div class="shop-info">
+        <b>${c.icon} ${c.name}</b> <small>possédé : ${owned}/${MERCHANT.maxConsumable}</small>
+        <div class="hint">${c.desc} <i>${c.use.includes('map') ? (c.use.includes('combat') ? 'Combat et donjon.' : 'En exploration.') : 'En combat.'}</i></div>
+      </div>
+      <button data-buy-consumable="${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${c.price} or</button>
+    </div>`;
+}
+
+function itemLabel(item) {
+  return `<span ${tip(itemTooltipText(item), 'rarity-text')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
+}
+
+function stockRow(item) {
+  const price = buyPrice(item);
+  return `
+    <div class="shop-row">
+      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
+      <button data-buy-item="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter · ${price} or</button>
+    </div>`;
+}
+
+function sellRow(item) {
+  const confirming = view.confirm === item.id;
+  return `
+    <div class="shop-row">
+      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
+      <button data-sell="${item.id}" class="${confirming ? 'danger' : ''}">${confirming ? 'Confirmer la vente' : 'Vendre'} · ${sellPrice(item)} or</button>
+    </div>`;
+}
+
+return { openMerchant, renderMerchant };
+})();
+
+// ---- src/game/roster.js
+__modules["src/game/roster.js"] = (() => {
+const { INN } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { createHero, restoreFully } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+// Auberge : recrutement de compagnons et gestion de l'équipe.
+//
+// L'équipe (game.party) compte toujours 4 héros. Recruter un compagnon (niveau 1,
+// équipement de départ de sa classe) le fait entrer à la place d'un membre de
+// l'équipe, qui part se reposer à l'auberge (game.reserve) avec son équipement et
+// ses talents. Les héros de l'auberge ne gagnent pas d'XP (seule l'équipe combat).
+// Tout se fait au village, jamais pendant une expédition.
+
+
+
+
+
+
+function reserveOf(game) {
+  if (!game.reserve) game.reserve = [];
+  return game.reserve;
+}
+
+// Raison pour laquelle l'équipe ne peut pas être modifiée maintenant, ou null.
+function rosterLockedReason(game) {
+  return game.expedition ? "Impossible pendant une expédition : revenez d'abord au village." : null;
+}
+
+/**
+ * Recrute un compagnon de classe `classKey` à la place du héros `replaceIndex`
+ * de l'équipe ; le héros remplacé part à l'auberge. Retourne le nouveau héros, ou
+ * null si c'est impossible.
+ */
+function recruit(game, classKey, name, replaceIndex) {
+  if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
+  const hero = createHero(classKey, name?.trim());
+  const [leaving] = game.party.splice(replaceIndex, 1, hero);
+  restoreFully(leaving);
+  reserveOf(game).push(leaving);
+  return hero;
+}
+
+// Pourquoi on ne peut pas recruter maintenant (texte), ou null.
+function recruitProblem(game) {
+  const locked = rosterLockedReason(game);
+  if (locked) return locked;
+  if (reserveOf(game).length >= INN.maxReserve) {
+    return `L'auberge est pleine (${INN.maxReserve} compagnons au repos) : renvoie d'abord un compagnon.`;
+  }
+  return null;
+}
+
+// Ce que deviendrait l'équipement d'un compagnon renvoyé :
+// { destroyed: objets communs (perdus), returned: autres objets (rendus au sac) }.
+function dismissOutcome(hero) {
+  const items = [...new Set(equippedItems(hero))];
+  return {
+    destroyed: items.filter((i) => i.rarity === 'commun'),
+    returned: items.filter((i) => i.rarity !== 'commun'),
+  };
+}
+
+// Renvoie définitivement le compagnon `reserveIndex` de l'auberge. Ses objets communs
+// sont détruits, les autres rendus au sac. Retourne { hero, destroyed, returned }, ou null.
+function dismiss(game, reserveIndex) {
+  const reserve = reserveOf(game);
+  if (rosterLockedReason(game) || !reserve[reserveIndex]) return null;
+  const [hero] = reserve.splice(reserveIndex, 1);
+  const outcome = dismissOutcome(hero);
+  game.bag.push(...outcome.returned);
+  for (const slot of Object.keys(hero.equipment)) hero.equipment[slot] = null;
+  return { hero, ...outcome };
+}
+
+// Échange le héros `partyIndex` de l'équipe avec le héros `reserveIndex` de l'auberge.
+function swapWithReserve(game, partyIndex, reserveIndex) {
+  const reserve = reserveOf(game);
+  if (rosterLockedReason(game) || !game.party[partyIndex] || !reserve[reserveIndex]) return false;
+  const leaving = game.party[partyIndex];
+  restoreFully(leaving);
+  game.party[partyIndex] = reserve[reserveIndex];
+  reserve[reserveIndex] = leaving;
+  return true;
+}
+
+return { reserveOf, rosterLockedReason, recruit, recruitProblem, dismissOutcome, dismiss, swapWithReserve };
+})();
+
+// ---- src/ui/screens/inn.js
+__modules["src/ui/screens/inn.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { CLASS_ORDER, INN } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
+const { getClass, getStats } = __modules["src/game/party.js"];
+const { restAtInn } = __modules["src/game/progression.js"];
+const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { equipmentTooltip, itemChip } = __modules["src/ui/items.js"];
+const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
+// Auberge : repos, recrutement de compagnons et gestion de l'équipe (4 héros ;
+// les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
+
+
+
+
+
+
+
+
+
+
+
+// État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
+// pour un échange, message.
+const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
+
+function openInn() {
+  Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
+  goTo('inn');
+}
+
+function renderInn(app) {
+  const flash = view.flash;
+  view.flash = null;
+  const locked = rosterLockedReason(state);
+  const reserve = reserveOf(state);
+  const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
+  const cannotRecruit = recruitProblem(state);
+
+  app.innerHTML = `
+    <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
+    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
+    ${locked ? `<div class="card notice">${esc(locked)}</div>` : ''}
+    <div class="card">
+      <button id="rest" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Se reposer (gratuit)</button>
+    </div>
+
+    <div class="card">
+      <h2>Équipe</h2>
+      <p class="hint">${picking ? `Choisis le membre de l'équipe qui laisse sa place à <b>${esc(picking.name)}</b>.` : "Survole un héros pour voir l'équipement qu'il porte."}</p>
+      <div class="roster">${state.party.map((h, i) => heroTile(h, { partyIndex: i, picking: !!picking })).join('')}</div>
+    </div>
+
+    <div class="card">
+      <h2>À l'auberge (${reserve.length}/${INN.maxReserve})</h2>
+      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe ou le renvoyer.</p>
+      <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
+      ${picking && !locked ? dismissPanel(picking) : ''}
+    </div>
+
+    <div class="card">
+      <h2>Recruter un compagnon</h2>
+      <p class="hint">Un nouveau compagnon arrive au niveau 1 avec l'équipement de départ de sa classe. Il prend la place d'un membre de l'équipe, qui part se reposer à l'auberge.</p>
+      <div class="class-picker">
+        ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
+      </div>
+      <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+      ${cannotRecruit && !locked ? `<p class="hint">${esc(cannotRecruit)}</p>` : ''}
+      <div class="actions">
+        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+
+  const readName = () => { view.recruitName = app.querySelector('#recruitName').value; };
+  app.querySelector('#rest').onclick = () => {
+    view.flash = restAtInn(state).message;
+    goTo('inn');
+  };
+  app.querySelectorAll('[data-recruit-class]').forEach((btn) => {
+    btn.onclick = () => {
+      readName();
+      if (view.recruitName === CLASSES[view.recruitClass].name) view.recruitName = '';
+      view.recruitClass = btn.dataset.recruitClass;
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-recruit-replace]').forEach((btn) => {
+    btn.onclick = () => {
+      readName();
+      const leaving = state.party[Number(btn.dataset.recruitReplace)];
+      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace));
+      if (hero) {
+        view.flash = `${hero.name} (${getClass(hero).name}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+        view.recruitName = '';
+      }
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-reserve]').forEach((btn) => {
+    btn.onclick = () => {
+      const i = Number(btn.dataset.reserve);
+      view.selectedReserve = view.selectedReserve === i ? null : i;
+      view.confirmDismiss = false;
+      goTo('inn');
+    };
+  });
+  app.querySelectorAll('[data-party]').forEach((btn) => {
+    btn.onclick = () => {
+      if (view.selectedReserve === null) return;
+      const joining = reserve[view.selectedReserve];
+      const leaving = state.party[Number(btn.dataset.party)];
+      if (swapWithReserve(state, Number(btn.dataset.party), view.selectedReserve)) {
+        view.flash = `${joining.name} rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+      }
+      view.selectedReserve = null;
+      goTo('inn');
+    };
+  });
+  app.querySelector('#dismiss')?.addEventListener('click', () => {
+    if (!view.confirmDismiss) {
+      view.confirmDismiss = true;
+    } else {
+      const r = dismiss(state, view.selectedReserve);
+      if (r) {
+        const parts = [`${r.hero.name} quitte l'auberge pour de bon.`];
+        if (r.returned.length) parts.push(`${r.returned.length} objet${r.returned.length > 1 ? 's' : ''} rendu${r.returned.length > 1 ? 's' : ''} au sac.`);
+        if (r.destroyed.length) parts.push(`${r.destroyed.length} objet${r.destroyed.length > 1 ? 's' : ''} commun${r.destroyed.length > 1 ? 's' : ''} perdu${r.destroyed.length > 1 ? 's' : ''}.`);
+        view.flash = parts.join(' ');
+      }
+      Object.assign(view, { selectedReserve: null, confirmDismiss: false });
+    }
+    goTo('inn');
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+// Renvoi du compagnon sélectionné : ce que devient son équipement, puis confirmation.
+function dismissPanel(hero) {
+  const { destroyed, returned } = dismissOutcome(hero);
+  return `
+    <div class="forge-section">
+      <h3>Renvoyer ${esc(hero.name)} ?</h3>
+      <p class="hint">Le compagnon quitte définitivement l'auberge, avec ses niveaux et ses talents.</p>
+      ${returned.length ? `<p>Rendu au sac : ${returned.map(itemChip).join(' ')}</p>` : ''}
+      ${destroyed.length ? `<p>Perdu (objets communs) : ${destroyed.map(itemChip).join(' ')}</p>` : ''}
+      <button id="dismiss" class="${view.confirmDismiss ? 'danger' : ''}">${view.confirmDismiss ? `Confirmer : renvoyer ${esc(hero.name)}` : `🚪 Renvoyer ${esc(hero.name)}`}</button>
+    </div>`;
+}
+
+// Vignette d'un héros ; l'infobulle montre son équipement.
+function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = false }) {
+  const cls = getClass(hero);
+  const attr = partyIndex !== undefined ? `data-party="${partyIndex}"` : `data-reserve="${reserveIndex}"`;
+  const clickable = reserveIndex !== undefined || picking;
+  return `
+    <button ${attr} ${tip(equipmentTooltip(hero), `hero-tile ${selected ? 'selected' : ''} ${clickable ? 'clickable' : ''}`)} style="--c:${cls.color}" ${clickable && !rosterLockedReason(state) ? '' : 'disabled'}>
+      <span class="icon">${cls.icon}</span>
+      <b>${esc(hero.name)}</b>
+      <small>${cls.name} · niv. ${hero.level} · PV ${hero.hp}/${getStats(hero).pv}</small>
+    </button>`;
+}
+
+return { openInn, renderInn };
+})();
+
+// ---- src/ui/screens/hub.js
+__modules["src/ui/screens/hub.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
+const { isUnlocked, progressOf, startFloors, startExpedition } = __modules["src/game/dungeon.js"];
+const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
+const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { goTo } = __modules["src/ui/router.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+const { lastCombatLog } = __modules["src/ui/combatLog.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
+const { bestiaryProgress } = __modules["src/game/bestiary.js"];
+const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+const { openForge } = __modules["src/ui/screens/forge.js"];
+const { openRunes } = __modules["src/ui/screens/runes.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { openMerchant } = __modules["src/ui/screens/merchant.js"];
+const { openInn } = __modules["src/ui/screens/inn.js"];
+const { pointsAvailable } = __modules["src/game/talents.js"];
+// Village : équipe, portails vers les donjons et services.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function renderHub(app) {
+  const message = state.hubMessage;
+  const loot = state.hubLoot;
+  state.hubMessage = null;
+  state.hubLoot = [];
+
+  app.innerHTML = `
+    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
+    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
+    ${message ? lastCombatLog(state.lastCombat) : ''}
+    ${noSkillNotice()}
+    <div class="party-strip">${state.party.map(heroMini).join('')}</div>
+    <div class="card">
+      <h2>Portails</h2>
+      <p class="hint">Chaque zone compte 3 sous-zones de ${FLOORS_PER_SUBZONE} étages ; un boss garde le dernier étage de chaque sous-zone. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu ouvre la sous-zone suivante comme point de départ.</p>
+      <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
+    </div>
+    <div class="card section">
+      <h2>Services</h2>
+      <div class="services">
+        <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
+        <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
+        <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
+        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
+        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
+        <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
+        <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
+        <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
+        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
+        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
+        <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
+      </div>
+    </div>
+  `;
+
+  app.querySelectorAll('[data-dungeon]').forEach((btn) => {
+    btn.onclick = () => {
+      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) goTo('dungeon');
+    };
+  });
+  app.querySelector('#inn').onclick = () => openInn();
+  app.querySelector('#bank').onclick = () => goTo('bank');
+  app.querySelector('#merchant').onclick = () => openMerchant();
+  app.querySelector('#forge').onclick = () => openForge();
+  app.querySelector('#runesBtn').onclick = () => openRunes();
+  app.querySelector('#equipBtn').onclick = () => openEquipment();
+  app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
+  app.querySelector('#statsBtn').onclick = () => goTo('stats');
+  app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
+  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
+  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
+}
+
+// Rappel : un héros sans sort doit dépenser son premier point de talent.
+function noSkillNotice() {
+  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
+  if (!names.length) return '';
+  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
+}
+
+function heroMini(hero) {
+  const cls = getClass(hero);
+  const { pv } = getStats(hero);
+  return `
+    <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b></div>
+      <small>Niv. ${hero.level}${pointsAvailable(hero) ? ` · <span class="badge">${pointsAvailable(hero)} pt</span>` : ''}</small><br>
+      <small>${hero.alive ? `PV ${hero.hp}/${pv}` : 'Tombé au combat'}</small>
+      ${bar(hero.hp, pv, cls.color)}
+      <small class="xp-label">XP ${hero.xp}/${xpToNext(hero.level)}</small>
+      ${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}
+    </div>`;
+}
+
+function portal(key) {
+  const d = DUNGEONS[key];
+  if (!isUnlocked(state, key)) {
+    return `<div class="card portal locked"><h3>🔒 Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel}. Terminez la zone précédente pour l'ouvrir.</p></div>`;
+  }
+  const progress = progressOf(state, key);
+  const starts = startFloors(state, key);
+  return `
+    <div class="card portal">
+      <h3>${d.icon} Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}${progress.cleared ? ' <b>✓</b>' : ''}</h3>
+      <p>${d.desc}</p>
+      <p>Niveaux ${d.minLevel} à ${d.maxLevel}</p>
+      <div class="subzones">
+        ${d.subzones.map((sub, i) => {
+          const first = i * FLOORS_PER_SUBZONE + 1;
+          const beaten = progress.checkpoint >= first + FLOORS_PER_SUBZONE - 1;
+          const open = starts.includes(first);
+          return `
+            <div class="subzone ${open ? '' : 'locked'}">
+              <span>${i + 1}. ${esc(sub.name)} <small>niv. ${sub.minLevel}-${sub.maxLevel}${beaten ? ' · ✓ boss vaincu' : ''}</small></span>
+              ${open ? `<button data-dungeon="${key}" data-floor="${first}">Entrer</button>` : '<small>🔒</small>'}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function talentPoints() {
+  return state.party.reduce((sum, h) => sum + pointsAvailable(h), 0);
+}
+
+return { renderHub };
+})();
+
+// ---- src/ui/screens/stats.js
+__modules["src/ui/screens/stats.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
+const { equippedItems } = __modules["src/game/equipment.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { skillEffectLabel } = __modules["src/ui/format.js"];
+const { itemChip } = __modules["src/ui/items.js"];
+const { statsList } = __modules["src/ui/heroStats.js"];
+const { goBack, backLabel } = __modules["src/ui/router.js"];
+const { openEquipment } = __modules["src/ui/screens/equipment.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { xpToNext } = __modules["src/game/party.js"];
+const { pointsAvailable } = __modules["src/game/talents.js"];
+const { bar } = __modules["src/ui/html.js"];
+// Feuilles de personnage.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function renderStats(app) {
+  app.innerHTML = `
+    <div class="hero"><h1>Feuilles de personnage</h1><p>Statistiques actuelles de votre équipe</p></div>
+    <div class="slots">${state.party.map(sheet).join('')}</div>
+    <div class="center"><button id="backHub">${backLabel()}</button></div>
+  `;
+  app.querySelectorAll('[data-talent-hero]').forEach((btn) => {
+    btn.onclick = () => openTalents(Number(btn.dataset.talentHero));
+  });
+  app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
+    btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
+  });
+  app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function sheet(hero, index) {
+  const cls = getClass(hero);
+  const stats = getStats(hero);
+  const items = equippedItems(hero);
+  return `
+    <div class="card slot" style="--c:${cls.color}">
+      <div class="icon">${cls.icon}</div>
+      <div class="cname">${esc(hero.name)}</div>
+      <div class="role">${cls.name} niveau ${hero.level} · Stat principale : ${STATS[cls.mainStat].label} ★</div>
+      <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
+      <div class="stats sheet">${statsList(hero)}</div>
+      <div class="skillbox">
+        ${getSkills(hero).map((s) => `
+          <div class="skill-line">
+            <b>${s.name}</b>${s.boosted ? ' <span class="boosted">★ renforcée</span>' : ''} — ${s.cost} ${cls.resource.name}<br>
+            ${skillEffectLabel(stats, s)}
+          </div>`).join('')}
+      </div>
+      <div class="skillbox equipped-list">
+        ${items.length ? items.map(itemChip).join('') : '<span class="hint">Aucun équipement</span>'}
+      </div>
+      <button class="full" data-equip-hero="${index}">🎒 Gérer l'équipement</button>
+      <button class="full" data-talent-hero="${index}">📖 Talents${pointsAvailable(hero) ? ` <span class="badge">${pointsAvailable(hero)}</span>` : ''}</button>
+    </div>`;
+}
+
+return { renderStats };
+})();
+
+// ---- src/game/field.js
+__modules["src/game/field.js"] = (() => {
+const { getSkills } = __modules["src/game/party.js"];
+const { statsOf, heal } = __modules["src/game/units.js"];
+const { healAmount } = __modules["src/game/formulas.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+// Soins hors combat (entre deux combats d'une expédition) : les héros peuvent
+// lancer leurs compétences de soin et de purification. Les autres effets (buffs,
+// boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
+// se sur-préparer avant une rencontre.
+
+
+
+
+
+
+// Compétence utilisable hors combat : un soin direct ou une purification.
+function isFieldSkill(skill) {
+  return skill.kind === 'heal' || !!skill.cleanse;
+}
+
+// Compétences du héros utilisables hors combat : [{ skill, index }] (index dans getSkills).
+function fieldSkills(hero) {
+  return getSkills(hero).map((skill, index) => ({ skill, index })).filter(({ skill }) => isFieldSkill(skill));
+}
+
+// Cibles possibles d'une compétence hors combat (héros en vie) : indices dans l'équipe.
+function fieldTargets(game, casterIndex, skill) {
+  if (skill.target === 'self') return [casterIndex];
+  if (skill.target === 'ally' || skill.target === 'allAllies') {
+    return game.party.map((h, i) => (h.alive ? i : -1)).filter((i) => i >= 0);
+  }
+  return [];
+}
+
+// Raison pour laquelle la compétence ne peut pas être lancée maintenant, ou null.
+function cannotCastReason(game, casterIndex, skill) {
+  const caster = game.party[casterIndex];
+  if (!game.expedition) return 'Uniquement pendant une expédition.';
+  if (!caster?.alive) return 'Ce héros est tombé.';
+  if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
+  if (caster.res < skill.cost) return 'Pas assez de ressource.';
+  return null;
+}
+
+/**
+ * Lance la compétence `skillIndex` du héros `casterIndex` hors combat, sur le héros
+ * `targetIndex` (ignoré pour une compétence de groupe). Retourne { ok, message }.
+ */
+function castOutOfCombat(game, casterIndex, skillIndex, targetIndex) {
+  const caster = game.party[casterIndex];
+  const skill = caster && getSkills(caster)[skillIndex];
+  if (!skill || cannotCastReason(game, casterIndex, skill)) return { ok: false, message: '' };
+  const group = skill.target === 'allAllies';
+  if (!group && !fieldTargets(game, casterIndex, skill).includes(skill.target === 'self' ? casterIndex : targetIndex)) {
+    return { ok: false, message: '' };
+  }
+  const targets = group ? game.party.filter((h) => h.alive) : [game.party[skill.target === 'self' ? casterIndex : targetIndex]];
+  caster.res -= skill.cost;
+  const stats = statsOf(caster);
+  const parts = targets.map((t) => {
+    const bits = [];
+    if (skill.kind === 'heal') bits.push(`+${heal(t, healAmount(stats, skill.power, skill.physHeal))} PV`);
+    if (skill.cleanse) {
+      const removed = statusesOf(t).filter((s) => s.kind === 'debuff');
+      t.statuses = statusesOf(t).filter((s) => s.kind !== 'debuff');
+      bits.push(removed.length ? `${removed.map((s) => s.name).join(', ')} retiré${removed.length > 1 ? 's' : ''}` : 'aucun effet négatif');
+    }
+    return `${t.name} : ${bits.join(', ')}`;
+  });
+  return { ok: true, message: `${caster.name} lance ${skill.name} (${parts.join(' ; ')}).` };
+}
+
+return { isFieldSkill, fieldSkills, fieldTargets, cannotCastReason, castOutOfCombat };
 })();
 
 // ---- src/game/enemies.js
@@ -6105,7 +7899,7 @@ __modules["src/ui/encounter.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
-const { floorCombat, winFloor, loseExpedition, escapeExpedition, subzoneOf } = __modules["src/game/dungeon.js"];
+const { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } = __modules["src/game/dungeon.js"];
 const { recordEncounter } = __modules["src/game/bestiary.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
@@ -6176,7 +7970,7 @@ function finish() {
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
-  const r = winFloor(state, cb);
+  const r = winFight(state, cb);
   if (r.cleared) {
     const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
     showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
@@ -6190,1191 +7984,19 @@ function finish() {
 return { lastFloor, startFloor, playerAction };
 })();
 
-// ---- src/ui/combatLog.js
-__modules["src/ui/combatLog.js"] = (() => {
-const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { itemChip } = __modules["src/ui/items.js"];
-// Journal de combat et résumé de victoire (partagés par les écrans de combat,
-// d'expédition et du village).
-
-
-
-
-
-
-// Lignes du journal : les coups critiques ressortent, et le calcul des dégâts
-// s'affiche au survol quand il est connu.
-function logLines(entries) {
-  return entries.map((l) => {
-    const cls = `${l.hit ? 'hit' : ''} ${l.crit ? 'crit' : ''}`;
-    if (!l.detail) return `<div class="${cls}">${l.crit ? '💥 ' : ''}${esc(l.text)}</div>`;
-    return `<div ${tip(l.detail, `${cls} has-detail`)}>${l.crit ? '💥 ' : ''}${esc(l.text)} <span class="why">ⓘ</span></div>`;
-  }).join('');
-}
-
-// Journal du dernier combat, repliable (après la fin du combat).
-function lastCombatLog(last) {
-  if (!last?.log?.length) return '';
-  return `
-    <details class="card last-log">
-      <summary>📜 Journal du dernier combat (${esc(last.title)})</summary>
-      <div class="log">${logLines(last.log)}</div>
-    </details>`;
-}
-
-// Résumé détaillé d'une victoire (résultat de applyVictory / winFloor).
-function victorySummary(r) {
-  if (!r) return '';
-  const rows = [
-    ['💰 Or', `+${r.gold}`],
-    ['⭐ Expérience', `+${r.xp} XP pour chaque héros`],
-  ];
-  if (r.levelUps?.length) rows.push(['🎉 Niveau supérieur', r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
-  rows.push(['🎒 Équipement', r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
-  rows.push(['💎 Matéria', r.materia?.length
-    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${MATERIA_KINDS[m.kind].icon} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
-    : '<span class="hint">aucune</span>']);
-  rows.push(['🧪 Consommables', r.consumables?.length ? r.consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', ') : '<span class="hint">aucun</span>']);
-  return `
-    <div class="victory-summary">
-      <h3>Victoire !</h3>
-      <table>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
-    </div>`;
-}
-
-return { logLines, lastCombatLog, victorySummary };
-})();
-
-// ---- src/ui/screens/equipment.js
-__modules["src/ui/screens/equipment.js"] = (() => {
+// ---- src/ui/mapView.js
+__modules["src/ui/mapView.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { isTwoHanded } = __modules["src/game/items.js"];
-const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
-const { STAT_ORDER } = __modules["src/data/stats.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
-const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
-const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
-const { statsList } = __modules["src/ui/heroStats.js"];
-// Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
-
-
-
-
-
-
-
-
-
-
-
-
-// État propre à l'écran (pas de l'état de jeu).
-const view = { heroIndex: 0, selected: null }; // selected : { from: 'bag', id } | { from: 'slot', slot }
-
-function openEquipment(heroIndex = view.heroIndex) {
-  view.heroIndex = heroIndex;
-  view.selected = null;
-  goTo('equipment');
-}
-
-function renderEquipment(app) {
-  const hero = state.party[view.heroIndex];
-  const cls = getClass(hero);
-
-  app.innerHTML = `
-    <div class="hero"><h1>Équipement</h1><p>Sac de l'équipe : ${state.bag.length} objet${state.bag.length > 1 ? 's' : ''}</p></div>
-    <div class="hero-tabs">
-      ${state.party.map((h, i) => `
-        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
-          ${getClass(h).icon} ${esc(h.name)}
-        </button>`).join('')}
-    </div>
-    <div class="equip-layout">
-      <div class="card slot-list" style="--c:${cls.color}">
-        <h3>${cls.icon} ${esc(hero.name)} <small>— ${cls.name}</small></h3>
-        ${SLOT_ORDER.map((slot) => slotRow(hero, slot)).join('')}
-        <div class="equip-stats">${statsList(hero)}</div>
-      </div>
-      <div>
-        <div class="card detail">${detailPanel(hero)}</div>
-        <div class="card bag">
-          <h3>Sac</h3>
-          ${bagList(hero)}
-          <h3>Matéria</h3>
-          ${materiaTable(state.materia)}
-          <h3>Consommables</h3>
-          <p class="hint">${consumablesLine(state.consumables)}</p>
-        </div>
-      </div>
-    </div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
-
-  app.querySelectorAll('[data-hero]').forEach((btn) => {
-    btn.onclick = () => openEquipment(Number(btn.dataset.hero));
-  });
-  app.querySelectorAll('[data-slot]').forEach((row) => {
-    row.onclick = () => select({ from: 'slot', slot: row.dataset.slot });
-  });
-  app.querySelectorAll('[data-item]').forEach((row) => {
-    row.onclick = () => select({ from: 'bag', id: row.dataset.item });
-  });
-  app.querySelectorAll('[data-equip]').forEach((btn) => {
-    btn.onclick = () => {
-      const item = selectedItem(hero);
-      if (equip(hero, state.bag, item, btn.dataset.equip)) select({ from: 'slot', slot: btn.dataset.equip });
-    };
-  });
-  app.querySelector('#unequip')?.addEventListener('click', () => {
-    const item = selectedItem(hero);
-    if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
-  });
-  app.querySelector('#backHub').onclick = () => goBack();
-}
-
-function select(selection) {
-  view.selected = selection;
-  goTo('equipment');
-}
-
-function selectedItem(hero) {
-  const sel = view.selected;
-  if (!sel) return null;
-  if (sel.from === 'slot') return hero.equipment[sel.slot] ?? null;
-  return state.bag.find((item) => item.id === sel.id) ?? null;
-}
-
-function isSelected(sel) {
-  const cur = view.selected;
-  return !!cur && cur.from === sel.from && (cur.slot ?? cur.id) === (sel.slot ?? sel.id);
-}
-
-function slotRow(hero, slot) {
-  const item = hero.equipment[slot];
-  const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
-  // Une arme à deux mains occupe aussi la main gauche.
-  const twoHand = hero.equipment.mainDroite;
-  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
-    return `
-    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
-      <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
-    </button>`;
-  }
-  if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
-  return `
-    <button class="slot-row ${selected}" data-slot="${slot}">
-      <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))} <small>· ${RARITIES[item.rarity].label}</small></span>
-    </button>`;
-}
-
-function bagList(hero) {
-  if (!state.bag.length) return '<p class="hint">Le sac est vide. Le butin des donjons arrive ici.</p>';
-  const sorted = [...state.bag].sort((a, b) =>
-    RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level);
-  return sorted.map((item) => {
-    const usable = !cannotEquipReason(hero, item);
-    const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
-    return `
-      <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
-        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
-        <small>${itemMeta(item)}</small>
-      </button>`;
-  }).join('');
-}
-
-function detailPanel(hero) {
-  const item = selectedItem(hero);
-  if (!item) return '<p class="hint">Sélectionne un objet équipé ou un objet du sac pour voir ses détails et le comparer.</p>';
-
-  if (view.selected.from === 'slot') {
-    return `${itemCard(item)}<div class="actions"><button id="unequip">Retirer (vers le sac)</button></div>`;
-  }
-
-  const reason = cannotEquipReason(hero, item);
-  if (reason) return `${itemCard(item)}<p class="warning">${esc(hero.name)} ne peut pas l'équiper : ${reason}.</p>`;
-
-  const options = slotsFor(hero, item).map((slot) => {
-    const current = hero.equipment[slot];
-    return `
-      <div class="equip-option">
-        <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
-        <small>${current ? `remplace ${esc(itemName(current))}` : 'emplacement vide'}</small>
-        ${statDiff(hero, previewEquip(hero, item, slot))}
-      </div>`;
-  });
-  return `${itemCard(item)}${options.join('')}`;
-}
-
-// Différence de stats du héros entre maintenant et après l'échange.
-function statDiff(hero, preview) {
-  if (!preview) return '';
-  const before = getStats(hero);
-  const after = getStats(preview);
-  const changes = STAT_ORDER
-    .map((k) => [k, after[k] - before[k]])
-    .filter(([, d]) => d !== 0)
-    .map(([k, d]) => `<span class="${d > 0 ? 'up' : 'down'}">${formatStat(k, d)}</span>`);
-  return `<div class="diff">${changes.length ? changes.join('') : '<span>Aucun changement de stats</span>'}</div>`;
-}
-
-return { openEquipment, renderEquipment };
-})();
-
-// ---- src/ui/screens/forge.js
-__modules["src/ui/screens/forge.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { RARITIES, MATERIA_RARITIES, MATERIA_KINDS, WEAPON_TYPES, ARMOR_TYPES, JEWELS, SLOTS, SHIELD, LEGENDARIES } = __modules["src/data/items.js"];
-const { STATS } = __modules["src/data/stats.js"];
-const { FORGE } = __modules["src/config.js"];
+const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getClass } = __modules["src/game/party.js"];
-const { equippedItems } = __modules["src/game/equipment.js"];
-const { itemStats } = __modules["src/game/items.js"];
-const { decraft, decraftYield, upgradeCost, missingForUpgrade, canUpgrade, upgrade, CRAFT_FILTERS, craftOptions, craftCost, craftProblem, craft, craftLegendaries, absorbProblem, absorbLegendary } = __modules["src/game/forge.js"];
-const { CLASSES } = __modules["src/data/classes.js"];
-const { esc } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat, materiaTable } = __modules["src/ui/items.js"];
-const { goTo } = __modules["src/ui/router.js"];
-// Forge : décraft des objets du sac en matéria, amélioration des objets (portés ou non).
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// État propre à l'écran : objet sélectionné, décraft en attente de confirmation, dernier message.
-// tab : 'items' (amélioration / décraft), 'craft' (fabrication) ou 'divine' (Forge divine) ;
-// order : commande en cours ; divineId : objet divin choisi à la Forge divine.
-const view = { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null, order: { kind: 'arme', rarity: 'commun' }, divineId: null };
-
-// Raretés dont le décraft demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
-
-function openForge() {
-  Object.assign(view, { tab: 'items', selectedId: null, confirm: null, flash: null, crafted: null });
-  goTo('forge');
-}
-
-function renderForge(app) {
-  const item = findItem(view.selectedId);
-  const flash = view.flash;
-  const crafted = view.crafted;
-  view.flash = null;
-  view.crafted = null;
-  const commons = state.bag.filter((i) => i.rarity === 'commun');
-
-  app.innerHTML = `
-    <div class="hero"><h1>🔨 Forge</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}${crafted ? itemCard(crafted) : ''}</div>` : ''}
-    <div class="card materia"><p class="hint">Matéria du sac :</p>${materiaTable(state.materia)}</div>
-    <div class="tabs">
-      <button data-tab="items" class="${view.tab === 'items' ? 'selected' : ''}">🔧 Améliorer / décrafter</button>
-      <button data-tab="craft" class="${view.tab === 'craft' ? 'selected' : ''}">⚒️ Fabriquer</button>
-      <button data-tab="divine" class="${view.tab === 'divine' ? 'selected' : ''}" style="color:${RARITIES.divin.color}">✴️ Forge divine</button>
-    </div>
-    ${view.tab === 'craft' ? craftPanel() : view.tab === 'divine' ? divinePanel() : `
-    <div class="equip-layout">
-      <div class="card forge-list">
-        <h3>Objets portés</h3>
-        ${state.party.map((hero) => `
-          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
-          ${equippedItems(hero).map(itemRow).join('')}`).join('')}
-        <h3 class="bag-title">Sac (${state.bag.length})</h3>
-        ${state.bag.length ? state.bag.map(itemRow).join('') : '<p class="hint">Le sac est vide.</p>'}
-        ${commons.length ? `
-          <button id="decraftCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
-            ${view.confirm === 'commons'
-              ? `Confirmer : décrafter ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''}`
-              : `Décrafter tous les objets communs du sac (${commons.length})`}
-          </button>` : ''}
-      </div>
-      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Sélectionne un objet pour l\'améliorer ou le décrafter.</p>'}</div>
-    </div>`}
-    <div class="center"><button id="backHub">← Retour au village</button></div>
-  `;
-
-  app.querySelectorAll('[data-tab]').forEach((btn) => {
-    btn.onclick = () => {
-      Object.assign(view, { tab: btn.dataset.tab, confirm: null });
-      goTo('forge');
-    };
-  });
-  bindCraft(app);
-  bindDivine(app);
-  app.querySelectorAll('[data-item]').forEach((row) => {
-    row.onclick = () => {
-      Object.assign(view, { selectedId: row.dataset.item, confirm: null });
-      goTo('forge');
-    };
-  });
-  app.querySelector('#upgrade')?.addEventListener('click', () => {
-    if (upgrade(state, item)) view.flash = `${itemName(item)} : amélioration réussie !`;
-    goTo('forge');
-  });
-  app.querySelector('#decraft')?.addEventListener('click', () => {
-    if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
-      view.confirm = item.id;
-    } else {
-      const gain = decraft(state, item);
-      if (gain) view.flash = `${itemName(item)} décrafté : ${yieldText(gain)}.`;
-      Object.assign(view, { selectedId: null, confirm: null });
-    }
-    goTo('forge');
-  });
-  app.querySelector('#decraftCommons')?.addEventListener('click', () => {
-    if (view.confirm !== 'commons') {
-      view.confirm = 'commons';
-    } else {
-      const gains = commons.map((i) => decraft(state, i)).filter(Boolean);
-      const byKind = Object.keys(MATERIA_KINDS)
-        .map((kind) => [kind, gains.filter((g) => g.kind === kind).reduce((sum, g) => sum + g.amount, 0)])
-        .filter(([, n]) => n > 0)
-        .map(([kind, n]) => `${n} × ${MATERIA_KINDS[kind].label} commun`);
-      view.flash = `${gains.length} objet${gains.length > 1 ? 's' : ''} décrafté${gains.length > 1 ? 's' : ''} : ${byKind.join(', ')}.`;
-      if (commons.some((i) => i.id === view.selectedId)) view.selectedId = null;
-      view.confirm = null;
-    }
-    goTo('forge');
-  });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
-}
-
-function findItem(id) {
-  if (!id) return null;
-  for (const hero of state.party) {
-    const found = equippedItems(hero).find((i) => i.id === id);
-    if (found) return found;
-  }
-  return state.bag.find((i) => i.id === id) ?? null;
-}
-
-function wearerOf(item) {
-  return state.party.find((hero) => equippedItems(hero).includes(item)) ?? null;
-}
-
-function rarityLabel(rarity) {
-  return `<span class="rarity-text" style="--rc:${RARITIES[rarity].color}">${RARITIES[rarity].label.toLowerCase()}</span>`;
-}
-
-function rangeYieldText({ kind, rarity, min, max }) {
-  return `${min} à ${max} × ${MATERIA_KINDS[kind].label} ${RARITIES[rarity].label.toLowerCase()} (au hasard)`;
-}
-
-function yieldText(gain) {
-  return `${gain.amount} × ${MATERIA_KINDS[gain.kind].label} ${RARITIES[gain.rarity].label.toLowerCase()}`;
-}
-
-function itemRow(item) {
-  const selected = item.id === view.selectedId ? 'selected' : '';
-  return `
-    <button class="bag-row ${selected}" data-item="${item.id}">
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
-      <small>${itemMeta(item)}</small>
-    </button>`;
-}
-
-function detailPanel(item) {
-  const wearer = wearerOf(item);
-  return `
-    ${itemCard(item)}
-    <p class="hint">${wearer ? `Porté par ${esc(wearer.name)}` : 'Dans le sac'}</p>
-    ${upgradeSection(item)}
-    ${wearer ? '<p class="hint">Un objet porté ne peut pas être décrafté : retire-le d\'abord (écran Équipement).</p>' : decraftSection(item)}`;
-}
-
-function upgradeSection(item) {
-  const cost = upgradeCost(item);
-  if (!cost) return '<div class="forge-section"><h3>Amélioration</h3><p>Amélioration maximale atteinte (+5).</p></div>';
-
-  const missing = missingForUpgrade(state, item);
-  const lines = Object.entries(cost.materia).map(([tier, need]) => {
-    const have = state.materia[cost.kind][tier];
-    return `<li class="${missing.materia[tier] ? 'lack' : 'ok'}">${need} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(tier)} <small>(possédé : ${have})</small></li>`;
-  });
-  lines.push(`<li class="${missing.gold ? 'lack' : 'ok'}">${cost.gold} pièces d'or <small>(possédé : ${state.gold})</small></li>`);
-
-  const before = itemStats(item);
-  const after = itemStats({ ...item, plus: cost.plus });
-  const gains = Object.keys(after)
-    .filter((k) => after[k] !== before[k])
-    .map((k) => `<span class="up">${formatStat(k, after[k] - before[k])}</span>`);
-
-  return `
-    <div class="forge-section">
-      <h3>Amélioration +${cost.plus}</h3>
-      <ul class="cost">${lines.join('')}</ul>
-      <div class="diff">${gains.length ? gains.join('') : '<span>Aucun gain visible à ce niveau</span>'}</div>
-      <button id="upgrade" ${canUpgrade(state, item) ? '' : 'disabled'}>Améliorer (+${cost.plus})</button>
-    </div>`;
-}
-
-function decraftSection(item) {
-  const confirming = view.confirm === item.id;
-  return `
-    <div class="forge-section">
-      <h3>Décraft</h3>
-      <p>Détruit l'objet et rapporte ${rangeYieldText(decraftYield(item))}.</p>
-      <button id="decraft" class="${confirming ? 'danger' : ''}">${confirming ? `Confirmer : détruire ${esc(itemName(item))}` : 'Décrafter'}</button>
-    </div>`;
-}
-
-// ---- Fabrication ----
-
-const KIND_FILTER_LABELS = {
-  weaponType: "Type d'arme", slotType: 'Pièce', armorType: "Type d'armure", primary: 'Stat principale',
-};
-
-function optionLabel(filter, value) {
-  if (filter === 'weaponType') return WEAPON_TYPES[value].name;
-  if (filter === 'armorType') return ARMOR_TYPES[value].label;
-  if (filter === 'primary') return STATS[value].label;
-  if (value === 'bouclier') return SHIELD.name;
-  if (JEWELS[value]) return JEWELS[value].name;
-  return SLOTS[value].label;
-}
-
-function craftPanel() {
-  const order = view.order;
-  const cost = craftCost(order);
-  const problem = craftProblem(state, order);
-  const have = state.materia[cost.kind][cost.rarity];
-  const options = craftOptions(order.kind);
-  const legendaries = order.rarity === 'legendaire' ? craftLegendaries(order) : [];
-  return `
-    <div class="card craft">
-      <p class="hint">Fabrique un objet du niveau le plus haut atteint (${state.dungeonLvl}) avec ${FORGE.craftBase} matéria de la rareté voulue, +${FORGE.craftPerFilter} par caractéristique imposée. Ce qui reste « au hasard » est tiré au sort.</p>
-      <div class="craft-row"><span>Catégorie</span>
-        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `<button data-craft-kind="${kind}" class="${order.kind === kind ? 'selected' : ''}">${def.icon} ${kind === 'arme' ? 'Arme' : kind === 'armure' ? 'Armure / bouclier' : 'Bijou'}</button>`).join('')}
-      </div>
-      <div class="craft-row"><span>Rareté</span>
-        ${MATERIA_RARITIES.map((r) => `<button data-craft-rarity="${r}" class="${order.rarity === r ? 'selected' : ''}" style="color:${RARITIES[r].color}">${RARITIES[r].label} <small>(${state.materia[order.kind][r]})</small></button>`).join('')}
-      </div>
-      ${CRAFT_FILTERS[order.kind].map((f) => `
-        <div class="craft-row"><span>${KIND_FILTER_LABELS[f]}</span>
-          <select data-craft-filter="${f}">
-            <option value="">Au hasard</option>
-            ${options[f].map((v) => `<option value="${v}" ${order[f] === v ? 'selected' : ''}>${esc(optionLabel(f, v))}</option>`).join('')}
-          </select>
-        </div>`).join('')}
-      ${order.rarity === 'legendaire' ? `<p class="hint">Légendaires possibles : ${legendaries.length ? legendaries.map((k) => `<b style="color:${RARITIES.legendaire.color}">${esc(LEGENDARIES[k].name)}</b>`).join(', ') : 'aucun'}.</p>` : ''}
-      <ul class="cost"><li class="${have < cost.amount ? 'lack' : 'ok'}">${cost.amount} × ${MATERIA_KINDS[cost.kind].label} ${rarityLabel(cost.rarity)} <small>(possédé : ${have})</small></li></ul>
-      ${problem ? `<p class="hint">${esc(problem)}</p>` : ''}
-      <button id="craftBtn" ${problem ? 'disabled' : ''}>⚒️ Fabriquer</button>
-    </div>`;
-}
-
-function bindCraft(app) {
-  app.querySelectorAll('[data-craft-kind]').forEach((btn) => {
-    btn.onclick = () => {
-      view.order = { kind: btn.dataset.craftKind, rarity: view.order.rarity };
-      goTo('forge');
-    };
-  });
-  app.querySelectorAll('[data-craft-rarity]').forEach((btn) => {
-    btn.onclick = () => {
-      view.order.rarity = btn.dataset.craftRarity;
-      goTo('forge');
-    };
-  });
-  app.querySelectorAll('[data-craft-filter]').forEach((sel) => {
-    sel.onchange = () => {
-      if (sel.value) view.order[sel.dataset.craftFilter] = sel.value;
-      else delete view.order[sel.dataset.craftFilter];
-      goTo('forge');
-    };
-  });
-  app.querySelector('#craftBtn')?.addEventListener('click', () => {
-    const item = craft(state, view.order);
-    if (item) {
-      view.flash = `Fabriqué : ${itemName(item)} (dans le sac).`;
-      view.crafted = item;
-    }
-    goTo('forge');
-  });
-}
-
-// ---- Forge divine ----
-
-function allItems() {
-  return [...state.party.flatMap((hero) => equippedItems(hero)), ...state.bag];
-}
-
-function divinePanel() {
-  const divines = [...new Set(allItems())].filter((i) => i.rarity === 'divin');
-  const divine = divines.find((i) => i.id === view.divineId) ?? null;
-  const legendaries = state.bag.filter((i) => i.legendary);
-  return `
-    <p class="hint">Un objet <b style="color:${RARITIES.divin.color}">divin</b> peut absorber le pouvoir unique d'un objet légendaire du sac. Le légendaire est détruit ; le pouvoir s'applique comme s'il était porté (il ne sert qu'à la classe concernée). Un nouveau pouvoir remplace l'ancien.</p>
-    <div class="equip-layout">
-      <div class="card forge-list">
-        <h3>Objets divins</h3>
-        ${divines.length ? divines.map((i) => `
-          <button class="bag-row ${i === divine ? 'selected' : ''}" data-divine="${i.id}">
-            <span class="rarity-text" style="--rc:${RARITIES.divin.color}">${esc(itemName(i))}</span>
-            <small>${itemMeta(i)}${wearerOf(i) ? ` · porté par ${esc(wearerOf(i).name)}` : ''}</small>
-          </button>`).join('') : '<p class="hint">Aucun objet divin. Ils ne tombent que sur les boss, à partir de la difficulté Guerre.</p>'}
-      </div>
-      <div class="card detail">
-        ${divine ? `
-          ${itemCard(divine)}
-          <div class="forge-section">
-            <h3>Absorber un pouvoir légendaire</h3>
-            ${legendaries.length ? legendaries.map((leg) => {
-              const cls = CLASSES[leg.legendary.classKey];
-              const confirming = view.confirm === `absorb:${leg.id}`;
-              return `
-                <div class="absorb-row">
-                  <div><span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${cls.icon} ${cls.name})</small>` : ''}<br><small>${esc(leg.legendary.desc)}</small></div>
-                  <button data-absorb="${leg.id}" class="${confirming ? 'danger' : ''}" ${absorbProblem(state, divine, leg) ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : '✴️ Absorber'}</button>
-                </div>`;
-            }).join('') : '<p class="hint">Aucun objet légendaire dans le sac (un légendaire porté doit d\'abord être retiré).</p>'}
-            ${divine.absorbed && legendaries.length ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
-          </div>` : '<p class="hint">Choisis un objet divin.</p>'}
-      </div>
-    </div>`;
-}
-
-function bindDivine(app) {
-  app.querySelectorAll('[data-divine]').forEach((btn) => {
-    btn.onclick = () => {
-      Object.assign(view, { divineId: btn.dataset.divine, confirm: null });
-      goTo('forge');
-    };
-  });
-  app.querySelectorAll('[data-absorb]').forEach((btn) => {
-    btn.onclick = () => {
-      const leg = state.bag.find((i) => i.id === btn.dataset.absorb);
-      const divine = allItems().find((i) => i.id === view.divineId);
-      if (view.confirm !== `absorb:${leg.id}`) {
-        view.confirm = `absorb:${leg.id}`;
-      } else {
-        if (absorbLegendary(state, divine, leg) !== false) view.flash = `${itemName(divine)} absorbe le pouvoir de ${itemName(leg)}.`;
-        view.confirm = null;
-      }
-      goTo('forge');
-    };
-  });
-}
-
-return { openForge, renderForge };
-})();
-
-// ---- src/game/runes.js
-__modules["src/game/runes.js"] = (() => {
-const { RUNES } = __modules["src/config.js"];
-const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
-const { secondaryValue } = __modules["src/game/items.js"];
-const { pick } = __modules["src/game/rng.js"];
-// Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
-// et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
-
-
-
-
-
-
-// Prix d'une relance, ou null si l'objet n'a pas de secondaire.
-function rerollCost(item) {
-  if (!Object.keys(item.bonus ?? {}).length) return null;
-  return RUNES.price[item.rarity] ?? null;
-}
-
-// Stats pouvant remplacer `stat` : jamais une stat déjà présente sur l'objet
-// (sauf le Blocage d'un bouclier), mais la stat relancée peut ressortir avec une autre valeur.
-function rerollPool(item, stat) {
-  const repeatable = item.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
-  const others = Object.keys(item.bonus).filter((k) => k !== stat);
-  return Object.keys(SECONDARY_STATS).filter((k) =>
-    k === stat || (!others.includes(k) && (!(k in item.stats) || repeatable.includes(k))));
-}
-
-// Pourquoi la relance est impossible (texte), ou null.
-function rerollProblem(game, item, stat) {
-  if (!(stat in (item.bonus ?? {}))) return "Cette stat n'est pas une stat secondaire de l'objet.";
-  const cost = rerollCost(item);
-  if (game.gold < cost) return `Il manque ${cost - game.gold} pièces d'or.`;
-  return null;
-}
-
-// Relance la secondaire `stat` (l'ordre des lignes est conservé).
-// Retourne { from: { stat, value }, to: { stat, value } }, ou null si impossible.
-function rerollSecondary(game, item, stat) {
-  if (rerollProblem(game, item, stat)) return null;
-  game.gold -= rerollCost(item);
-  const from = { stat, value: item.bonus[stat] };
-  const newStat = pick(rerollPool(item, stat));
-  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
-  item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
-  return { from, to };
-}
-
-return { rerollCost, rerollPool, rerollProblem, rerollSecondary };
-})();
-
-// ---- src/ui/screens/runes.js
-__modules["src/ui/screens/runes.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { RARITIES } = __modules["src/data/items.js"];
-const { STATS } = __modules["src/data/stats.js"];
-const { getClass } = __modules["src/game/party.js"];
-const { equippedItems } = __modules["src/game/equipment.js"];
-const { itemStatLines } = __modules["src/game/items.js"];
-const { rerollCost, rerollPool, rerollProblem, rerollSecondary } = __modules["src/game/runes.js"];
-const { esc } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat } = __modules["src/ui/items.js"];
-const { goTo } = __modules["src/ui/router.js"];
-// Runomancien : relance d'une stat secondaire d'un objet (porté ou dans le sac).
-
-
-
-
-
-
-
-
-
-
-
-
-const view = { selectedId: null, flash: null };
-
-function openRunes() {
-  Object.assign(view, { selectedId: null, flash: null });
-  goTo('runes');
-}
-
-// Objets relançables : au moins une secondaire.
-const rerollable = (item) => rerollCost(item) !== null;
-
-function renderRunes(app) {
-  const item = findItem(view.selectedId);
-  const flash = view.flash;
-  view.flash = null;
-  const bagItems = state.bag.filter(rerollable);
-
-  app.innerHTML = `
-    <div class="hero"><h1>🔮 Runomancien</h1><p>Or : ${state.gold} · « Donne-moi une rune, je t'en graverai une autre. »</p></div>
-    ${flash ? `<div class="card notice">${flash}</div>` : ''}
-    <div class="equip-layout">
-      <div class="card forge-list">
-        <h3>Objets portés</h3>
-        ${state.party.map((hero) => `
-          <div class="forge-hero" style="--c:${getClass(hero).color}">${getClass(hero).icon} ${esc(hero.name)}</div>
-          ${equippedItems(hero).filter(rerollable).map(itemRow).join('') || '<p class="hint">Rien à relancer.</p>'}`).join('')}
-        <h3 class="bag-title">Sac</h3>
-        ${bagItems.length ? bagItems.map(itemRow).join('') : '<p class="hint">Aucun objet à stats secondaires dans le sac.</p>'}
-      </div>
-      <div class="card detail">${item ? detailPanel(item) : '<p class="hint">Choisis un objet : le Runomancien relance une de ses stats secondaires (nouvelle stat, nouvelle valeur). Les objets communs n\'en ont pas.</p>'}</div>
-    </div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
-  `;
-
-  app.querySelectorAll('[data-item]').forEach((row) => {
-    row.onclick = () => {
-      view.selectedId = row.dataset.item;
-      goTo('runes');
-    };
-  });
-  app.querySelectorAll('[data-reroll]').forEach((btn) => {
-    btn.onclick = () => {
-      const r = rerollSecondary(state, item, btn.dataset.reroll);
-      if (r) view.flash = `${esc(itemName(item))} : <s>${formatStat(r.from.stat, r.from.value)}</s> → <b>${formatStat(r.to.stat, r.to.value)}</b>`;
-      goTo('runes');
-    };
-  });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
-}
-
-function findItem(id) {
-  if (!id) return null;
-  for (const hero of state.party) {
-    const found = equippedItems(hero).find((i) => i.id === id);
-    if (found) return found;
-  }
-  return state.bag.find((i) => i.id === id) ?? null;
-}
-
-function itemRow(item) {
-  return `
-    <button class="bag-row ${item.id === view.selectedId ? 'selected' : ''}" data-item="${item.id}">
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
-      <small>${itemMeta(item)}</small>
-    </button>`;
-}
-
-function detailPanel(item) {
-  const cost = rerollCost(item);
-  const lines = itemStatLines(item).filter((l) => l.secondary);
-  return `
-    ${itemCard(item)}
-    <div class="forge-section">
-      <h3>Relancer une stat secondaire — ${cost} pièces d'or</h3>
-      <p class="hint">Une seule stat change à la fois ; elle peut devenir n'importe quelle stat absente de l'objet, ou ressortir avec une autre valeur.</p>
-      ${lines.map((l) => {
-        const problem = rerollProblem(state, item, l.stat);
-        const pool = rerollPool(item, l.stat).map((k) => STATS[k].label).join(', ');
-        return `
-          <div class="reroll-row">
-            <span>${formatStat(l.stat, l.value)}</span>
-            <button data-reroll="${l.stat}" ${problem ? 'disabled' : ''} title="Résultats possibles : ${esc(pool)}">🔮 Relancer</button>
-          </div>`;
-      }).join('')}
-      ${state.gold < cost ? `<p class="hint">Il te manque ${cost - state.gold} pièces d'or.</p>` : ''}
-    </div>`;
-}
-
-return { openRunes, renderRunes };
-})();
-
-// ---- src/ui/screens/merchant.js
-__modules["src/ui/screens/merchant.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { MERCHANT } = __modules["src/config.js"];
-const { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES } = __modules["src/data/consumables.js"];
-const { RARITIES } = __modules["src/data/items.js"];
-const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } = __modules["src/game/merchant.js"];
-const { countOf } = __modules["src/game/consumables.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
-const { goTo } = __modules["src/ui/router.js"];
-// Marchand : achat de consommables et d'équipement, revente du butin.
-
-
-
-
-
-
-
-
-
-
-
-// État propre à l'écran : vente en attente de confirmation, dernier message.
-const view = { confirm: null, flash: null };
-
-// Raretés dont la vente demande une confirmation.
-const CONFIRM_RARITIES = ['epique', 'legendaire', 'divin'];
-
-function openMerchant() {
-  Object.assign(view, { confirm: null, flash: null });
-  goTo('merchant');
-}
-
-function renderMerchant(app) {
-  const stock = ensureStock(state);
-  const flash = view.flash;
-  view.flash = null;
-  const commons = state.bag.filter((i) => i.rarity === 'commun');
-  const commonsValue = commons.reduce((sum, i) => sum + sellPrice(i), 0);
-
-  app.innerHTML = `
-    <div class="hero"><h1>🛒 Marchand</h1><p>Or : <b class="gold">${state.gold}</b></p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    <div class="equip-layout">
-      <div>
-        <div class="card shop-section">
-          <h3>Consommables</h3>
-          <p class="hint">En combat avec l'action « Objet », et pour certains entre deux étages d'un donjon (maximum ${MERCHANT.maxConsumable} de chaque).</p>
-          ${Object.entries(CONSUMABLE_CATEGORIES).map(([cat, label]) => `
-            <h4 class="shop-cat">${label}</h4>
-            ${CONSUMABLE_ORDER.filter((k) => CONSUMABLES[k].category === cat).map(consumableRow).join('')}`).join('')}
-        </div>
-        <div class="card shop-section">
-          <h3>Équipement en vente <small>niveau ${state.dungeonLvl}</small></h3>
-          <p class="hint">Au plus haut niveau atteint dans les donjons, renouvelé quand il augmente. Les objets achetés vont dans le sac.</p>
-          ${stock.length ? stock.map(stockRow).join('') : '<p class="hint">Tout a été vendu : revenez après le prochain donjon.</p>'}
-        </div>
-      </div>
-      <div class="card shop-section">
-        <h3>Vendre le butin <small>${state.bag.length} objet${state.bag.length > 1 ? 's' : ''} dans le sac</small></h3>
-        <p class="hint">Seuls les objets du sac se vendent (retire d'abord un objet porté pour le vendre).</p>
-        ${commons.length ? `
-          <button id="sellCommons" class="full ${view.confirm === 'commons' ? 'danger' : ''}">
-            ${view.confirm === 'commons'
-              ? `Confirmer : vendre ${commons.length} objet${commons.length > 1 ? 's' : ''} commun${commons.length > 1 ? 's' : ''} pour ${commonsValue} or`
-              : `Vendre tous les objets communs (${commons.length}) — ${commonsValue} or`}
-          </button>` : ''}
-        ${state.bag.length ? state.bag.map(sellRow).join('') : '<p class="hint">Le sac est vide.</p>'}
-      </div>
-    </div>
-    <div class="center"><button id="backHub">← Retour au village</button></div>
-  `;
-
-  app.querySelectorAll('[data-buy-consumable]').forEach((btn) => {
-    btn.onclick = () => {
-      const key = btn.dataset.buyConsumable;
-      if (buyConsumable(state, key)) view.flash = `Vous achetez : ${CONSUMABLES[key].name}.`;
-      rerender();
-    };
-  });
-  app.querySelectorAll('[data-buy-item]').forEach((btn) => {
-    btn.onclick = () => {
-      const item = stock.find((i) => i.id === btn.dataset.buyItem);
-      if (item && buyItem(state, item)) view.flash = `Vous achetez ${itemName(item)} pour ${buyPrice(item)} or. Il est dans le sac.`;
-      rerender();
-    };
-  });
-  app.querySelectorAll('[data-sell]').forEach((btn) => {
-    btn.onclick = () => {
-      const item = state.bag.find((i) => i.id === btn.dataset.sell);
-      if (!item) return rerender();
-      if (CONFIRM_RARITIES.includes(item.rarity) && view.confirm !== item.id) {
-        view.confirm = item.id;
-        return goTo('merchant');
-      }
-      const price = sellPrice(item);
-      if (sell(state, item)) view.flash = `${itemName(item)} vendu pour ${price} or.`;
-      rerender();
-    };
-  });
-  app.querySelector('#sellCommons')?.addEventListener('click', () => {
-    if (view.confirm !== 'commons') {
-      view.confirm = 'commons';
-      return goTo('merchant');
-    }
-    const sold = commons.filter((i) => sell(state, i));
-    view.flash = `${sold.length} objet${sold.length > 1 ? 's' : ''} vendu${sold.length > 1 ? 's' : ''} pour ${commonsValue} or.`;
-    rerender();
-  });
-  app.querySelector('#backHub').onclick = () => goTo('hub');
-}
-
-function rerender() {
-  view.confirm = null;
-  goTo('merchant');
-}
-
-function consumableRow(key) {
-  const c = CONSUMABLES[key];
-  const owned = countOf(state.consumables, key);
-  return `
-    <div class="shop-row">
-      <div class="shop-info">
-        <b>${c.icon} ${c.name}</b> <small>possédé : ${owned}/${MERCHANT.maxConsumable}</small>
-        <div class="hint">${c.desc} <i>${c.use.includes('map') ? (c.use.includes('combat') ? 'Combat et donjon.' : 'Entre deux étages.') : 'En combat.'}</i></div>
-      </div>
-      <button data-buy-consumable="${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${c.price} or</button>
-    </div>`;
-}
-
-function itemLabel(item) {
-  return `<span ${tip(itemTooltipText(item), 'rarity-text')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
-}
-
-function stockRow(item) {
-  const price = buyPrice(item);
-  return `
-    <div class="shop-row">
-      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
-      <button data-buy-item="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter · ${price} or</button>
-    </div>`;
-}
-
-function sellRow(item) {
-  const confirming = view.confirm === item.id;
-  return `
-    <div class="shop-row">
-      <div class="shop-info">${itemLabel(item)}<div class="hint">${itemMeta(item)}</div></div>
-      <button data-sell="${item.id}" class="${confirming ? 'danger' : ''}">${confirming ? 'Confirmer la vente' : 'Vendre'} · ${sellPrice(item)} or</button>
-    </div>`;
-}
-
-return { openMerchant, renderMerchant };
-})();
-
-// ---- src/game/roster.js
-__modules["src/game/roster.js"] = (() => {
-const { INN } = __modules["src/config.js"];
-const { CLASSES } = __modules["src/data/classes.js"];
-const { createHero, restoreFully } = __modules["src/game/party.js"];
-const { equippedItems } = __modules["src/game/equipment.js"];
-// Auberge : recrutement de compagnons et gestion de l'équipe.
-//
-// L'équipe (game.party) compte toujours 4 héros. Recruter un compagnon (niveau 1,
-// équipement de départ de sa classe) le fait entrer à la place d'un membre de
-// l'équipe, qui part se reposer à l'auberge (game.reserve) avec son équipement et
-// ses talents. Les héros de l'auberge ne gagnent pas d'XP (seule l'équipe combat).
-// Tout se fait au village, jamais pendant une expédition.
-
-
-
-
-
-
-function reserveOf(game) {
-  if (!game.reserve) game.reserve = [];
-  return game.reserve;
-}
-
-// Raison pour laquelle l'équipe ne peut pas être modifiée maintenant, ou null.
-function rosterLockedReason(game) {
-  return game.expedition ? "Impossible pendant une expédition : revenez d'abord au village." : null;
-}
-
-/**
- * Recrute un compagnon de classe `classKey` à la place du héros `replaceIndex`
- * de l'équipe ; le héros remplacé part à l'auberge. Retourne le nouveau héros, ou
- * null si c'est impossible.
- */
-function recruit(game, classKey, name, replaceIndex) {
-  if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
-  const hero = createHero(classKey, name?.trim());
-  const [leaving] = game.party.splice(replaceIndex, 1, hero);
-  restoreFully(leaving);
-  reserveOf(game).push(leaving);
-  return hero;
-}
-
-// Pourquoi on ne peut pas recruter maintenant (texte), ou null.
-function recruitProblem(game) {
-  const locked = rosterLockedReason(game);
-  if (locked) return locked;
-  if (reserveOf(game).length >= INN.maxReserve) {
-    return `L'auberge est pleine (${INN.maxReserve} compagnons au repos) : renvoie d'abord un compagnon.`;
-  }
-  return null;
-}
-
-// Ce que deviendrait l'équipement d'un compagnon renvoyé :
-// { destroyed: objets communs (perdus), returned: autres objets (rendus au sac) }.
-function dismissOutcome(hero) {
-  const items = [...new Set(equippedItems(hero))];
-  return {
-    destroyed: items.filter((i) => i.rarity === 'commun'),
-    returned: items.filter((i) => i.rarity !== 'commun'),
-  };
-}
-
-// Renvoie définitivement le compagnon `reserveIndex` de l'auberge. Ses objets communs
-// sont détruits, les autres rendus au sac. Retourne { hero, destroyed, returned }, ou null.
-function dismiss(game, reserveIndex) {
-  const reserve = reserveOf(game);
-  if (rosterLockedReason(game) || !reserve[reserveIndex]) return null;
-  const [hero] = reserve.splice(reserveIndex, 1);
-  const outcome = dismissOutcome(hero);
-  game.bag.push(...outcome.returned);
-  for (const slot of Object.keys(hero.equipment)) hero.equipment[slot] = null;
-  return { hero, ...outcome };
-}
-
-// Échange le héros `partyIndex` de l'équipe avec le héros `reserveIndex` de l'auberge.
-function swapWithReserve(game, partyIndex, reserveIndex) {
-  const reserve = reserveOf(game);
-  if (rosterLockedReason(game) || !game.party[partyIndex] || !reserve[reserveIndex]) return false;
-  const leaving = game.party[partyIndex];
-  restoreFully(leaving);
-  game.party[partyIndex] = reserve[reserveIndex];
-  reserve[reserveIndex] = leaving;
-  return true;
-}
-
-return { reserveOf, rosterLockedReason, recruit, recruitProblem, dismissOutcome, dismiss, swapWithReserve };
-})();
-
-// ---- src/ui/screens/inn.js
-__modules["src/ui/screens/inn.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { CLASS_ORDER, INN } = __modules["src/config.js"];
-const { CLASSES } = __modules["src/data/classes.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
-const { restAtInn } = __modules["src/game/progression.js"];
-const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { equipmentTooltip, itemChip } = __modules["src/ui/items.js"];
-const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
-// Auberge : repos, recrutement de compagnons et gestion de l'équipe (4 héros ;
-// les autres attendent à l'auberge avec leur équipement, sans gagner d'XP).
-
-
-
-
-
-
-
-
-
-
-
-// État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
-// pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
-
-function openInn() {
-  Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
-  goTo('inn');
-}
-
-function renderInn(app) {
-  const flash = view.flash;
-  view.flash = null;
-  const locked = rosterLockedReason(state);
-  const reserve = reserveOf(state);
-  const picking = view.selectedReserve !== null ? reserve[view.selectedReserve] : null;
-  const cannotRecruit = recruitProblem(state);
-
-  app.innerHTML = `
-    <div class="hero"><h1>🛏️ Auberge</h1><p>Repos, recrutement et gestion de l'équipe</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    ${locked ? `<div class="card notice">${esc(locked)}</div>` : ''}
-    <div class="card">
-      <button id="rest" ${tip("Soigne entièrement les PV et les ressources de toute l'équipe, gratuitement.")}>🛏️ Se reposer (gratuit)</button>
-    </div>
-
-    <div class="card">
-      <h2>Équipe</h2>
-      <p class="hint">${picking ? `Choisis le membre de l'équipe qui laisse sa place à <b>${esc(picking.name)}</b>.` : "Survole un héros pour voir l'équipement qu'il porte."}</p>
-      <div class="roster">${state.party.map((h, i) => heroTile(h, { partyIndex: i, picking: !!picking })).join('')}</div>
-    </div>
-
-    <div class="card">
-      <h2>À l'auberge (${reserve.length}/${INN.maxReserve})</h2>
-      <p class="hint">Les compagnons au repos gardent leur équipement et leurs talents mais ne gagnent pas d'XP. Clique sur l'un d'eux pour le faire entrer dans l'équipe ou le renvoyer.</p>
-      <div class="roster">${reserve.length ? reserve.map((h, i) => heroTile(h, { reserveIndex: i, selected: i === view.selectedReserve })).join('') : '<p class="hint">Personne pour le moment.</p>'}</div>
-      ${picking && !locked ? dismissPanel(picking) : ''}
-    </div>
-
-    <div class="card">
-      <h2>Recruter un compagnon</h2>
-      <p class="hint">Un nouveau compagnon arrive au niveau 1 avec l'équipement de départ de sa classe. Il prend la place d'un membre de l'équipe, qui part se reposer à l'auberge.</p>
-      <div class="class-picker">
-        ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" ${tip(CLASSES[k].desc)}>${CLASSES[k].icon} ${CLASSES[k].name}</button>`).join('')}
-      </div>
-      <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
-      ${cannotRecruit && !locked ? `<p class="hint">${esc(cannotRecruit)}</p>` : ''}
-      <div class="actions">
-        ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
-      </div>
-    </div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
-
-  const readName = () => { view.recruitName = app.querySelector('#recruitName').value; };
-  app.querySelector('#rest').onclick = () => {
-    view.flash = restAtInn(state).message;
-    goTo('inn');
-  };
-  app.querySelectorAll('[data-recruit-class]').forEach((btn) => {
-    btn.onclick = () => {
-      readName();
-      if (view.recruitName === CLASSES[view.recruitClass].name) view.recruitName = '';
-      view.recruitClass = btn.dataset.recruitClass;
-      goTo('inn');
-    };
-  });
-  app.querySelectorAll('[data-recruit-replace]').forEach((btn) => {
-    btn.onclick = () => {
-      readName();
-      const leaving = state.party[Number(btn.dataset.recruitReplace)];
-      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace));
-      if (hero) {
-        view.flash = `${hero.name} (${getClass(hero).name}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
-        view.recruitName = '';
-      }
-      goTo('inn');
-    };
-  });
-  app.querySelectorAll('[data-reserve]').forEach((btn) => {
-    btn.onclick = () => {
-      const i = Number(btn.dataset.reserve);
-      view.selectedReserve = view.selectedReserve === i ? null : i;
-      view.confirmDismiss = false;
-      goTo('inn');
-    };
-  });
-  app.querySelectorAll('[data-party]').forEach((btn) => {
-    btn.onclick = () => {
-      if (view.selectedReserve === null) return;
-      const joining = reserve[view.selectedReserve];
-      const leaving = state.party[Number(btn.dataset.party)];
-      if (swapWithReserve(state, Number(btn.dataset.party), view.selectedReserve)) {
-        view.flash = `${joining.name} rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
-      }
-      view.selectedReserve = null;
-      goTo('inn');
-    };
-  });
-  app.querySelector('#dismiss')?.addEventListener('click', () => {
-    if (!view.confirmDismiss) {
-      view.confirmDismiss = true;
-    } else {
-      const r = dismiss(state, view.selectedReserve);
-      if (r) {
-        const parts = [`${r.hero.name} quitte l'auberge pour de bon.`];
-        if (r.returned.length) parts.push(`${r.returned.length} objet${r.returned.length > 1 ? 's' : ''} rendu${r.returned.length > 1 ? 's' : ''} au sac.`);
-        if (r.destroyed.length) parts.push(`${r.destroyed.length} objet${r.destroyed.length > 1 ? 's' : ''} commun${r.destroyed.length > 1 ? 's' : ''} perdu${r.destroyed.length > 1 ? 's' : ''}.`);
-        view.flash = parts.join(' ');
-      }
-      Object.assign(view, { selectedReserve: null, confirmDismiss: false });
-    }
-    goTo('inn');
-  });
-  app.querySelector('#backHub').onclick = () => goBack();
-}
-
-// Renvoi du compagnon sélectionné : ce que devient son équipement, puis confirmation.
-function dismissPanel(hero) {
-  const { destroyed, returned } = dismissOutcome(hero);
-  return `
-    <div class="forge-section">
-      <h3>Renvoyer ${esc(hero.name)} ?</h3>
-      <p class="hint">Le compagnon quitte définitivement l'auberge, avec ses niveaux et ses talents.</p>
-      ${returned.length ? `<p>Rendu au sac : ${returned.map(itemChip).join(' ')}</p>` : ''}
-      ${destroyed.length ? `<p>Perdu (objets communs) : ${destroyed.map(itemChip).join(' ')}</p>` : ''}
-      <button id="dismiss" class="${view.confirmDismiss ? 'danger' : ''}">${view.confirmDismiss ? `Confirmer : renvoyer ${esc(hero.name)}` : `🚪 Renvoyer ${esc(hero.name)}`}</button>
-    </div>`;
-}
-
-// Vignette d'un héros ; l'infobulle montre son équipement.
-function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = false }) {
-  const cls = getClass(hero);
-  const attr = partyIndex !== undefined ? `data-party="${partyIndex}"` : `data-reserve="${reserveIndex}"`;
-  const clickable = reserveIndex !== undefined || picking;
-  return `
-    <button ${attr} ${tip(equipmentTooltip(hero), `hero-tile ${selected ? 'selected' : ''} ${clickable ? 'clickable' : ''}`)} style="--c:${cls.color}" ${clickable && !rosterLockedReason(state) ? '' : 'disabled'}>
-      <span class="icon">${cls.icon}</span>
-      <b>${esc(hero.name)}</b>
-      <small>${cls.name} · niv. ${hero.level} · PV ${hero.hp}/${getStats(hero).pv}</small>
-    </button>`;
-}
-
-return { openInn, renderInn };
-})();
-
-// ---- src/ui/screens/hub.js
-__modules["src/ui/screens/hub.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
-const { isUnlocked, progressOf, startFloors, startExpedition } = __modules["src/game/dungeon.js"];
-const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
-const { esc, tip, bar } = __modules["src/ui/html.js"];
+const { visibleFrom, stepToward, idx, isFloor } = __modules["src/game/floorMap.js"];
+const { stepParty, takeLadder, canExplore } = __modules["src/game/dungeon.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
-const { itemChip } = __modules["src/ui/items.js"];
-const { lastCombatLog } = __modules["src/ui/combatLog.js"];
-const { DIFFICULTIES } = __modules["src/config.js"];
-const { difficultyOf } = __modules["src/game/difficulty.js"];
-const { bestiaryProgress } = __modules["src/game/bestiary.js"];
-const { openEquipment } = __modules["src/ui/screens/equipment.js"];
-const { openForge } = __modules["src/ui/screens/forge.js"];
-const { openRunes } = __modules["src/ui/screens/runes.js"];
-const { openTalents } = __modules["src/ui/screens/talents.js"];
-const { openMerchant } = __modules["src/ui/screens/merchant.js"];
-const { openInn } = __modules["src/ui/screens/inn.js"];
-const { pointsAvailable } = __modules["src/game/talents.js"];
-// Village : équipe, portails vers les donjons et services.
+// Carte de l'étage (écran d'expédition) : dessin sur canvas, déplacement au clavier
+// (flèches, ZQSD, WASD), à la souris ou au doigt (clic sur une case : le groupe y
+// marche pas à pas), croix directionnelle pour le tactile.
+// Graphismes provisoires (couleurs et emoji) en attendant les sprites.
 
 
 
@@ -7384,277 +8006,204 @@ const { pointsAvailable } = __modules["src/game/talents.js"];
 
 
 
+const TILE = 22;
+const WALK_MS = 110;       // délai entre deux pas d'une marche automatique
+const ENCOUNTER_MS = 350;  // le monstre touché reste visible un instant avant le combat
 
+// Couleurs par zone : { wall, floor }.
+const PALETTES = {
+  foretMaudite: { wall: '#16230f', floor: '#3c5a2e', edge: '#24381b' },
+  catacombes: { wall: '#17151c', floor: '#4a4553', edge: '#2a2631' },
+  cavernesArdentes: { wall: '#220f0a', floor: '#5c3322', edge: '#3a1c12' },
+  picsGeles: { wall: '#1a2430', floor: '#8ea6b8', edge: '#4d6272' },
+  abimeInfernal: { wall: '#170609', floor: '#4a1c26', edge: '#2c0d14' },
+};
 
+// Marche automatique en cours (clic sur une case) : { target, timer }.
+let walk = null;
+let busy = false; // combat en cours de déclenchement
 
+function stopWalk() {
+  if (walk) clearTimeout(walk.timer);
+  walk = null;
+}
 
-
-
-
-
-
-
-
-
-function renderHub(app) {
-  const message = state.hubMessage;
-  const loot = state.hubLoot;
-  state.hubMessage = null;
-  state.hubLoot = [];
-
-  app.innerHTML = `
-    <div class="hero"><h1>Village d'Anyem</h1><p>Or : ${state.gold} · Plus haut niveau atteint : ${state.dungeonLvl} · Difficulté : ${DIFFICULTIES[difficultyOf(state)].icon} ${DIFFICULTIES[difficultyOf(state)].name}</p></div>
-    ${message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
-    ${message ? lastCombatLog(state.lastCombat) : ''}
-    ${noSkillNotice()}
-    <div class="party-strip">${state.party.map(heroMini).join('')}</div>
-    <div class="card">
-      <h2>Portails</h2>
-      <p class="hint">Chaque zone compte 3 sous-zones de ${FLOORS_PER_SUBZONE} étages ; un boss garde le dernier étage de chaque sous-zone. On ne peut rentrer qu'après avoir vaincu un boss ; mourir coûte de l'or et une partie du sac. Chaque boss vaincu ouvre la sous-zone suivante comme point de départ.</p>
-      <div class="portals">${DUNGEON_ORDER.map(portal).join('')}</div>
-    </div>
-    <div class="card section">
-      <h2>Services</h2>
-      <div class="services">
-        <button id="inn" ${tip("Repos gratuit, recrutement de nouveaux compagnons et gestion de l'équipe.")}>🛏️ Auberge${state.reserve?.length ? ` (${state.reserve.length} au repos)` : ''}</button>
-        <button id="bank" ${tip("Mets à l'abri ton or, tes objets, tes consommables et tes matéria.")}>🏦 Banque</button>
-        <button id="merchant" ${tip('Revends ton butin, achète potions, élixirs et équipement.')}>🛒 Marchand</button>
-        <button id="forge" ${tip("Décrafte le butin en matéria, améliore ton équipement jusqu'à +5 et fabrique de nouveaux objets.")}>🔨 Forge</button>
-        <button id="runesBtn" ${tip("Relance une stat secondaire d'un objet contre de l'or.")}>🔮 Runomancien</button>
-        <button id="talentsBtn" ${tip('Répartis les points de talent de tes héros dans leurs arbres de compétences.')}>📖 Maître des compétences${talentPoints() ? ` <span class="badge">${talentPoints()}</span>` : ''}</button>
-        <button id="equipBtn" ${tip("Équipe tes héros avec le butin rapporté des donjons et compare les objets.")}>🎒 Équipement (${state.bag.length} dans le sac)</button>
-        <button id="statsBtn" ${tip('Consulte les statistiques détaillées de ton équipe.')}>📜 Statistiques</button>
-        <button id="difficultyBtn" ${tip('Choisis la difficulté : monstres plus puissants, mais meilleur butin.')}>⚖️ Difficulté : ${DIFFICULTIES[difficultyOf(state)].name}</button>
-        <button id="bestiaryBtn" ${tip('Les créatures rencontrées : stats, capacités, nombre de victoires.')}>📚 Bestiaire (${bestiaryProgress(state).found}/${bestiaryProgress(state).total})</button>
-        <button id="strategyBtn" ${tip('Place tes héros au corps à corps ou à distance.')}>🧭 Stratégie</button>
+function mapCard() {
+  const exp = state.expedition;
+  const map = exp.map;
+  const onLadder = !!map.ladder && map.party.x === map.ladder.x && map.party.y === map.ladder.y;
+  const hasBoss = map.mobs.some((m) => m.boss);
+  return `
+    <div class="card map-card">
+      <canvas id="floorMap" width="${map.w * TILE}" height="${map.h * TILE}"></canvas>
+      <div class="map-controls">
+        <div class="dpad">
+          <button data-step="0,-1" aria-label="Haut">▲</button>
+          <button data-step="-1,0" aria-label="Gauche">◀</button>
+          <button data-step="1,0" aria-label="Droite">▶</button>
+          <button data-step="0,1" aria-label="Bas">▼</button>
+        </div>
+        <div class="map-help">
+          <p class="hint">Déplacement : flèches ou ZQSD, clic sur une case, ou la croix. Chaque pas, les monstres bougent aussi : s'ils vous voient (<b>!</b>), ils vous poursuivent. Toucher un groupe lance le combat.</p>
+          <p class="hint">${hasBoss ? '☠️ Le boss garde la salle la plus éloignée : le vaincre termine la sous-zone.' : '🪜 Trouvez l\'échelle pour descendre. Éviter les monstres est possible, mais sans XP ni butin.'} ❔ = événement.</p>
+          ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>🪜 Descendre à l'étage suivant</button>` : ''}
+        </div>
       </div>
-    </div>
-  `;
+    </div>`;
+}
 
-  app.querySelectorAll('[data-dungeon]').forEach((btn) => {
+function bindMap(app) {
+  const canvas = app.querySelector('#floorMap');
+  if (!canvas) return;
+  drawMap(canvas);
+  app.querySelectorAll('[data-step]').forEach((btn) => {
     btn.onclick = () => {
-      if (startExpedition(state, btn.dataset.dungeon, Number(btn.dataset.floor))) startFloor();
+      stopWalk();
+      const [dx, dy] = btn.dataset.step.split(',').map(Number);
+      step(dx, dy);
     };
   });
-  app.querySelector('#inn').onclick = () => openInn();
-  app.querySelector('#bank').onclick = () => goTo('bank');
-  app.querySelector('#merchant').onclick = () => openMerchant();
-  app.querySelector('#forge').onclick = () => openForge();
-  app.querySelector('#runesBtn').onclick = () => openRunes();
-  app.querySelector('#equipBtn').onclick = () => openEquipment();
-  app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
-  app.querySelector('#statsBtn').onclick = () => goTo('stats');
-  app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
-  app.querySelector('#difficultyBtn').onclick = () => goTo('difficulty');
-  app.querySelector('#bestiaryBtn').onclick = () => goTo('bestiary');
-}
-
-// Rappel : un héros sans sort doit dépenser son premier point de talent.
-function noSkillNotice() {
-  const names = state.party.filter((h) => !getSkills(h).length).map((h) => h.name);
-  if (!names.length) return '';
-  return `<div class="card notice">📖 ${esc(names.join(', '))} ${names.length > 1 ? "n'ont" : "n'a"} encore aucun sort : va au <b>Maître des compétences</b> choisir leur orientation et apprendre leur sort de départ (premier point de talent).</div>`;
-}
-
-function heroMini(hero) {
-  const cls = getClass(hero);
-  const { pv } = getStats(hero);
-  return `
-    <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
-      <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b></div>
-      <small>Niv. ${hero.level}${pointsAvailable(hero) ? ` · <span class="badge">${pointsAvailable(hero)} pt</span>` : ''}</small><br>
-      <small>${hero.alive ? `PV ${hero.hp}/${pv}` : 'Tombé au combat'}</small>
-      ${bar(hero.hp, pv, cls.color)}
-      <small class="xp-label">XP ${hero.xp}/${xpToNext(hero.level)}</small>
-      ${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}
-    </div>`;
-}
-
-function portal(key) {
-  const d = DUNGEONS[key];
-  if (!isUnlocked(state, key)) {
-    return `<div class="card portal locked"><h3>🔒 Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}</h3><p>Niveaux ${d.minLevel} à ${d.maxLevel}. Terminez la zone précédente pour l'ouvrir.</p></div>`;
-  }
-  const progress = progressOf(state, key);
-  const starts = startFloors(state, key);
-  return `
-    <div class="card portal">
-      <h3>${d.icon} Zone ${DUNGEON_ORDER.indexOf(key) + 1} · ${d.name}${progress.cleared ? ' <b>✓</b>' : ''}</h3>
-      <p>${d.desc}</p>
-      <p>Niveaux ${d.minLevel} à ${d.maxLevel}</p>
-      <div class="subzones">
-        ${d.subzones.map((sub, i) => {
-          const first = i * FLOORS_PER_SUBZONE + 1;
-          const beaten = progress.checkpoint >= first + FLOORS_PER_SUBZONE - 1;
-          const open = starts.includes(first);
-          return `
-            <div class="subzone ${open ? '' : 'locked'}">
-              <span>${i + 1}. ${esc(sub.name)} <small>niv. ${sub.minLevel}-${sub.maxLevel}${beaten ? ' · ✓ boss vaincu' : ''}</small></span>
-              ${open ? `<button data-dungeon="${key}" data-floor="${first}">Entrer</button>` : '<small>🔒</small>'}
-            </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-}
-
-function talentPoints() {
-  return state.party.reduce((sum, h) => sum + pointsAvailable(h), 0);
-}
-
-return { renderHub };
-})();
-
-// ---- src/ui/screens/stats.js
-__modules["src/ui/screens/stats.js"] = (() => {
-const { state } = __modules["src/state.js"];
-const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
-const { equippedItems } = __modules["src/game/equipment.js"];
-const { esc } = __modules["src/ui/html.js"];
-const { skillEffectLabel } = __modules["src/ui/format.js"];
-const { itemChip } = __modules["src/ui/items.js"];
-const { statsList } = __modules["src/ui/heroStats.js"];
-const { goBack, backLabel } = __modules["src/ui/router.js"];
-const { openEquipment } = __modules["src/ui/screens/equipment.js"];
-const { openTalents } = __modules["src/ui/screens/talents.js"];
-const { xpToNext } = __modules["src/game/party.js"];
-const { pointsAvailable } = __modules["src/game/talents.js"];
-const { bar } = __modules["src/ui/html.js"];
-// Feuilles de personnage.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function renderStats(app) {
-  app.innerHTML = `
-    <div class="hero"><h1>Feuilles de personnage</h1><p>Statistiques actuelles de votre équipe</p></div>
-    <div class="slots">${state.party.map(sheet).join('')}</div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
-  app.querySelectorAll('[data-talent-hero]').forEach((btn) => {
-    btn.onclick = () => openTalents(Number(btn.dataset.talentHero));
+  canvas.onclick = (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor(((ev.clientX - rect.left) / rect.width) * state.expedition.map.w);
+    const y = Math.floor(((ev.clientY - rect.top) / rect.height) * state.expedition.map.h);
+    startWalk({ x, y });
+  };
+  app.querySelector('#ladderBtn')?.addEventListener('click', () => {
+    stopWalk();
+    if (takeLadder(state)) goTo('dungeon');
   });
-  app.querySelectorAll('[data-equip-hero]').forEach((btn) => {
-    btn.onclick = () => openEquipment(Number(btn.dataset.equipHero));
+}
+
+// Un pas ; retourne vrai si la marche peut continuer.
+function step(dx, dy) {
+  if (busy || state.screen !== 'dungeon' || !canExplore(state)) return false;
+  const r = stepParty(state, dx, dy);
+  const canvas = document.querySelector('#floorMap');
+  if (r.encounter) {
+    stopWalk();
+    busy = true;
+    if (canvas) drawMap(canvas, r.encounter);
+    setTimeout(() => {
+      busy = false;
+      startFloor();
+    }, ENCOUNTER_MS);
+    return false;
+  }
+  if (r.event || r.ladder) {
+    stopWalk();
+    goTo('dungeon'); // panneau d'événement / bouton de l'échelle
+    return false;
+  }
+  if (canvas) drawMap(canvas);
+  return r.moved;
+}
+
+function startWalk(target) {
+  stopWalk();
+  const map = state.expedition?.map;
+  if (!map || !isFloor(map, target.x, target.y) || !map.seen[idx(map, target.x, target.y)]) return;
+  walk = { target, timer: null };
+  const tick = () => {
+    if (!walk) return;
+    const m = state.expedition?.map;
+    if (!m || (m.party.x === target.x && m.party.y === target.y)) return stopWalk();
+    const chasedBefore = m.mobs.filter((mob) => mob.chasing).length;
+    const next = stepToward(m, m.party, target, (x, y) => !m.seen[idx(m, x, y)]);
+    if (!next || !step(next.x - m.party.x, next.y - m.party.y)) return stopWalk();
+    // Un monstre vient de repérer le groupe : la marche s'arrête pour laisser réagir.
+    if (state.expedition?.map.mobs.filter((mob) => mob.chasing).length > chasedBefore) return stopWalk();
+    walk.timer = setTimeout(tick, WALK_MS);
+  };
+  tick();
+}
+
+// Clavier : flèches, ZQSD (AZERTY) et WASD (QWERTY), sur l'écran d'expédition.
+const KEYS = {
+  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+  z: [0, -1], s: [0, 1], q: [-1, 0], d: [1, 0], w: [0, -1], a: [-1, 0],
+};
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (ev) => {
+    if (state.screen !== 'dungeon' || !state.expedition?.map || ev.target.closest?.('input, textarea, select')) return;
+    const dir = KEYS[ev.key] ?? KEYS[ev.key.toLowerCase()];
+    if (!dir) return;
+    ev.preventDefault();
+    stopWalk();
+    step(...dir);
   });
-  app.querySelector('#backHub').onclick = () => goBack();
 }
 
-function sheet(hero, index) {
-  const cls = getClass(hero);
-  const stats = getStats(hero);
-  const items = equippedItems(hero);
-  return `
-    <div class="card slot" style="--c:${cls.color}">
-      <div class="icon">${cls.icon}</div>
-      <div class="cname">${esc(hero.name)}</div>
-      <div class="role">${cls.name} niveau ${hero.level} · Stat principale : ${STATS[cls.mainStat].label} ★</div>
-      <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
-      <div class="stats sheet">${statsList(hero)}</div>
-      <div class="skillbox">
-        ${getSkills(hero).map((s) => `
-          <div class="skill-line">
-            <b>${s.name}</b>${s.boosted ? ' <span class="boosted">★ renforcée</span>' : ''} — ${s.cost} ${cls.resource.name}<br>
-            ${skillEffectLabel(stats, s)}
-          </div>`).join('')}
-      </div>
-      <div class="skillbox equipped-list">
-        ${items.length ? items.map(itemChip).join('') : '<span class="hint">Aucun équipement</span>'}
-      </div>
-      <button class="full" data-equip-hero="${index}">🎒 Gérer l'équipement</button>
-      <button class="full" data-talent-hero="${index}">📖 Talents${pointsAvailable(hero) ? ` <span class="badge">${pointsAvailable(hero)}</span>` : ''}</button>
-    </div>`;
-}
-
-return { renderStats };
-})();
-
-// ---- src/game/field.js
-__modules["src/game/field.js"] = (() => {
-const { getSkills } = __modules["src/game/party.js"];
-const { statsOf, heal } = __modules["src/game/units.js"];
-const { healAmount } = __modules["src/game/formulas.js"];
-const { statusesOf } = __modules["src/game/statuses.js"];
-// Soins hors combat (entre deux combats d'une expédition) : les héros peuvent
-// lancer leurs compétences de soin et de purification. Les autres effets (buffs,
-// boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
-// se sur-préparer avant une rencontre.
-
-
-
-
-
-
-// Compétence utilisable hors combat : un soin direct ou une purification.
-function isFieldSkill(skill) {
-  return skill.kind === 'heal' || !!skill.cleanse;
-}
-
-// Compétences du héros utilisables hors combat : [{ skill, index }] (index dans getSkills).
-function fieldSkills(hero) {
-  return getSkills(hero).map((skill, index) => ({ skill, index })).filter(({ skill }) => isFieldSkill(skill));
-}
-
-// Cibles possibles d'une compétence hors combat (héros en vie) : indices dans l'équipe.
-function fieldTargets(game, casterIndex, skill) {
-  if (skill.target === 'self') return [casterIndex];
-  if (skill.target === 'ally' || skill.target === 'allAllies') {
-    return game.party.map((h, i) => (h.alive ? i : -1)).filter((i) => i >= 0);
-  }
-  return [];
-}
-
-// Raison pour laquelle la compétence ne peut pas être lancée maintenant, ou null.
-function cannotCastReason(game, casterIndex, skill) {
-  const caster = game.party[casterIndex];
-  if (!game.expedition) return 'Uniquement pendant une expédition.';
-  if (!caster?.alive) return 'Ce héros est tombé.';
-  if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
-  if (caster.res < skill.cost) return 'Pas assez de ressource.';
-  return null;
-}
-
-/**
- * Lance la compétence `skillIndex` du héros `casterIndex` hors combat, sur le héros
- * `targetIndex` (ignoré pour une compétence de groupe). Retourne { ok, message }.
- */
-function castOutOfCombat(game, casterIndex, skillIndex, targetIndex) {
-  const caster = game.party[casterIndex];
-  const skill = caster && getSkills(caster)[skillIndex];
-  if (!skill || cannotCastReason(game, casterIndex, skill)) return { ok: false, message: '' };
-  const group = skill.target === 'allAllies';
-  if (!group && !fieldTargets(game, casterIndex, skill).includes(skill.target === 'self' ? casterIndex : targetIndex)) {
-    return { ok: false, message: '' };
-  }
-  const targets = group ? game.party.filter((h) => h.alive) : [game.party[skill.target === 'self' ? casterIndex : targetIndex]];
-  caster.res -= skill.cost;
-  const stats = statsOf(caster);
-  const parts = targets.map((t) => {
-    const bits = [];
-    if (skill.kind === 'heal') bits.push(`+${heal(t, healAmount(stats, skill.power, skill.physHeal))} PV`);
-    if (skill.cleanse) {
-      const removed = statusesOf(t).filter((s) => s.kind === 'debuff');
-      t.statuses = statusesOf(t).filter((s) => s.kind !== 'debuff');
-      bits.push(removed.length ? `${removed.map((s) => s.name).join(', ')} retiré${removed.length > 1 ? 's' : ''}` : 'aucun effet négatif');
+function drawMap(canvas, highlight = null) {
+  const exp = state.expedition;
+  const map = exp.map;
+  const pal = PALETTES[exp.dungeonKey] ?? PALETTES.foretMaudite;
+  const ctx = canvas.getContext('2d');
+  const visible = visibleFrom(map, map.party);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      const i = idx(map, x, y);
+      if (!map.seen[i]) continue;
+      const floor = map.tiles[i] === 1;
+      // Mur au bord du sol : teinte intermédiaire, pour dessiner les contours des salles.
+      const edge = !floor && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isFloor(map, x + dx, y + dy));
+      ctx.fillStyle = floor ? pal.floor : edge ? pal.edge : pal.wall;
+      ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      if (floor) {
+        ctx.strokeStyle = 'rgba(0,0,0,.12)';
+        ctx.strokeRect(x * TILE + 0.5, y * TILE + 0.5, TILE - 1, TILE - 1);
+      }
+      if (!visible.has(i)) {
+        ctx.fillStyle = 'rgba(0,0,0,.55)';
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
     }
-    return `${t.name} : ${bits.join(', ')}`;
-  });
-  return { ok: true, message: `${caster.name} lance ${skill.name} (${parts.join(' ; ')}).` };
+  }
+  const glyph = (x, y, text, bg, ring = null) => {
+    const cx = x * TILE + TILE / 2;
+    const cy = y * TILE + TILE / 2;
+    if (bg) {
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(cx, cy, TILE / 2 - 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (ring) {
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, TILE / 2 - 1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    ctx.font = `${TILE - 7}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, cy + 1);
+  };
+  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, '🪜', 'rgba(240,190,90,.35)');
+  for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '❔', 'rgba(150,110,220,.55)');
+  for (const mob of map.mobs) {
+    if (!visible.has(idx(map, mob.x, mob.y)) && mob !== highlight) continue;
+    glyph(mob.x, mob.y, ENEMIES[mob.enemies[0]].icon, mob.boss ? 'rgba(120,20,20,.8)' : 'rgba(90,20,20,.6)', mob === highlight ? '#fff' : mob.boss ? '#f0c060' : null);
+    if (mob.enemies.length > 1) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(`${mob.enemies.length}`, mob.x * TILE + TILE - 4, mob.y * TILE + TILE - 5);
+    }
+    if (mob.chasing) {
+      ctx.fillStyle = '#ffd24a';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('!', mob.x * TILE + TILE / 2, mob.y * TILE - 2);
+    }
+  }
+  const leader = state.party.find((h) => h.alive) ?? state.party[0];
+  glyph(map.party.x, map.party.y, getClass(leader).icon, 'rgba(240,200,110,.9)', '#fff');
 }
 
-return { isFieldSkill, fieldSkills, fieldTargets, cannotCastReason, castOutOfCombat };
+return { mapCard, bindMap };
 })();
 
 // ---- src/ui/screens/dungeon.js
@@ -7667,7 +8216,7 @@ const { fieldSkills, castOutOfCombat, cannotCastReason } = __modules["src/game/f
 const { healAmount } = __modules["src/game/formulas.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
-const { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition, canFightNextFloor } = __modules["src/game/dungeon.js"];
+const { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } = __modules["src/game/consumables.js"];
 const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
@@ -7678,13 +8227,15 @@ const { esc, tip, bar } = __modules["src/ui/html.js"];
 const { itemChip, itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
 const { consumableEstimate } = __modules["src/ui/format.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
-const { startFloor, lastFloor } = __modules["src/ui/encounter.js"];
+const { lastFloor } = __modules["src/ui/encounter.js"];
+const { mapCard, bindMap } = __modules["src/ui/mapView.js"];
 const { victorySummary, lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
-// Expédition : entre deux étages d'un donjon. On y voit la progression et l'état
-// de l'équipe, et on choisit de descendre à l'étage suivant ou (après un boss)
-// de rentrer au village.
+// Expédition : exploration de la carte de l'étage (ui/mapView.js), état de l'équipe,
+// objets et sorts hors combat, événements, et après un boss le choix entre rentrer
+// au village et continuer.
+
 
 
 
@@ -7724,13 +8275,13 @@ function renderDungeon(app) {
   Object.assign(lastFloor, { message: null, loot: [], summary: null });
   view.flash = null;
   view.flashLoot = [];
-  const nextIsBoss = isBossFloor(exp.dungeonKey, exp.floor);
 
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE}${nextIsBoss ? ' · boss' : ` · combat ${exp.fight}/${exp.fights}`} · niveau ${floorLevel(exp.dungeonKey, exp.floor)}</p></div>
+    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''} de monstres</p></div>
     ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
     ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
     ${lastCombatLog(state.lastCombat)}
+    ${exp.event || exp.bossChoice ? '' : mapCard()}
     <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
@@ -7754,9 +8305,6 @@ function renderDungeon(app) {
           </div>
         </div>` : `
       <div class="actions">
-        <button id="nextFloor" class="btn-primary ${nextIsBoss ? 'boss-btn' : ''}" ${canFightNextFloor(state) ? '' : 'disabled'}>
-          ${nextIsBoss ? '☠️ Affronter le boss' : exp.fight > 1 ? `⚔️ Combat suivant (${exp.fight}/${exp.fights})` : `⚔️ Étage ${floorInSubzone(exp.floor)} (${exp.fights} combats)`}
-        </button>
         <button id="leave" ${exp.canLeave ? '' : 'disabled'}
           ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
           🏠 Rentrer au village
@@ -7827,10 +8375,7 @@ function renderDungeon(app) {
   app.querySelectorAll('[data-spell-target]').forEach((btn) => {
     btn.onclick = () => castSpell(view.pendingSpell, Number(btn.dataset.spellTarget));
   });
-  app.querySelector('#nextFloor')?.addEventListener('click', () => {
-    view.pendingItem = null;
-    startFloor();
-  });
+  bindMap(app);
   app.querySelector('#continue')?.addEventListener('click', () => {
     if (continueExpedition(state)) view.flash = `L'équipe reprend son souffle (+${DUNGEON.continueRegenPct} % de PV et de ressource) et s'enfonce dans ${d.name}.`;
     goTo('dungeon');
@@ -7908,7 +8453,7 @@ function useItem(key, targetIndex) {
   goTo('dungeon');
 }
 
-// Objets utilisables entre deux étages (soins, plume, tente, corde).
+// Objets utilisables pendant l'exploration (soins, plume, tente, corde).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
   if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
@@ -8003,7 +8548,7 @@ function eventPanel(event) {
       <p>${esc(def.text)}</p>
       ${body}
       <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
-      <p class="hint">Il faut régler cet événement avant de descendre à l'étage suivant.</p>
+      <p class="hint">Il faut régler cet événement avant de reprendre l'exploration.</p>
     </div>`;
 }
 

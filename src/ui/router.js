@@ -21,7 +21,7 @@ export function goTo(screen) {
   render();
 }
 
-// Écran de base : le village, ou l'expédition en cours (entre deux étages).
+// Écran de base : le village, ou l'expédition en cours (exploration de l'étage).
 export function goBack() {
   goTo(state.expedition ? 'dungeon' : 'hub');
 }

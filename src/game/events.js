@@ -1,8 +1,9 @@
 // Événements d'expédition (données : data/events.js).
 //
-// Après un combat gagné hors boss, EVENT_RULES.chance qu'un événement survienne :
+// Les événements sont posés sur la carte de l'étage (DUNGEON.mapEventChances) et se
+// déclenchent quand le groupe marche dessus (stepParty, game/dungeon.js) :
 // game.expedition.event = { key, level, stock?, consumables? }. Tant qu'il n'est
-// pas réglé (un choix, ou « passer son chemin »), l'étage suivant attend.
+// pas réglé (un choix, ou « passer son chemin »), le groupe ne peut plus bouger.
 
 import { EVENT_RULES, LOOT, MERCHANT } from '../config.js';
 import { EVENTS } from '../data/events.js';
@@ -33,11 +34,6 @@ export function rollEvent(level) {
 }
 
 // Après une victoire : peut-être un événement.
-export function maybeTriggerEvent(game, level) {
-  if (!game.expedition || random() >= EVENT_RULES.chance) return null;
-  game.expedition.event = rollEvent(level);
-  return game.expedition.event;
-}
 
 export function currentEvent(game) {
   return game.expedition?.event ?? null;
