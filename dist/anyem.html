@@ -330,10 +330,21 @@ const ITEM = {
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
 
+// Butin : pour chaque ennemi vaincu, trois tirages indépendants — équipement,
+// matéria et consommable. Un ennemi peut donc tout laisser, rien, ou un mélange.
 const LOOT = {
-  dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
-  bossDrops: 1,           // objets garantis par boss (le boss final en donne un de plus)
+  dropChance: 0.4,        // chance d'un équipement par ennemi ordinaire
+  bossDrops: 1,           // équipements garantis par boss (le boss final en donne un de plus)
   bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
+  // Matéria : plus fréquentes et moins rares que l'équipement (comparer à rarityWeights).
+  materiaChance: 0.5,
+  materiaAmount: { min: 1, max: 2 },
+  materiaRarityWeights: { commun: 40, peuCommun: 32, rare: 18, epique: 8, legendaire: 2 },
+  bossMateriaAmount: { min: 2, max: 4 }, // garanties pour un boss
+  bossMateriaRarityWeights: { peuCommun: 30, rare: 40, epique: 23, legendaire: 7 },
+  // Consommables : tirés selon leur poids `drop` (data/consumables.js).
+  consumableChance: 0.2,
+  bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
@@ -862,6 +873,7 @@ __modules["src/data/consumables.js"] = (() => {
 //            (entre deux étages d'un donjon)
 // target   : 'ally' (allié en vie), 'deadAlly' (allié tombé), 'party' (toute
 //            l'équipe, sans ciblage) ou 'none' (effet global, sans ciblage)
+// drop     : poids de tirage quand un ennemi laisse un consommable (0 ou absent : jamais)
 // effect :
 //   healPct         soigne ce % des PV max de la cible
 //   resourcePct     rend ce % de la ressource max (Rage, Énergie, Mana)
@@ -874,72 +886,72 @@ __modules["src/data/consumables.js"] = (() => {
 const CONSUMABLES = {
   // ---- Soins ----
   potion: {
-    name: 'Potion de soin', icon: '🧪', price: 20, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Potion de soin', icon: '🧪', price: 20, drop: 30, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 30 }, desc: 'Rend 30 % des PV max à un allié.',
   },
   grandePotion: {
-    name: 'Grande potion de soin', icon: '⚗️', price: 50, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Grande potion de soin', icon: '⚗️', price: 50, drop: 8, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { healPct: 60 }, desc: 'Rend 60 % des PV max à un allié.',
   },
   elixir: {
-    name: 'Élixir', icon: '💧', price: 35, category: 'soin', use: ['combat', 'map'], target: 'ally',
+    name: 'Élixir', icon: '💧', price: 35, drop: 12, category: 'soin', use: ['combat', 'map'], target: 'ally',
     effect: { resourcePct: 50 }, desc: 'Rend 50 % de sa ressource (Rage, Énergie ou Mana) à un allié.',
   },
   plumeDePhenix: {
-    name: 'Plume de phénix', icon: '🪶', price: 100, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
+    name: 'Plume de phénix', icon: '🪶', price: 100, drop: 3, category: 'soin', use: ['combat', 'map'], target: 'deadAlly',
     effect: { revivePct: 30 }, desc: 'Relève un allié tombé avec 30 % de ses PV.',
   },
 
   // ---- Remèdes : un remède bon marché par effet négatif, et le Remède universel.
   // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
   antidote: {
-    name: 'Antidote', icon: '🧴', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Antidote', icon: '🧴', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['poison', 'peste'] }, desc: 'Guérit le poison.',
   },
   bandage: {
-    name: 'Bandage', icon: '🩹', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Bandage', icon: '🩹', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['saignement'] }, desc: 'Arrête un saignement.',
   },
   onguent: {
-    name: 'Onguent', icon: '🫙', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Onguent', icon: '🫙', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['brulure'] }, desc: 'Soigne une brûlure.',
   },
   selsRevigorants: {
-    name: 'Sels revigorants', icon: '🧂', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Sels revigorants', icon: '🧂', price: 15, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['etourdi'] }, desc: "Réveille un allié étourdi (il pourra jouer à son prochain tour).",
   },
   tisaneDeClarte: {
-    name: 'Tisane de clarté', icon: '🍵', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tisane de clarté', icon: '🍵', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['confus'] }, desc: "Dissipe la confusion d'un allié.",
   },
   tonique: {
-    name: 'Tonique', icon: '🥤', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Tonique', icon: '🥤', price: 12, drop: 4, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['ralenti'] }, desc: 'Annule un ralentissement.',
   },
   fortifiant: {
-    name: 'Fortifiant', icon: '🍖', price: 12, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Fortifiant', icon: '🍖', price: 12, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement.',
   },
   potionDeCourage: {
-    name: 'Potion de courage', icon: '🦁', price: 15, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Potion de courage', icon: '🦁', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['terreur'] }, desc: 'Chasse la terreur.',
   },
   eauBenite: {
-    name: 'Eau bénite', icon: '⛲', price: 18, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cure: ['maudit', 'douleur', 'fleau'] }, desc: 'Lève une malédiction et purifie les ténèbres.',
   },
   remede: {
-    name: 'Remède universel', icon: '🌿', price: 60, category: 'remede', use: ['combat'], target: 'ally',
+    name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
     effect: { cleanse: true }, desc: "Retire tous les effets négatifs d'un allié, quels qu'ils soient.",
   },
 
   // ---- Utilitaires ----
   corde: {
-    name: "Corde d'évasion", icon: '🪢', price: 150, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
+    name: "Corde d'évasion", icon: '🪢', price: 150, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
     effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
   },
   tente: {
-    name: 'Tente', icon: '⛺', price: 100, category: 'utilitaire', use: ['map'], target: 'party',
+    name: 'Tente', icon: '⛺', price: 100, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
     effect: { restorePartyPct: 100 }, desc: "Entre deux étages : restaure entièrement les PV et la ressource de toute l'équipe (sauf les héros tombés).",
   },
 };
@@ -2331,27 +2343,55 @@ return { ENEMIES };
 // ---- src/game/loot.js
 __modules["src/game/loot.js"] = (() => {
 const { LOOT } = __modules["src/config.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { MATERIA_KINDS } = __modules["src/data/items.js"];
 const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { random } = __modules["src/game/rng.js"];
-// Butin de fin de combat.
+const { random, pick } = __modules["src/game/rng.js"];
+// Butin de fin de combat. Pour chaque ennemi vaincu, trois tirages indépendants :
+// équipement, matéria et consommable (voir LOOT dans config.js).
 
 
 
 
+
+
+
+const between = ({ min, max }) => min + Math.floor(random() * (max - min + 1));
+
+const CONSUMABLE_DROP_WEIGHTS = Object.fromEntries(
+  Object.entries(CONSUMABLES).filter(([, c]) => c.drop > 0).map(([k, c]) => [k, c.drop]));
+
+function addMateria(list, kind, rarity, amount) {
+  const same = list.find((m) => m.kind === kind && m.rarity === rarity);
+  if (same) same.amount += amount;
+  else list.push({ kind, rarity, amount });
+}
 
 /**
- * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level` :
- * chaque ennemi ordinaire a une chance de laisser un objet ; chaque boss laisse
- * des objets garantis, plus rares (un de plus pour le boss final, `final`).
+ * Butin d'une victoire contre `enemies` (unités de combat) au niveau `level`.
+ * - Équipement : chance par ennemi ordinaire ; garanti et plus rare pour un boss
+ *   (un de plus pour le boss final, `final`).
+ * - Matéria : chance par ennemi (garanties et plus rares pour un boss), type
+ *   d'arme ou d'armure au hasard, raretés moins rares que l'équipement.
+ * - Consommable : chance par ennemi (plus forte pour un boss), tiré selon son poids.
+ * Retourne { items: [objets], materia: [{ kind, rarity, amount }], consumables: [clés] }.
  */
 function rollLoot(level, enemies, { final = false } = {}) {
-  const loot = [];
+  const loot = { items: [], materia: [], consumables: [] };
+  const kinds = Object.keys(MATERIA_KINDS);
   for (const enemy of enemies) {
     if (enemy.boss) {
       const drops = LOOT.bossDrops + (final ? 1 : 0);
-      for (let i = 0; i < drops; i++) loot.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
-    } else if (random() < LOOT.dropChance) {
-      loot.push(generateItem({ level }));
+      for (let i = 0; i < drops; i++) loot.items.push(generateItem({ level, rarity: weightedPick(LOOT.bossRarityWeights) }));
+      addMateria(loot.materia, pick(kinds), weightedPick(LOOT.bossMateriaRarityWeights), between(LOOT.bossMateriaAmount));
+    } else {
+      if (random() < LOOT.dropChance) loot.items.push(generateItem({ level }));
+      if (random() < LOOT.materiaChance) {
+        addMateria(loot.materia, pick(kinds), weightedPick(LOOT.materiaRarityWeights), between(LOOT.materiaAmount));
+      }
+    }
+    if (random() < (enemy.boss ? LOOT.bossConsumableChance : LOOT.consumableChance)) {
+      loot.consumables.push(weightedPick(CONSUMABLE_DROP_WEIGHTS));
     }
   }
   return loot;
@@ -2366,10 +2406,18 @@ const { REWARDS, LOOT, XP } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
+const { emptyMateria } = __modules["src/game/forge.js"];
+const { addConsumable } = __modules["src/game/consumables.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
 const { random } = __modules["src/game/rng.js"];
 // Conséquences d'un combat et services du village sur l'état global du jeu.
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
+
+
+
+
 
 
 
@@ -2389,25 +2437,42 @@ function goldReward(level, enemies) {
   return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
 }
 
+// « 2 × Matéria d'arme rare, 1 × Matéria d'armure commun »
+function materiaText(materia) {
+  return materia.map((m) => `${m.amount} × ${MATERIA_KINDS[m.kind].label} ${RARITIES[m.rarity].label.toLowerCase()}`).join(', ');
+}
+
 /**
- * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin,
+ * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
+ * (équipement dans le sac, matéria, consommables — voir loot.js),
  * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
  * restent tels qu'à la fin du combat.
- * Retourne { message, loot, gold, xp, levelUps }.
+ * Un consommable trouvé alors qu'on en porte déjà le maximum est perdu.
+ * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps }.
  */
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const loot = rollLoot(level, enemies, { final });
+  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
+  game.materia ??= emptyMateria();
+  for (const m of materia) game.materia[m.kind][m.rarity] += m.amount;
+  game.consumables ??= {};
+  const consumables = found.filter((key) => addConsumable(game.consumables, key));
+  const full = found.length - consumables.length;
   game.dungeonLvl = Math.max(game.dungeonLvl, level);
-  const lootText = loot.length ? ` Butin : ${loot.length} objet${loot.length > 1 ? 's' : ''}, rangé${loot.length > 1 ? 's' : ''} dans le sac.` : '';
+  const parts = [];
+  if (loot.length) parts.push(`${loot.length} équipement${loot.length > 1 ? 's' : ''} (dans le sac)`);
+  if (materia.length) parts.push(materiaText(materia));
+  if (consumables.length) parts.push(consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', '));
+  if (full) parts.push(`${full} consommable${full > 1 ? 's' : ''} laissé${full > 1 ? 's' : ''} faute de place`);
+  const lootText = parts.length ? ` Butin : ${parts.join(' · ')}.` : ' Aucun butin.';
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, gold, xp, levelUps };
+  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
 }
 
 // Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
@@ -2450,7 +2515,7 @@ const { pick } = __modules["src/game/rng.js"];
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
-//   gains    : cumul de l'expédition { gold, xp, items }
+//   gains    : cumul de l'expédition { gold, xp, items, materia }
 
 
 
@@ -2507,7 +2572,7 @@ function startFloors(game, key) {
 
 function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0 } };
+  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
   return true;
 }
 
@@ -2536,6 +2601,7 @@ function winFloor(game, combat) {
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
+  exp.gains.materia = (exp.gains.materia ?? 0) + result.materia.reduce((sum, m) => sum + m.amount, 0);
   const progress = progressOf(game, key);
   let cleared = false;
   let unlocked = null;
@@ -4478,7 +4544,7 @@ function renderDungeon(app) {
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
       <div class="expedition-info">
-        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
+        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
       ${itemPanel()}
       ${exp.bossChoice ? `
@@ -4530,9 +4596,9 @@ function renderDungeon(app) {
   });
   app.querySelector('#leave').onclick = () => {
     const d2 = DUNGEONS[exp.dungeonKey];
-    const { gold, xp, items } = exp.gains;
+    const { gold, xp, items, materia } = exp.gains;
     if (leaveExpedition(state)) {
-      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} objet${items > 1 ? 's' : ''}.`);
+      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   };
   app.querySelector('#equip').onclick = () => openEquipment();

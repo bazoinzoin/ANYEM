@@ -8,7 +8,7 @@
 //   canLeave   : vrai au départ et juste après un boss (sinon : impossible de fuir)
 //   bossChoice : vrai juste après un boss : il faut choisir entre rentrer au village
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
-//   gains    : cumul de l'expédition { gold, xp, items }
+//   gains    : cumul de l'expédition { gold, xp, items, materia }
 
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
@@ -65,7 +65,7 @@ export function startFloors(game, key) {
 
 export function startExpedition(game, key, floor = 1) {
   if (!isUnlocked(game, key) || !startFloors(game, key).includes(floor)) return false;
-  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0 } };
+  game.expedition = { dungeonKey: key, floor, canLeave: true, bossChoice: false, gains: { gold: 0, xp: 0, items: 0, materia: 0 } };
   return true;
 }
 
@@ -94,6 +94,7 @@ export function winFloor(game, combat) {
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
+  exp.gains.materia = (exp.gains.materia ?? 0) + result.materia.reduce((sum, m) => sum + m.amount, 0);
   const progress = progressOf(game, key);
   let cleared = false;
   let unlocked = null;

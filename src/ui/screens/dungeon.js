@@ -36,7 +36,7 @@ export function renderDungeon(app) {
     <div class="party-strip">${state.party.map(heroMini).join('')}</div>
     <div class="card section expedition">
       <div class="expedition-info">
-        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> objet${exp.gains.items > 1 ? 's' : ''}</div>
+        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
       </div>
       ${itemPanel()}
       ${exp.bossChoice ? `
@@ -88,9 +88,9 @@ export function renderDungeon(app) {
   });
   app.querySelector('#leave').onclick = () => {
     const d2 = DUNGEONS[exp.dungeonKey];
-    const { gold, xp, items } = exp.gains;
+    const { gold, xp, items, materia } = exp.gains;
     if (leaveExpedition(state)) {
-      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} objet${items > 1 ? 's' : ''}.`);
+      showHub(`Retour de ${d2.name} (dernier boss vaincu : étage ${progressOf(state, exp.dungeonKey).checkpoint}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   };
   app.querySelector('#equip').onclick = () => openEquipment();

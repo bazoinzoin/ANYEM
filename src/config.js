@@ -34,10 +34,21 @@ export const ITEM = {
   primaryPerBudget: 0.5,  // stat principale = budget × primaryPerBudget × poids
 };
 
+// Butin : pour chaque ennemi vaincu, trois tirages indépendants — équipement,
+// matéria et consommable. Un ennemi peut donc tout laisser, rien, ou un mélange.
 export const LOOT = {
-  dropChance: 0.4,        // chance par ennemi vaincu de laisser un objet
-  bossDrops: 1,           // objets garantis par boss (le boss final en donne un de plus)
+  dropChance: 0.4,        // chance d'un équipement par ennemi ordinaire
+  bossDrops: 1,           // équipements garantis par boss (le boss final en donne un de plus)
   bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
+  // Matéria : plus fréquentes et moins rares que l'équipement (comparer à rarityWeights).
+  materiaChance: 0.5,
+  materiaAmount: { min: 1, max: 2 },
+  materiaRarityWeights: { commun: 40, peuCommun: 32, rare: 18, epique: 8, legendaire: 2 },
+  bossMateriaAmount: { min: 2, max: 4 }, // garanties pour un boss
+  bossMateriaRarityWeights: { peuCommun: 30, rare: 40, epique: 23, legendaire: 7 },
+  // Consommables : tirés selon leur poids `drop` (data/consumables.js).
+  consumableChance: 0.2,
+  bossConsumableChance: 0.6,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 50, weapon: 30, jewel: 15, shield: 5 },
   defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)

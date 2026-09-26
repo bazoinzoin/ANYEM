@@ -98,7 +98,11 @@ Réglages chiffrés dans `src/config.js` (`COMBAT`, `ITEM`, `LOOT`), contenus da
 - **Puissance magique** = 2 × Intelligence. Utilisée par les sorts (compétences `magic: true` : Boule de Feu, Éclair, Éclat de Lumière) et par tous les soins ; réduite par la Défense magique de la cible. Elle ne compte jamais pour une attaque à l'arme : un Mage qui tape au bâton fait peu de dégâts.
 - Les éléments (feu, glace, foudre, lumière…) viendront plus tard sur les sorts.
 - Coefficients dans `src/config.js` (`COMBAT.physStatFactor`, `COMBAT.magicPerInt`) ; stat physique par classe dans `src/data/classes.js` (`physStat`).
-- **Butin** : 40 % de chance par ennemi vaincu (commun 50 %, peu commun 30 %, rare 14 %, épique 5 %, légendaire 1 %). En cas de défaite, chaque objet du sac a 50 % de chance d'être perdu ; l'équipement porté n'est jamais perdu.
+- **Butin** (`src/game/loot.js`, réglages `LOOT`) : pour chaque ennemi vaincu, **trois tirages indépendants** — un ennemi peut tout laisser, rien, ou un mélange :
+  - équipement : 40 % (commun 50 %, peu commun 30 %, rare 14 %, épique 5 %, légendaire 1 %) ; boss : garanti, peu commun à légendaire ;
+  - matéria (arme ou armure au hasard) : 50 %, 1 à 2, **moins rares que l'équipement** (commun 40 %, peu commun 32 %, rare 18 %, épique 8 %, légendaire 2 %) ; boss : 2 à 4 garanties, peu commune à légendaire ;
+  - consommable : 20 % (60 % pour un boss), tiré selon son poids `drop` (potions fréquentes, Plume, Tente et Corde rares). Un consommable trouvé au-delà du maximum transporté est perdu.
+- **Défaite** : chaque objet du sac a 50 % de chance d'être perdu ; l'équipement porté, les matéria et les consommables ne sont jamais perdus.
 - **Départ** : chaque héros commence avec une arme et un plastron communs ; les stats de base ont été ajustées pour garder la même puissance qu'avant l'équipement.
 
 ## Architecture actuelle (à connaître avant de modifier)
