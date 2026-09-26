@@ -9,11 +9,13 @@
 // effect :
 //   healPct         soigne ce % des PV max de la cible
 //   resourcePct     rend ce % de la ressource max (Rage, Énergie, Mana)
-//   cure            retire les effets négatifs de ces clés (voir DEBUFF_KEYS)
+//   cure            retire ces effets négatifs (clés du catalogue data/effects.js)
 //   cleanse         retire tous les effets négatifs
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
 //   escape          quitte le donjon et ramène l'équipe au village, sans perte
+
+import { EFFECTS } from './effects.js';
 
 export const CONSUMABLES = {
   // ---- Soins ----
@@ -38,7 +40,7 @@ export const CONSUMABLES = {
   // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
   antidote: {
     name: 'Antidote', icon: '🧴', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['poison', 'peste'] }, desc: 'Guérit le poison.',
+    effect: { cure: ['poison'] }, desc: 'Guérit le poison.',
   },
   bandage: {
     name: 'Bandage', icon: '🩹', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
@@ -62,7 +64,7 @@ export const CONSUMABLES = {
   },
   fortifiant: {
     name: 'Fortifiant', icon: '🍖', price: 12, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement.',
+    effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement (dont les malédictions).',
   },
   potionDeCourage: {
     name: 'Potion de courage', icon: '🦁', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
@@ -70,7 +72,7 @@ export const CONSUMABLES = {
   },
   eauBenite: {
     name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['maudit', 'douleur', 'fleau'] }, desc: 'Lève une malédiction et purifie les ténèbres.',
+    effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
   remede: {
     name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
@@ -96,9 +98,6 @@ export const CONSUMABLE_CATEGORIES = {
   utilitaire: 'Utilitaires',
 };
 
-// Clés des effets négatifs du jeu (statuts et effets sur la durée), pour vérifier
-// que chacun a un remède dédié (voir tests/consumables.test.js).
-export const DEBUFF_KEYS = [
-  'poison', 'peste', 'saignement', 'brulure', 'douleur', 'fleau',
-  'ralenti', 'etourdi', 'confus', 'affaibli', 'maudit', 'terreur',
-];
+// Effets négatifs du catalogue : chacun doit avoir un remède dédié (vérifié par
+// tests/consumables.test.js).
+export const DEBUFF_KEYS = Object.keys(EFFECTS).filter((k) => EFFECTS[k].kind === 'debuff');

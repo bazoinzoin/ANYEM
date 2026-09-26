@@ -34,10 +34,11 @@ button.tooltip:disabled { cursor: not-allowed; }
   content: attr(data-tip); position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 9px);
   background: #0c0904; border: 1px solid var(--line); color: var(--cream); padding: 9px 11px; border-radius: 5px;
   font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: pre-line; text-align: left;
+  pointer-events: none; /* l'infobulle ne doit jamais masquer les boutons qu'elle recouvre */
 }
 .tooltip:hover::before, .tooltip:focus-visible::before {
   content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%;
-  border: 6px solid transparent; border-top-color: var(--line); z-index: 30;
+  border: 6px solid transparent; border-top-color: var(--line); z-index: 30; pointer-events: none;
 }
 
 button.full { width: 100%; margin-top: 12px; }

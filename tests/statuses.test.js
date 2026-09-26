@@ -88,7 +88,7 @@ test('Gardien : Mur de boucliers protège toute l\'équipe', () => {
 test('Gardien : Rempart ajoute un bouclier en défendant', () => {
   const { cb, hero } = setup(0, PATH.gardien.slice(0, 8));
   heroAct(cb, { type: 'defend' });
-  assert.equal(hero.statuses.find((s) => s.key === 'rempart').shield, Math.round(getStats(hero).pv * 0.15));
+  assert.equal(hero.statuses.find((s) => s.key === 'bouclier').shield, Math.round(getStats(hero).pv * 0.15));
 });
 
 test('Berserker : plus de PV manquants = plus de puissance physique', () => {
@@ -136,10 +136,10 @@ test('Prêcheur : Rénovation soigne à chaque fin de round', () => {
   const [g] = cb.party;
   g.hp = 10;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'renovation'), target: 0 });
-  const hot = g.statuses.find((s) => s.key === 'renovation');
+  const hot = g.statuses.find((s) => s.key === 'regeneration');
   assert.ok(hot.hot > 0);
   tickStatuses(g);
-  assert.equal(g.statuses.find((s) => s.key === 'renovation').turns, 3);
+  assert.equal(g.statuses.find((s) => s.key === 'regeneration').turns, 3);
 });
 
 test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {

@@ -8,6 +8,7 @@ import { createCombat, nextTurn, heroAct, enemyAct, canUseItem, targetsFor } fro
 import { useOnMap, isValidTarget } from '../src/game/consumables.js';
 import { startExpedition } from '../src/game/dungeon.js';
 import { CONSUMABLES, DEBUFF_KEYS } from '../src/data/consumables.js';
+import { EFFECTS } from '../src/data/effects.js';
 import { ENEMIES } from '../src/data/enemies.js';
 import { TALENTS } from '../src/data/talents.js';
 import { CLASSES } from '../src/data/classes.js';
@@ -17,19 +18,33 @@ beforeEach(() => setRandomSource(() => 0.5));
 const poison = { key: 'poison', name: 'Poison', kind: 'debuff', turns: 3, dot: 5 };
 const bleed = { key: 'saignement', name: 'Saignement', kind: 'debuff', turns: 3, dot: 5 };
 
-// Toutes les clés d'effets négatifs présentes dans les données (compétences, talents, ennemis).
-function debuffKeysInData() {
-  const keys = new Set();
-  const visit = (skill) => {
+// Tous les effets appliqués par les compétences (classes, talents, ennemis).
+function effectEntries() {
+  const entries = [];
+  const visit = (skill, where) => {
     if (!skill) return;
-    if (skill.dot) keys.add(skill.dot.key);
-    if (skill.status?.kind === 'debuff') keys.add(skill.status.key);
+    for (const e of [...(skill.effects ?? []), ...(skill.selfEffects ?? []), ...(skill.addEffects ?? [])]) entries.push({ ...e, where });
+    for (const old of ['dot', 'hot', 'shield', 'status', 'selfStatus', 'set']) {
+      assert.equal(skill[old], undefined, `${where} définit encore un effet à la main (${old}) : utiliser le catalogue`);
+    }
   };
-  Object.values(CLASSES).forEach((c) => c.skills.forEach(visit));
-  Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill); visit(n.skillMod?.set); }));
-  Object.values(ENEMIES).forEach((e) => (e.abilities ?? []).forEach((a) => visit(a.skill)));
-  return keys;
+  Object.values(CLASSES).forEach((c) => c.skills.forEach((s) => visit(s, s.name)));
+  Object.values(TALENTS).flat().forEach((b) => b.nodes.forEach((n) => { visit(n.skill, n.id); visit(n.skillMod, n.id); }));
+  Object.values(ENEMIES).forEach((e) => (e.abilities ?? []).forEach((a) => visit(a.skill, `${e.name} : ${a.skill.name}`)));
+  return entries;
 }
+
+function debuffKeysInData() {
+  return new Set(effectEntries().filter((e) => EFFECTS[e.id]?.kind === 'debuff').map((e) => e.id));
+}
+
+test('chaque effet vient du catalogue, et les effets à valeur précisent leur puissance', () => {
+  for (const e of effectEntries()) {
+    assert.ok(EFFECTS[e.id], `${e.where} : effet inconnu « ${e.id} »`);
+    assert.ok(e.turns >= 1, `${e.where} : durée manquante`);
+    if (EFFECTS[e.id].value) assert.ok(e.power > 0, `${e.where} : puissance manquante pour ${e.id}`);
+  }
+});
 
 test('chaque effet négatif du jeu a un remède dédié, et le Remède universel les guérit tous', () => {
   for (const key of debuffKeysInData()) assert.ok(DEBUFF_KEYS.includes(key), `effet négatif non répertorié : ${key}`);

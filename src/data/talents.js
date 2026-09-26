@@ -13,9 +13,9 @@
 //   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
 //   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen
 //   skill    compétence accordée (même format que data/classes.js)
-//   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, set }
+//   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, addEffects }
+// Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
 
-const slow = (turns) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
 
 export const TALENTS = {
   guerrier: [
@@ -28,7 +28,7 @@ export const TALENTS = {
           id: 'provocation', name: 'Provocation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
-            selfStatus: { key: 'provocation', name: 'Provocation', icon: '📣', kind: 'buff', turns: 2, taunt: true, mods: { def: 30 } },
+            selfEffects: [{ id: 'provocation', turns: 2 }],
             desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
           },
         },
@@ -38,7 +38,7 @@ export const TALENTS = {
           id: 'mur-de-boucliers', name: 'Mur de boucliers', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
-            shield: { key: 'mur', name: 'Mur de boucliers', power: 0.9, turns: 2 },
+            effects: [{ id: 'bouclier', turns: 2, power: 0.9 }],
             desc: "Bouclier sur toute l'équipe pendant 2 tours",
           },
         },
@@ -59,7 +59,7 @@ export const TALENTS = {
           id: 'dechainement', name: 'Déchaînement', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'dechainement', name: 'Déchaînement', cost: 60, kind: 'damage', target: 'allEnemies', power: 1.6,
-            selfStatus: { key: 'enrage', name: 'Enragé', icon: '🔥', kind: 'buff', turns: 2, mods: { physPower: 30, def: -20 } },
+            selfEffects: [{ id: 'enrage', turns: 2 }],
             desc: 'Frappe tous les ennemis puis enrage (+30 % puissance physique, −20 % Défense, 2 tours)',
           },
         },
@@ -75,7 +75,7 @@ export const TALENTS = {
         { id: 'precision', name: 'Précision', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
         {
           id: 'taillade', name: 'Taillade', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, status: slow(2), desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
+          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
         },
         { id: 'lames-aiguisees', name: 'Lames aiguisées', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
         { id: 'opportuniste', name: 'Opportuniste', tier: 3, ranks: 1, kind: 'passive', desc: "+25 % de dégâts contre une cible affaiblie (ralentie, empoisonnée…).", passive: { vsDebuffedPct: 25 } },
@@ -94,21 +94,21 @@ export const TALENTS = {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 15, kind: 'damage', target: 'enemy', power: 0.5,
-            dot: { key: 'poison', name: 'Poison', icon: '🧪', power: 0.35, turns: 4 },
+            effects: [{ id: 'poison', turns: 4, power: 0.35 }],
             desc: 'Empoisonne la cible pendant 4 tours',
           },
         },
         { id: 'dexterite', name: 'Dextérité', tier: 2, ranks: 3, kind: 'minor', desc: '+4 Agilité par rang.', flat: { agilite: 4 } },
         {
           id: 'venin-virulent', name: 'Venin virulent', tier: 3, ranks: 1, kind: 'passive',
-          desc: 'Lame empoisonnée : poison +50 % et affaiblit la cible (−15 % puissance physique).',
-          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, set: { status: { key: 'affaibli', name: 'Affaibli', icon: '💧', kind: 'debuff', turns: 4, mods: { physPower: -15 } } } },
+          desc: 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).',
+          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [{ id: 'affaibli', turns: 4 }] },
         },
         {
           id: 'fiole-de-peste', name: 'Fiole de peste', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'fiole-de-peste', name: 'Fiole de peste', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4,
-            dot: { key: 'peste', name: 'Peste', icon: '☠️', power: 0.4, turns: 4 },
+            effects: [{ id: 'poison', turns: 4, power: 0.4 }],
             desc: 'Empoisonne tous les ennemis pendant 4 tours',
           },
         },
@@ -146,7 +146,7 @@ export const TALENTS = {
           id: 'renovation', name: 'Rénovation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
-            hot: { key: 'renovation', name: 'Rénovation', power: 0.35, turns: 4 },
+            effects: [{ id: 'regeneration', turns: 4, power: 0.35 }],
             desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
           },
         },
@@ -155,7 +155,7 @@ export const TALENTS = {
           id: 'bouclier-sacre', name: 'Bouclier sacré', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'bouclier-sacre', name: 'Bouclier sacré', cost: 30, kind: 'support', target: 'ally', magic: true,
-            shield: { key: 'bouclier-sacre', name: 'Bouclier sacré', power: 1.2, turns: 3 },
+            effects: [{ id: 'bouclier', turns: 3, power: 1.2 }],
             desc: 'Protège un allié par un bouclier pendant 3 tours',
           },
         },
@@ -163,8 +163,8 @@ export const TALENTS = {
           id: 'benediction', name: 'Bénédiction', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'benediction', name: 'Bénédiction', cost: 50, kind: 'support', target: 'allAllies',
-            status: { key: 'beni', name: 'Béni', icon: '🌟', kind: 'buff', turns: 3, mods: { physPower: 20, magPower: 20 } },
-            desc: "Toute l'équipe gagne +20 % de puissance physique et magique pendant 3 tours",
+            effects: [{ id: 'puissance', turns: 3 }],
+            desc: "Donne Puissance à toute l'équipe pendant 3 tours",
           },
         },
       ],
@@ -178,7 +178,7 @@ export const TALENTS = {
           id: 'mot-de-douleur', name: 'Mot de douleur', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
-            dot: { key: 'douleur', name: 'Mot de douleur', icon: '🌑', power: 0.4, turns: 4 },
+            effects: [{ id: 'tenebres', turns: 4, power: 0.4 }],
             desc: 'Dégâts de ténèbres sur 4 tours',
           },
         },
@@ -187,7 +187,7 @@ export const TALENTS = {
           id: 'confusion', name: 'Confusion', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'confusion', name: 'Confusion', cost: 30, kind: 'support', target: 'enemy',
-            status: { key: 'confus', name: 'Confus', icon: '💫', kind: 'debuff', turns: 2, confuse: true },
+            effects: [{ id: 'confus', turns: 2 }],
             desc: 'La cible a une chance sur deux de frapper ses alliés pendant 2 tours',
           },
         },
@@ -195,7 +195,7 @@ export const TALENTS = {
           id: 'fleau', name: 'Fléau', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'fleau', name: 'Fléau', cost: 45, kind: 'support', target: 'allEnemies', magic: true,
-            dot: { key: 'fleau', name: 'Fléau', icon: '🌑', power: 0.5, turns: 3 },
+            effects: [{ id: 'tenebres', turns: 3, power: 0.5 }],
             desc: 'Dégâts de ténèbres sur 3 tours à tous les ennemis',
           },
         },
@@ -213,20 +213,20 @@ export const TALENTS = {
           id: 'immolation', name: 'Immolation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
-            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.4, turns: 3 },
+            effects: [{ id: 'brulure', turns: 3, power: 0.4 }],
             desc: 'Enflamme la cible (brûlure sur 3 tours)',
           },
         },
         { id: 'combustion', name: 'Combustion', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % de dégâts de brûlure par rang.', passive: { dotPct: 10 } },
         {
           id: 'boule-ardente', name: 'Boule ardente', tier: 3, ranks: 1, kind: 'passive', desc: 'Boule de Feu enflamme aussi la cible (brûlure sur 3 tours).',
-          skillMod: { skill: 'boule-de-feu', set: { dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 } } },
+          skillMod: { skill: 'boule-de-feu', addEffects: [{ id: 'brulure', turns: 3, power: 0.3 }] },
         },
         {
           id: 'pluie-de-feu', name: 'Pluie de feu', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'pluie-de-feu', name: 'Pluie de feu', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, magic: true,
-            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 },
+            effects: [{ id: 'brulure', turns: 3, power: 0.3 }],
             desc: 'Frappe et enflamme tous les ennemis',
           },
         },
@@ -239,18 +239,18 @@ export const TALENTS = {
         { id: 'givre', name: 'Givre', tier: 0, ranks: 3, kind: 'minor', desc: '+3 Défense et +3 Défense magique par rang.', flat: { def: 3, defMag: 3 } },
         {
           id: 'eclat-de-glace', name: 'Éclat de glace', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true, status: slow(2), desc: 'Dégâts de glace, ralentit la cible 2 tours' },
+          skill: { id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Dégâts de glace, ralentit la cible 2 tours' },
         },
         { id: 'hiver', name: 'Hiver', tier: 2, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
         {
           id: 'nova-de-givre', name: 'Nova de givre', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true, status: slow(2), desc: 'Dégâts de glace et ralentissement sur tous les ennemis' },
+          skill: { id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Dégâts de glace et ralentissement sur tous les ennemis' },
         },
         {
           id: 'prison-de-glace', name: 'Prison de glace', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'prison-de-glace', name: 'Prison de glace', cost: 45, kind: 'damage', target: 'enemy', power: 1.0, magic: true,
-            status: { key: 'etourdi', name: 'Étourdi', icon: '🧊', kind: 'debuff', turns: 1, stun: true },
+            effects: [{ id: 'etourdi', turns: 1 }],
             desc: 'Dégâts de glace, la cible perd son prochain tour',
           },
         },
@@ -270,8 +270,8 @@ export const TALENTS = {
           id: 'surcharge', name: 'Surcharge', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'surcharge', name: 'Surcharge', cost: 25, kind: 'support', target: 'ally',
-            status: { key: 'surcharge', name: 'Surchargé', icon: '⚡', kind: 'buff', turns: 3, mods: { physPower: 25, magPower: 25 } },
-            desc: 'Un allié gagne +25 % de puissance physique et magique pendant 3 tours',
+            effects: [{ id: 'puissance', turns: 3 }],
+            desc: 'Donne Puissance à un allié pendant 3 tours',
           },
         },
         {

@@ -30,11 +30,10 @@
 //   target 'allAllies' | 'self' | 'deadAlly'
 //   hits      nombre de coups (multi-frappe)
 //   critBonus % de chance de critique en plus pour cette compétence
-//   dot       { key, name, icon?, power, turns } dégâts par round = puissance × power
-//   hot       { key, name, power, turns }        soin par round = puissance magique × power
-//   shield    { key, name, power, turns }        bouclier = puissance × power
-//   status    statut appliqué à chaque cible (voir game/statuses.js)
-//   selfStatus statut appliqué au lanceur
+//   effects     effets du catalogue data/effects.js appliqués à chaque cible :
+//               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
+//               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
+//   selfEffects effets appliqués au lanceur (même format)
 
 export const CLASSES = {
   guerrier: {
@@ -82,7 +81,7 @@ export const CLASSES = {
     ],
     skills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, dot: { key: 'saignement', name: 'Saignement', power: 0.35, turns: 3 }, desc: 'Saignement sur 3 tours' },
+      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Saignement sur 3 tours' },
     ],
   },
   pretre: {

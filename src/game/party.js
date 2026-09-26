@@ -7,6 +7,7 @@
 
 import { CLASSES } from '../data/classes.js';
 import { SLOT_ORDER } from '../data/items.js';
+import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
 import { generateItem, itemStats } from './items.js';
@@ -57,21 +58,22 @@ export function getStats(hero) {
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
  *   powerPct       +% de puissance      costDelta     ± coût
- *   dotTurnsDelta  ± tours de l'effet sur la durée
- *   dotPowerPct    +% de dégâts de l'effet sur la durée
- *   set            champs remplacés ou ajoutés (ex. ajouter une brûlure)
+ *   dotTurnsDelta  ± tours des effets de dégâts sur la durée (poison, saignement…)
+ *   dotPowerPct    +% de dégâts de ces effets
+ *   addEffects     effets supplémentaires appliqués aux cibles (ex. une brûlure)
  */
 function applySkillMod(skill, mod) {
-  const s = { ...skill, ...(mod.set ?? {}), boosted: true };
+  const s = { ...skill, boosted: true };
   if (mod.powerPct) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
   if (mod.costDelta) s.cost = Math.max(0, s.cost + mod.costDelta);
-  if (s.dot && (mod.dotTurnsDelta || mod.dotPowerPct)) {
-    s.dot = {
-      ...s.dot,
-      turns: s.dot.turns + (mod.dotTurnsDelta ?? 0),
-      power: +(s.dot.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
+  s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
+    if (EFFECTS[e.id].value !== 'dot' || !(mod.dotTurnsDelta || mod.dotPowerPct)) return e;
+    return {
+      ...e,
+      turns: e.turns + (mod.dotTurnsDelta ?? 0),
+      power: +(e.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
     };
-  }
+  });
   return s;
 }
 

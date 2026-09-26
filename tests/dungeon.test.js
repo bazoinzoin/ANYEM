@@ -143,7 +143,7 @@ test('capacités ennemies : les acolytes d\'un boss sont renforcés par son cri'
   const cb = createCombat({ party: createParty(), enemies: ['chefGobelin', 'gobelin'], level: 5 });
   cb.acting = { side: 'enemy', unit: cb.enemies[0] };
   enemyAct(cb);
-  cb.enemies.forEach((e) => assert.ok(e.statuses.some((s) => s.key === 'rallie'), e.name));
+  cb.enemies.forEach((e) => assert.ok(e.statuses.some((s) => s.key === 'puissance'), e.name));
   assert.deepEqual(createEnemies(['loup', 'loup', 'gobelin'], 1).map((e) => e.name), ['Loup 1', 'Loup 2', 'Gobelin']);
 });
 

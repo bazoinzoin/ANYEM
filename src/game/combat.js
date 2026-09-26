@@ -14,11 +14,11 @@ import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
 import { getClass, getSkills, gainResource } from './party.js';
 import {
-  rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount,
+  rollHit, healAmount, skillHitOptions, chance, effectValue,
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { addStatus, hasStatus, consumeStun, tickStatuses } from './statuses.js';
+import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus } from './statuses.js';
 import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { pick, random } from './rng.js';
@@ -197,8 +197,8 @@ export function heroAct(cb, action) {
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, { key: 'rempart', name: 'Rempart', icon: '🛡️', kind: 'buff', turns: 2, shield: amount });
-      log(cb, `${hero.name} lève un rempart (bouclier de ${amount}).`, true);
+      addStatus(hero, makeStatus('bouclier', 2, amount));
+      log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
@@ -297,20 +297,13 @@ function useSkill(cb, caster, skill, targets) {
     }
     if (!target.alive) continue;
 
-    if (skill.dot) {
-      addStatus(target, { key: skill.dot.key, name: skill.dot.name, icon: skill.dot.icon ?? '🩸', kind: 'debuff', turns: skill.dot.turns, dot: dotTick(stats, skill) });
+    for (const entry of skill.effects ?? []) {
+      const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+      addStatus(target, status);
+      if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
-    if (skill.hot) {
-      addStatus(target, { key: skill.hot.key, name: skill.hot.name, icon: '💚', kind: 'buff', turns: skill.hot.turns, hot: hotTick(stats, skill) });
-    }
-    if (skill.shield) {
-      const amount = shieldAmount(stats, skill);
-      addStatus(target, { key: skill.shield.key, name: skill.shield.name, icon: '🛡️', kind: 'buff', turns: skill.shield.turns, shield: amount });
-      parts.push(`${target.name} : bouclier de ${amount}`);
-    }
-    if (skill.status) addStatus(target, skill.status);
   }
-  if (skill.selfStatus) addStatus(caster, skill.selfStatus);
+  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);

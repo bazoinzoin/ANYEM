@@ -1,10 +1,10 @@
 // Libellés partagés entre plusieurs écrans : description et estimation des compétences.
 // Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
 
-import { estimateSkill, dotTick, hotTick, shieldAmount } from '../game/formulas.js';
+import { estimateSkill, effectValue } from '../game/formulas.js';
 import { getStats, getClass } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
-import { STATS } from '../data/stats.js';
+import { EFFECTS } from '../data/effects.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { range } from './html.js';
 
@@ -15,18 +15,15 @@ const TARGET_LABELS = {
   deadAlly: 'un allié tombé',
 };
 
-const POWER_LABELS = { physPower: 'puissance physique', magPower: 'puissance magique' };
-
-function statusLabel(status) {
-  const effects = [];
-  for (const [stat, pct] of Object.entries(status.mods ?? {})) {
-    effects.push(`${pct > 0 ? '+' : ''}${pct} % ${POWER_LABELS[stat] ?? STATS[stat]?.label ?? stat}`);
-  }
-  if (status.stun) effects.push('perd son prochain tour');
-  if (status.taunt) effects.push('attire les attaques');
-  if (status.confuse) effects.push('peut frapper ses alliés');
-  const duration = status.stun ? '' : `, ${status.turns} tour${status.turns > 1 ? 's' : ''}`;
-  return `${status.name} (${effects.join(', ')}${duration})`;
+// « Poison ~6/tour, 4 tours », « Bouclier de 30, 2 tours », « Ralenti (−30 % de Vitesse), 2 tours ».
+function effectLabel(stats, skill, entry) {
+  const def = EFFECTS[entry.id];
+  const value = effectValue(stats, skill, entry);
+  const turns = def.stun ? '' : `, ${entry.turns} tour${entry.turns > 1 ? 's' : ''}`;
+  if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
+  if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
+  if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
+  return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
 }
 
 /**
@@ -47,11 +44,8 @@ export function skillEffectLabel(stats, skill, target = null) {
   } else if (skill.kind === 'revive') {
     parts.push(`Relève avec ${Math.round(skill.power * 100)} % des PV`);
   }
-  if (skill.dot) parts.push(`${skill.dot.name} ~${dotTick(stats, skill)}/tour pendant ${skill.dot.turns} tours`);
-  if (skill.hot) parts.push(`Soin +${hotTick(stats, skill)}/tour pendant ${skill.hot.turns} tours`);
-  if (skill.shield) parts.push(`Bouclier de ${shieldAmount(stats, skill)} (${skill.shield.turns} tours)`);
-  if (skill.status) parts.push(statusLabel(skill.status));
-  if (skill.selfStatus) parts.push(`Lanceur : ${statusLabel(skill.selfStatus)}`);
+  for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
+  for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
   const who = TARGET_LABELS[skill.target];
   return `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
 }
@@ -62,10 +56,14 @@ export function skillShortEstimate(stats, skill, target = null) {
   if (skill.kind === 'damage') return `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)}`;
   if (skill.kind === 'heal') return `+${range(est)} PV`;
   if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
-  if (skill.shield) return `🛡️ ${shieldAmount(stats, skill)}`;
-  if (skill.hot) return `+${hotTick(stats, skill)}/tour`;
-  if (skill.dot) return `~${dotTick(stats, skill)}/tour`;
-  return skill.status?.name ?? skill.selfStatus?.name ?? '';
+  const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
+  if (!main) return '';
+  const def = EFFECTS[main.id];
+  const value = effectValue(stats, skill, main);
+  if (def.value === 'shield') return `🛡️ ${value}`;
+  if (def.value === 'hot') return `+${value}/tour`;
+  if (def.value === 'dot') return `~${value}/tour`;
+  return def.name;
 }
 
 // Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).

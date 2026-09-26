@@ -32,17 +32,21 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Réinitialisation** au Maître des compétences contre 10 × niveau du héros en or.
 - **XP** : chaque ennemi rapporte 10 + 5 × niveau du donjon, à chaque héros (tombés compris). Niveau L → L+1 : 40 + 20 × L XP (environ 2 combats par niveau). Chaque niveau donne des PV et +1 dans la stat principale (`growth` dans `data/classes.js`).
 - **Compétences par orientation** (palier 1 / 3 / 4) :
-  - Gardien : Provocation (les ennemis doivent l'attaquer, +30 % Défense) / Rempart (Défendre donne un bouclier) / Mur de boucliers (bouclier sur toute l'équipe).
+  - Gardien : Provocation (effet Provocation) / Rempart (Défendre donne un Bouclier) / Mur de boucliers (Bouclier sur toute l'équipe).
   - Berserker : Frappe sauvage (+25 % de critique) / Berserk (+3 % de puissance par 10 % de PV manquants) / Déchaînement (zone + Enragé).
   - Assassin : Taillade (ralentit) / Opportuniste (+25 % contre une cible affaiblie) / Déluge de lames (4 coups).
   - Empoisonneur : Lame empoisonnée (poison 4 tours) / Venin virulent (poison +50 % et affaiblit) / Fiole de peste (poison sur tous les ennemis).
   - Clerc : Prière de soins (soin de groupe) / Grâce (Soin Majeur moins cher et plus fort) / Résurrection.
-  - Prêcheur : Rénovation (soin sur la durée) / Bouclier sacré / Bénédiction (+20 % puissance à toute l'équipe).
-  - Profane : Mot de douleur (ténèbres sur la durée) / Confusion (la cible peut frapper ses alliés) / Fléau (ténèbres sur la durée, zone).
+  - Prêcheur : Rénovation (Régénération) / Bouclier sacré (Bouclier) / Bénédiction (Puissance à toute l'équipe).
+  - Profane : Mot de douleur (Ténèbres) / Confusion (Confus) / Fléau (Ténèbres, zone).
   - Feu : Immolation (brûlure) / Boule ardente (Boule de Feu enflamme) / Pluie de feu (zone + brûlure).
   - Glace : Éclat de glace (ralentit) / Nova de givre (zone + ralentit) / Prison de glace (étourdit : la cible perd son tour).
-  - Foudre : Chaîne d'éclairs (zone) / Surcharge (+25 % puissance à un allié) / Tempête (énorme dégât direct).
-- **Statuts** (`src/game/statuses.js`) : durée en rounds, décomptée en fin de round (sauf l'étourdissement, consommé au tour perdu) ; les effets sur la durée ignorent la défense. Un statut de même nom se rafraîchit au lieu de se cumuler.
+  - Foudre : Chaîne d'éclairs (zone) / Surcharge (Puissance à un allié) / Tempête (énorme dégât direct).
+- **Effets (buffs / debuffs)** : un **catalogue unique** (`src/data/effects.js`). Un effet est défini une seule fois ; une compétence (héros ou ennemi) ne fait que l'appliquer via `effects` (à ses cibles) ou `selfEffects` (au lanceur), avec sa durée et, pour les effets à valeur, sa puissance. C'est la compétence qui décide qui est touché (un ennemi, un allié, toute l'équipe…), jamais l'effet.
+  - Buffs : **Bouclier** (absorbe des dégâts), **Régénération** (soin par tour), **Puissance** (+25 % puissance physique et magique), **Hâte** (+25 % Vitesse), **Protection** (+50 % Défense et Défense magique), **Provocation** (attire les attaques, +30 % Défense), **Enragé** (+30 % puissance physique, −20 % Défense).
+  - Debuffs : **Poison**, **Saignement**, **Brûlure**, **Ténèbres** (dégâts par tour), **Ralenti** (−30 % Vitesse), **Étourdi** (perd son prochain tour), **Confus** (1 chance sur 2 de frapper un allié), **Affaibli** (−20 % puissance physique et magique), **Terreur** (−30 % Défense et Défense magique).
+  - Exemples : Rempart (Défendre), Mur de boucliers (toute l'équipe), Bouclier sacré (un allié) et Mur d'os (ennemi) appliquent tous l'effet Bouclier ; Bénédiction, Surcharge et Cri de ralliement appliquent Puissance ; le Hurlement du Loup alpha applique Puissance + Hâte ; la Malédiction applique Affaibli.
+  - Durée en tours, décomptée en fin de tour (sauf l'étourdissement, consommé au tour perdu) ; les dégâts et soins par tour ignorent la défense. Le même effet appliqué deux fois se rafraîchit au lieu de se cumuler ; des effets différents cohabitent (Poison + Saignement).
 - **Ciblage** : les compétences de zone, de groupe ou personnelles demandent maintenant une confirmation qui affiche l'effet et qui sera touché ; la Résurrection propose les alliés tombés (« Relever … »).
 
 ## Donjons (choix d'implémentation)

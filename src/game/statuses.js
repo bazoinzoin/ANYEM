@@ -1,4 +1,6 @@
 // Statuts de combat (effets à durée) portés par une unité : unit.statuses = [statut].
+// Chaque statut est une instance d'un effet du catalogue data/effects.js, créée par
+// makeStatus() (les effets ne sont jamais définis ailleurs).
 //
 // Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
 //   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
@@ -10,6 +12,20 @@
 //   confuse  l'unité peut frapper ses propres alliés
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
 // Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+
+import { EFFECTS } from '../data/effects.js';
+
+// Instance d'un effet du catalogue, pour `turns` tours ; `value` = dégâts/soins par
+// tour ou points de bouclier pour les effets à valeur.
+export function makeStatus(id, turns, value) {
+  const def = EFFECTS[id];
+  if (!def) throw new Error(`Effet inconnu : ${id}`);
+  const status = { key: id, name: def.name, icon: def.icon, kind: def.kind, turns };
+  if (def.mods) status.mods = def.mods;
+  for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
+  if (def.value) status[def.value] = value;
+  return status;
+}
 
 export function statusesOf(unit) {
   if (!unit.statuses) unit.statuses = [];

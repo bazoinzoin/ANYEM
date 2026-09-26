@@ -7,6 +7,7 @@
 // `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
 
 import { COMBAT, VARIANCE } from '../config.js';
+import { EFFECTS } from '../data/effects.js';
 import { rand, random } from './rng.js';
 
 // Options d'un coup : { power, variance, magic, alwaysCrit, critBonus }
@@ -71,20 +72,31 @@ export function healAmount(stats, power) {
   return Math.round(stats.magPower * power * (1 + (stats.healPct ?? 0) / 100));
 }
 
-// Dégâts par round d'un effet sur la durée (poison, saignement, brûlure…) :
-// puissance du lanceur × dot.power, + bonus des talents. Ignore la défense.
-export function dotTick(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.dot.power * (1 + (stats.dotPct ?? 0) / 100)));
+// Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
+// puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
+export function dotTick(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
 }
 
-// Soins par round d'un soin sur la durée.
-export function hotTick(stats, skill) {
-  return Math.max(1, healAmount(stats, skill.hot.power));
+// Soins par tour (Régénération) : puissance magique × power.
+export function hotTick(stats, power) {
+  return Math.max(1, healAmount(stats, power));
 }
 
-// Points de bouclier : puissance du lanceur (magique ou physique) × shield.power.
-export function shieldAmount(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.shield.power));
+// Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
+export function shieldAmount(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power));
+}
+
+// Valeur d'un effet appliqué par `skill` (entrée { id, turns, power }) : dégâts ou
+// soins par tour, points de bouclier ; undefined pour un effet sans valeur.
+export function effectValue(stats, skill, entry) {
+  switch (EFFECTS[entry.id].value) {
+    case 'dot': return dotTick(stats, entry.power, skill.magic);
+    case 'hot': return hotTick(stats, entry.power);
+    case 'shield': return shieldAmount(stats, entry.power, skill.magic);
+    default: return undefined;
+  }
 }
 
 // Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,

@@ -90,10 +90,11 @@ button.tooltip:disabled { cursor: not-allowed; }
   content: attr(data-tip); position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 9px);
   background: #0c0904; border: 1px solid var(--line); color: var(--cream); padding: 9px 11px; border-radius: 5px;
   font-size: 13px; line-height: 1.4; width: 210px; z-index: 30; box-shadow: 0 6px 14px rgba(0,0,0,.55); white-space: pre-line; text-align: left;
+  pointer-events: none; /* l'infobulle ne doit jamais masquer les boutons qu'elle recouvre */
 }
 .tooltip:hover::before, .tooltip:focus-visible::before {
   content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%;
-  border: 6px solid transparent; border-top-color: var(--line); z-index: 30;
+  border: 6px solid transparent; border-top-color: var(--line); z-index: 30; pointer-events: none;
 }
 
 button.full { width: 100%; margin-top: 12px; }
@@ -863,9 +864,60 @@ function upgrade(game, item) {
 return { emptyMateria, materiaKind, decraftYield, decraft, upgradeCost, missingForUpgrade, canUpgrade, upgrade };
 })();
 
+// ---- src/data/effects.js
+__modules["src/data/effects.js"] = (() => {
+
+// Catalogue des effets de combat (buffs et debuffs). Données pures.
+//
+// Un effet est défini UNE seule fois ici. Une compétence (héros ou ennemi) ne fait
+// que l'appliquer, via `effects` (à ses cibles) ou `selfEffects` (au lanceur) :
+//   effects: [{ id: 'poison', turns: 3, power: 0.35 }]
+// C'est la compétence qui décide qui est touché (un ennemi, un allié, toute l'équipe…),
+// jamais l'effet.
+//
+// Champs d'un effet :
+//   kind    'buff' | 'debuff'
+//   mods    { stat: % } modificateurs des stats de combat (physPower, magPower, def, vit…)
+//   value   l'effet a une valeur calculée à l'application, à partir de la puissance du
+//           lanceur × `power` (donné par la compétence) :
+//             'dot'    dégâts à chaque fin de tour (ignorent la défense)
+//             'hot'    soins à chaque fin de tour (puissance magique)
+//             'shield' points de bouclier, absorbés avant les PV
+//   stun    la cible perd ses prochains tours (turns = nombre de tours perdus)
+//   taunt   les ennemis doivent attaquer cette unité
+//   confuse l'unité peut frapper ses propres alliés
+// Le même effet appliqué une seconde fois remplace le premier (durée et valeur rafraîchies).
+
+const EFFECTS = {
+  // ---- Buffs ----
+  bouclier: { name: 'Bouclier', icon: '🛡️', kind: 'buff', value: 'shield', desc: 'Absorbe des dégâts avant les PV.' },
+  regeneration: { name: 'Régénération', icon: '💚', kind: 'buff', value: 'hot', desc: 'Soigne à chaque fin de tour.' },
+  puissance: { name: 'Puissance', icon: '💪', kind: 'buff', mods: { physPower: 25, magPower: 25 }, desc: '+25 % de puissance physique et magique.' },
+  hate: { name: 'Hâte', icon: '💨', kind: 'buff', mods: { vit: 25 }, desc: '+25 % de Vitesse.' },
+  protection: { name: 'Protection', icon: '🔰', kind: 'buff', mods: { def: 50, defMag: 50 }, desc: '+50 % de Défense et de Défense magique.' },
+  provocation: { name: 'Provocation', icon: '📣', kind: 'buff', taunt: true, mods: { def: 30 }, desc: 'Les ennemis doivent attaquer cette unité ; +30 % de Défense.' },
+  enrage: { name: 'Enragé', icon: '🔥', kind: 'buff', mods: { physPower: 30, def: -20 }, desc: '+30 % de puissance physique, mais −20 % de Défense.' },
+
+  // ---- Debuffs ----
+  poison: { name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', desc: 'Dégâts de poison à chaque fin de tour.' },
+  saignement: { name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', desc: 'Dégâts de saignement à chaque fin de tour.' },
+  brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
+  tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
+  ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },
+  etourdi: { name: 'Étourdi', icon: '💫', kind: 'debuff', stun: true, desc: 'Perd son prochain tour.' },
+  confus: { name: 'Confus', icon: '🌀', kind: 'debuff', confuse: true, desc: 'Une chance sur deux de frapper un allié au lieu d\'agir.' },
+  affaibli: { name: 'Affaibli', icon: '💧', kind: 'debuff', mods: { physPower: -20, magPower: -20 }, desc: '−20 % de puissance physique et magique.' },
+  terreur: { name: 'Terreur', icon: '😨', kind: 'debuff', mods: { def: -30, defMag: -30 }, desc: '−30 % de Défense et de Défense magique.' },
+};
+
+const EFFECT_ORDER = Object.keys(EFFECTS);
+
+return { EFFECTS, EFFECT_ORDER };
+})();
+
 // ---- src/data/consumables.js
 __modules["src/data/consumables.js"] = (() => {
-
+const { EFFECTS } = __modules["src/data/effects.js"];
 // Consommables vendus par le Marchand. Données pures (effets : game/consumables.js).
 //
 // category : 'soin' | 'remede' | 'utilitaire' (regroupement à l'affichage)
@@ -877,11 +929,13 @@ __modules["src/data/consumables.js"] = (() => {
 // effect :
 //   healPct         soigne ce % des PV max de la cible
 //   resourcePct     rend ce % de la ressource max (Rage, Énergie, Mana)
-//   cure            retire les effets négatifs de ces clés (voir DEBUFF_KEYS)
+//   cure            retire ces effets négatifs (clés du catalogue data/effects.js)
 //   cleanse         retire tous les effets négatifs
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
 //   escape          quitte le donjon et ramène l'équipe au village, sans perte
+
+
 
 const CONSUMABLES = {
   // ---- Soins ----
@@ -906,7 +960,7 @@ const CONSUMABLES = {
   // En combat seulement : les effets négatifs disparaissent à la fin de chaque combat. ----
   antidote: {
     name: 'Antidote', icon: '🧴', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['poison', 'peste'] }, desc: 'Guérit le poison.',
+    effect: { cure: ['poison'] }, desc: 'Guérit le poison.',
   },
   bandage: {
     name: 'Bandage', icon: '🩹', price: 12, drop: 6, category: 'remede', use: ['combat'], target: 'ally',
@@ -930,7 +984,7 @@ const CONSUMABLES = {
   },
   fortifiant: {
     name: 'Fortifiant', icon: '🍖', price: 12, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement.',
+    effect: { cure: ['affaibli'] }, desc: 'Annule un affaiblissement (dont les malédictions).',
   },
   potionDeCourage: {
     name: 'Potion de courage', icon: '🦁', price: 15, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
@@ -938,7 +992,7 @@ const CONSUMABLES = {
   },
   eauBenite: {
     name: 'Eau bénite', icon: '⛲', price: 18, drop: 3, category: 'remede', use: ['combat'], target: 'ally',
-    effect: { cure: ['maudit', 'douleur', 'fleau'] }, desc: 'Lève une malédiction et purifie les ténèbres.',
+    effect: { cure: ['tenebres'] }, desc: 'Purifie les ténèbres.',
   },
   remede: {
     name: 'Remède universel', icon: '🌿', price: 60, drop: 2, category: 'remede', use: ['combat'], target: 'ally',
@@ -964,12 +1018,9 @@ const CONSUMABLE_CATEGORIES = {
   utilitaire: 'Utilitaires',
 };
 
-// Clés des effets négatifs du jeu (statuts et effets sur la durée), pour vérifier
-// que chacun a un remède dédié (voir tests/consumables.test.js).
-const DEBUFF_KEYS = [
-  'poison', 'peste', 'saignement', 'brulure', 'douleur', 'fleau',
-  'ralenti', 'etourdi', 'confus', 'affaibli', 'maudit', 'terreur',
-];
+// Effets négatifs du catalogue : chacun doit avoir un remède dédié (vérifié par
+// tests/consumables.test.js).
+const DEBUFF_KEYS = Object.keys(EFFECTS).filter((k) => EFFECTS[k].kind === 'debuff');
 
 return { CONSUMABLES, CONSUMABLE_ORDER, CONSUMABLE_CATEGORIES, DEBUFF_KEYS };
 })();
@@ -1009,11 +1060,10 @@ __modules["src/data/classes.js"] = (() => {
 //   target 'allAllies' | 'self' | 'deadAlly'
 //   hits      nombre de coups (multi-frappe)
 //   critBonus % de chance de critique en plus pour cette compétence
-//   dot       { key, name, icon?, power, turns } dégâts par round = puissance × power
-//   hot       { key, name, power, turns }        soin par round = puissance magique × power
-//   shield    { key, name, power, turns }        bouclier = puissance × power
-//   status    statut appliqué à chaque cible (voir game/statuses.js)
-//   selfStatus statut appliqué au lanceur
+//   effects     effets du catalogue data/effects.js appliqués à chaque cible :
+//               [{ id, turns, power? }] (power : pour les effets à valeur — dégâts ou
+//               soins par tour, bouclier — multiplicateur de la puissance du lanceur)
+//   selfEffects effets appliqués au lanceur (même format)
 
 const CLASSES = {
   guerrier: {
@@ -1061,7 +1111,7 @@ const CLASSES = {
     ],
     skills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 20, kind: 'damage', target: 'enemy', power: 1.3, alwaysCrit: true, desc: 'Frappe critique garantie' },
-      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, dot: { key: 'saignement', name: 'Saignement', power: 0.35, turns: 3 }, desc: 'Saignement sur 3 tours' },
+      { id: 'laceration', name: 'Lacération', cost: 15, kind: 'damage', target: 'enemy', power: 0.8, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Saignement sur 3 tours' },
     ],
   },
   pretre: {
@@ -1175,9 +1225,9 @@ __modules["src/data/talents.js"] = (() => {
 //   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
 //   passive  { clé: valeur }   berserk, vsDebuffedPct, guardShieldPct, healPct, dotPct, resRegen
 //   skill    compétence accordée (même format que data/classes.js)
-//   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, set }
+//   skillMod { skill: id, powerPct, costDelta, dotTurnsDelta, dotPowerPct, addEffects }
+// Les buffs/debuffs appliqués par les compétences viennent du catalogue data/effects.js.
 
-const slow = (turns) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
 
 const TALENTS = {
   guerrier: [
@@ -1190,7 +1240,7 @@ const TALENTS = {
           id: 'provocation', name: 'Provocation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
-            selfStatus: { key: 'provocation', name: 'Provocation', icon: '📣', kind: 'buff', turns: 2, taunt: true, mods: { def: 30 } },
+            selfEffects: [{ id: 'provocation', turns: 2 }],
             desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
           },
         },
@@ -1200,7 +1250,7 @@ const TALENTS = {
           id: 'mur-de-boucliers', name: 'Mur de boucliers', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
-            shield: { key: 'mur', name: 'Mur de boucliers', power: 0.9, turns: 2 },
+            effects: [{ id: 'bouclier', turns: 2, power: 0.9 }],
             desc: "Bouclier sur toute l'équipe pendant 2 tours",
           },
         },
@@ -1221,7 +1271,7 @@ const TALENTS = {
           id: 'dechainement', name: 'Déchaînement', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'dechainement', name: 'Déchaînement', cost: 60, kind: 'damage', target: 'allEnemies', power: 1.6,
-            selfStatus: { key: 'enrage', name: 'Enragé', icon: '🔥', kind: 'buff', turns: 2, mods: { physPower: 30, def: -20 } },
+            selfEffects: [{ id: 'enrage', turns: 2 }],
             desc: 'Frappe tous les ennemis puis enrage (+30 % puissance physique, −20 % Défense, 2 tours)',
           },
         },
@@ -1237,7 +1287,7 @@ const TALENTS = {
         { id: 'precision', name: 'Précision', tier: 0, ranks: 3, kind: 'minor', desc: '+3 % Taux critique par rang.', flat: { critChance: 3 } },
         {
           id: 'taillade', name: 'Taillade', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, status: slow(2), desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
+          skill: { id: 'taillade', name: 'Taillade', cost: 15, kind: 'damage', target: 'enemy', power: 0.9, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Ralentit la cible (−30 % Vitesse, 2 tours)' },
         },
         { id: 'lames-aiguisees', name: 'Lames aiguisées', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % Dégâts critiques par rang.', flat: { critDmg: 10 } },
         { id: 'opportuniste', name: 'Opportuniste', tier: 3, ranks: 1, kind: 'passive', desc: "+25 % de dégâts contre une cible affaiblie (ralentie, empoisonnée…).", passive: { vsDebuffedPct: 25 } },
@@ -1256,21 +1306,21 @@ const TALENTS = {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 15, kind: 'damage', target: 'enemy', power: 0.5,
-            dot: { key: 'poison', name: 'Poison', icon: '🧪', power: 0.35, turns: 4 },
+            effects: [{ id: 'poison', turns: 4, power: 0.35 }],
             desc: 'Empoisonne la cible pendant 4 tours',
           },
         },
         { id: 'dexterite', name: 'Dextérité', tier: 2, ranks: 3, kind: 'minor', desc: '+4 Agilité par rang.', flat: { agilite: 4 } },
         {
           id: 'venin-virulent', name: 'Venin virulent', tier: 3, ranks: 1, kind: 'passive',
-          desc: 'Lame empoisonnée : poison +50 % et affaiblit la cible (−15 % puissance physique).',
-          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, set: { status: { key: 'affaibli', name: 'Affaibli', icon: '💧', kind: 'debuff', turns: 4, mods: { physPower: -15 } } } },
+          desc: 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).',
+          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [{ id: 'affaibli', turns: 4 }] },
         },
         {
           id: 'fiole-de-peste', name: 'Fiole de peste', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'fiole-de-peste', name: 'Fiole de peste', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4,
-            dot: { key: 'peste', name: 'Peste', icon: '☠️', power: 0.4, turns: 4 },
+            effects: [{ id: 'poison', turns: 4, power: 0.4 }],
             desc: 'Empoisonne tous les ennemis pendant 4 tours',
           },
         },
@@ -1308,7 +1358,7 @@ const TALENTS = {
           id: 'renovation', name: 'Rénovation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
-            hot: { key: 'renovation', name: 'Rénovation', power: 0.35, turns: 4 },
+            effects: [{ id: 'regeneration', turns: 4, power: 0.35 }],
             desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
           },
         },
@@ -1317,7 +1367,7 @@ const TALENTS = {
           id: 'bouclier-sacre', name: 'Bouclier sacré', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'bouclier-sacre', name: 'Bouclier sacré', cost: 30, kind: 'support', target: 'ally', magic: true,
-            shield: { key: 'bouclier-sacre', name: 'Bouclier sacré', power: 1.2, turns: 3 },
+            effects: [{ id: 'bouclier', turns: 3, power: 1.2 }],
             desc: 'Protège un allié par un bouclier pendant 3 tours',
           },
         },
@@ -1325,8 +1375,8 @@ const TALENTS = {
           id: 'benediction', name: 'Bénédiction', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'benediction', name: 'Bénédiction', cost: 50, kind: 'support', target: 'allAllies',
-            status: { key: 'beni', name: 'Béni', icon: '🌟', kind: 'buff', turns: 3, mods: { physPower: 20, magPower: 20 } },
-            desc: "Toute l'équipe gagne +20 % de puissance physique et magique pendant 3 tours",
+            effects: [{ id: 'puissance', turns: 3 }],
+            desc: "Donne Puissance à toute l'équipe pendant 3 tours",
           },
         },
       ],
@@ -1340,7 +1390,7 @@ const TALENTS = {
           id: 'mot-de-douleur', name: 'Mot de douleur', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
-            dot: { key: 'douleur', name: 'Mot de douleur', icon: '🌑', power: 0.4, turns: 4 },
+            effects: [{ id: 'tenebres', turns: 4, power: 0.4 }],
             desc: 'Dégâts de ténèbres sur 4 tours',
           },
         },
@@ -1349,7 +1399,7 @@ const TALENTS = {
           id: 'confusion', name: 'Confusion', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'confusion', name: 'Confusion', cost: 30, kind: 'support', target: 'enemy',
-            status: { key: 'confus', name: 'Confus', icon: '💫', kind: 'debuff', turns: 2, confuse: true },
+            effects: [{ id: 'confus', turns: 2 }],
             desc: 'La cible a une chance sur deux de frapper ses alliés pendant 2 tours',
           },
         },
@@ -1357,7 +1407,7 @@ const TALENTS = {
           id: 'fleau', name: 'Fléau', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'fleau', name: 'Fléau', cost: 45, kind: 'support', target: 'allEnemies', magic: true,
-            dot: { key: 'fleau', name: 'Fléau', icon: '🌑', power: 0.5, turns: 3 },
+            effects: [{ id: 'tenebres', turns: 3, power: 0.5 }],
             desc: 'Dégâts de ténèbres sur 3 tours à tous les ennemis',
           },
         },
@@ -1375,20 +1425,20 @@ const TALENTS = {
           id: 'immolation', name: 'Immolation', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
-            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.4, turns: 3 },
+            effects: [{ id: 'brulure', turns: 3, power: 0.4 }],
             desc: 'Enflamme la cible (brûlure sur 3 tours)',
           },
         },
         { id: 'combustion', name: 'Combustion', tier: 2, ranks: 3, kind: 'minor', desc: '+10 % de dégâts de brûlure par rang.', passive: { dotPct: 10 } },
         {
           id: 'boule-ardente', name: 'Boule ardente', tier: 3, ranks: 1, kind: 'passive', desc: 'Boule de Feu enflamme aussi la cible (brûlure sur 3 tours).',
-          skillMod: { skill: 'boule-de-feu', set: { dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 } } },
+          skillMod: { skill: 'boule-de-feu', addEffects: [{ id: 'brulure', turns: 3, power: 0.3 }] },
         },
         {
           id: 'pluie-de-feu', name: 'Pluie de feu', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'pluie-de-feu', name: 'Pluie de feu', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, magic: true,
-            dot: { key: 'brulure', name: 'Brûlure', icon: '🔥', power: 0.3, turns: 3 },
+            effects: [{ id: 'brulure', turns: 3, power: 0.3 }],
             desc: 'Frappe et enflamme tous les ennemis',
           },
         },
@@ -1401,18 +1451,18 @@ const TALENTS = {
         { id: 'givre', name: 'Givre', tier: 0, ranks: 3, kind: 'minor', desc: '+3 Défense et +3 Défense magique par rang.', flat: { def: 3, defMag: 3 } },
         {
           id: 'eclat-de-glace', name: 'Éclat de glace', tier: 1, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true, status: slow(2), desc: 'Dégâts de glace, ralentit la cible 2 tours' },
+          skill: { id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Dégâts de glace, ralentit la cible 2 tours' },
         },
         { id: 'hiver', name: 'Hiver', tier: 2, ranks: 3, kind: 'minor', desc: '+5 % Puissance magique par rang.', pct: { magPower: 5 } },
         {
           id: 'nova-de-givre', name: 'Nova de givre', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
-          skill: { id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true, status: slow(2), desc: 'Dégâts de glace et ralentissement sur tous les ennemis' },
+          skill: { id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true, effects: [{ id: 'ralenti', turns: 2 }], desc: 'Dégâts de glace et ralentissement sur tous les ennemis' },
         },
         {
           id: 'prison-de-glace', name: 'Prison de glace', tier: 4, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'prison-de-glace', name: 'Prison de glace', cost: 45, kind: 'damage', target: 'enemy', power: 1.0, magic: true,
-            status: { key: 'etourdi', name: 'Étourdi', icon: '🧊', kind: 'debuff', turns: 1, stun: true },
+            effects: [{ id: 'etourdi', turns: 1 }],
             desc: 'Dégâts de glace, la cible perd son prochain tour',
           },
         },
@@ -1432,8 +1482,8 @@ const TALENTS = {
           id: 'surcharge', name: 'Surcharge', tier: 3, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.',
           skill: {
             id: 'surcharge', name: 'Surcharge', cost: 25, kind: 'support', target: 'ally',
-            status: { key: 'surcharge', name: 'Surchargé', icon: '⚡', kind: 'buff', turns: 3, mods: { physPower: 25, magPower: 25 } },
-            desc: 'Un allié gagne +25 % de puissance physique et magique pendant 3 tours',
+            effects: [{ id: 'puissance', turns: 3 }],
+            desc: 'Donne Puissance à un allié pendant 3 tours',
           },
         },
         {
@@ -1557,6 +1607,7 @@ return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsIn
 __modules["src/game/party.js"] = (() => {
 const { CLASSES } = __modules["src/data/classes.js"];
 const { SLOT_ORDER } = __modules["src/data/items.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
 const { PARTY_ORDER, COMBAT, XP } = __modules["src/config.js"];
 const { generateItem, itemStats } = __modules["src/game/items.js"];
@@ -1567,6 +1618,7 @@ const { talentEffects } = __modules["src/game/talents.js"];
 // équipement, talents). Ses stats sont toujours calculées par getStats() et ses
 // compétences par getSkills() : c'est là que s'appliquent niveau, équipement et
 // talents (les buffs de combat s'ajoutent ensuite dans units.statsOf).
+
 
 
 
@@ -1620,21 +1672,22 @@ function getStats(hero) {
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
  *   powerPct       +% de puissance      costDelta     ± coût
- *   dotTurnsDelta  ± tours de l'effet sur la durée
- *   dotPowerPct    +% de dégâts de l'effet sur la durée
- *   set            champs remplacés ou ajoutés (ex. ajouter une brûlure)
+ *   dotTurnsDelta  ± tours des effets de dégâts sur la durée (poison, saignement…)
+ *   dotPowerPct    +% de dégâts de ces effets
+ *   addEffects     effets supplémentaires appliqués aux cibles (ex. une brûlure)
  */
 function applySkillMod(skill, mod) {
-  const s = { ...skill, ...(mod.set ?? {}), boosted: true };
+  const s = { ...skill, boosted: true };
   if (mod.powerPct) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
   if (mod.costDelta) s.cost = Math.max(0, s.cost + mod.costDelta);
-  if (s.dot && (mod.dotTurnsDelta || mod.dotPowerPct)) {
-    s.dot = {
-      ...s.dot,
-      turns: s.dot.turns + (mod.dotTurnsDelta ?? 0),
-      power: +(s.dot.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
+  s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
+    if (EFFECTS[e.id].value !== 'dot' || !(mod.dotTurnsDelta || mod.dotPowerPct)) return e;
+    return {
+      ...e,
+      turns: e.turns + (mod.dotTurnsDelta ?? 0),
+      power: +(e.power * (1 + (mod.dotPowerPct ?? 0) / 100)).toFixed(3),
     };
-  }
+  });
   return s;
 }
 
@@ -1720,8 +1773,10 @@ return { getClass, getStats, getSkills, xpToNext, gainXp, createHero, createPart
 
 // ---- src/game/statuses.js
 __modules["src/game/statuses.js"] = (() => {
-
+const { EFFECTS } = __modules["src/data/effects.js"];
 // Statuts de combat (effets à durée) portés par une unité : unit.statuses = [statut].
+// Chaque statut est une instance d'un effet du catalogue data/effects.js, créée par
+// makeStatus() (les effets ne sont jamais définis ailleurs).
 //
 // Statut : { key, name, icon, kind: 'buff' | 'debuff', turns, ...effets }
 //   mods     { stat: % }  modifie les stats en combat (ex. { vit: -30 } = ralenti)
@@ -1733,6 +1788,20 @@ __modules["src/game/statuses.js"] = (() => {
 //   confuse  l'unité peut frapper ses propres alliés
 // Un statut de même clé remplace le précédent (durée et valeur rafraîchies).
 // Les durées (sauf étourdissement) baissent d'un à chaque fin de round.
+
+
+
+// Instance d'un effet du catalogue, pour `turns` tours ; `value` = dégâts/soins par
+// tour ou points de bouclier pour les effets à valeur.
+function makeStatus(id, turns, value) {
+  const def = EFFECTS[id];
+  if (!def) throw new Error(`Effet inconnu : ${id}`);
+  const status = { key: id, name: def.name, icon: def.icon, kind: def.kind, turns };
+  if (def.mods) status.mods = def.mods;
+  for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
+  if (def.value) status[def.value] = value;
+  return status;
+}
 
 function statusesOf(unit) {
   if (!unit.statuses) unit.statuses = [];
@@ -1798,7 +1867,7 @@ function clearStatuses(unit) {
   unit.statuses = [];
 }
 
-return { statusesOf, addStatus, hasStatus, isDebuffed, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
+return { makeStatus, statusesOf, addStatus, hasStatus, isDebuffed, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
 })();
 
 // ---- src/game/units.js
@@ -2193,13 +2262,15 @@ __modules["src/data/enemies.js"] = (() => {
 //              l'ordre avec sa chance ; sinon, attaque de base. Le format de `skill`
 //              est celui des compétences des héros (voir data/classes.js), avec les
 //              cibles 'hero' (un héros, provocation respectée), 'allHeroes', 'self'
-//              et 'allAllies' (les ennemis vivants).
+//              et 'allAllies' (les ennemis vivants). Buffs et debuffs : `effects` /
+//              `selfEffects`, effets du catalogue data/effects.js.
 
-const bleed = (power, turns = 3) => ({ key: 'saignement', name: 'Saignement', power, turns });
-const poison = (power, turns = 3) => ({ key: 'poison', name: 'Poison', icon: '🧪', power, turns });
-const slow = (turns = 2) => ({ key: 'ralenti', name: 'Ralenti', icon: '🐌', kind: 'debuff', turns, mods: { vit: -30 } });
-const confus = (turns) => ({ key: 'confus', name: 'Confus', icon: '🌀', kind: 'debuff', turns, confuse: true });
-const stun = { key: 'etourdi', name: 'Étourdi', icon: '💫', kind: 'debuff', turns: 1, stun: true };
+// Raccourcis vers les effets du catalogue (data/effects.js).
+const bleed = (power, turns = 3) => ({ id: 'saignement', turns, power });
+const poison = (power, turns = 3) => ({ id: 'poison', turns, power });
+const slow = (turns = 2) => ({ id: 'ralenti', turns });
+const confus = (turns = 2) => ({ id: 'confus', turns });
+const stun = { id: 'etourdi', turns: 1 };
 
 const ENEMIES = {
   // ---- Forêt Maudite ----
@@ -2212,21 +2283,21 @@ const ENEMIES = {
     name: 'Loup', icon: '🐺',
     pv: { base: 30, perLevel: 6 }, atq: { base: 7, perLevel: 2 },
     def: { base: 1, perLevel: 0.5 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 10, max: 14 },
-    abilities: [{ chance: 0.25, skill: { name: 'Morsure', kind: 'damage', target: 'hero', power: 1, dot: bleed(0.25) } }],
+    abilities: [{ chance: 0.25, skill: { name: 'Morsure', kind: 'damage', target: 'hero', power: 1, effects: [bleed(0.25)] } }],
   },
   araignee: {
     name: 'Araignée géante', icon: '🕷️',
     pv: { base: 35, perLevel: 7 }, atq: { base: 6, perLevel: 1.5 },
     def: { base: 2, perLevel: 1 }, defMag: { base: 1, perLevel: 1 }, vit: { min: 7, max: 10 },
-    abilities: [{ chance: 0.35, skill: { name: 'Crachat venimeux', kind: 'damage', target: 'hero', power: 0.6, dot: poison(0.3) } }],
+    abilities: [{ chance: 0.35, skill: { name: 'Crachat venimeux', kind: 'damage', target: 'hero', power: 0.6, effects: [poison(0.3)] } }],
   },
   chefGobelin: {
     name: 'Chef gobelin', icon: '👺', boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 150, perLevel: 25 }, atq: { base: 12, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 7, max: 9 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Cri de ralliement', kind: 'support', target: 'allAllies', status: { key: 'rallie', name: 'Rallié', icon: '📯', kind: 'buff', turns: 3, mods: { physPower: 30 } } } },
-      { chance: 0.25, skill: { name: 'Coup de massue', kind: 'damage', target: 'hero', power: 1.4, status: stun } },
+      { chance: 0.3, skill: { name: 'Cri de ralliement', kind: 'support', target: 'allAllies', effects: [{ id: 'puissance', turns: 3 }] } },
+      { chance: 0.25, skill: { name: 'Coup de massue', kind: 'damage', target: 'hero', power: 1.4, effects: [stun] } },
     ],
   },
   mereAraignee: {
@@ -2234,8 +2305,8 @@ const ENEMIES = {
     pv: { base: 170, perLevel: 25 }, atq: { base: 11, perLevel: 2 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 8, max: 10 },
     abilities: [
-      { chance: 0.35, skill: { name: 'Pluie de venin', kind: 'damage', target: 'allHeroes', power: 0.5, dot: poison(0.3) } },
-      { chance: 0.25, skill: { name: 'Toile collante', kind: 'support', target: 'allHeroes', status: slow(2) } },
+      { chance: 0.35, skill: { name: 'Pluie de venin', kind: 'damage', target: 'allHeroes', power: 0.5, effects: [poison(0.3)] } },
+      { chance: 0.25, skill: { name: 'Toile collante', kind: 'support', target: 'allHeroes', effects: [slow(2)] } },
     ],
   },
   loupAlpha: {
@@ -2243,8 +2314,8 @@ const ENEMIES = {
     pv: { base: 180, perLevel: 25 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 4, perLevel: 1 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 12, max: 15 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Hurlement', kind: 'support', target: 'allAllies', status: { key: 'meute', name: 'Meute', icon: '🌕', kind: 'buff', turns: 3, mods: { physPower: 25, vit: 20 } } } },
-      { chance: 0.3, skill: { name: 'Déchiquetage', kind: 'damage', target: 'hero', power: 1.4, dot: bleed(0.3) } },
+      { chance: 0.3, skill: { name: 'Hurlement', kind: 'support', target: 'allAllies', effects: [{ id: 'puissance', turns: 3 }, { id: 'hate', turns: 3 }] } },
+      { chance: 0.3, skill: { name: 'Déchiquetage', kind: 'damage', target: 'hero', power: 1.4, effects: [bleed(0.3)] } },
     ],
   },
   sylvainCorrompu: {
@@ -2252,7 +2323,7 @@ const ENEMIES = {
     pv: { base: 240, perLevel: 30 }, atq: { base: 12, perLevel: 2 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 2, perLevel: 1 }, vit: { min: 5, max: 7 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Étreinte des racines', kind: 'damage', target: 'hero', power: 0.8, status: stun } },
+      { chance: 0.3, skill: { name: 'Étreinte des racines', kind: 'damage', target: 'hero', power: 0.8, effects: [stun] } },
       { chance: 0.25, skill: { name: 'Sève régénératrice', kind: 'heal', target: 'self', power: 1.5 } },
     ],
   },
@@ -2261,10 +2332,10 @@ const ENEMIES = {
     pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
-      { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, dot: bleed(0.2) } },
-      { chance: 0.15, skill: { name: 'Pollen hallucinogène', kind: 'support', target: 'hero', status: confus(2) } },
-      { chance: 0.2, skill: { name: 'Malédiction', kind: 'support', target: 'allHeroes', status: { key: 'maudit', name: 'Maudit', icon: '🪦', kind: 'debuff', turns: 3, mods: { physPower: -20, magPower: -20 } } } },
-      { chance: 0.2, skill: { name: 'Régénération', kind: 'support', target: 'self', hot: { key: 'regeneration', name: 'Régénération', power: 0.8, turns: 3 } } },
+      { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [bleed(0.2)] } },
+      { chance: 0.15, skill: { name: 'Pollen hallucinogène', kind: 'support', target: 'hero', effects: [confus(2)] } },
+      { chance: 0.2, skill: { name: 'Malédiction', kind: 'support', target: 'allHeroes', effects: [{ id: 'affaibli', turns: 3 }] } },
+      { chance: 0.2, skill: { name: 'Régénération', kind: 'support', target: 'self', effects: [{ id: 'regeneration', turns: 3, power: 0.8 }] } },
     ],
   },
 
@@ -2279,20 +2350,20 @@ const ENEMIES = {
     name: 'Zombie', icon: '🧟',
     pv: { base: 60, perLevel: 9 }, atq: { base: 8, perLevel: 2 },
     def: { base: 2, perLevel: 1 }, defMag: { base: 1, perLevel: 1 }, vit: { min: 3, max: 6 },
-    abilities: [{ chance: 0.3, skill: { name: 'Morsure putride', kind: 'damage', target: 'hero', power: 0.7, dot: poison(0.35) } }],
+    abilities: [{ chance: 0.3, skill: { name: 'Morsure putride', kind: 'damage', target: 'hero', power: 0.7, effects: [poison(0.35)] } }],
   },
   spectre: {
     name: 'Spectre', icon: '👻', magic: true,
     pv: { base: 30, perLevel: 6 }, atq: { base: 10, perLevel: 2 },
     def: { base: 8, perLevel: 2 }, defMag: { base: 0, perLevel: 0.5 }, vit: { min: 9, max: 13 },
-    abilities: [{ chance: 0.25, skill: { name: 'Cri glaçant', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, status: slow(2) } }],
+    abilities: [{ chance: 0.25, skill: { name: 'Cri glaçant', kind: 'damage', target: 'allHeroes', power: 0.4, magic: true, effects: [slow(2)] } }],
   },
   chevalierSquelette: {
     name: 'Chevalier squelette', icon: '🛡️', boss: true, xpMult: 5, goldMult: 4,
     pv: { base: 220, perLevel: 28 }, atq: { base: 14, perLevel: 2.5 },
     def: { base: 12, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 6, max: 8 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Mur d\'os', kind: 'support', target: 'self', shield: { key: 'mur-os', name: "Mur d'os", power: 2, turns: 2 } } },
+      { chance: 0.3, skill: { name: 'Mur d\'os', kind: 'support', target: 'self', effects: [{ id: 'bouclier', turns: 2, power: 2 }] } },
       { chance: 0.25, skill: { name: 'Frappe écrasante', kind: 'damage', target: 'hero', power: 1.6 } },
     ],
   },
@@ -2302,7 +2373,7 @@ const ENEMIES = {
     def: { base: 4, perLevel: 1 }, defMag: { base: 8, perLevel: 1.5 }, vit: { min: 8, max: 10 },
     abilities: [
       { chance: 0.3, skill: { name: "Trait d'ombre", kind: 'damage', target: 'hero', power: 1.3, magic: true } },
-      { chance: 0.2, skill: { name: 'Pacte funeste', kind: 'support', target: 'self', hot: { key: 'pacte', name: 'Pacte funeste', power: 0.8, turns: 3 } } },
+      { chance: 0.2, skill: { name: 'Pacte funeste', kind: 'support', target: 'self', effects: [{ id: 'regeneration', turns: 3, power: 0.8 }] } },
       { chance: 0.25, skill: { name: 'Nuée de ténèbres', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true } },
     ],
   },
@@ -2311,8 +2382,8 @@ const ENEMIES = {
     pv: { base: 320, perLevel: 35 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 6, perLevel: 1.5 }, defMag: { base: 4, perLevel: 1 }, vit: { min: 4, max: 6 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Vomi putride', kind: 'damage', target: 'allHeroes', power: 0.5, dot: poison(0.35) } },
-      { chance: 0.25, skill: { name: 'Écrasement', kind: 'damage', target: 'hero', power: 1.8, status: stun } },
+      { chance: 0.3, skill: { name: 'Vomi putride', kind: 'damage', target: 'allHeroes', power: 0.5, effects: [poison(0.35)] } },
+      { chance: 0.25, skill: { name: 'Écrasement', kind: 'damage', target: 'hero', power: 1.8, effects: [stun] } },
     ],
   },
   banshee: {
@@ -2320,9 +2391,9 @@ const ENEMIES = {
     pv: { base: 210, perLevel: 25 }, atq: { base: 15, perLevel: 2.5 },
     def: { base: 10, perLevel: 2 }, defMag: { base: 3, perLevel: 1 }, vit: { min: 11, max: 14 },
     abilities: [
-      { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, status: { key: 'terreur', name: 'Terreur', icon: '😨', kind: 'debuff', turns: 2, mods: { def: -30, defMag: -30 } } } },
-      { chance: 0.2, skill: { name: 'Murmures déments', kind: 'support', target: 'hero', status: confus(2) } },
-      { chance: 0.2, skill: { name: 'Voile spectral', kind: 'support', target: 'self', status: { key: 'voile', name: 'Voile', icon: '🌫️', kind: 'buff', turns: 2, mods: { def: 50, defMag: 50 } } } },
+      { chance: 0.3, skill: { name: 'Hurlement funèbre', kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [{ id: 'terreur', turns: 2 }] } },
+      { chance: 0.2, skill: { name: 'Murmures déments', kind: 'support', target: 'hero', effects: [confus(2)] } },
+      { chance: 0.2, skill: { name: 'Voile spectral', kind: 'support', target: 'self', effects: [{ id: 'protection', turns: 2 }] } },
     ],
   },
   liche: {
@@ -2330,7 +2401,7 @@ const ENEMIES = {
     pv: { base: 380, perLevel: 38 }, atq: { base: 16, perLevel: 3 },
     def: { base: 8, perLevel: 1.5 }, defMag: { base: 10, perLevel: 2 }, vit: { min: 9, max: 11 },
     abilities: [
-      { chance: 0.25, skill: { name: 'Nova de givre', kind: 'damage', target: 'allHeroes', power: 0.8, magic: true, status: slow(2) } },
+      { chance: 0.25, skill: { name: 'Nova de givre', kind: 'damage', target: 'allHeroes', power: 0.8, magic: true, effects: [slow(2)] } },
       { chance: 0.2, skill: { name: 'Doigt de mort', kind: 'damage', target: 'hero', power: 2.2, magic: true } },
       { chance: 0.2, skill: { name: 'Phylactère', kind: 'heal', target: 'self', power: 2 } },
     ],
@@ -2712,6 +2783,7 @@ return { createEnemy, createEnemies };
 // ---- src/game/formulas.js
 __modules["src/game/formulas.js"] = (() => {
 const { COMBAT, VARIANCE } = __modules["src/config.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { rand, random } = __modules["src/game/rng.js"];
 // Formules de dégâts et de soins, et leurs estimations affichées au joueur.
 // Les estimations utilisent exactement les mêmes calculs que les jets réels.
@@ -2720,6 +2792,7 @@ const { rand, random } = __modules["src/game/rng.js"];
 // Puissance physique (arme + Force/Agilité) contre la Défense, ou puissance magique
 // (Intelligence) contre la Défense magique.
 // `attacker` / `defender` sont des objets de stats (getStats() ou stats d'ennemi).
+
 
 
 
@@ -2786,20 +2859,31 @@ function healAmount(stats, power) {
   return Math.round(stats.magPower * power * (1 + (stats.healPct ?? 0) / 100));
 }
 
-// Dégâts par round d'un effet sur la durée (poison, saignement, brûlure…) :
-// puissance du lanceur × dot.power, + bonus des talents. Ignore la défense.
-function dotTick(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.dot.power * (1 + (stats.dotPct ?? 0) / 100)));
+// Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
+// puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
+function dotTick(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
 }
 
-// Soins par round d'un soin sur la durée.
-function hotTick(stats, skill) {
-  return Math.max(1, healAmount(stats, skill.hot.power));
+// Soins par tour (Régénération) : puissance magique × power.
+function hotTick(stats, power) {
+  return Math.max(1, healAmount(stats, power));
 }
 
-// Points de bouclier : puissance du lanceur (magique ou physique) × shield.power.
-function shieldAmount(stats, skill) {
-  return Math.max(1, Math.round(powerOf(stats, skill.magic) * skill.shield.power));
+// Points de bouclier : puissance du lanceur (magique si la compétence l'est) × power.
+function shieldAmount(stats, power, magic) {
+  return Math.max(1, Math.round(powerOf(stats, magic) * power));
+}
+
+// Valeur d'un effet appliqué par `skill` (entrée { id, turns, power }) : dégâts ou
+// soins par tour, points de bouclier ; undefined pour un effet sans valeur.
+function effectValue(stats, skill, entry) {
+  switch (EFFECTS[entry.id].value) {
+    case 'dot': return dotTick(stats, entry.power, skill.magic);
+    case 'hot': return hotTick(stats, entry.power);
+    case 'shield': return shieldAmount(stats, entry.power, skill.magic);
+    default: return undefined;
+  }
 }
 
 // Estimation {lo, hi} de l'effet principal d'une compétence : dégâts d'un coup,
@@ -2813,7 +2897,7 @@ function estimateSkill(attacker, skill, defender = null) {
   return estimateHit(attacker, skillHitOptions(skill), defender);
 }
 
-return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, shieldAmount, estimateSkill };
+return { BASIC_ATTACK, ENEMY_ATTACK, skillHitOptions, defenseFactor, critMultiplier, chance, powerOf, estimateHit, rollHit, healAmount, dotTick, hotTick, shieldAmount, effectValue, estimateSkill };
 })();
 
 // ---- src/game/combat.js
@@ -2822,9 +2906,9 @@ const { COMBAT } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { createEnemies } = __modules["src/game/enemies.js"];
 const { getClass, getSkills, gainResource } = __modules["src/game/party.js"];
-const { rollHit, healAmount, skillHitOptions, chance, dotTick, hotTick, shieldAmount, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
+const { rollHit, healAmount, skillHitOptions, chance, effectValue, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
-const { addStatus, hasStatus, consumeStun, tickStatuses } = __modules["src/game/statuses.js"];
+const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus } = __modules["src/game/statuses.js"];
 const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { pick, random } = __modules["src/game/rng.js"];
@@ -3024,8 +3108,8 @@ function heroAct(cb, action) {
     const stats = statsOf(hero);
     if (stats.guardShieldPct) {
       const amount = Math.round(stats.pv * stats.guardShieldPct / 100);
-      addStatus(hero, { key: 'rempart', name: 'Rempart', icon: '🛡️', kind: 'buff', turns: 2, shield: amount });
-      log(cb, `${hero.name} lève un rempart (bouclier de ${amount}).`, true);
+      addStatus(hero, makeStatus('bouclier', 2, amount));
+      log(cb, `${hero.name} lève un rempart (Bouclier de ${amount}).`, true);
     }
   } else if (action.type === 'attack') {
     const target = aliveAt(cb.enemies, action.target);
@@ -3124,20 +3208,13 @@ function useSkill(cb, caster, skill, targets) {
     }
     if (!target.alive) continue;
 
-    if (skill.dot) {
-      addStatus(target, { key: skill.dot.key, name: skill.dot.name, icon: skill.dot.icon ?? '🩸', kind: 'debuff', turns: skill.dot.turns, dot: dotTick(stats, skill) });
+    for (const entry of skill.effects ?? []) {
+      const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+      addStatus(target, status);
+      if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
-    if (skill.hot) {
-      addStatus(target, { key: skill.hot.key, name: skill.hot.name, icon: '💚', kind: 'buff', turns: skill.hot.turns, hot: hotTick(stats, skill) });
-    }
-    if (skill.shield) {
-      const amount = shieldAmount(stats, skill);
-      addStatus(target, { key: skill.shield.key, name: skill.shield.name, icon: '🛡️', kind: 'buff', turns: skill.shield.turns, shield: amount });
-      parts.push(`${target.name} : bouclier de ${amount}`);
-    }
-    if (skill.status) addStatus(target, skill.status);
   }
-  if (skill.selfStatus) addStatus(caster, skill.selfStatus);
+  for (const entry of skill.selfEffects ?? []) addStatus(caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
 
   const detail = parts.length ? ` (${parts.join(' ; ')})` : '';
   log(cb, `${caster.name} utilise ${skill.name}${targetLabel(skill, targets)}${detail}.`, true);
@@ -3861,10 +3938,10 @@ return { openForge, renderForge };
 
 // ---- src/ui/format.js
 __modules["src/ui/format.js"] = (() => {
-const { estimateSkill, dotTick, hotTick, shieldAmount } = __modules["src/game/formulas.js"];
+const { estimateSkill, effectValue } = __modules["src/game/formulas.js"];
 const { getStats, getClass } = __modules["src/game/party.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
-const { STATS } = __modules["src/data/stats.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { range } = __modules["src/ui/html.js"];
 // Libellés partagés entre plusieurs écrans : description et estimation des compétences.
@@ -3884,18 +3961,15 @@ const TARGET_LABELS = {
   deadAlly: 'un allié tombé',
 };
 
-const POWER_LABELS = { physPower: 'puissance physique', magPower: 'puissance magique' };
-
-function statusLabel(status) {
-  const effects = [];
-  for (const [stat, pct] of Object.entries(status.mods ?? {})) {
-    effects.push(`${pct > 0 ? '+' : ''}${pct} % ${POWER_LABELS[stat] ?? STATS[stat]?.label ?? stat}`);
-  }
-  if (status.stun) effects.push('perd son prochain tour');
-  if (status.taunt) effects.push('attire les attaques');
-  if (status.confuse) effects.push('peut frapper ses alliés');
-  const duration = status.stun ? '' : `, ${status.turns} tour${status.turns > 1 ? 's' : ''}`;
-  return `${status.name} (${effects.join(', ')}${duration})`;
+// « Poison ~6/tour, 4 tours », « Bouclier de 30, 2 tours », « Ralenti (−30 % de Vitesse), 2 tours ».
+function effectLabel(stats, skill, entry) {
+  const def = EFFECTS[entry.id];
+  const value = effectValue(stats, skill, entry);
+  const turns = def.stun ? '' : `, ${entry.turns} tour${entry.turns > 1 ? 's' : ''}`;
+  if (def.value === 'dot') return `${def.name} ~${value}/tour${turns}`;
+  if (def.value === 'hot') return `${def.name} +${value} PV/tour${turns}`;
+  if (def.value === 'shield') return `${def.name} de ${value}${turns}`;
+  return `${def.name} (${def.desc.replace(/\.$/, '')})${turns}`;
 }
 
 /**
@@ -3916,11 +3990,8 @@ function skillEffectLabel(stats, skill, target = null) {
   } else if (skill.kind === 'revive') {
     parts.push(`Relève avec ${Math.round(skill.power * 100)} % des PV`);
   }
-  if (skill.dot) parts.push(`${skill.dot.name} ~${dotTick(stats, skill)}/tour pendant ${skill.dot.turns} tours`);
-  if (skill.hot) parts.push(`Soin +${hotTick(stats, skill)}/tour pendant ${skill.hot.turns} tours`);
-  if (skill.shield) parts.push(`Bouclier de ${shieldAmount(stats, skill)} (${skill.shield.turns} tours)`);
-  if (skill.status) parts.push(statusLabel(skill.status));
-  if (skill.selfStatus) parts.push(`Lanceur : ${statusLabel(skill.selfStatus)}`);
+  for (const e of skill.effects ?? []) parts.push(effectLabel(stats, skill, e));
+  for (const e of skill.selfEffects ?? []) parts.push(`Lanceur : ${effectLabel(stats, skill, e)}`);
   const who = TARGET_LABELS[skill.target];
   return `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
 }
@@ -3931,10 +4002,14 @@ function skillShortEstimate(stats, skill, target = null) {
   if (skill.kind === 'damage') return `${skill.hits > 1 ? `${skill.hits} × ` : ''}~${range(est)}`;
   if (skill.kind === 'heal') return `+${range(est)} PV`;
   if (skill.kind === 'revive') return `${Math.round(skill.power * 100)} % PV`;
-  if (skill.shield) return `🛡️ ${shieldAmount(stats, skill)}`;
-  if (skill.hot) return `+${hotTick(stats, skill)}/tour`;
-  if (skill.dot) return `~${dotTick(stats, skill)}/tour`;
-  return skill.status?.name ?? skill.selfStatus?.name ?? '';
+  const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
+  if (!main) return '';
+  const def = EFFECTS[main.id];
+  const value = effectValue(stats, skill, main);
+  if (def.value === 'shield') return `🛡️ ${value}`;
+  if (def.value === 'hot') return `+${value}/tour`;
+  if (def.value === 'dot') return `~${value}/tour`;
+  return def.name;
 }
 
 // Effet prévu d'un consommable sur un héros (« +45 PV », « retire Poison »…).
