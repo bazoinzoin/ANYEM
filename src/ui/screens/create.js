@@ -24,7 +24,8 @@ const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES
 
 export function renderCreate(app) {
   app.innerHTML = `
-    <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
+    <button id="toTitle" class="back">← Menu principal</button>
+    <div class="hero"><h1>Nouvelle partie</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
     <p class="center hint">6 classes au choix : ${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(' · ')}. Clique sur une classe dans la carte d'un héros pour la changer.</p>
     <div class="slots">
       ${draft.classes.map((key, i) => classCard(key, i)).join('')}
@@ -49,6 +50,7 @@ export function renderCreate(app) {
       draft.classes[i] = btn.dataset.class;
     });
   });
+  app.querySelector('#toTitle').onclick = () => goTo('title');
   app.querySelector('#detailsBtn').onclick = () => {
     rerender(() => { draft.details = draft.details ? null : { tab: 'classes', classKey: draft.classes[0] }; })();
     app.querySelector('#classDetails')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

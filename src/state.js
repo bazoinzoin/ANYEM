@@ -5,7 +5,7 @@ import { emptyMateria } from './game/forge.js';
 import { startingConsumables } from './game/consumables.js';
 
 export const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
+  screen: 'title',      // 'title' (menu principal) | 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
   party: [],            // l'équipe : 4 héros
   reserve: [],          // compagnons au repos à l'auberge (voir game/roster.js)
   bank: null,           // coffre de la banque : { gold, items, consumables, materia } (voir game/bank.js)

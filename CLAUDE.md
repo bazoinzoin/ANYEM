@@ -17,7 +17,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 
 - `src/data/` : données pures (classes, ennemis, donjons). Ajouter du contenu ici, pas dans la logique.
 - `src/game/` : règles du jeu, **sans DOM ni timers**, testables sous Node. Tout aléatoire passe par `game/rng.js`.
-- `src/ui/` : rendu par template strings, un fichier par écran dans `ui/screens/`, navigation via `ui/router.js` (`goTo`, `showHub`).
+- `src/ui/` : rendu par template strings, un fichier par écran dans `ui/screens/`, navigation via `ui/router.js` (`goTo`, `showHub`). Le jeu s'ouvre sur le menu principal (`ui/screens/title.js`, écran `title` : Nouvelle partie, Charger et Options à venir, Quitter, Debug = partie de test `setupDebugGame` dans `game/debug.js`, réglages `DEBUG` de `config.js`).
   `ui/encounter.js` rythme les combats (délais des tours ennemis) autour du moteur `game/combat.js`.
   Scène de combat animée : `ui/battleStage.js` (canvas, équipe à gauche, monstres à droite, clic sur un personnage pour cibler) ; `encounter.js` photographie le combat avant chaque action (`snapshotBattle`) et passe le résultat à `playAction` ; ce qui a changé et le geste (bond / sort) sont calculés dans `ui/battleDiff.js` (pur, testé).
 - Chiffres d'équilibrage globaux : `src/config.js`.

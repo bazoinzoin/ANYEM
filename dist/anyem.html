@@ -404,6 +404,38 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .dpad [data-step="-1,0"] { grid-column: 1; grid-row: 2; }
 .dpad [data-step="1,0"] { grid-column: 3; grid-row: 2; }
 .dpad [data-step="0,1"] { grid-column: 2; grid-row: 3; }
+
+/* ---- Menu principal ---- */
+.title-screen { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 8px; }
+.title-scene { position: relative; width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #5a4630; box-shadow: 0 10px 40px rgba(0,0,0,.6), inset 0 0 0 1px #1a120a; }
+.title-scene canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.title-logo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 4%; pointer-events: none; }
+.title-logo h1 {
+  font-size: clamp(44px, 11vw, 96px); font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: #f3d58c; background: linear-gradient(#fff2c4, #e8b858 55%, #a86d22); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; filter: drop-shadow(0 3px 0 #3a2208) drop-shadow(0 0 18px rgba(255,170,60,.35));
+}
+.title-logo p { margin: 0; font-family: var(--font-title); color: #e8dcc8; letter-spacing: .3em; text-transform: uppercase; font-size: clamp(11px, 2.2vw, 15px); text-shadow: 0 2px 4px #000; }
+.title-panel {
+  width: min(360px, 100%); padding: 14px 10px; border-radius: 8px;
+  background: linear-gradient(180deg, #2b3350 0%, #1a1f36 100%);
+  border: 2px solid #d8b56a; box-shadow: 0 0 0 3px #1a120a, 0 0 0 5px #8a6a38, 0 12px 30px rgba(0,0,0,.6);
+}
+.title-item {
+  display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 4px;
+  font-family: var(--font-title); font-size: 19px; letter-spacing: .05em; color: #e8e2d4; padding: 8px 12px 8px 34px; position: relative;
+}
+.title-item:hover { background: none; }
+.title-item .cursor { position: absolute; left: 10px; color: #f3d58c; opacity: 0; transition: opacity .1s; }
+.title-item.current { background: rgba(243,213,140,.12); color: #fff4d0; }
+.title-item.current .cursor { opacity: 1; animation: title-cursor .6s ease-in-out infinite alternate; }
+.title-item[aria-disabled="true"] { color: #8d8aa0; }
+.title-item small { font-family: var(--font-body); font-size: 12px; color: #c9a876; margin-left: 6px; letter-spacing: 0; }
+.title-item:focus-visible { outline: 1px solid #d8b56a; outline-offset: -2px; }
+.title-hint { margin: 10px 8px 0; min-height: 2.6em; font-size: 14px; color: #b9b4c8; border-top: 1px solid rgba(216,181,106,.3); padding-top: 8px; }
+.quit-panel { text-align: center; padding: 22px; margin-top: 60px; }
+@keyframes title-cursor { from { transform: translateX(0); } to { transform: translateX(3px); } }
+button.back { margin-bottom: 8px; }
 </style>
 
 </head>
@@ -599,6 +631,14 @@ const RUNES = {
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
 // Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+// Partie de test (bouton « Debug » du menu principal, game/debug.js) : héros au niveau
+// maximum, or et matéria en abondance, tout débloqué, équipement de comparaison.
+const DEBUG = {
+  gold: 1000000,
+  materia: 999,                                   // de chaque sorte et rareté
+  rarities: ['divin', 'epique', 'rare', 'peuCommun'], // une pièce de chaque base par rareté
+};
+
 const INN = {
   maxReserve: 4,
 };
@@ -636,7 +676,7 @@ const TIMING = {
   outcomeMs: 1200, // dernier coup, puis fin du combat
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -3183,7 +3223,7 @@ const { startingConsumables } = __modules["src/game/consumables.js"];
 
 
 const state = {
-  screen: 'create',     // 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
+  screen: 'title',      // 'title' (menu principal) | 'create' | 'hub' | 'stats' | 'equipment' | 'forge' | 'talents' | 'merchant' | 'dungeon' | 'combat' | 'strategy' | 'inn' | 'bank'
   party: [],            // l'équipe : 4 héros
   reserve: [],          // compagnons au repos à l'auberge (voir game/roster.js)
   bank: null,           // coffre de la banque : { gold, items, consumables, materia } (voir game/bank.js)
@@ -6341,6 +6381,346 @@ function showHub(message = null, loot = []) {
 return { registerScreens, render, goTo, goBack, backLabel, showHub };
 })();
 
+// ---- src/game/debug.js
+__modules["src/game/debug.js"] = (() => {
+const { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } = __modules["src/config.js"];
+const { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } = __modules["src/data/items.js"];
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { nodeSkills } = __modules["src/data/talents.js"];
+const { createParty, createHero, getStats } = __modules["src/game/party.js"];
+const { generateItem, primaryOptions } = __modules["src/game/items.js"];
+const { branchesOf, learn } = __modules["src/game/talents.js"];
+const { progressOf } = __modules["src/game/dungeon.js"];
+const { emptyMateria } = __modules["src/game/forge.js"];
+// Partie de test (bouton « Debug » du menu principal) : l'équipe par défaut et les autres
+// classes à l'auberge, toutes au niveau maximum avec leurs sorts de départ appris ;
+// beaucoup d'or, de matéria et de consommables ; tous les donjons terminés (tous les
+// points de départ ouverts) ; dans le sac, chaque base d'objet au niveau maximum, dans
+// chacune de ses stats principales, en Divin, Épique, Rare et Peu commun (pour les
+// comparer), plus tous les légendaires.
+
+
+
+
+
+
+
+
+
+
+
+
+// Bases d'objets : chaque arme, le bouclier, chaque pièce d'armure de chaque type, chaque bijou.
+function itemBases() {
+  return [
+    ...Object.keys(WEAPON_TYPES).map((weaponType) => ({ slotType: 'arme', weaponType })),
+    { slotType: 'bouclier' },
+    ...Object.keys(ARMOR_TYPES).flatMap((armorType) => Object.keys(ARMOR_PIECES).map((slotType) => ({ slotType, armorType }))),
+    ...Object.keys(JEWELS).map((slotType) => ({ slotType })),
+  ];
+}
+
+// Héros au niveau maximum, sorts de départ de ses orientations appris (1 point chacun).
+function maxedHero(hero) {
+  hero.level = XP.maxLevel;
+  hero.xp = 0;
+  for (const branch of branchesOf(hero)) {
+    const node = branch.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
+    if (node) learn(hero, node.id);
+  }
+  hero.hp = getStats(hero).pv;
+  return hero;
+}
+
+function setupDebugGame(game, names = [], classes = PARTY_ORDER) {
+  game.party = createParty(names, classes).map(maxedHero);
+  game.reserve = CLASS_ORDER.filter((k) => !classes.includes(k)).slice(0, INN.maxReserve).map((k) => maxedHero(createHero(k)));
+  game.gold = DEBUG.gold;
+  game.materia = emptyMateria();
+  for (const kind of Object.keys(game.materia)) for (const r of MATERIA_RARITIES) game.materia[kind][r] = DEBUG.materia;
+  game.consumables = Object.fromEntries(Object.keys(CONSUMABLES).map((k) => [k, MERCHANT.maxConsumable]));
+  for (const [key, d] of Object.entries(DUNGEONS)) Object.assign(progressOf(game, key), { checkpoint: d.floors, cleared: true });
+  game.dungeonLvl = XP.maxLevel;
+  const level = XP.maxLevel;
+  game.bag = [
+    // Chaque base dans chacune de ses stats principales (Force, Agilité, Intelligence).
+    ...itemBases().flatMap((base) => primaryOptions(base).flatMap((primary) =>
+      DEBUG.rarities.map((rarity) => generateItem({ level, rarity, primary, ...base })))),
+    ...Object.keys(LEGENDARIES).map((legendary) => generateItem({ level, legendary })),
+  ];
+  return game;
+}
+
+return { itemBases, maxedHero, setupDebugGame };
+})();
+
+// ---- src/ui/html.js
+__modules["src/ui/html.js"] = (() => {
+
+// Petits utilitaires de rendu HTML.
+
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
+}
+
+// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
+function tip(text, extraClass = '') {
+  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
+}
+
+function bar(value, max, color) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
+}
+
+function range({ lo, hi }) {
+  return lo === hi ? `${lo}` : `${lo}-${hi}`;
+}
+
+return { esc, tip, bar, range };
+})();
+
+// ---- src/ui/screens/title.js
+__modules["src/ui/screens/title.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { CLASS_ORDER } = __modules["src/config.js"];
+const { setupDebugGame } = __modules["src/game/debug.js"];
+const { goTo, showHub } = __modules["src/ui/router.js"];
+const { sheet, drawFloorAuto } = __modules["src/ui/mapThemes.js"];
+const { drawActor } = __modules["src/ui/actors.js"];
+const { CLASS_SPRITES } = __modules["src/ui/spriteCatalog.js"];
+const { esc } = __modules["src/ui/html.js"];
+// Menu principal : nom du jeu sur une scène animée (clairière de nuit, feu de camp, les
+// six classes autour), menu façon JRPG (flèches + Entrée, ou souris) : Nouvelle partie,
+// Charger et Options (à venir), Quitter, Debug (partie de test, voir game/debug.js).
+
+
+
+
+
+
+
+
+
+
+const MENU = [
+  { id: 'new', label: 'Nouvelle partie' },
+  { id: 'load', label: 'Charger', soon: 'Les sauvegardes arrivent bientôt.' },
+  { id: 'options', label: 'Options', soon: 'Les options arrivent bientôt.' },
+  { id: 'quit', label: 'Quitter' },
+  { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer' },
+];
+
+let cursor = 0;
+let quitting = false;
+let message = null;
+
+function renderTitle(app) {
+  if (quitting) {
+    app.innerHTML = `
+      <div class="title-screen">
+        <div class="title-panel quit-panel">
+          <p>Merci d'avoir joué à <b>Anyem</b> !</p>
+          <p class="hint">Le navigateur n'a pas laissé le jeu fermer son onglet : vous pouvez le fermer vous-même.</p>
+          <button id="backTitle">Retour au menu</button>
+        </div>
+      </div>`;
+    app.querySelector('#backTitle').onclick = () => { quitting = false; renderTitle(app); };
+    return;
+  }
+  app.innerHTML = `
+    <div class="title-screen">
+      <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas>
+        <div class="title-logo">
+          <h1>Anyem</h1>
+          <p>Un RPG tour par tour</p>
+        </div>
+      </div>
+      <nav class="title-panel" aria-label="Menu principal">
+        ${MENU.map((m, i) => `
+          <button class="title-item ${i === cursor ? 'current' : ''}" data-menu="${i}" ${m.soon ? 'aria-disabled="true"' : ''}>
+            <span class="cursor" aria-hidden="true">▶</span>${esc(m.label)}${m.soon ? ' <small>bientôt</small>' : ''}
+          </button>`).join('')}
+        <p class="title-hint">${esc(message ?? MENU[cursor].hint ?? MENU[cursor].soon ?? 'Flèches ↑ ↓ puis Entrée, ou un clic.')}</p>
+      </nav>
+    </div>`;
+  app.querySelectorAll('[data-menu]').forEach((btn) => {
+    const i = Number(btn.dataset.menu);
+    btn.onmouseenter = () => select(app, i);
+    btn.onfocus = () => select(app, i);
+    btn.onclick = () => choose(app, i);
+  });
+  startScene();
+}
+
+function select(app, i) {
+  if (i === cursor) return;
+  cursor = i;
+  message = null;
+  app.querySelectorAll('[data-menu]').forEach((b) => b.classList.toggle('current', Number(b.dataset.menu) === i));
+  const hint = app.querySelector('.title-hint');
+  if (hint) hint.textContent = MENU[i].hint ?? MENU[i].soon ?? 'Flèches ↑ ↓ puis Entrée, ou un clic.';
+}
+
+function choose(app, i) {
+  const item = MENU[i];
+  cursor = i;
+  if (item.soon) {
+    message = item.soon;
+    renderTitle(app);
+    return;
+  }
+  message = null;
+  if (item.id === 'new') goTo('create');
+  if (item.id === 'debug') {
+    setupDebugGame(state);
+    showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les deux autres classes attendent à l\'auberge.');
+  }
+  if (item.id === 'quit') {
+    window.close();
+    // Un onglet ouvert à la main ne se ferme pas toujours par script : on le dit.
+    setTimeout(() => {
+      if (state.screen !== 'title') return;
+      quitting = true;
+      renderTitle(app);
+    }, 150);
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (ev) => {
+    if (state.screen !== 'title' || quitting) return;
+    const app = document.getElementById('app');
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      select(app, (cursor + (ev.key === 'ArrowDown' ? 1 : MENU.length - 1)) % MENU.length);
+      app.querySelector(`[data-menu="${cursor}"]`)?.focus();
+    } else if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      if (!ev.repeat) choose(app, cursor);
+    }
+  });
+}
+
+// ---- Scène animée ----
+
+const TILE = 16;
+const W = 320;          // taille de la scène en pixels (affichée agrandie, nette)
+const H = 176;
+const COLS = W / TILE;
+const ROWS = H / TILE;
+const FIRE = { x: 10, y: 8 };                                 // case du feu de camp
+const FIRE_FRAMES = [2, 3, 4].map((i) => ['forest_obj', 144 + i * 16, 57, 16, 20]);
+const TREES = [['forest_obj', 0, 80, 48, 64], ['forest2_obj', 1, 150, 46, 55], ['forest2_obj', 49, 150, 46, 55], ['forest_obj', 48, 80, 48, 64]];
+// Arbres autour de la clairière : [x (case du tronc), y, variante].
+const TREE_SPOTS = [
+  [1, 3, 0], [4, 2, 1], [7, 1, 2], [11, 1, 0], [15, 2, 1], [18, 3, 2], [0, 7, 1], [19, 7, 0],
+  [1, 11, 2], [18, 11, 1], [3, 12, 0], [16, 12, 2], [5, 13, 1], [14, 13, 0], [-1, 5, 2], [20, 5, 1], [13, 1, 3], [9, 0, 1],
+];
+// Héros autour du feu : [classe, x, y, direction].
+const CAMP = [
+  [CLASS_ORDER[0], 8, 7, 'right'], [CLASS_ORDER[1], 12, 7, 'left'], [CLASS_ORDER[2], 8, 9, 'right'],
+  [CLASS_ORDER[3], 12, 9, 'left'], [CLASS_ORDER[4], 10, 6, 'down'], [CLASS_ORDER[5], 10, 10, 'up'],
+];
+const flies = Array.from({ length: 14 }, (_, i) => ({ x: (i * 97) % W, y: 20 + ((i * 53) % (H - 40)), p: i * 1.7 }));
+
+let running = false;
+let ground = null;
+
+function startScene() {
+  if (running) return;
+  running = true;
+  requestAnimationFrame(frame);
+}
+
+function frame(now) {
+  const canvas = document.getElementById('titleScene');
+  if (!canvas || state.screen !== 'title') {
+    running = false;
+    return;
+  }
+  drawScene(canvas.getContext('2d'), now);
+  requestAnimationFrame(frame);
+}
+
+// Clairière : herbe, cercle de terre autour du feu (dessiné une fois).
+function groundLayer() {
+  if (ground) return ground;
+  const grass = sheet('forest_A5');
+  const dirt = sheet('forest_A2');
+  if (!grass || !dirt) return null;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d');
+  const clearing = (x, y) => ((x - FIRE.x) / 4.2) ** 2 + ((y - FIRE.y) / 3) ** 2 <= 1;
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      g.drawImage(grass, (x + y) % 5 ? 0 : TILE, TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+      if (clearing(x, y)) drawFloorAuto(g, dirt, [8, 0], x, y, (dx, dy) => clearing(x + dx, y + dy));
+    }
+  }
+  ground = c;
+  return c;
+}
+
+function blit(ctx, [name, sx, sy, w, h], dx, dy) {
+  const img = sheet(name);
+  if (img) ctx.drawImage(img, sx, sy, w, h, Math.round(dx), Math.round(dy), w, h);
+}
+
+function drawScene(ctx, now) {
+  ctx.imageSmoothingEnabled = false;
+  const layer = groundLayer();
+  if (!layer) {
+    ctx.fillStyle = '#10140e';
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+  ctx.drawImage(layer, 0, 0);
+  const items = [];
+  for (const [x, y, v] of TREE_SPOTS) {
+    const t = TREES[v];
+    items.push({ y, draw: () => blit(ctx, t, (x + 0.5) * TILE - t[3] / 2, (y + 1) * TILE - t[4]) });
+  }
+  const fire = FIRE_FRAMES[Math.floor(now / 140) % FIRE_FRAMES.length];
+  items.push({ y: FIRE.y, draw: () => blit(ctx, fire, FIRE.x * TILE, (FIRE.y + 1) * TILE - fire[4]) });
+  for (const [cls, x, y, dir] of CAMP) {
+    items.push({ y, draw: () => drawActor(ctx, { sx: x * TILE, sy: y * TILE, size: TILE, scale: 1, dir, now, sprite: CLASS_SPRITES[cls] }) });
+  }
+  items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
+
+  // Nuit, puis lueur du feu qui vacille.
+  ctx.fillStyle = 'rgba(8,10,34,.58)';
+  ctx.fillRect(0, 0, W, H);
+  const cx = (FIRE.x + 0.5) * TILE;
+  const cy = (FIRE.y + 0.6) * TILE;
+  const r = 70 + Math.sin(now / 90) * 3 + Math.sin(now / 37) * 2;
+  const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
+  glow.addColorStop(0, 'rgba(255,170,80,.55)');
+  glow.addColorStop(0.5, 'rgba(255,120,40,.18)');
+  glow.addColorStop(1, 'rgba(255,120,40,0)');
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  // Lucioles.
+  for (const f of flies) {
+    const x = (f.x + Math.sin(now / 1900 + f.p) * 18 + W) % W;
+    const y = f.y + Math.cos(now / 1400 + f.p) * 8;
+    const a = 0.35 + 0.35 * Math.sin(now / 300 + f.p * 3);
+    ctx.fillStyle = `rgba(220,255,140,${a})`;
+    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+return { renderTitle };
+})();
+
 // ---- src/game/equipment.js
 __modules["src/game/equipment.js"] = (() => {
 const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
@@ -6427,35 +6807,6 @@ function previewEquip(hero, item, slot) {
 }
 
 return { cannotEquipReason, slotsFor, equippedItems, equip, unequip, previewEquip };
-})();
-
-// ---- src/ui/html.js
-__modules["src/ui/html.js"] = (() => {
-
-// Petits utilitaires de rendu HTML.
-
-const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
-// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
-}
-
-// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
-function tip(text, extraClass = '') {
-  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
-}
-
-function bar(value, max, color) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
-}
-
-function range({ lo, hi }) {
-  return lo === hi ? `${lo}` : `${lo}-${hi}`;
-}
-
-return { esc, tip, bar, range };
 })();
 
 // ---- src/ui/heroStats.js
@@ -7081,7 +7432,8 @@ const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES
 
 function renderCreate(app) {
   app.innerHTML = `
-    <div class="hero"><h1>Anyem</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
+    <button id="toTitle" class="back">← Menu principal</button>
+    <div class="hero"><h1>Nouvelle partie</h1><p>Compose ton équipe de quatre héros avant de partir à l'aventure</p></div>
     <p class="center hint">6 classes au choix : ${CLASS_ORDER.map((k) => `${CLASSES[k].icon} ${CLASSES[k].name}`).join(' · ')}. Clique sur une classe dans la carte d'un héros pour la changer.</p>
     <div class="slots">
       ${draft.classes.map((key, i) => classCard(key, i)).join('')}
@@ -7106,6 +7458,7 @@ function renderCreate(app) {
       draft.classes[i] = btn.dataset.class;
     });
   });
+  app.querySelector('#toTitle').onclick = () => goTo('title');
   app.querySelector('#detailsBtn').onclick = () => {
     rerender(() => { draft.details = draft.details ? null : { tab: 'classes', classKey: draft.classes[0] }; })();
     app.querySelector('#classDetails')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -11602,6 +11955,7 @@ return { renderPortals };
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
+const { renderTitle } = __modules["src/ui/screens/title.js"];
 const { renderCreate } = __modules["src/ui/screens/create.js"];
 const { renderHub } = __modules["src/ui/screens/hub.js"];
 const { renderStats } = __modules["src/ui/screens/stats.js"];
@@ -11638,7 +11992,9 @@ const { renderPortals } = __modules["src/ui/screens/portals.js"];
 
 
 
+
 registerScreens({
+  title: renderTitle,
   create: renderCreate,
   hub: renderHub,
   stats: renderStats,

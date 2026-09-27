@@ -1,6 +1,7 @@
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
 
 import { registerScreens, render } from './ui/router.js';
+import { renderTitle } from './ui/screens/title.js';
 import { renderCreate } from './ui/screens/create.js';
 import { renderHub } from './ui/screens/hub.js';
 import { renderStats } from './ui/screens/stats.js';
@@ -19,6 +20,7 @@ import { renderBestiary } from './ui/screens/bestiary.js';
 import { renderPortals } from './ui/screens/portals.js';
 
 registerScreens({
+  title: renderTitle,
   create: renderCreate,
   hub: renderHub,
   stats: renderStats,
