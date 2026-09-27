@@ -78,11 +78,11 @@ test('fabrication légendaire : un légendaire de la catégorie qui respecte les
   const weapons = craftLegendaries({ kind: 'arme', rarity: 'legendaire' });
   assert.ok(weapons.length > 1);
   weapons.forEach((k) => assert.equal(LEGENDARIES[k].slotType, 'arme'));
-  assert.deepEqual(craftLegendaries({ kind: 'arme', rarity: 'legendaire', weaponType: 'arc' }), ['serreDuFaucon']);
-  const item = craft(game, { kind: 'arme', rarity: 'legendaire', weaponType: 'arc' });
-  assert.equal(item.legendary.key, 'serreDuFaucon');
+  assert.deepEqual(craftLegendaries({ kind: 'arme', rarity: 'legendaire', weaponType: 'masse2m' }), ['lAssommoir']);
+  const item = craft(game, { kind: 'arme', rarity: 'legendaire', weaponType: 'masse2m' });
+  assert.equal(item.legendary.key, 'lAssommoir');
   assert.equal(game.materia.arme.legendaire, 70);
-  assert.match(craftProblem(game, { kind: 'bijou', rarity: 'legendaire', slotType: 'anneau' }), /Aucun légendaire/);
+  assert.match(craftProblem(game, { kind: 'armure', rarity: 'legendaire', slotType: 'gants', armorType: 'lourde' }), /Aucun légendaire/);
   // Toute la liste est couverte par les trois catégories.
   const all = ['arme', 'armure', 'bijou'].flatMap((kind) => craftLegendaries({ kind, rarity: 'legendaire' }));
   assert.equal(all.length, Object.keys(LEGENDARIES).length);

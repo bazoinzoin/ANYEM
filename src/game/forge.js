@@ -196,6 +196,8 @@ export function absorbLegendary(game, divine, legendary) {
   if (absorbProblem(game, divine, legendary)) return false;
   const previous = divine.absorbed ?? null;
   divine.absorbed = { ...legendary.legendary, name: legendary.name };
+  // L'objet divin prend aussi le nom du légendaire (il garde ses propres stats).
+  divine.name = legendary.name;
   game.bag.splice(game.bag.indexOf(legendary), 1);
   return previous;
 }

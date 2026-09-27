@@ -14,9 +14,9 @@ import { getClass, getSkills } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
-import { targetsFor, canUseSkill, canUseItem, canDoAction } from '../../game/combat.js';
+import { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove } from '../../game/combat.js';
 import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../game/combo.js';
-import { usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition } from '../../game/position.js';
+import { usesWeapon, canUseWeapon, weaponBlockedReason } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, range } from '../html.js';
@@ -116,7 +116,7 @@ function commands(hero) {
       ${cmd(2, 'actSkills', iconHtml(COMMAND_ICONS.skills), 'Compétences', skills.length > 0)}
       ${cmd(3, 'actItem', iconHtml(COMMAND_ICONS.items), 'Objets', CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)), `<small>${items}</small>`)}
       ${cmd(4, 'actDefend', iconHtml(COMMAND_ICONS.defend), hero.guard ? 'En garde' : 'Défendre', canDoAction(cb, hero, 'defend'), cost('defend'))}
-      ${cmd(5, 'actMove', iconHtml(COMMAND_ICONS.move), hero.row === 'melee' ? 'Reculer' : 'Avancer', canChangePosition(hero))}
+      ${cmd(5, 'actMove', iconHtml(COMMAND_ICONS.move), hero.row === 'melee' ? 'Reculer' : 'Avancer', canMove(hero))}
       ${cmd(6, 'actEnd', iconHtml(COMMAND_ICONS.end), isMultiAction(hero) ? 'Finir le tour' : 'Passer', true)}
     </div>`;
 }
@@ -226,7 +226,7 @@ function helpFor(hero, el) {
     case 'actSkills': return `<b>${iconHtml(COMMAND_ICONS.skills, 16)} Compétences</b><br>Les sorts et techniques appris par le héros.`;
     case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, plume de phénix…${takesTurn}`;
     case 'actDefend': return `<b>${iconHtml(COMMAND_ICONS.defend, 16)} Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
-    case 'actMove': return `<b>${iconHtml(COMMAND_ICONS.move, 16)} ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
+    case 'actMove': return `<b>${iconHtml(COMMAND_ICONS.move, 16)} ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>${hasFreeMove(hero) ? 'Plume légère : ne prend pas le tour (une fois par tour).' : `Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}.`} Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
     case 'actEnd': return isMultiAction(hero) ? `<b>${iconHtml(COMMAND_ICONS.end, 16)} Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>${iconHtml(COMMAND_ICONS.end, 16)} Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;
     default: return '';
   }

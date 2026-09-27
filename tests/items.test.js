@@ -112,9 +112,9 @@ test("le niveau et la rareté augmentent les stats de l'objet", () => {
 });
 
 test('un légendaire est lié à une classe et porte un passif', () => {
-  const item = generateItem({ level: 4, legendary: 'crocSanglant' });
+  const item = generateItem({ level: 4, legendary: 'fleursDuMal' });
   assert.equal(item.rarity, 'legendaire');
-  assert.equal(item.name, LEGENDARIES.crocSanglant.name);
+  assert.equal(item.name, LEGENDARIES.fleursDuMal.name);
   assert.equal(item.legendary.classKey, 'voleur');
   assert.equal(item.weaponType, 'dague');
   assert.equal(Object.keys(item.bonus).length, 4);

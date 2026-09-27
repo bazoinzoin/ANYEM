@@ -187,7 +187,7 @@ function classesTab() {
       </div>
       <div class="details-col">
         <p class="hint">${esc(resourceText)} Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'}. Par niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
-        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; signature au palier 9</small></h4>
+        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 10</small></h4>
         <div class="skill-list">${TALENTS[key].map((b) => {
           const starterNode = b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
           const starter = starterNode ? nodeSkills(starterNode)[0] : null;
@@ -209,7 +209,7 @@ function legendariesTab() {
   const keys = Object.keys(LEGENDARIES).sort((a, b) => order(a) - order(b));
   const groups = [...CLASS_ORDER, null].map((classKey) => [classKey, keys.filter((k) => (LEGENDARIES[k].classKey ?? null) === classKey)]).filter(([, list]) => list.length);
   return `
-    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Son pouvoir ne sert qu'à la classe indiquée ; il renforce souvent une compétence, qu'il faut avoir apprise.</p>
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
     <div class="details-body">
       <div class="details-col leg-groups">${groups.map(([classKey, list]) => `
         <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].name)}` : 'Toutes classes'}</span>

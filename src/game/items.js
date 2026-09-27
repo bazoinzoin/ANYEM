@@ -187,6 +187,6 @@ export function generateItem(opts = {}) {
 
   const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, bonus };
   for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
-  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
+  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey ?? null, branch: legendary.branch ?? null, power: legendary.power, desc: legendary.desc };
   return item;
 }

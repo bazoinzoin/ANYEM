@@ -17,7 +17,7 @@
 import { COMBAT } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
-import { getClass, getSkills, getStats, gainResource } from './party.js';
+import { getClass, getSkills, getStats, gainResource, legendaryPowers } from './party.js';
 import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
 import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
 import {
@@ -55,6 +55,15 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
   };
   log(cb, `${title} (niveau ${level}).`);
+  // Légendaires « au début du combat » (L'Olifant de Roland…) : effets sur toute l'équipe.
+  for (const hero of party.filter((h) => h.alive)) {
+    for (const power of legendaryPowers(hero)) {
+      for (const e of power.startEffects ?? []) {
+        for (const ally of party.filter((h) => h.alive)) addStatus(ally, makeStatus(e.id, e.turns, e.power));
+        log(cb, `${hero.name} : ${EFFECTS[e.id].name} sur toute l'équipe.`, true);
+      }
+    }
+  }
   return cb;
 }
 
@@ -173,6 +182,7 @@ function confusedHeroStrikes(cb, hero) {
 function startHeroTurn(hero) {
   hero.guard = false; // la garde dure jusqu'au prochain tour du héros
   hero.actedThisTurn = false;
+  hero.freeMoveUsed = false; // légendaire « Plume légère »
   gainResource(hero, getClass(hero).resource.regen + (statsOf(hero).resRegen ?? 0));
 }
 
@@ -263,10 +273,16 @@ export function heroAct(cb, action) {
   const hero = cb.acting.unit;
 
   if (action.type === 'move') {
-    if (!canChangePosition(hero)) return false;
+    // Légendaire « Plume légère » : une fois par tour, se déplacer ne prend pas le tour.
+    const free = hasFreeMove(hero);
+    if (!free && !canChangePosition(hero)) return false;
     hero.row = otherRow(hero.row);
-    log(cb, `${hero.name} passe ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'}.`, true);
-    endTurn(cb); // changer de position prend toujours le tour
+    log(cb, `${hero.name} passe ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'}${free ? ' (Plume légère : sans perdre son tour)' : ''}.`, true);
+    if (free) {
+      hero.freeMoveUsed = true;
+      return true;
+    }
+    endTurn(cb); // changer de position prend le tour
     return true;
   }
 
@@ -299,6 +315,13 @@ export function heroAct(cb, action) {
     lifesteal(cb, hero, taken);
     gainResource(hero, getClass(hero).resource.onAttack + (statsOf(hero).resOnAttack ?? 0));
     if (!fell) riposte(cb, hero, target);
+    if (echoes(hero) && target.alive) {
+      const again = strike(cb, hero, target, BASIC_ATTACK);
+      log(cb, `Fratricide : ${hero.name} frappe à nouveau ${target.name}${again.dodged ? ', qui esquive' : ` pour ${again.taken} dégâts${strikeNotes(again)}`} !`, true, again.detail, again.crit);
+      if (again.fell) logFall(cb, target);
+      lifesteal(cb, hero, again.taken);
+    }
+    payBloodPrice(cb, hero);
   } else if (action.type === 'item') {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
@@ -321,6 +344,13 @@ export function heroAct(cb, action) {
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
     if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
+    // Légendaire « Fratricide » : la compétence repart, gratuitement, sur les mêmes cibles.
+    const alive = targets.filter((t) => t.alive || skill.kind === 'revive');
+    if (echoes(hero) && alive.length && skill.kind !== 'revive') {
+      log(cb, `Fratricide : ${skill.name} se déclenche une seconde fois !`, true);
+      useSkill(cb, hero, skill, alive);
+    }
+    payBloodPrice(cb, hero);
     // Talent « Implacable » : un finisher rend de l'Énergie par point de combo dépensé.
     if (skill.finisher) gainResource(hero, skill.comboPoints * (statsOf(hero).finisherRefund ?? 0));
     if (skill.comboGain) {
@@ -339,6 +369,32 @@ export function heroAct(cb, action) {
   }
   endTurn(cb);
   return true;
+}
+
+// Le héros peut-il changer de position maintenant ? (gratuit avec « Plume légère »)
+export function canMove(hero) {
+  return hasFreeMove(hero) || canChangePosition(hero);
+}
+
+// Légendaire « Plume légère » : déplacement gratuit pas encore utilisé ce tour.
+export function hasFreeMove(hero) {
+  return !!statsOf(hero).freeMove && !hero.freeMoveUsed;
+}
+
+// Légendaire « Fratricide » : l'action se répète-t-elle ?
+function echoes(hero) {
+  const pct = statsOf(hero).echoChance ?? 0;
+  return pct > 0 && random() < pct / 100;
+}
+
+// Légendaire « Cœur sacrifié » : chaque attaque ou compétence coûte des PV (jamais le dernier).
+function payBloodPrice(cb, hero) {
+  const pct = statsOf(hero).hpCostPct ?? 0;
+  if (!pct || !hero.alive) return;
+  const cost = Math.min(hero.hp - 1, Math.round(statsOf(hero).pv * pct / 100));
+  if (cost <= 0) return;
+  hero.hp -= cost;
+  log(cb, `Cœur sacrifié : ${hero.name} perd ${cost} PV.`, true);
 }
 
 /**
