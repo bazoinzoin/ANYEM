@@ -180,6 +180,14 @@ export const RUNES = {
 // (sellBase + sellPerLevel × niveau) × sellRarityMult[rareté] × (1 + sellPerPlus × amélioration).
 // Prix d'achat d'un objet du stock = prix de revente × buyMarkup.
 // Auberge : nombre maximum de compagnons au repos (en plus des 4 héros de l'équipe).
+// Partie de test (bouton « Debug » du menu principal, game/debug.js) : héros au niveau
+// maximum, or et matéria en abondance, tout débloqué, équipement de comparaison.
+export const DEBUG = {
+  gold: 1000000,
+  materia: 999,                                   // de chaque sorte et rareté
+  rarities: ['divin', 'epique', 'rare', 'peuCommun'], // une pièce de chaque base par rareté
+};
+
 export const INN = {
   maxReserve: 4,
 };

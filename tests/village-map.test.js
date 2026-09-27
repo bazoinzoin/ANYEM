@@ -22,7 +22,7 @@ test('village : chaque habitant est accessible depuis l\'arrivée, et chaque ser
   assert.ok(canWalk(VILLAGE.spawn.x, VILLAGE.spawn.y));
   const seen = reachable();
   for (const npc of VILLAGE.npcs) {
-    assert.ok(VILLAGE_SERVICES[npc.service], npc.id);
+    assert.ok(npc.service ? VILLAGE_SERVICES[npc.service] : npc.line, npc.id); // service, ou une phrase
     assert.ok(spotsNextTo(npc).some((p) => seen.has(`${p.x},${p.y}`)), `${npc.name} inaccessible`);
     assert.equal(villageGrid().tiles[npc.y * VILLAGE.w + npc.x], 1, `${npc.name} sur une case bloquée`);
   }

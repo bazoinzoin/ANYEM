@@ -1,11 +1,11 @@
 // Affichage des objets et des stats.
 
 import { STATS } from '../data/stats.js';
-import { RARITIES, MATERIA_RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS, MATERIA_KINDS } from '../data/items.js';
-import { CONSUMABLES, CONSUMABLE_ORDER } from '../data/consumables.js';
+import { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
 import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
+import { iconHtml, itemIcon } from './icons.js';
 
 // « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
 export function formatStat(key, value, { sign = true } = {}) {
@@ -37,16 +37,16 @@ export function itemTooltipText(item) {
   return lines.join('\n');
 }
 
-// « (⚔️ Guerrier) » pour un légendaire réservé à une classe, rien s'il est neutre.
+// « (Guerrier) » pour un légendaire réservé à une classe, rien s'il est neutre.
 function legendaryOwner(item) {
   const cls = CLASSES[item.legendary.classKey];
-  return cls ? ` (${cls.icon} ${cls.name})` : '';
+  return cls ? ` (${cls.name})` : '';
 }
 
-// « , ⚔️ Guerrier » : classe qui profite du pouvoir absorbé par un objet divin.
+// « , Guerrier » : classe qui profite du pouvoir absorbé par un objet divin.
 function absorbedOwner(item) {
   const cls = CLASSES[item.absorbed.classKey];
-  return cls ? `, ${cls.icon} ${cls.name}` : '';
+  return cls ? `, ${cls.name}` : '';
 }
 
 // « (2 à 5) » : fourchette possible d'une stat secondaire, pour juger du tirage.
@@ -57,7 +57,7 @@ function rangeText(line) {
 
 // Nom coloré par rareté, avec infobulle détaillée.
 export function itemChip(item) {
-  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>`;
+  return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>`;
 }
 
 // Fiche complète d'un objet.
@@ -80,24 +80,7 @@ export function slotLabel(slot) {
   return SLOTS[slot].label;
 }
 
-// Tableau des matéria { kind: { rareté: n } }. `cell(kind, rarity, n)` peut
-// remplacer le contenu d'une case (ex. boutons de la banque).
-export function materiaTable(materia, cell = (kind, rarity, n) => `${n}`) {
-  return `
-    <table class="materia-table">
-      <thead><tr><th></th>${MATERIA_RARITIES.map((r) => `<th style="--rc:${RARITIES[r].color}">${RARITIES[r].label}</th>`).join('')}</tr></thead>
-      <tbody>
-        ${Object.entries(MATERIA_KINDS).map(([kind, def]) => `
-          <tr><th>${def.icon} ${def.label}</th>${MATERIA_RARITIES.map((r) => `<td class="${materia[kind][r] ? '' : 'zero'}">${cell(kind, r, materia[kind][r])}</td>`).join('')}</tr>`).join('')}
-      </tbody>
-    </table>`;
-}
 
-// Consommables possédés : « 🧪 Potion de soin ×3 · … ».
-export function consumablesLine(inventory) {
-  const owned = CONSUMABLE_ORDER.filter((k) => inventory[k] > 0);
-  return owned.length ? owned.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} ×${inventory[k]}`).join(' · ') : 'Aucun';
-}
 
 // Texte d'infobulle : équipement porté par un héros.
 export function equipmentTooltip(hero) {

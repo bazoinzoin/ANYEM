@@ -90,3 +90,4 @@ export function consumableEstimate(key, hero) {
   }
   return '';
 }
+

@@ -7,10 +7,9 @@ import { VILLAGE } from '../data/village.js';
 
 let cached = null;
 
-// Taille en cases : maison (cols × toit + murs) ou objet (rect du chipset).
+// Taille en cases d'une maison ou d'un objet : celle de son image (img = [planche, x, y, l, h]).
 export function sizeOf(obj) {
-  if (obj.cols) return { cols: obj.cols, rows: obj.roofRows + obj.wallRows };
-  return { cols: obj.rect[2], rows: obj.rect[3] };
+  return { cols: Math.ceil(obj.img[3] / 16), rows: Math.ceil(obj.img[4] / 16) };
 }
 
 function footprint(obj) {
@@ -31,7 +30,7 @@ export function villageGrid(village = VILLAGE) {
   const set = (arr, x, y, v) => { if (x >= 0 && y >= 0 && x < w && y < h) arr[y * w + x] = v; };
   for (const r of village.paths) for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) set(grid.path, x, y, 1);
   for (const obj of [...village.buildings, ...village.props]) for (const [x, y] of footprint(obj)) set(grid.tiles, x, y, 0);
-  for (const [x, y] of village.trees) set(grid.tiles, x, y, 0);
+  for (const [x, y] of village.trees) set(grid.tiles, x, y, 0); // tronc
   if (village === VILLAGE) cached = grid;
   return grid;
 }

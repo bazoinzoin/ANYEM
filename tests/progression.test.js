@@ -52,7 +52,7 @@ test('un boss rapporte plus d\'or et d\'XP, et un butin garanti plus rare', () =
   assert.ok(['peuCommun', 'rare', 'epique', 'legendaire'].includes(boss.loot[0].rarity));
   assert.equal(boss.gold, normal.gold * 4);
   assert.equal(boss.xp, normal.xp * 5);
-  const final = applyVictory(game, { level: 5, enemies: createEnemies(['reineSylvestre'], 5), final: true });
+  const final = applyVictory(game, { level: 5, enemies: createEnemies(['wendigo'], 5), final: true });
   assert.equal(final.loot.length, 2, 'le boss final laisse un objet de plus');
   setRandomSource(null);
 });

@@ -2,12 +2,11 @@
 // groupe, déplacement animé (héros qui marche case à case), au clavier (flèches, ZQSD,
 // WASD), à la souris ou au doigt (clic sur une case : le groupe y marche pas à pas),
 // et croix directionnelle pour le tactile.
-// Décors : tuiles et sprites du pack Fan-tasy pour la Forêt Maudite (ui/mapThemes.js) ;
-// couleurs unies pour les autres zones en attendant leurs graphismes. Monstres,
-// événements et échelle : emoji provisoires.
+// Décors : thèmes par sous-zone (ui/mapThemes.js) ; monstres et héros : sprites
+// (ui/spriteCatalog.js) ; échelle et événements : marqueurs dessinés.
+// Le canvas occupe tout l'écran d'expédition (fitCanvas), l'interface est posée dessus.
 
 import { state } from '../state.js';
-import { ENEMIES } from '../data/enemies.js';
 import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
@@ -15,11 +14,11 @@ import { startFloor } from './encounter.js';
 import { staticLayer, themeOf, TILE } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
-import { CLASS_SPRITES, ENEMY_SPRITES } from './spriteCatalog.js';
+import { heroSprite } from './heroSprite.js';
+import { enemySprite, mobScale, mobTier } from './mobSprites.js';
+import { clampView, fitCanvas } from './viewport.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
-const VIEW_W = 21;         // cases visibles (largeur × hauteur)
-const VIEW_H = 13;
 const STEP_MS = 180;       // durée d'un pas (animation), aussi le rythme de marche
 const WALK_MS = STEP_MS;   // délai entre deux pas d'une marche automatique
 const ENCOUNTER_MS = 400;  // le monstre touché reste visible un instant avant le combat
@@ -37,28 +36,25 @@ function stopWalk() {
   walk = null;
 }
 
-export function mapCard() {
-  const exp = state.expedition;
-  const map = exp.map;
+// Carte plein écran (le canvas prend la taille de son conteneur, voir fitCanvas).
+export function mapCanvas() {
+  return '<canvas id="floorMap" class="map-full" width="960" height="540"></canvas>';
+}
+
+// Croix directionnelle (tactile), bouton de l'échelle et aide, pour le HUD.
+export function mapControls() {
+  const map = state.expedition.map;
   const onLadder = !!map.ladder && map.party.x === map.ladder.x && map.party.y === map.ladder.y;
   const hasBoss = map.mobs.some((m) => m.boss);
   return `
-    <div class="card map-card">
-      <canvas id="floorMap" width="${VIEW_W * TILE * SCALE}" height="${VIEW_H * TILE * SCALE}"></canvas>
-      <div class="map-controls">
-        <div class="dpad">
-          <button data-step="0,-1" aria-label="Haut">▲</button>
-          <button data-step="-1,0" aria-label="Gauche">◀</button>
-          <button data-step="1,0" aria-label="Droite">▶</button>
-          <button data-step="0,1" aria-label="Bas">▼</button>
-        </div>
-        <div class="map-help">
-          <p class="hint">Déplacement : flèches ou ZQSD, clic sur une case, ou la croix. Chaque pas, les monstres bougent aussi : s'ils vous voient (<b>!</b>), ils vous poursuivent. Toucher un groupe lance le combat.</p>
-          <p class="hint">${hasBoss ? '☠️ Le boss garde la salle la plus éloignée : le vaincre termine la sous-zone.' : '🪜 Trouvez l\'échelle pour descendre. Éviter les monstres est possible, mais sans XP ni butin.'} ❔ = événement.</p>
-          ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>🪜 Descendre à l'étage suivant</button>` : ''}
-        </div>
-      </div>
-    </div>`;
+    <div class="dpad">
+      <button data-step="0,-1" aria-label="Haut">▲</button>
+      <button data-step="-1,0" aria-label="Gauche">◀</button>
+      <button data-step="1,0" aria-label="Droite">▶</button>
+      <button data-step="0,1" aria-label="Bas">▼</button>
+    </div>
+    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Cercle violet = événement.</p>
+    ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }
 
 export function bindMap(app) {
@@ -193,6 +189,7 @@ function frame(now) {
   frameRequested = false;
   const canvas = document.querySelector('#floorMap');
   if (!canvas || !state.expedition?.map) return;
+  fitCanvas(canvas);
   draw(canvas, now);
   requestFrame();
 }
@@ -202,10 +199,9 @@ function camera(canvas, now = performance.now()) {
   const map = state.expedition.map;
   const p = anim.party ? posOf(anim.party, now) : map.party;
   const size = TILE * SCALE;
-  const clamp = (v, max) => Math.max(0, Math.min(v, max));
   return {
-    x: Math.round(clamp((p.x + 0.5) * size - canvas.width / 2, map.w * size - canvas.width)),
-    y: Math.round(clamp((p.y + 0.5) * size - canvas.height / 2, map.h * size - canvas.height)),
+    x: Math.round(clampView((p.x + 0.5) * size - canvas.width / 2, map.w * size - canvas.width)),
+    y: Math.round(clampView((p.y + 0.5) * size - canvas.height / 2, map.h * size - canvas.height)),
   };
 }
 
@@ -221,7 +217,7 @@ function draw(canvas, now) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Décor (sol, arbres, rochers), dessiné une fois par étage puis recopié.
-  const layer = staticLayer(map, exp.dungeonKey);
+  const layer = staticLayer(map, exp.dungeonKey, exp.floor);
   ctx.drawImage(layer, cam.x / SCALE, cam.y / SCALE, canvas.width / SCALE, canvas.height / SCALE, 0, 0, canvas.width, canvas.height);
 
   const x0 = Math.floor(cam.x / size);
@@ -247,13 +243,27 @@ function draw(canvas, now) {
       ctx.ellipse(cx, cy + size * 0.28, size * 0.46, size * 0.22, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.font = `${Math.round(size * 0.72)}px serif`;
+    if (text === 'ladder') {
+      // Échelle en pixels : deux montants et quatre barreaux.
+      const u = SCALE;
+      ctx.fillStyle = '#6b4a2a';
+      ctx.fillRect(cx - 5 * u, cy - 7 * u, 2 * u, 14 * u);
+      ctx.fillRect(cx + 3 * u, cy - 7 * u, 2 * u, 14 * u);
+      ctx.fillStyle = '#a57a44';
+      for (let r = 0; r < 4; r++) ctx.fillRect(cx - 3 * u, cy - 5 * u + r * 3.5 * u, 6 * u, u);
+      return;
+    }
+    ctx.font = `bold ${Math.round(size * 0.6)}px FantasyRPGtitle, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.lineWidth = SCALE;
+    ctx.strokeStyle = '#1a0f2a';
+    ctx.strokeText(text, cx, cy);
+    ctx.fillStyle = '#f3d58c';
     ctx.fillText(text, cx, cy);
   };
-  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, '🪜', 'rgba(0,0,0,.45)');
-  for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '❔', 'rgba(90,50,160,.5)');
+  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', 'rgba(0,0,0,.45)');
+  for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '?', 'rgba(90,50,160,.6)', 'rgba(190,150,255,.8)');
 
   // Personnages, triés de haut en bas (les plus bas passent devant).
   const actors = [];
@@ -274,8 +284,8 @@ function draw(canvas, now) {
   actors.sort((a, b) => a.y - b.y).forEach((a) => a.draw());
 
   // Brouillard : jamais vu = noir ; déjà vu mais hors de vue = assombri.
-  for (let y = y0; y <= y0 + VIEW_H; y++) {
-    for (let x = x0; x <= x0 + VIEW_W; x++) {
+  for (let y = y0; y <= y0 + Math.ceil(canvas.height / size); y++) {
+    for (let x = x0; x <= x0 + Math.ceil(canvas.width / size); x++) {
       if (x < 0 || y < 0 || x >= map.w || y >= map.h) continue;
       const i = idx(map, x, y);
       const [sx, sy] = at(x, y);
@@ -288,32 +298,25 @@ function draw(canvas, now) {
       }
     }
   }
-  if (themeOf(exp.dungeonKey)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
+  if (themeOf(exp.dungeonKey, exp.floor)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
 }
 
 function drawMob(ctx, mob, p, dir, at, size, now) {
   const [sx, sy] = at(p.x, p.y);
   const cx = sx + size / 2;
-  const cy = sy + size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.ellipse(cx, sy + size * 0.85, size * 0.38, size * 0.14, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const lead = leadOf(mob);
   if (mob.boss || mob.id === anim.highlight) {
     ctx.strokeStyle = mob.id === anim.highlight ? '#fff' : '#f0c060';
     ctx.lineWidth = SCALE;
     ctx.beginPath();
-    ctx.ellipse(cx, sy + size * 0.85, size * 0.46, size * 0.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, sy + size * 0.9, size * 0.46, size * 0.2, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
-  const sprite = ENEMY_SPRITES[mob.enemies[0]];
+  // Le plus fort du groupe le représente ; élites et boss sont dessinés plus grands.
+  const sprite = enemySprite(lead);
   if (sprite) {
-    drawActor(ctx, { sx, sy, size, scale: SCALE, dir, moving: p.moving, stride: p.n, progress: p.k, now: now + mob.x * 53, sprite, shadow: false });
-  } else {
-    ctx.font = `${Math.round(size * (mob.boss ? 0.95 : 0.78))}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(ENEMIES[mob.enemies[0]].icon, cx, cy);
+    const scale = mobScale(lead, SCALE, size * 2.2);
+    drawActor(ctx, { sx, sy, size, scale, dir, moving: p.moving, stride: p.n, progress: p.k, now: now + mob.x * 53, sprite, shadow: false });
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -329,10 +332,16 @@ function drawMob(ctx, mob, p, dir, at, size, now) {
   }
 }
 
-// Héros : sprite de sa classe (marche pendant un pas, attente sinon), pieds au bas de la case.
+// Monstre qui représente un groupe sur la carte : boss, sinon élite, sinon le premier.
+function leadOf(mob) {
+  const rank = { boss: 2, elite: 1, normal: 0 };
+  return mob.enemies.reduce((best, key) => (rank[mobTier(key)] > rank[mobTier(best)] ? key : best), mob.enemies[0]);
+}
+
+// Héros : son apparence (marche pendant un pas, attente sinon), pieds au bas de la case.
 function drawHero(ctx, hero, p, dir, at, now) {
   const [sx, sy] = at(p.x, p.y);
-  const sprite = CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
+  const sprite = heroSprite(hero);
   drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: dir ?? 'down', facing: anim.facing, moving: p.moving, stride: p.n, progress: p.k, now, sprite });
 }
 

@@ -1,8 +1,12 @@
-// Intègre les images de assets/ au jeu : génère src/ui/assetData.js, qui exporte
-// chaque PNG en data URI (le jeu reste un seul fichier, jouable en double-clic).
+// Intègre les images (PNG) et polices (TTF) de assets/ au jeu : génère src/ui/assetData.js,
+// qui exporte chaque fichier en data URI (le jeu reste un seul fichier, jouable en double-clic).
 // Lancé par « npm run build » ; un test vérifie que le fichier est à jour.
 //
-// Clé d'une image : son chemin sous assets/, sans extension (ex. « fantasy/Tree_Emerald_1 »).
+// Clé d'un fichier : son chemin sous assets/, sans extension (ex. « raven/forest_A5 »,
+// « fonts/FantasyRPGtitle »).
+
+const TYPES = { '.png': 'image/png', '.ttf': 'font/ttf' };
+const extOf = (name) => name.slice(name.lastIndexOf('.'));
 
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
@@ -17,7 +21,7 @@ async function pngFiles(dir) {
   for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const path = join(dir, e.name);
     if (e.isDirectory()) files.push(...await pngFiles(path));
-    else if (e.name.endsWith('.png')) files.push(path);
+    else if (TYPES[extOf(e.name)]) files.push(path);
   }
   return files;
 }
@@ -25,14 +29,15 @@ async function pngFiles(dir) {
 export async function assetModule() {
   const lines = [
     '// Fichier généré par tools/assets.mjs (npm run build) : ne pas modifier à la main.',
-    '// Images de assets/ en data URI ; voir ui/sprites.js et assets/CREDITS.md.',
+    '// Images et polices de assets/ en data URI ; voir ui/sprites.js, ui/skin.js et assets/CREDITS.md.',
     '',
     'export const ASSET_DATA = {',
   ];
   for (const file of await pngFiles(join(root, 'assets'))) {
-    const key = relative(join(root, 'assets'), file).replaceAll('\\', '/').replace(/\.png$/, '');
+    const ext = extOf(file);
+    const key = relative(join(root, 'assets'), file).replaceAll('\\', '/').slice(0, -ext.length);
     const data = (await readFile(file)).toString('base64');
-    lines.push(`  ${JSON.stringify(key)}: 'data:image/png;base64,${data}',`);
+    lines.push(`  ${JSON.stringify(key)}: 'data:${TYPES[ext]};base64,${data}',`);
   }
   lines.push('};', '');
   return lines.join('\n');

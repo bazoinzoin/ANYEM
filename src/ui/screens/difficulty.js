@@ -1,27 +1,28 @@
-// Difficulté : puissance des ennemis et butin, au choix au village.
+// Difficulté, plein écran : une colonne par difficulté (puissance des ennemis, butin).
 
 import { state } from '../../state.js';
 import { DIFFICULTIES, DIFFICULTY_ORDER } from '../../config.js';
 import { RARITIES, RARITY_ORDER } from '../../data/items.js';
 import { difficultyOf, setDifficulty, lootRules, enemyPower } from '../../game/difficulty.js';
-import { goTo, goBack, backLabel } from '../router.js';
+import { esc } from '../html.js';
+import { goTo } from '../router.js';
+import { iconHtml, DIFFICULTY_ICONS } from '../icons.js';
+import { frame, wireFrame } from '../screenFrame.js';
 
 export function renderDifficulty(app) {
   const current = difficultyOf(state);
-  app.innerHTML = `
-    <div class="hero"><h1>⚖️ Difficulté</h1><p>Plus c'est dur, plus les monstres sont puissants… et plus le butin est riche</p></div>
-    ${state.expedition ? '<div class="card notice">Impossible de changer de difficulté pendant une expédition.</div>' : ''}
-    <div class="difficulty-grid">${DIFFICULTY_ORDER.map((k) => card(k, k === current)).join('')}</div>
-    <p class="hint center">Les chances sont tirées pour chaque ennemi vaincu. Les tableaux donnent la rareté de chaque objet obtenu. La rareté <b style="color:${RARITIES.divin.color}">Divin</b> ne tombe que sur les boss. L'or et l'expérience ne changent pas.</p>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
+  app.innerHTML = frame({
+    title: 'Difficulté', icon: DIFFICULTY_ICONS[current], layout: 'lay-difficulty', gold: false,
+    extras: `<span class="hint">${state.expedition ? 'Impossible de changer de difficulté pendant une expédition.' : `Chances tirées pour chaque ennemi vaincu ; la rareté <b style="color:${RARITIES.divin.color}">Divin</b> ne tombe que sur les boss. L'or et l'expérience ne changent pas.`}</span>`,
+    body: DIFFICULTY_ORDER.map((k) => card(k, k === current)).join(''),
+  });
+  wireFrame(app);
   app.querySelectorAll('[data-difficulty]').forEach((btn) => {
     btn.onclick = () => {
       setDifficulty(state, btn.dataset.difficulty);
       goTo('difficulty');
     };
   });
-  app.querySelector('#backHub').onclick = () => goBack();
 }
 
 const short = (label) => label.split(' ').map((w) => w[0].toUpperCase()).join('');
@@ -45,8 +46,8 @@ function card(key, selected) {
       </table>`;
   const amount = ({ min, max }) => (min === max ? `${min}` : `${min} à ${max}`);
   return `
-    <div class="card difficulty ${selected ? 'selected' : ''}">
-      <h2>${d.icon} ${d.name}</h2>
+    <section class="win difficulty ${selected ? 'selected' : ''}">
+      <h3>${iconHtml(DIFFICULTY_ICONS[key], 32)} ${esc(d.name)}</h3>
       <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
       <h4>Monstre normal</h4>
       <ul class="loot-lines">
@@ -62,6 +63,6 @@ function card(key, selected) {
         <li>Consommable : ${pct(loot.bossConsumableChance)} de chances</li>
       </ul>
       ${table(loot.bossRarityWeights, loot.bossMateriaRarityWeights)}
-      <button data-difficulty="${key}" class="full ${selected ? 'selected' : ''}" ${selected || state.expedition ? 'disabled' : ''}>${selected ? '✔ Difficulté actuelle' : 'Choisir'}</button>
-    </div>`;
+      <button data-difficulty="${key}" class="full ${selected ? 'selected' : ''}" ${selected || state.expedition ? 'disabled' : ''}>${selected ? 'Difficulté actuelle' : 'Choisir'}</button>
+    </section>`;
 }
