@@ -20,7 +20,7 @@ import { image, isReady } from './sprites.js';
 
 const TILE = 16;
 const SCALE = 3;
-const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
+const STEP_MS = 155; // durée d'un pas, aussi le rythme de marche
 const WALK_MS = STEP_MS;
 
 // Position du groupe (conservée entre deux menus) : state.village = { place ('village' ou

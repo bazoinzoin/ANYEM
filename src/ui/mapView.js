@@ -20,7 +20,7 @@ import { enemySprite, mobScale, mobTier } from './mobSprites.js';
 import { clampView, fitCanvas } from './viewport.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
-const STEP_MS = 180;       // durée d'un pas (animation), aussi le rythme de marche
+const STEP_MS = 155;       // durée d'un pas (animation), aussi le rythme de marche
 const WALK_MS = STEP_MS;   // délai entre deux pas d'une marche automatique
 const ENCOUNTER_MS = 400;  // le monstre touché reste visible un instant avant le combat
 
