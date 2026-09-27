@@ -12,7 +12,7 @@ import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
-import { staticLayer, TILE } from './mapThemes.js';
+import { staticLayer, themeOf, TILE } from './mapThemes.js';
 import { drawActor } from './actors.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
@@ -274,6 +274,7 @@ function draw(canvas, now) {
       }
     }
   }
+  if (themeOf(exp.dungeonKey)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
 }
 
 function drawMob(ctx, mob, p, at, size) {
@@ -311,4 +312,24 @@ function drawMob(ctx, mob, p, at, size) {
 function drawHero(ctx, p, at, now) {
   const [sx, sy] = at(p.x, p.y);
   drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: anim.dir, moving: p.moving, now });
+}
+
+// Neige qui tombe (Pics gelés) : flocons en espace monde, qui dérivent doucement, et
+// léger voile froid.
+function drawSnow(ctx, canvas, now, cam) {
+  ctx.fillStyle = 'rgba(170,200,255,.07)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const t = now / 1000;
+  const w = canvas.width;
+  const h = canvas.height;
+  for (let i = 0; i < 90; i++) {
+    const seed = Math.sin(i * 12.9898) * 43758.5453;
+    const r = seed - Math.floor(seed);
+    const speed = 18 + r * 30;
+    const size = SCALE * (r < 0.3 ? 2 : 1);
+    const x = ((r * 7919 * w + Math.sin(t * (0.6 + r) + i) * 14 * SCALE - cam.x * 0.3) % w + w) % w;
+    const y = ((((i * 97.3) % h) + t * speed * SCALE - cam.y * 0.3) % h + h) % h;
+    ctx.fillStyle = r < 0.3 ? 'rgba(255,255,255,.95)' : 'rgba(235,245,255,.7)';
+    ctx.fillRect(Math.round(x / SCALE) * SCALE, Math.round(y / SCALE) * SCALE, size, size);
+  }
 }

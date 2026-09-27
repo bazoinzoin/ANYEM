@@ -2,6 +2,7 @@
 // (marche pendant un pas, attente sinon), et variantes de couleurs pour les habitants.
 
 import { image, isReady } from './sprites.js';
+import { rgbToHsl, hslToRgb } from './recolor.js';
 
 // Planches du pack : 4 images par ligne, 40 × 48 px. Lignes : 0 = profil (vers la droite,
 // retourné pour la gauche), 2 = dos, 3 = face.
@@ -16,37 +17,6 @@ export const HERO = {
 };
 
 // ---- Couleurs des habitants ----
-
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  if (max === min) return [0, 0, l];
-  const d = max - min;
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  let h;
-  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-  else if (max === g) h = (b - r) / d + 2;
-  else h = (r - g) / d + 4;
-  return [h * 60, s, l];
-}
-
-function hslToRgb(h, s, l) {
-  h /= 360;
-  if (s === 0) return [l * 255, l * 255, l * 255];
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const f = (t) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
-}
 
 const tintCache = new Map();
 
