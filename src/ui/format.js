@@ -1,6 +1,7 @@
 // Libellés partagés entre plusieurs écrans : description et estimation des compétences.
 // Toutes les valeurs viennent de game/formulas.js (mêmes calculs que le combat).
 
+import { atCombo } from '../game/combo.js';
 import { estimateSkill, effectValue } from '../game/formulas.js';
 import { getStats, getClass } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
@@ -56,6 +57,7 @@ export function skillEffectLabel(stats, skill, target = null) {
   const text = `${parts.join(' · ')}${who ? ` — ${who}` : ''}`;
   // Finisher : valeurs données par point de combo, ou pour les points dépensés.
   if (!skill.finisher) return text;
+  if (!skill.comboPoints && skill.fullAt) return `${skillEffectLabel(stats, atCombo(skill, skill.fullAt), target)} (pleine puissance)`;
   if (!skill.comboPoints) return `Finisher, par point de combo : ${text}`;
   return `Finisher avec ${skill.comboPoints} point${skill.comboPoints > 1 ? 's' : ''} de combo : ${text}`;
 }

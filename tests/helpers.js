@@ -1,6 +1,6 @@
 // Outils partagés par les tests.
 
-import { branchesOf } from '../src/game/talents.js';
+import { branchesOf, learn, tiersOf } from '../src/game/talents.js';
 import { nodeSkills } from '../src/data/talents.js';
 
 // Donne à chaque héros les sorts de départ de toutes ses orientations (palier 0),
@@ -14,6 +14,22 @@ export function learnStarters(heroes) {
     }
   }
   return heroes;
+}
+
+// Apprend l'orientation `branchKey` jusqu'au palier `upTo` (inclus), sans limite de
+// points : gros paliers, et pour chaque petit palier le bonus cité dans `pick` (sinon le
+// premier des trois), à son rang maximum.
+export function learnPath(hero, branchKey, { upTo = 10, pick = [] } = {}) {
+  const branch = branchesOf(hero).find((b) => b.key === branchKey);
+  const level = hero.level;
+  hero.level = 999;
+  for (const tier of tiersOf(branch).filter((t) => t <= upTo)) {
+    const nodes = branch.nodes.filter((n) => n.tier === tier);
+    const node = nodes.find((n) => pick.includes(n.id)) ?? nodes[0];
+    while (learn(hero, node.id));
+  }
+  hero.level = level;
+  return hero;
 }
 
 // ---- Expédition sur carte (voir game/dungeon.js) ----

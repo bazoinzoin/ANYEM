@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
-import { learn, branchesOf } from '../src/game/talents.js';
+import { learnPath } from './helpers.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
 import { statsOf, damage } from '../src/game/units.js';
 import { addStatus, tickStatuses, makeStatus } from '../src/game/statuses.js';
@@ -13,13 +13,11 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 // Crée un combat où le héros d'index `heroIndex` (niveau 50) connaît tous les
 // talents de l'orientation `branchKey` jusqu'au palier `maxTier`, et joue jusqu'à son tour.
-function setup(heroIndex, branchKey, maxTier = 9) {
+function setup(heroIndex, branchKey, maxTier = 10, pick = []) {
   const party = createParty();
   const hero = party[heroIndex];
   hero.level = 50;
-  const branch = branchesOf(hero).find((b) => b.key === branchKey);
-  let learned = true;
-  while (learned) learned = branch.nodes.some((n) => n.tier <= maxTier && learn(hero, n.id));
+  learnPath(hero, branchKey, { upTo: maxTier, pick });
   hero.res = 999;
   const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   for (let i = 0; i < 50; i++) {
@@ -60,7 +58,7 @@ test('les statuts expirent après leur durée ; les modificateurs changent les s
 });
 
 test('Gardien : Provocation force les ennemis à attaquer le guerrier', () => {
-  const { cb, hero } = setup(0, 'gardien', 1);
+  const { cb, hero } = setup(0, 'gardien', 2);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'provocation') }));
   const others = cb.party.filter((h) => h !== hero).map((h) => h.hp);
   for (let i = 0; i < 6; i++) {
@@ -79,25 +77,25 @@ test('Gardien : Mur de boucliers protège toute l\'équipe', () => {
 });
 
 test('Gardien : Rempart ajoute un bouclier en défendant', () => {
-  const { cb, hero } = setup(0, 'gardien', 3);
+  const { cb, hero } = setup(0, 'gardien', 4);
   heroAct(cb, { type: 'defend' });
-  assert.equal(hero.statuses.find((s) => s.key === 'bouclier').shield, Math.round(getStats(hero).pv * 0.15));
+  assert.equal(hero.statuses.find((s) => s.key === 'bouclier').shield, Math.round(getStats(hero).pv * 0.2));
 });
 
 test('Berserker : plus de PV manquants = plus de puissance physique', () => {
-  const { hero } = setup(0, 'berserker', 3);
+  const { hero } = setup(0, 'berserker', 4);
   hero.hp = getStats(hero).pv;
   const full = statsOf(hero).physPower;
   hero.hp = Math.round(getStats(hero).pv * 0.3);
-  assert.equal(statsOf(hero).physPower, Math.round(full * (1 + 0.03 * 7)));
+  assert.equal(statsOf(hero).physPower, Math.round(full * (1 + 0.04 * 7)));
 });
 
 test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plus d\'Énergie', () => {
-  const { cb, hero } = setup(1, 'assassin');
+  const { cb, hero } = setup(1, 'assassin', 10, ['vivacite', 'souffle', 'second-souffle']);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  assert.equal(getStats(hero).resMax, 140);
-  assert.equal(getStats(hero).resRegen, 18);
+  assert.equal(getStats(hero).resMax, 120);
+  assert.equal(getStats(hero).resRegen, 26);
   hero.combo = 3;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
   assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
@@ -111,18 +109,19 @@ test('Assassin : Sceau du destin, un critique de générateur donne 1 point de c
   assert.equal(hero.combo, 2);
 });
 
-test('Empoisonneur : Opportuniste renforce contre une cible affaiblie ; Fiole de peste empoisonne selon les combos', () => {
-  const { cb, hero } = setup(1, 'empoisonneur');
+test('Empoisonneur : Opportuniste renforce contre une cible affaiblie ; Fiole de peste à pleine puissance dès 3 combos', () => {
+  const { cb, hero } = setup(1, 'empoisonneur', 10, ['opportuniste']);
   const a = statsOf(hero);
   const plain = { ...statsOf(cb.enemies[0]), debuffed: false };
   const slowed = { ...plain, debuffed: true };
   assert.ok(estimateHit(a, BASIC_ATTACK, slowed).lo > estimateHit(a, BASIC_ATTACK, plain).lo);
-  hero.combo = 4;
+  hero.combo = 3;
   hero.res = 100;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'fiole-de-peste') }));
   for (const e of cb.enemies.filter((x) => x.alive)) {
     const poison = e.statuses.find((s) => s.key === 'poison');
-    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.56 * (1 + a.dotPct / 100))));
+    // 3 points = la puissance de 5 points (0,14 par point).
+    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.7 * (1 + a.dotPct / 100))));
   }
 });
 
@@ -136,18 +135,18 @@ test('Clerc : Résurrection ramène un allié tombé, uniquement s\'il y en a un
   assert.deepEqual(targetsFor(cb, { type: 'skill', skill: idx }).units, [g]);
   assert.ok(heroAct(cb, { type: 'skill', skill: idx, target: 0 }));
   assert.equal(g.alive, true);
-  assert.equal(g.hp, Math.round(getStats(g).pv * 0.7), 'Résurrection supérieure : 70 % des PV');
+  assert.equal(g.hp, Math.round(getStats(g).pv * 0.4));
 });
 
 test('Clerc : Prière de soins soigne toute l\'équipe', () => {
-  const { cb, hero } = setup(2, 'clerc', 1);
+  const { cb, hero } = setup(2, 'clerc', 2);
   cb.party.forEach((h) => { h.hp = 10; });
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'priere-de-soins') });
   cb.party.forEach((h) => assert.ok(h.hp > 10, h.name));
 });
 
 test('Prêcheur : Rénovation soigne à chaque fin de round', () => {
-  const { cb, hero } = setup(2, 'precheur', 1);
+  const { cb, hero } = setup(2, 'precheur', 2);
   const [g] = cb.party;
   g.hp = 10;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'renovation'), target: 0 });
@@ -158,7 +157,7 @@ test('Prêcheur : Rénovation soigne à chaque fin de round', () => {
 });
 
 test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {
-  const { cb, hero } = setup(2, 'profane', 4);
+  const { cb, hero } = setup(2, 'profane', 6);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'confusion'), target: 0 });
   const [confused, other] = cb.enemies;
   assert.ok(confused.statuses.some((s) => s.confuse));
@@ -171,7 +170,7 @@ test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {
 });
 
 test('Foudre : Onde de choc fait perdre son tour à la cible', () => {
-  const { cb, hero } = setup(3, 'foudre', 4);
+  const { cb, hero } = setup(3, 'foudre', 6);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'onde-de-choc'), target: 0 });
@@ -188,7 +187,7 @@ test('Foudre : Onde de choc fait perdre son tour à la cible', () => {
 });
 
 test('Glace : Éclat de glace ralentit la cible', () => {
-  const { cb, hero } = setup(3, 'glace', 1);
+  const { cb, hero } = setup(3, 'glace', 2);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'eclat-de-glace'), target: 0 });
@@ -196,7 +195,7 @@ test('Glace : Éclat de glace ralentit la cible', () => {
 });
 
 test('Berserker : vol de vie et Exécution (dégâts doublés sous 30 % de PV)', () => {
-  const { cb, hero } = setup(0, 'berserker');
+  const { cb, hero } = setup(0, 'berserker', 10, ['vampirisme']);
   const target = cb.enemies[0];
   Object.assign(target.stats, { pv: 10000, def: 0 });
   target.hp = 10000;
@@ -214,8 +213,8 @@ test('Berserker : vol de vie et Exécution (dégâts doublés sous 30 % de PV)',
 });
 
 test('Gardien : Garde de fer renforce la garde ; les boucliers donnés sont renforcés', () => {
-  const { cb, hero } = setup(0, 'gardien');
-  assert.equal(statsOf(hero).guardBonus, 15);
+  const { cb, hero } = setup(0, 'gardien', 10, ['bastion', 'protecteur', 'garde-de-fer']);
+  assert.equal(statsOf(hero).guardBonus, 11);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'mur-de-boucliers') });
   const shield = cb.party[2].statuses.find((s) => s.key === 'bouclier').shield;
   const base = Math.round(statsOf(hero).physPower * 0.9);
@@ -267,7 +266,7 @@ test("les effets s'appliquent et se décomptent à la fin du tour de l'unité, p
 });
 
 test("un buff posé sur soi pendant son tour n'est pas décompté à la fin de ce même tour", () => {
-  const { cb, hero } = setup(0, 'gardien', 1);
+  const { cb, hero } = setup(0, 'gardien', 2);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'provocation') }));
   assert.equal(hero.statuses.find((s) => s.key === 'provocation').turns, 2);
 });

@@ -1,22 +1,24 @@
 // Arbres de compétences (DESIGN_DOC §3). Données pures.
 //
-// Chaque classe a une orientation par branche. Une branche compte 10 paliers
-// (tier 0 à 9) et 50 rangs au total : un héros au niveau maximum (50 points) peut
-// compléter une seule orientation. Le palier t se débloque quand t × 5 points sont
-// investis dans la branche (voir TALENT_RULES dans config.js) ; le palier 9 est la
-// compétence signature de l'orientation.
-//
-// Modèle d'une branche (rangs par palier) :
-//   0 : sort de départ + 2 bonus   1 : compétence + bonus    2 : 2 bonus
-//   3 : passif + bonus     4 : compétence + bonus    5 : 2 bonus
-//   6 : passif + bonus     7 : compétence + bonus    8 : passif + bonus
-//   9 : compétence signature
+// Chaque classe a une orientation par branche. Une branche alterne gros et petits paliers :
+//   palier 0          gros : sort(s) de départ
+//   paliers 1,3,5,7,9 petits : 3 bonus de stats au choix, UN SEUL se prend (plusieurs rangs,
+//                     CHOICE_RANKS) ; changer d'avis demande une réinitialisation
+//   paliers 2,4,6,8   gros : nouvelle compétence ou passif important (un seul nœud, obligatoire)
+//   palier 10         gros : compétence signature
+// Un palier s'ouvre quand tous les précédents sont complets (gros appris, petit choisi au
+// rang maximum) : on passe forcément par chaque gros palier, et on choisit ses petits.
+// Une orientation complète coûte 45 points (6 gros + 4 + 6 + 8 + 10 + 11 rangs) : au niveau
+// maximum (50 points), une orientation entière et le début d'une autre.
+// Les effets des gros paliers suivent la logique de l'orientation (un bonus aux dégâts sur la
+// durée ne vient qu'après le premier sort qui en inflige). Les légendaires renforcent les
+// compétences et passifs des gros paliers.
 //
 // Nœud : { id, name, tier, ranks, kind, desc, ...effet }
-//   kind 'minor'     nœud secondaire : petit bonus, plusieurs rangs
-//        'skill'     nœud principal : nouvelle compétence (champ `skill`)
-//        'passive'   nœud principal : nouveau passif ou amélioration de compétence
-//        'signature' compétence signature (palier 9, champ `skill`)
+//   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, exclusif des 2 autres
+//        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
+//        'passive'   gros palier : nouveau passif ou amélioration de compétence
+//        'signature' compétence signature (dernier palier, champ `skill`)
 // Effets, cumulés par rang :
 //   flat     { stat: valeur }  ajout aux stats (voir data/stats.js)
 //   pct      { stat: % }       % sur la stat finale (pv, def, defMag, physPower, magPower…)
@@ -45,11 +47,39 @@
 
 import { CLASSES } from './classes.js';
 
+// Rangs des petits paliers (le bonus choisi se prend autant de fois).
+export const CHOICE_RANKS = { 1: 4, 3: 6, 5: 8, 7: 10, 9: 11 };
+export const SIGNATURE_TIER = 10;
+
+// Libellés des effets, pour décrire un petit palier (« +3 % PV par rang »).
+const EFFECT_LABELS = {
+  flat: { critChance: ' % Taux critique', critDmg: ' % Dégâts critiques', esquive: ' % Esquive', blocage: ' % Blocage', riposte: ' % Riposte', vit: ' Vitesse' },
+  pct: { pv: ' % PV', def: ' % Défense', defMag: ' % Défense magique', physPower: ' % Puissance physique', magPower: ' % Puissance magique' },
+  passive: {
+    dotPct: ' % de dégâts sur la durée', healPct: ' % de soins', shieldPct: ' % de valeur des boucliers donnés',
+    vsDebuffedPct: ' % de dégâts contre une cible qui subit un effet négatif', executePct: ' % de dégâts contre une cible sous 30 % de PV',
+    aoePct: ' % de dégâts des compétences de zone', lifestealPct: ' % des dégâts infligés rendus en PV',
+    resRegen: ' de ressource regagnée par tour', resMaxBonus: ' de ressource maximum', resOnAttack: ' Rage par attaque',
+    resOnHitTaken: ' Rage par coup encaissé', trapPct: ' % de dégâts des pièges', finisherRefund: ' Énergie rendue par point de combo dépensé',
+    guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
+  },
+};
+
+export function describeEffect(fx) {
+  const parts = [];
+  for (const group of ['flat', 'pct', 'passive']) {
+    for (const [k, v] of Object.entries(fx[group] ?? {})) parts.push(`+${String(v).replace('.', ',')}${EFFECT_LABELS[group][k] ?? ` ${k}`}`);
+  }
+  return parts.join(', ');
+}
+
 // Raccourcis de construction des nœuds.
-const minor = (id, name, tier, ranks, desc, fx) => ({ id, name, tier, ranks, kind: 'minor', desc, ...fx });
+const minor = (id, name, fx) => ({ id, name, kind: 'minor', ...fx });
+// Petit palier : trois bonus au choix, chacun avec les rangs du palier.
+const choice = (tier, options) => options.map((o) => ({ ...o, tier, ranks: CHOICE_RANKS[tier], desc: `${describeEffect(o)} par rang.` }));
 const passive = (id, name, tier, desc, fx) => ({ id, name, tier, ranks: 1, kind: 'passive', desc, ...fx });
 const skill = (tier, def) => ({ id: def.id, name: def.name, tier, ranks: 1, kind: 'skill', desc: 'Nouvelle compétence.', skill: def });
-const signature = (def) => ({ id: def.id, name: def.name, tier: 9, ranks: 1, kind: 'signature', desc: 'Compétence signature.', skill: def });
+const signature = (def) => ({ id: def.id, name: def.name, tier: SIGNATURE_TIER, ranks: 1, kind: 'signature', desc: 'Compétence signature.', skill: def });
 // Nœud du palier 0 : le(s) sort(s) de départ de l'orientation (voir starterSkills
 // dans data/classes.js). Un héros commence sans sort et apprend celui-ci avec son
 // premier point de talent.
@@ -70,43 +100,52 @@ export const TALENTS = {
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
-        minor('peau-de-fer', 'Peau de fer', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
-        minor('posture-defensive', 'Posture défensive', 0, 2, '+5 % Défense par rang.', { pct: { def: 5 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('peau-de-fer', 'Peau de fer', { pct: { pv: 3 } }),
+          minor('posture-defensive', 'Posture défensive', { pct: { def: 4 } }),
+          minor('robustesse', 'Robustesse', { pct: { defMag: 4 } }),
+        ]),
+        skill(2, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
           desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
         }),
-        minor('robustesse', 'Robustesse', 1, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        minor('maitrise-bouclier', 'Maîtrise du bouclier', 2, 3, '+3 % Blocage par rang.', { flat: { blocage: 3 } }),
-        minor('colere-contenue', 'Colère contenue', 2, 3, '+3 Rage par coup encaissé, par rang.', { passive: { resOnHitTaken: 3 } }),
-        passive('rempart', 'Rempart', 3, 'Défendre donne aussi un Bouclier égal à 15 % des PV max.', { passive: { guardShieldPct: 15 } }),
-        minor('endurance', 'Endurance', 3, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        skill(4, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.1,
+        ...choice(3, [
+          minor('maitrise-bouclier', 'Maîtrise du bouclier', { flat: { blocage: 2 } }),
+          minor('colere-contenue', 'Colère contenue', { passive: { resOnHitTaken: 2 } }),
+          minor('endurance', 'Endurance', { pct: { pv: 2 } }),
+        ]),
+        passive('rempart', 'Rempart', 4, 'Défendre donne aussi un Bouclier égal à 20 % des PV max.', { passive: { guardShieldPct: 20 } }),
+        ...choice(5, [
+          minor('bastion', 'Bastion', { passive: { shieldPct: 4 } }),
+          minor('armure-lourde', 'Armure lourde', { pct: { def: 3 } }),
+          minor('tenacite', 'Ténacité', { pct: { defMag: 3 } }),
+        ]),
+        skill(6, {
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.7,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
-        minor('bastion', 'Bastion', 4, 5, '+8 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 8 } }),
-        minor('armure-lourde', 'Armure lourde', 5, 3, '+5 % Défense par rang.', { pct: { def: 5 } }),
-        minor('tenacite', 'Ténacité', 5, 3, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        passive('garde-de-fer', 'Garde de fer', 6, 'Défendre réduit les dégâts de 65 % au lieu de 50 %.', { passive: { guardBonus: 15 } }),
-        minor('inebranlable', 'Inébranlable', 6, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('inebranlable', 'Inébranlable', { pct: { pv: 2 } }),
+          minor('represailles', 'Représailles', { flat: { riposte: 2 } }),
+          minor('protecteur', 'Protecteur', { passive: { shieldPct: 4 } }),
+        ]),
+        skill(8, {
           id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.9)],
-          desc: "Bouclier sur toute l'équipe pendant 2 tours",
+          desc: 'Bouclier sur toute l\'équipe pendant 2 tours',
         }),
-        minor('protecteur', 'Protecteur', 7, 5, '+6 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 6 } }),
-        passive('cri-de-defi', 'Cri de défi', 8, 'Provocation donne aussi Protection au Guerrier (+50 % Défense et Défense magique).', {
-          skillMod: { skill: 'provocation', addSelfEffects: [fx('protection', 2)] },
-        }),
-        minor('colosse', 'Colosse', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        ...choice(9, [
+          minor('colosse', 'Colosse', { pct: { pv: 2 } }),
+          minor('garde-de-fer', 'Garde de fer', { passive: { guardBonus: 1 } }),
+          minor('muraille', 'Muraille', { pct: { def: 2, defMag: 2 } }),
+        ]),
         signature({
           id: 'dernier-rempart', name: 'Dernier rempart', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 3, 1.6), fx('protection', 3)],
           selfEffects: [fx('provocation', 3)],
-          desc: "Énorme Bouclier et Protection sur toute l'équipe pendant 3 tours ; le Guerrier provoque les ennemis",
+          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; le Guerrier provoque les ennemis',
         }),
       ],
     },
@@ -115,35 +154,44 @@ export const TALENTS = {
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
-        minor('soif-de-sang', 'Soif de sang', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
-        minor('brutalite', 'Brutalité', 0, 2, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        skill(1, {
-          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, critBonus: 25,
+        ...choice(1, [
+          minor('soif-de-sang', 'Soif de sang', { pct: { physPower: 3 } }),
+          minor('brutalite', 'Brutalité', { flat: { critDmg: 5 } }),
+          minor('fureur', 'Fureur', { passive: { resOnAttack: 2 } }),
+        ]),
+        skill(2, {
+          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.3, critBonus: 25,
           desc: 'Coup violent, +25 % de chance de critique',
         }),
-        minor('fureur', 'Fureur', 1, 4, '+2 Rage par attaque simple, par rang.', { passive: { resOnAttack: 2 } }),
-        minor('rage-sanguinaire', 'Rage sanguinaire', 2, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        minor('sauvagerie', 'Sauvagerie', 2, 3, '+8 % Dégâts critiques par rang.', { flat: { critDmg: 8 } }),
-        passive('berserk', 'Berserk', 3, '+3 % de puissance physique par tranche de 10 % de PV manquants.', { passive: { berserk: 3 } }),
-        minor('carnage', 'Carnage', 3, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        skill(4, {
-          id: 'tourbillon', name: 'Tourbillon', cost: 40, kind: 'damage', target: 'allEnemies', power: 1.0,
+        ...choice(3, [
+          minor('rage-sanguinaire', 'Rage sanguinaire', { flat: { critChance: 1 } }),
+          minor('sauvagerie', 'Sauvagerie', { flat: { critDmg: 4 } }),
+          minor('peau-epaisse', 'Peau épaisse', { pct: { pv: 2 } }),
+        ]),
+        passive('berserk', 'Berserk', 4, '+4 % de puissance physique par tranche de 10 % de PV manquants.', { passive: { berserk: 4 } }),
+        ...choice(5, [
+          minor('carnage', 'Carnage', { pct: { physPower: 2 } }),
+          minor('vampirisme', 'Vampirisme', { passive: { lifestealPct: 1 } }),
+          minor('colere', 'Colère', { passive: { resOnHitTaken: 2 } }),
+        ]),
+        skill(6, {
+          id: 'tourbillon', name: 'Tourbillon', cost: 40, kind: 'damage', target: 'allEnemies', power: 1,
           desc: 'Frappe tous les ennemis',
         }),
-        minor('vampirisme', 'Vampirisme', 4, 5, 'Vol de vie : +2 % des dégâts directs infligés rendus en PV, par rang.', { passive: { lifestealPct: 2 } }),
-        minor('executeur', 'Exécuteur', 5, 3, '+8 % de dégâts contre une cible sous 30 % de PV, par rang.', { passive: { executePct: 8 } }),
-        minor('peau-epaisse', 'Peau épaisse', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('frenesie', 'Frénésie', 6, 'Frappe sauvage coûte 10 Rage de moins et frappe 20 % plus fort.', {
-          skillMod: { skill: 'frappe-sauvage', costDelta: -10, powerPct: 20 },
-        }),
-        minor('colere', 'Colère', 6, 4, '+3 Rage par coup encaissé, par rang.', { passive: { resOnHitTaken: 3 } }),
-        skill(7, {
-          id: 'execution', name: 'Exécution', cost: 35, kind: 'damage', target: 'enemy', power: 1.6, executePct: 100,
+        ...choice(7, [
+          minor('executeur', 'Exécuteur', { passive: { executePct: 3 } }),
+          minor('rage-eternelle', 'Rage éternelle', { flat: { critChance: 1 } }),
+          minor('fureur-circulaire', 'Fureur circulaire', { passive: { aoePct: 3 } }),
+        ]),
+        skill(8, {
+          id: 'execution', name: 'Exécution', cost: 35, kind: 'damage', target: 'enemy', power: 2.2, executePct: 100,
           desc: 'Coup mortel : dégâts doublés contre une cible sous 30 % de PV',
         }),
-        minor('soif-de-combat', 'Soif de combat', 7, 5, '+2 % Puissance physique par rang.', { pct: { physPower: 2 } }),
-        passive('sang-bouillant', 'Sang bouillant', 8, 'Berserk : +2 % de puissance en plus par tranche de 10 % de PV manquants.', { passive: { berserk: 2 } }),
-        minor('rage-eternelle', 'Rage éternelle', 8, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        ...choice(9, [
+          minor('soif-de-combat', 'Soif de combat', { pct: { physPower: 2 } }),
+          minor('sauvagerie-sanglante', 'Sauvagerie sanglante', { flat: { critDmg: 3 } }),
+          minor('fureur-sanglante', 'Fureur sanglante', { passive: { lifestealPct: 1 } }),
+        ]),
         signature({
           id: 'carnage-sanglant', name: 'Carnage sanglant', cost: 80, kind: 'damage', target: 'allEnemies', power: 2.2,
           selfEffects: [fx('enrage', 3)],
@@ -152,143 +200,160 @@ export const TALENTS = {
       ],
     },
   ],
-
   voleur: [
     {
       key: 'assassin', name: 'Assassin', icon: '🗡️',
-      desc: "Plus d'Énergie donc plus d'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.",
+      desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
-        minor('vivacite', 'Vivacité', 0, 2, '+10 Énergie max et +3 Énergie regagnée par tour, par rang.', { passive: { resMaxBonus: 10, resRegen: 3 } }),
-        minor('precision', 'Précision', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        skill(1, {
-          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1,
+        ...choice(1, [
+          minor('vivacite', 'Vivacité', { passive: { resMaxBonus: 5 } }),
+          minor('precision', 'Précision', { flat: { critChance: 1 } }),
+          minor('lames-aiguisees', 'Lames aiguisées', { flat: { critDmg: 5 } }),
+        ]),
+        skill(2, {
+          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.65, comboGain: 1,
           effects: [fx('ralenti', 2)],
           desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
         }),
-        minor('lames-aiguisees', 'Lames aiguisées', 1, 4, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        minor('reflexes', 'Réflexes', 2, 3, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
-        minor('pas-de-l-ombre', "Pas de l'ombre", 2, 3, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
-        passive('sceau-du-destin', 'Sceau du destin', 3, "Un coup critique d'une compétence qui donne des points de combo en donne 1 de plus.", { passive: { critCombo: 1 } }),
-        minor('agilite-feline', 'Agilité féline', 3, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        skill(4, {
-          id: 'poussee-d-adrenaline', name: "Poussée d'adrénaline", cost: 10, kind: 'support', target: 'self',
-          resourceGain: 60, oncePerCombat: true, selfEffects: [fx('hate', 2)],
-          desc: "Une fois par combat : rend 60 Énergie et donne Hâte (+25 % Vitesse, 2 tours)",
-        }),
-        minor('souffle', 'Souffle', 4, 5, '+4 Énergie max par rang.', { passive: { resMaxBonus: 4 } }),
-        minor('coup-en-traitre', 'Coup en traître', 5, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        minor('implacable', 'Implacable', 5, 3, 'Chaque finisher rend 2 Énergie par point de combo dépensé, par rang.', { passive: { finisherRefund: 2 } }),
-        passive('instinct-du-tueur', 'Instinct du tueur', 6, '+30 % de dégâts contre une cible sous 30 % de PV.', { passive: { executePct: 30 } }),
-        minor('adresse', 'Adresse', 6, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        skill(7, {
-          id: 'deluge-de-lames', name: 'Déluge de lames', cost: 35, kind: 'damage', target: 'enemy', power: 0.17, hits: 4, finisher: true, critBonus: 15,
+        ...choice(3, [
+          minor('reflexes', 'Réflexes', { flat: { esquive: 1 } }),
+          minor('pas-de-l-ombre', 'Pas de l\'ombre', { flat: { vit: 1 } }),
+          minor('agilite-feline', 'Agilité féline', { pct: { physPower: 2 } }),
+        ]),
+        passive('sceau-du-destin', 'Sceau du destin', 4, 'Un coup critique d\'une compétence qui donne des points de combo en donne un de plus.', { passive: { critCombo: 1 } }),
+        ...choice(5, [
+          minor('coup-en-traitre', 'Coup en traître', { flat: { critChance: 1 } }),
+          minor('implacable', 'Implacable', { passive: { finisherRefund: 1 } }),
+          minor('souffle', 'Souffle', { passive: { resRegen: 2 } }),
+        ]),
+        skill(6, {
+          id: 'deluge-de-lames', name: 'Déluge de lames', cost: 35, kind: 'damage', target: 'enemy', power: 0.2, hits: 4, finisher: true, critBonus: 15,
           desc: 'Finisher : quatre coups rapides (+15 % de chance de critique), plus forts à chaque point de combo',
         }),
-        minor('maitre-des-lames', 'Maître des lames', 7, 5, '+5 % Dégâts critiques par rang.', { flat: { critDmg: 5 } }),
-        passive('rafale', 'Rafale', 8, 'Coup Vicieux coûte 5 Énergie de moins et frappe 15 % plus fort.', {
-          skillMod: { skill: 'coup-vicieux', costDelta: -5, powerPct: 15 },
+        ...choice(7, [
+          minor('maitre-des-lames', 'Maître des lames', { flat: { critDmg: 3 } }),
+          minor('adresse', 'Adresse', { pct: { physPower: 2 } }),
+          minor('second-souffle', 'Second souffle', { passive: { resRegen: 1 } }),
+        ]),
+        skill(8, {
+          id: 'poussee-d-adrenaline', name: 'Poussée d\'adrénaline', cost: 10, kind: 'support', target: 'self', resourceGain: 60, oncePerCombat: true,
+          selfEffects: [fx('hate', 2)],
+          desc: 'Une fois par combat : rend 60 Énergie et donne Hâte (+25 % Vitesse, 2 tours)',
         }),
-        minor('second-souffle', 'Second souffle', 8, 4, '+3 Énergie regagnée par tour, par rang.', { passive: { resRegen: 3 } }),
+        ...choice(9, [
+          minor('instinct-du-tueur', 'Instinct du tueur', { passive: { executePct: 3 } }),
+          minor('coup-precis', 'Coup précis', { flat: { critChance: 1 } }),
+          minor('lames-d-ombre', 'Lames d\'ombre', { flat: { critDmg: 3 } }),
+        ]),
         signature({
-          id: 'marque-de-la-mort', name: 'Marque de la mort', cost: 40, kind: 'damage', target: 'enemy', power: 0.8, finisher: true, alwaysCrit: true,
+          id: 'marque-de-la-mort', name: 'Marque de la mort', cost: 40, kind: 'damage', target: 'enemy', power: 0.9, finisher: true, alwaysCrit: true,
           desc: 'Finisher : coup critique garanti dévastateur, plus fort à chaque point de combo',
         }),
       ],
     },
     {
       key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
-      desc: "Moins d'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.",
+      desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
-        minor('toxines', 'Toxines', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
-        minor('opportuniste', 'Opportuniste', 0, 2, '+6 % de dégâts directs contre une cible affaiblie (empoisonnée, ralentie…) par rang.', { passive: { vsDebuffedPct: 6 } }),
-        skill(1, {
-          id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 1,
+        ...choice(1, [
+          minor('toxines', 'Toxines', { passive: { dotPct: 4 } }),
+          minor('opportuniste', 'Opportuniste', { passive: { vsDebuffedPct: 3 } }),
+          minor('concentration', 'Concentration', { pct: { physPower: 3 } }),
+        ]),
+        skill(2, {
+          id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 2,
           effects: [fx('poison', 4, 0.45)],
-          desc: 'Empoisonne la cible pendant 4 tours et donne 1 point de combo',
+          desc: 'Empoisonne la cible pendant 4 tours et donne 2 points de combo',
         }),
-        minor('concentration', 'Concentration', 1, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        minor('anatomie', 'Anatomie', 2, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        minor('sang-froid', 'Sang-froid', 2, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('venin-virulent', 'Venin virulent', 3, 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', {
-          skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [fx('affaibli', 4)] },
-        }),
-        minor('toxicite', 'Toxicité', 3, 4, '+6 % de dégâts sur la durée par rang.', { passive: { dotPct: 6 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('anatomie', 'Anatomie', { flat: { critChance: 1 } }),
+          minor('toxicite', 'Toxicité', { passive: { dotPct: 3 } }),
+          minor('sang-froid', 'Sang-froid', { pct: { pv: 2 } }),
+        ]),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [fx('affaibli', 4)] } }),
+        ...choice(5, [
+          minor('distillation', 'Distillation', { passive: { dotPct: 3 } }),
+          minor('patience', 'Patience', { passive: { resRegen: 2 } }),
+          minor('opportunisme', 'Opportunisme', { passive: { vsDebuffedPct: 2 } }),
+        ]),
+        skill(6, {
           id: 'gaz-nauseabond', name: 'Gaz nauséabond', cost: 40, kind: 'support', target: 'allEnemies', comboGain: 1,
           effects: [fx('poison', 3, 0.25), fx('affaibli', 3)],
           desc: 'Empoisonne et affaiblit tous les ennemis pendant 3 tours, donne 1 point de combo',
         }),
-        minor('opportunisme', 'Opportunisme', 4, 5, '+4 % de dégâts directs contre une cible affaiblie, par rang.', { passive: { vsDebuffedPct: 4 } }),
-        minor('distillation', 'Distillation', 5, 3, '+6 % de dégâts sur la durée par rang.', { passive: { dotPct: 6 } }),
-        minor('patience', 'Patience', 5, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('hemorragie', 'Hémorragie', 6, 'Lacération : saignement +50 % et 1 tour de plus.', {
-          skillMod: { skill: 'laceration', dotPowerPct: 50, dotTurnsDelta: 1 },
-        }),
-        minor('resistance', 'Résistance', 6, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        skill(7, {
-          id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true,
+        ...choice(7, [
+          minor('pestilence', 'Pestilence', { passive: { dotPct: 2 } }),
+          minor('resistance', 'Résistance', { pct: { pv: 2 } }),
+          minor('doigts-agiles', 'Doigts agiles', { passive: { resRegen: 1 } }),
+        ]),
+        skill(8, {
+          id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
           effects: [fx('poison', 4, 0.14)],
-          desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, plus fort à chaque point de combo',
+          desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, à pleine puissance dès 3 points de combo',
         }),
-        minor('pestilence', 'Pestilence', 7, 5, '+5 % de dégâts sur la durée par rang.', { passive: { dotPct: 5 } }),
-        passive('poison-paralysant', 'Poison paralysant', 8, 'Lame empoisonnée ralentit aussi la cible (−30 % Vitesse, 2 tours).', {
-          skillMod: { skill: 'lame-empoisonnee', addEffects: [fx('ralenti', 2)] },
-        }),
-        minor('venin-concentre', 'Venin concentré', 8, 4, '+4 % de dégâts sur la durée par rang.', { passive: { dotPct: 4 } }),
+        ...choice(9, [
+          minor('venin-concentre', 'Venin concentré', { passive: { dotPct: 2 } }),
+          minor('dose-mortelle', 'Dose mortelle', { passive: { finisherRefund: 1 } }),
+          minor('venin-opportun', 'Venin opportun', { passive: { vsDebuffedPct: 2 } }),
+        ]),
         signature({
-          id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true,
+          id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
           effects: [fx('poison', 5, 0.35), fx('terreur', 3)],
-          desc: 'Finisher : poison foudroyant sur 5 tours et Terreur (−30 % Défenses, 3 tours), plus fort à chaque point de combo',
+          desc: 'Finisher : poison foudroyant sur 5 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
         }),
       ],
     },
   ],
-
   pretre: [
     {
       key: 'clerc', name: 'Clerc', icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
-        minor('devotion', 'Dévotion', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
-        minor('sagesse', 'Sagesse', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('devotion', 'Dévotion', { passive: { healPct: 3 } }),
+          minor('sagesse', 'Sagesse', { passive: { resMaxBonus: 5 } }),
+          minor('piete', 'Piété', { pct: { pv: 3 } }),
+        ]),
+        skill(2, {
           id: 'priere-de-soins', name: 'Prière de soins', cost: 40, kind: 'heal', target: 'allAllies', power: 0.55,
-          desc: "Soigne toute l'équipe",
+          desc: 'Soigne toute l\'équipe',
         }),
-        minor('meditation', 'Méditation', 1, 4, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('lumiere-bienveillante', 'Lumière bienveillante', 2, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('robustesse-sacree', 'Robustesse sacrée', 2, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('grace', 'Grâce', 3, 'Soin Majeur coûte 10 Mana de moins et soigne 20 % de plus.', {
-          skillMod: { skill: 'soin-majeur', costDelta: -10, powerPct: 20 },
-        }),
-        minor('ferveur', 'Ferveur', 3, 4, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('meditation', 'Méditation', { passive: { resRegen: 1 } }),
+          minor('lumiere-bienveillante', 'Lumière bienveillante', { pct: { magPower: 2 } }),
+          minor('ferveur', 'Ferveur', { passive: { healPct: 2 } }),
+        ]),
+        passive('grace', 'Grâce', 4, 'Soin Majeur coûte 10 Mana de moins et soigne 20 % de plus.', { skillMod: { skill: 'soin-majeur', costDelta: -10, powerPct: 20 } }),
+        ...choice(5, [
+          minor('clarte', 'Clarté', { passive: { resRegen: 1 } }),
+          minor('esprit-serein', 'Esprit serein', { passive: { resMaxBonus: 3 } }),
+          minor('benediction-divine', 'Bénédiction divine', { passive: { healPct: 2 } }),
+        ]),
+        skill(6, {
           id: 'resurrection', name: 'Résurrection', cost: 60, kind: 'revive', target: 'deadAlly', power: 0.4,
           desc: 'Ramène un allié tombé avec 40 % de ses PV',
         }),
-        minor('clarte', 'Clarté', 4, 5, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('benediction-divine', 'Bénédiction divine', 5, 3, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
-        minor('esprit-serein', 'Esprit serein', 5, 3, '+8 Mana max par rang.', { passive: { resMaxBonus: 8 } }),
-        passive('priere-fervente', 'Prière fervente', 6, 'Prière de soins coûte 5 Mana de moins et soigne 25 % de plus.', {
-          skillMod: { skill: 'priere-de-soins', costDelta: -5, powerPct: 25 },
-        }),
-        minor('aura-sainte', 'Aura sainte', 6, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('aura-sainte', 'Aura sainte', { pct: { defMag: 2 } }),
+          minor('misericorde', 'Miséricorde', { passive: { healPct: 2 } }),
+          minor('illumination', 'Illumination', { pct: { magPower: 2 } }),
+        ]),
+        skill(8, {
           id: 'purification', name: 'Purification', cost: 25, kind: 'heal', target: 'ally', power: 0.5, cleanse: true,
-          desc: "Retire tous les effets négatifs d'un allié et le soigne",
+          desc: 'Retire tous les effets négatifs d\'un allié et le soigne',
         }),
-        minor('misericorde', 'Miséricorde', 7, 5, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
-        passive('resurrection-superieure', 'Résurrection supérieure', 8, 'Résurrection coûte 20 Mana de moins et relève avec 70 % des PV.', {
-          skillMod: { skill: 'resurrection', costDelta: -20, powerPct: 75 },
-        }),
-        minor('illumination', 'Illumination', 8, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        ...choice(9, [
+          minor('saintete', 'Sainteté', { passive: { healPct: 2 } }),
+          minor('recueillement', 'Recueillement', { passive: { resRegen: 1 } }),
+          minor('robustesse-sacree', 'Robustesse sacrée', { pct: { pv: 2 } }),
+        ]),
         signature({
           id: 'miracle', name: 'Miracle', cost: 80, kind: 'heal', target: 'allAllies', power: 1.2, cleanse: true,
           effects: [fx('bouclier', 2, 0.5)],
-          desc: "Soin massif de toute l'équipe, retire tous ses effets négatifs et la protège d'un Bouclier",
+          desc: 'Soin massif de toute l\'équipe, retire tous ses effets négatifs et la protège d\'un Bouclier',
         }),
       ],
     },
@@ -297,46 +362,51 @@ export const TALENTS = {
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
-        minor('foi', 'Foi', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('constance', 'Constance', 0, 2, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('foi', 'Foi', { pct: { magPower: 3 } }),
+          minor('constance', 'Constance', { passive: { resRegen: 1 } }),
+          minor('harmonie', 'Harmonie', { passive: { healPct: 3 } }),
+        ]),
+        skill(2, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
           effects: [fx('regeneration', 4, 0.35)],
           desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
         }),
-        minor('harmonie', 'Harmonie', 1, 4, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
-        minor('bouclier-de-foi', 'Bouclier de foi', 2, 3, '+6 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 6 } }),
-        minor('piete', 'Piété', 2, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('renovation-persistante', 'Rénovation persistante', 3, 'Rénovation dure 1 tour de plus et soigne 25 % de plus.', {
-          skillMod: { skill: 'renovation', effectTurnsDelta: 1, effectPowerPct: 25 },
-        }),
-        minor('serenite', 'Sérénité', 3, 4, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
+        ...choice(3, [
+          minor('serenite', 'Sérénité', { passive: { healPct: 2 } }),
+          minor('piete-du-precheur', 'Piété du prêcheur', { pct: { pv: 2 } }),
+          minor('sermon', 'Sermon', { passive: { resRegen: 1 } }),
+        ]),
         skill(4, {
           id: 'bouclier-sacre', name: 'Bouclier sacré', cost: 30, kind: 'support', target: 'ally', magic: true,
           effects: [fx('bouclier', 3, 1.2)],
           desc: 'Protège un allié par un Bouclier pendant 3 tours',
         }),
-        minor('egide', 'Égide', 4, 5, '+5 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 5 } }),
-        minor('lumiere-interieure', 'Lumière intérieure', 5, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('sermon', 'Sermon', 5, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('bouclier-de-lumiere', 'Bouclier de lumière', 6, 'Bouclier sacré donne aussi Régénération pendant 3 tours.', {
-          skillMod: { skill: 'bouclier-sacre', addEffects: [fx('regeneration', 3, 0.2)] },
-        }),
-        minor('grace-celeste', 'Grâce céleste', 6, 4, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
-        skill(7, {
-          id: 'jugement', name: 'Jugement', cost: 35, kind: 'damage', target: 'enemy', power: 1.5, magic: true,
+        ...choice(5, [
+          minor('bouclier-de-foi', 'Bouclier de foi', { passive: { shieldPct: 3 } }),
+          minor('lumiere-interieure', 'Lumière intérieure', { pct: { magPower: 2 } }),
+          minor('grace-celeste', 'Grâce céleste', { passive: { healPct: 2 } }),
+        ]),
+        passive('bouclier-de-lumiere', 'Bouclier de lumière', 6, 'Bouclier sacré donne aussi Régénération pendant 3 tours.', { skillMod: { skill: 'bouclier-sacre', addEffects: [fx('regeneration', 3, 0.2)] } }),
+        ...choice(7, [
+          minor('egide', 'Égide', { passive: { shieldPct: 3 } }),
+          minor('zele', 'Zèle', { pct: { magPower: 2 } }),
+          minor('beatitude', 'Béatitude', { pct: { pv: 2 } }),
+        ]),
+        skill(8, {
+          id: 'jugement', name: 'Jugement', cost: 35, kind: 'damage', target: 'enemy', power: 1, magic: true,
           effects: [fx('brulure', 3, 0.3)],
           desc: 'Frappe de lumière qui embrase la cible (Brûlure sur 3 tours)',
         }),
-        minor('zele', 'Zèle', 7, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        passive('egide-superieure', 'Égide supérieure', 8, 'Bouclier sacré coûte 5 Mana de moins et protège 30 % de plus.', {
-          skillMod: { skill: 'bouclier-sacre', costDelta: -5, effectPowerPct: 30 },
-        }),
-        minor('beatitude', 'Béatitude', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        ...choice(9, [
+          minor('zele-ardent', 'Zèle ardent', { pct: { magPower: 2 } }),
+          minor('ferveur-du-precheur', 'Ferveur du prêcheur', { passive: { healPct: 2 } }),
+          minor('flammes-sacrees', 'Flammes sacrées', { passive: { dotPct: 3 } }),
+        ]),
         signature({
           id: 'hymne-divin', name: 'Hymne divin', cost: 75, kind: 'support', target: 'allAllies', magic: true,
           effects: [fx('regeneration', 4, 0.3), fx('bouclier', 3, 0.8), fx('puissance', 3)],
-          desc: "Régénération, Bouclier et Puissance sur toute l'équipe",
+          desc: 'Régénération, Bouclier et Puissance sur toute l\'équipe',
         }),
       ],
     },
@@ -344,43 +414,48 @@ export const TALENTS = {
       key: 'profane', name: 'Profane', icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
-        starter('depart-profane', "Trait d'ombre", 'pretre', ['trait-d-ombre']),
-        minor('ombre', 'Ombre', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
-        minor('esprit-sombre', 'Esprit sombre', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        skill(1, {
-          id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.3, magic: true,
-          effects: [fx('tenebres', 4, 0.4)],
+        starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
+        ...choice(1, [
+          minor('esprit-sombre', 'Esprit sombre', { pct: { magPower: 3 } }),
+          minor('noirceur', 'Noirceur', { passive: { resRegen: 1 } }),
+          minor('voile-d-ombre', 'Voile d\'ombre', { pct: { defMag: 3 } }),
+        ]),
+        skill(2, {
+          id: 'mot-de-douleur', name: 'Mot de douleur', cost: 20, kind: 'damage', target: 'enemy', power: 0.5, magic: true,
+          effects: [fx('tenebres', 4, 0.5)],
           desc: 'Dégâts de ténèbres sur 4 tours',
         }),
-        minor('noirceur', 'Noirceur', 1, 4, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('malveillance', 'Malveillance', 2, 3, '+6 % de dégâts sur la durée par rang.', { passive: { dotPct: 6 } }),
-        minor('voile-d-ombre', "Voile d'ombre", 2, 3, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        passive('douleur-prolongee', 'Douleur prolongée', 3, 'Mot de douleur dure 2 tours de plus.', {
-          skillMod: { skill: 'mot-de-douleur', dotTurnsDelta: 2 },
-        }),
-        minor('corruption', 'Corruption', 3, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('ombre', 'Ombre', { passive: { dotPct: 3 } }),
+          minor('corruption', 'Corruption', { pct: { magPower: 2 } }),
+          minor('pacte', 'Pacte', { passive: { resMaxBonus: 3 } }),
+        ]),
+        passive('douleur-prolongee', 'Douleur prolongée', 4, 'Mot de douleur dure 2 tours de plus.', { skillMod: { skill: 'mot-de-douleur', dotTurnsDelta: 2 } }),
+        ...choice(5, [
+          minor('malveillance', 'Malveillance', { passive: { dotPct: 3 } }),
+          minor('supplice', 'Supplice', { passive: { vsDebuffedPct: 2 } }),
+          minor('noirceur-profonde', 'Noirceur profonde', { passive: { resRegen: 1 } }),
+        ]),
+        skill(6, {
           id: 'confusion', name: 'Confusion', cost: 30, kind: 'support', target: 'enemy',
           effects: [fx('confus', 2)],
           desc: 'La cible a une chance sur deux de frapper ses alliés pendant 2 tours',
         }),
-        minor('tourment', 'Tourment', 4, 5, '+5 % de dégâts sur la durée par rang.', { passive: { dotPct: 5 } }),
-        minor('supplice', 'Supplice', 5, 3, '+5 % de dégâts directs contre une cible affaiblie, par rang.', { passive: { vsDebuffedPct: 5 } }),
-        minor('pacte', 'Pacte', 5, 3, '+8 Mana max par rang.', { passive: { resMaxBonus: 8 } }),
-        passive('demence', 'Démence', 6, 'Confusion inflige aussi Terreur (−30 % Défense et Défense magique, 2 tours).', {
-          skillMod: { skill: 'confusion', addEffects: [fx('terreur', 2)] },
-        }),
-        minor('desespoir', 'Désespoir', 6, 4, '+4 % de dégâts sur la durée par rang.', { passive: { dotPct: 4 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('tourment', 'Tourment', { passive: { dotPct: 2 } }),
+          minor('desespoir', 'Désespoir', { passive: { vsDebuffedPct: 2 } }),
+          minor('neant', 'Néant', { pct: { magPower: 2 } }),
+        ]),
+        skill(8, {
           id: 'fleau', name: 'Fléau', cost: 45, kind: 'support', target: 'allEnemies', magic: true,
           effects: [fx('tenebres', 3, 0.5)],
           desc: 'Dégâts de ténèbres sur 3 tours à tous les ennemis',
         }),
-        minor('neant', 'Néant', 7, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        passive('contagion', 'Contagion', 8, 'Fléau dure 1 tour de plus et inflige 25 % de dégâts en plus.', {
-          skillMod: { skill: 'fleau', dotTurnsDelta: 1, dotPowerPct: 25 },
-        }),
-        minor('ombre-devorante', 'Ombre dévorante', 8, 4, '+4 % de dégâts sur la durée par rang.', { passive: { dotPct: 4 } }),
+        ...choice(9, [
+          minor('ombre-devorante', 'Ombre dévorante', { passive: { dotPct: 2 } }),
+          minor('abime', 'Abîme', { pct: { magPower: 2 } }),
+          minor('voile-noir', 'Voile noir', { pct: { defMag: 2 } }),
+        ]),
         signature({
           id: 'apocalypse', name: 'Apocalypse', cost: 75, kind: 'damage', target: 'allEnemies', power: 0.8, magic: true,
           effects: [fx('tenebres', 4, 0.7), fx('affaibli', 3)],
@@ -389,52 +464,53 @@ export const TALENTS = {
       ],
     },
   ],
-
   mage: [
     {
       key: 'feu', name: 'Mage de feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
-        minor('chaleur', 'Chaleur', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('combustion', 'Combustion', 0, 2, '+8 % de dégâts sur la durée par rang.', { passive: { dotPct: 8 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('chaleur', 'Chaleur', { pct: { magPower: 3 } }),
+          minor('reserve-de-mana', 'Réserve de mana', { passive: { resMaxBonus: 5 } }),
+          minor('concentration-ardente', 'Concentration ardente', { passive: { resRegen: 1 } }),
+        ]),
+        skill(2, {
           id: 'immolation', name: 'Immolation', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, magic: true,
           effects: [fx('brulure', 3, 0.4)],
           desc: 'Enflamme la cible (Brûlure sur 3 tours)',
         }),
-        minor('braises', 'Braises', 1, 4, '+6 % de dégâts sur la durée par rang.', { passive: { dotPct: 6 } }),
-        minor('flammes-vives', 'Flammes vives', 2, 3, '+6 % de dégâts sur la durée par rang.', { passive: { dotPct: 6 } }),
-        minor('reserve-de-mana', 'Réserve de mana', 2, 3, '+8 Mana max par rang.', { passive: { resMaxBonus: 8 } }),
-        passive('boule-ardente', 'Boule ardente', 3, 'Boule de Feu enflamme aussi la cible (Brûlure sur 3 tours).', {
-          skillMod: { skill: 'boule-de-feu', addEffects: [fx('brulure', 3, 0.3)] },
-        }),
-        minor('pyromanie', 'Pyromanie', 3, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('combustion', 'Combustion', { passive: { dotPct: 3 } }),
+          minor('pyromanie', 'Pyromanie', { pct: { magPower: 2 } }),
+          minor('etincelles', 'Étincelles', { flat: { critChance: 1 } }),
+        ]),
+        passive('boule-ardente', 'Boule ardente', 4, 'Boule de feu enflamme aussi la cible (Brûlure sur 3 tours).', { skillMod: { skill: 'boule-de-feu', addEffects: [fx('brulure', 3, 0.2)] } }),
+        ...choice(5, [
+          minor('braises', 'Braises', { passive: { dotPct: 3 } }),
+          minor('flammes-vives', 'Flammes vives', { flat: { critDmg: 3 } }),
+          minor('foyer', 'Foyer', { passive: { resMaxBonus: 3 } }),
+        ]),
+        skill(6, {
           id: 'mur-de-flammes', name: 'Mur de flammes', cost: 40, kind: 'damage', target: 'allEnemies', power: 0.4, magic: true,
           effects: [fx('brulure', 3, 0.35)],
           desc: 'Embrase tous les ennemis (Brûlure sur 3 tours)',
         }),
-        minor('incendie', 'Incendie', 4, 5, '+5 % de dégâts sur la durée par rang.', { passive: { dotPct: 5 } }),
-        minor('brasier', 'Brasier', 5, 3, '+5 % de dégâts des compétences de zone par rang.', { passive: { aoePct: 5 } }),
-        minor('concentration-ardente', 'Concentration ardente', 5, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('feu-persistant', 'Feu persistant', 6, 'Immolation brûle 2 tours de plus et 25 % plus fort.', {
-          skillMod: { skill: 'immolation', dotTurnsDelta: 2, dotPowerPct: 25 },
-        }),
-        minor('cendres', 'Cendres', 6, 4, '+4 % de dégâts sur la durée par rang.', { passive: { dotPct: 4 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('brasier', 'Brasier', { passive: { aoePct: 3 } }),
+          minor('incendie', 'Incendie', { passive: { dotPct: 2 } }),
+          minor('fournaise', 'Fournaise', { pct: { magPower: 2 } }),
+        ]),
+        skill(8, {
           id: 'pluie-de-feu', name: 'Pluie de feu', cost: 55, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
           effects: [fx('brulure', 3, 0.3)],
           desc: 'Frappe et enflamme tous les ennemis',
         }),
-        minor('fournaise', 'Fournaise', 7, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        passive('embrasement', 'Embrasement', 8, 'Mur de flammes et Pluie de feu : Brûlure 1 tour de plus et 30 % plus forte.', {
-          skillMod: [
-            { skill: 'mur-de-flammes', dotTurnsDelta: 1, dotPowerPct: 30 },
-            { skill: 'pluie-de-feu', dotTurnsDelta: 1, dotPowerPct: 30 },
-          ],
-        }),
-        minor('ignition', 'Ignition', 8, 4, '+4 % de dégâts sur la durée par rang.', { passive: { dotPct: 4 } }),
+        ...choice(9, [
+          minor('cendres', 'Cendres', { passive: { dotPct: 2 } }),
+          minor('ignition', 'Ignition', { passive: { aoePct: 2 } }),
+          minor('chaleur-intense', 'Chaleur intense', { pct: { magPower: 2 } }),
+        ]),
         signature({
           id: 'meteore', name: 'Météore', cost: 85, kind: 'damage', target: 'allEnemies', power: 1.4, magic: true,
           effects: [fx('brulure', 4, 0.6)],
@@ -447,39 +523,46 @@ export const TALENTS = {
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
-        minor('froid', 'Froid', 0, 2, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('armure-de-givre', 'Armure de givre', 0, 2, '+5 % Défense et Défense magique par rang.', { pct: { def: 5, defMag: 5 } }),
-        skill(1, {
-          id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
+        ...choice(1, [
+          minor('froid', 'Froid', { pct: { magPower: 3 } }),
+          minor('armure-de-givre', 'Armure de givre', { pct: { def: 3, defMag: 3 } }),
+          minor('esprit-glace', 'Esprit glacé', { passive: { resRegen: 1 } }),
+        ]),
+        skill(2, {
+          id: 'eclat-de-glace', name: 'Éclat de glace', cost: 20, kind: 'damage', target: 'enemy', power: 1.5, magic: true,
           effects: [fx('ralenti', 2)],
           desc: 'Dégâts de glace, ralentit la cible 2 tours',
         }),
-        minor('morsure-du-froid', 'Morsure du froid', 1, 4, '+4 % de dégâts contre une cible affaiblie (ralentie…) par rang.', { passive: { vsDebuffedPct: 4 } }),
-        minor('hiver', 'Hiver', 2, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('esprit-glace', 'Esprit glacé', 2, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('givre-persistant', 'Givre persistant', 3, 'Éclat de glace ralentit 1 tour de plus et frappe 15 % plus fort.', {
-          skillMod: { skill: 'eclat-de-glace', effectTurnsDelta: 1, powerPct: 15 },
-        }),
-        minor('cristaux', 'Cristaux', 3, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        ...choice(3, [
+          minor('morsure-du-froid', 'Morsure du froid', { passive: { vsDebuffedPct: 2 } }),
+          minor('hiver', 'Hiver', { pct: { magPower: 2 } }),
+          minor('cristaux', 'Cristaux', { flat: { critChance: 1 } }),
+        ]),
         skill(4, {
           id: 'nova-de-givre', name: 'Nova de givre', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.6, magic: true,
           effects: [fx('ralenti', 2)],
           desc: 'Dégâts de glace et ralentissement sur tous les ennemis',
         }),
-        minor('glace-eternelle', 'Glace éternelle', 4, 5, '+3 % de dégâts contre une cible affaiblie, par rang.', { passive: { vsDebuffedPct: 3 } }),
-        minor('blizzard-interieur', 'Blizzard intérieur', 5, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('barriere-de-glace', 'Barrière de glace', 5, 3, '+4 % PV par rang.', { pct: { pv: 4 } }),
+        ...choice(5, [
+          minor('glace-eternelle', 'Glace éternelle', { passive: { vsDebuffedPct: 2 } }),
+          minor('barriere-de-glace', 'Barrière de glace', { pct: { pv: 2 } }),
+          minor('precision-glaciale', 'Précision glaciale', { flat: { critDmg: 3 } }),
+        ]),
         passive('eclatement', 'Éclatement', 6, '+15 % de dégâts contre une cible affaiblie.', { passive: { vsDebuffedPct: 15 } }),
-        minor('precision-glaciale', 'Précision glaciale', 6, 4, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        skill(7, {
-          id: 'lance-de-glace', name: 'Lance de glace', cost: 35, kind: 'damage', target: 'enemy', power: 2.1, magic: true,
+        ...choice(7, [
+          minor('zero-absolu', 'Zéro absolu', { pct: { magPower: 2 } }),
+          minor('hivernage', 'Hivernage', { pct: { pv: 2 } }),
+          minor('givre-mordant', 'Givre mordant', { flat: { critChance: 1 } }),
+        ]),
+        skill(8, {
+          id: 'lance-de-glace', name: 'Lance de glace', cost: 35, kind: 'damage', target: 'enemy', power: 2.8, magic: true,
           desc: 'Puissante lance de glace sur un ennemi',
         }),
-        minor('zero-absolu', 'Zéro absolu', 7, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        passive('gel-profond', 'Gel profond', 8, 'Nova de givre frappe 30 % plus fort et ralentit 1 tour de plus.', {
-          skillMod: { skill: 'nova-de-givre', powerPct: 30, effectTurnsDelta: 1 },
-        }),
-        minor('hivernage', 'Hivernage', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        ...choice(9, [
+          minor('blizzard-interieur', 'Blizzard intérieur', { pct: { magPower: 2 } }),
+          minor('gel-acere', 'Gel acéré', { flat: { critDmg: 3 } }),
+          minor('froid-eternel', 'Froid éternel', { passive: { vsDebuffedPct: 2 } }),
+        ]),
         signature({
           id: 'blizzard', name: 'Blizzard', cost: 80, kind: 'damage', target: 'allEnemies', power: 1.5, magic: true,
           effects: [fx('ralenti', 3), fx('affaibli', 2)],
@@ -492,40 +575,45 @@ export const TALENTS = {
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
-        minor('conductivite', 'Conductivité', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        minor('surtension', 'Surtension', 0, 2, '+8 % Dégâts critiques par rang.', { flat: { critDmg: 8 } }),
-        skill(1, {
-          id: 'chaine-d-eclairs', name: "Chaîne d'éclairs", cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
+        ...choice(1, [
+          minor('conductivite', 'Conductivité', { flat: { critChance: 1 } }),
+          minor('surtension', 'Surtension', { flat: { critDmg: 5 } }),
+          minor('charge', 'Charge', { pct: { magPower: 3 } }),
+        ]),
+        skill(2, {
+          id: 'chaine-d-eclairs', name: 'Chaîne d\'éclairs', cost: 35, kind: 'damage', target: 'allEnemies', power: 0.9, magic: true,
           desc: 'Foudroie tous les ennemis',
         }),
-        minor('charge', 'Charge', 1, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('electrisation', 'Électrisation', 2, 3, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        minor('flux', 'Flux', 2, 3, '+8 Mana max par rang.', { passive: { resMaxBonus: 8 } }),
-        passive('eclair-renforce', 'Éclair renforcé', 3, 'Éclair coûte 5 Mana de moins et frappe 25 % plus fort.', {
-          skillMod: { skill: 'eclair', costDelta: -5, powerPct: 25 },
-        }),
-        minor('etincelle', 'Étincelle', 3, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        skill(4, {
-          id: 'onde-de-choc', name: 'Onde de choc', cost: 40, kind: 'damage', target: 'enemy', power: 1.0, magic: true,
+        ...choice(3, [
+          minor('electrisation', 'Électrisation', { flat: { critDmg: 4 } }),
+          minor('flux', 'Flux', { passive: { resMaxBonus: 3 } }),
+          minor('etincelle', 'Étincelle', { flat: { critChance: 1 } }),
+        ]),
+        passive('eclair-renforce', 'Éclair renforcé', 4, 'Éclair coûte 5 Mana de moins et frappe 15 % plus fort.', { skillMod: { skill: 'eclair', costDelta: -5, powerPct: 15 } }),
+        ...choice(5, [
+          minor('haute-tension', 'Haute tension', { pct: { magPower: 2 } }),
+          minor('recharge', 'Recharge', { passive: { resRegen: 1 } }),
+          minor('coup-de-tonnerre', 'Coup de tonnerre', { passive: { executePct: 3 } }),
+        ]),
+        skill(6, {
+          id: 'onde-de-choc', name: 'Onde de choc', cost: 40, kind: 'damage', target: 'enemy', power: 1, magic: true,
           effects: [fx('etourdi', 1)],
           desc: 'Décharge paralysante : la cible perd son prochain tour',
         }),
-        minor('haute-tension', 'Haute tension', 4, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('coup-de-tonnerre', 'Coup de tonnerre', 5, 3, '+8 % de dégâts contre une cible sous 30 % de PV, par rang.', { passive: { executePct: 8 } }),
-        minor('recharge', 'Recharge', 5, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('electrocution', 'Électrocution', 6, 'Éclair a +25 % de chance de coup critique.', {
-          skillMod: { skill: 'eclair', critBonus: 25 },
-        }),
-        minor('foudroiement', 'Foudroiement', 6, 4, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        skill(7, {
-          id: 'tempete', name: 'Tempête', cost: 60, kind: 'damage', target: 'enemy', power: 3.0, magic: true,
+        ...choice(7, [
+          minor('foudroiement', 'Foudroiement', { flat: { critDmg: 3 } }),
+          minor('arc-electrique', 'Arc électrique', { pct: { magPower: 2 } }),
+          minor('orage', 'Orage', { flat: { critChance: 1 } }),
+        ]),
+        skill(8, {
+          id: 'tempete', name: 'Tempête', cost: 60, kind: 'damage', target: 'enemy', power: 2.3, magic: true,
           desc: 'Énorme décharge de foudre sur un ennemi',
         }),
-        minor('arc-electrique', 'Arc électrique', 7, 5, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        passive('paralysie', 'Paralysie', 8, 'Onde de choc coûte 10 Mana de moins et frappe 30 % plus fort.', {
-          skillMod: { skill: 'onde-de-choc', costDelta: -10, powerPct: 30 },
-        }),
-        minor('orage', 'Orage', 8, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
+        ...choice(9, [
+          minor('supraconduction', 'Supraconduction', { flat: { critChance: 1 } }),
+          minor('decharge', 'Décharge', { flat: { critDmg: 3 } }),
+          minor('surcharge', 'Surcharge', { passive: { aoePct: 3 } }),
+        ]),
         signature({
           id: 'jugement-celeste', name: 'Jugement céleste', cost: 90, kind: 'damage', target: 'allEnemies', power: 1.9, magic: true, critBonus: 25,
           effects: [fx('etourdi', 1)],
@@ -534,46 +622,52 @@ export const TALENTS = {
       ],
     },
   ],
-
   chasseur: [
     {
       key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
-      desc: "Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.",
+      desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
-        minor('oeil-percant', 'Œil perçant', 0, 2, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        minor('tension-de-la-corde', 'Tension de la corde', 0, 2, '+4 % Puissance physique par rang.', { pct: { physPower: 4 } }),
-        skill(1, {
-          id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 1.75, critBonus: 10,
+        ...choice(1, [
+          minor('oeil-percant', 'Œil perçant', { flat: { critChance: 1 } }),
+          minor('tension-de-la-corde', 'Tension de la corde', { pct: { physPower: 3 } }),
+          minor('reserve-d-energie', 'Réserve d\'énergie', { passive: { resMaxBonus: 5 } }),
+        ]),
+        skill(2, {
+          id: 'tir-percant', name: 'Tir perçant', cost: 55, kind: 'damage', target: 'enemy', power: 2.1, critBonus: 10,
           desc: 'Flèche lourde qui transperce la cible (+10 % de chance de critique)',
         }),
-        minor('reserve-d-energie', "Réserve d'énergie", 1, 4, '+8 Énergie max par rang.', { passive: { resMaxBonus: 8 } }),
-        minor('visee', 'Visée', 2, 3, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        minor('souffle-retenu', 'Souffle retenu', 2, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('tir-ajuste', 'Tir ajusté', 3, 'Tir visé frappe 25 % plus fort.', {
-          skillMod: { skill: 'tir-vise', powerPct: 25 },
-        }),
-        minor('precision-mortelle', 'Précision mortelle', 3, 4, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('visee', 'Visée', { flat: { critDmg: 4 } }),
+          minor('souffle-retenu', 'Souffle retenu', { passive: { resRegen: 2 } }),
+          minor('precision-mortelle', 'Précision mortelle', { flat: { critChance: 1 } }),
+        ]),
+        passive('calme-du-tireur', 'Calme du tireur', 4, '+20 Énergie max et +5 Énergie regagnée par tour.', { passive: { resMaxBonus: 20, resRegen: 5 } }),
+        ...choice(5, [
+          minor('puissance-du-tir', 'Puissance du tir', { pct: { physPower: 2 } }),
+          minor('chasseur-de-tetes', 'Chasseur de têtes', { passive: { executePct: 3 } }),
+          minor('endurance-du-chasseur', 'Endurance du chasseur', { pct: { pv: 2 } }),
+        ]),
+        skill(6, {
           id: 'salve', name: 'Salve', cost: 60, kind: 'damage', target: 'allEnemies', power: 0.95,
           desc: 'Pluie de flèches sur tous les ennemis',
         }),
-        minor('puissance-du-tir', 'Puissance du tir', 4, 5, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        minor('chasseur-de-tetes', 'Chasseur de têtes', 5, 3, '+8 % de dégâts contre une cible sous 30 % de PV, par rang.', { passive: { executePct: 8 } }),
-        minor('endurance-du-chasseur', 'Endurance du chasseur', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('calme-du-tireur', 'Calme du tireur', 6, '+20 Énergie max et +5 Énergie regagnée par tour.', { passive: { resMaxBonus: 20, resRegen: 5 } }),
-        minor('balistique', 'Balistique', 6, 4, '+6 % Dégâts critiques par rang.', { flat: { critDmg: 6 } }),
-        skill(7, {
-          id: 'tir-de-l-aigle', name: "Tir de l'aigle", cost: 80, kind: 'damage', target: 'enemy', power: 3.0, critBonus: 20,
+        ...choice(7, [
+          minor('balistique', 'Balistique', { flat: { critDmg: 3 } }),
+          minor('oeil-du-faucon', 'Œil du faucon', { flat: { critChance: 1 } }),
+          minor('visee-parfaite', 'Visée parfaite', { pct: { physPower: 2 } }),
+        ]),
+        skill(8, {
+          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
           desc: 'Tir dévastateur sur un ennemi (+20 % de chance de critique)',
         }),
-        minor('oeil-du-faucon', 'Œil du faucon', 7, 5, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        passive('fleche-perforante', 'Flèche perforante', 8, 'Tir perçant coûte 10 Énergie de moins et frappe 20 % plus fort.', {
-          skillMod: { skill: 'tir-percant', costDelta: -10, powerPct: 20 },
-        }),
-        minor('visee-parfaite', 'Visée parfaite', 8, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        ...choice(9, [
+          minor('tir-mortel', 'Tir mortel', { passive: { executePct: 3 } }),
+          minor('focalisation', 'Focalisation', { flat: { critDmg: 3 } }),
+          minor('pluie-de-fleches', 'Pluie de flèches', { passive: { aoePct: 3 } }),
+        ]),
         signature({
-          id: 'tir-fatal', name: 'Tir fatal', cost: 90, kind: 'damage', target: 'enemy', power: 4.5, alwaysCrit: true, executePct: 50,
+          id: 'tir-fatal', name: 'Tir fatal', cost: 90, kind: 'damage', target: 'enemy', power: 4.8, alwaysCrit: true, executePct: 50,
           desc: 'La flèche parfaite : critique garanti, +50 % de dégâts contre une cible sous 30 % de PV',
         }),
       ],
@@ -583,138 +677,158 @@ export const TALENTS = {
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
-        minor('pisteur', 'Pisteur', 0, 2, '+1 Vitesse par rang.', { flat: { vit: 1 } }),
-        minor('reflexes-du-traqueur', 'Réflexes du traqueur', 0, 2, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('pisteur', 'Pisteur', { flat: { vit: 1 } }),
+          minor('reflexes-du-traqueur', 'Réflexes du traqueur', { flat: { esquive: 1 } }),
+          minor('tir-agile', 'Tir agile', { pct: { physPower: 3 } }),
+        ]),
+        skill(2, {
           id: 'piege-a-machoires', name: 'Piège à mâchoires', cost: 25, kind: 'support', target: 'enemy',
           effects: [fx('piege', 3, 0.8)],
-          desc: "Pose un piège sur un ennemi : il se referme à son prochain tour (dégâts, et il perd ce tour)",
+          desc: 'Pose un piège sur un ennemi : il se referme à son prochain tour (dégâts, et il perd ce tour)',
         }),
-        minor('tir-agile', 'Tir agile', 1, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        minor('economie', 'Économie', 2, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('camouflage', 'Camouflage', 2, 3, '+2 % Esquive par rang.', { flat: { esquive: 2 } }),
-        passive('fleches-barbelees', 'Flèches barbelées', 3, 'Tir rapide fait saigner la cible (2 tours).', {
-          skillMod: { skill: 'tir-rapide', addEffects: [fx('saignement', 2, 0.15)] },
-        }),
-        minor('harcelement', 'Harcèlement', 3, 4, '+4 % de dégâts contre une cible affaiblie (ralentie, piégée…) par rang.', { passive: { vsDebuffedPct: 4 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('pieges-affutes', 'Pièges affûtés', { passive: { trapPct: 4 } }),
+          minor('economie', 'Économie', { passive: { resRegen: 2 } }),
+          minor('camouflage', 'Camouflage', { flat: { esquive: 1 } }),
+        ]),
+        passive('fleches-barbelees', 'Flèches barbelées', 4, 'Tir rapide fait saigner la cible (2 tours).', { skillMod: { skill: 'tir-rapide', addEffects: [fx('saignement', 2, 0.15)] } }),
+        ...choice(5, [
+          minor('harcelement', 'Harcèlement', { passive: { vsDebuffedPct: 2 } }),
+          minor('vivacite-du-traqueur', 'Vivacité du traqueur', { passive: { resRegen: 1 } }),
+          minor('instinct', 'Instinct', { flat: { critChance: 1 } }),
+        ]),
+        skill(6, {
           id: 'tir-incapacitant', name: 'Tir incapacitant', cost: 20, kind: 'damage', target: 'enemy', power: 0.5,
           effects: [fx('ralenti', 2)],
           desc: 'Petite flèche qui ralentit la cible (−30 % Vitesse, 2 tours)',
         }),
-        minor('pieges-affutes', 'Pièges affûtés', 4, 5, '+8 % de dégâts des pièges par rang.', { passive: { trapPct: 8 } }),
-        minor('vivacite-du-traqueur', 'Vivacité du traqueur', 5, 3, '+2 Énergie regagnée par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('instinct', 'Instinct', 5, 3, '+2 % Taux critique par rang.', { flat: { critChance: 2 } }),
-        passive('maitre-piegeur', 'Maître piégeur', 6, 'Piège à mâchoires coûte 10 Énergie de moins et inflige 30 % de dégâts en plus.', {
-          skillMod: { skill: 'piege-a-machoires', costDelta: -10, effectPowerPct: 30 },
-        }),
-        minor('tir-continu', 'Tir continu', 6, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('tir-continu', 'Tir continu', { pct: { physPower: 2 } }),
+          minor('harcelement-continu', 'Harcèlement continu', { passive: { vsDebuffedPct: 2 } }),
+          minor('machoires-d-acier', 'Mâchoires d\'acier', { passive: { trapPct: 3 } }),
+        ]),
+        skill(8, {
           id: 'champ-de-givre', name: 'Champ de givre', cost: 35, kind: 'support', target: 'allEnemies',
           effects: [fx('piegeDeGivre', 3, 0.5)],
           desc: 'Piège de givre sous tous les ennemis : dégâts à leur prochain tour, puis Ralentis 3 tours',
         }),
-        minor('harcelement-continu', 'Harcèlement continu', 7, 5, '+3 % de dégâts contre une cible affaiblie, par rang.', { passive: { vsDebuffedPct: 3 } }),
-        passive('tir-eclair', 'Tir éclair', 8, 'Tir rapide coûte 5 Énergie de moins et frappe 15 % plus fort.', {
-          skillMod: { skill: 'tir-rapide', costDelta: -5, powerPct: 15 },
-        }),
-        minor('endurance-du-traqueur', 'Endurance du traqueur', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        ...choice(9, [
+          minor('maitre-traqueur', 'Maître traqueur', { passive: { trapPct: 3 } }),
+          minor('endurance-du-traqueur', 'Endurance du traqueur', { pct: { pv: 2 } }),
+          minor('tireur-vif', 'Tireur vif', { flat: { vit: 1 } }),
+        ]),
         signature({
           id: 'terrain-piege', name: 'Terrain piégé', cost: 60, kind: 'damage', target: 'allEnemies', power: 0.6,
-          effects: [fx('piege', 3, 1.0), fx('ralenti', 3)],
+          effects: [fx('piege', 3, 1), fx('ralenti', 3)],
           desc: 'Flèches et pièges partout : dégâts sur tous les ennemis, Ralentis, et un Piège à mâchoires sous chacun',
         }),
       ],
     },
   ],
-
   paladin: [
     {
       key: 'templier', name: 'Templier', icon: '🛡️',
-      desc: "Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.",
+      desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
-        minor('armure-sacree', 'Armure sacrée', 0, 2, '+4 % Défense par rang.', { pct: { def: 4 } }),
-        minor('vigueur', 'Vigueur', 0, 2, '+4 % PV par rang.', { pct: { pv: 4 } }),
-        skill(1, {
+        ...choice(1, [
+          minor('armure-sacree', 'Armure sacrée', { pct: { def: 3 } }),
+          minor('vigueur', 'Vigueur', { pct: { pv: 3 } }),
+          minor('ferveur-du-croise', 'Ferveur du croisé', { pct: { physPower: 3 } }),
+        ]),
+        skill(2, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
           effects: [fx('intercession', 3)],
           desc: 'Le Paladin encaisse la moitié des dégâts subis par un allié pendant 3 tours',
         }),
-        minor('foi-inebranlable', 'Foi inébranlable', 1, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        minor('bouclier-beni', 'Bouclier béni', 2, 3, '+3 % Blocage par rang.', { flat: { blocage: 3 } }),
-        minor('robustesse-du-croise', 'Robustesse du croisé', 2, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('vengeance-sacree', 'Vengeance sacrée', 3, 'Vol de vie : 10 % des dégâts directs infligés rendus en PV.', { passive: { lifestealPct: 10 } }),
-        minor('ferveur-du-croise', 'Ferveur du croisé', 3, 4, '+3 % Puissance physique par rang.', { pct: { physPower: 3 } }),
+        ...choice(3, [
+          minor('foi-inebranlable', 'Foi inébranlable', { pct: { defMag: 3 } }),
+          minor('bouclier-beni', 'Bouclier béni', { flat: { blocage: 2 } }),
+          minor('robustesse-du-croise', 'Robustesse du croisé', { pct: { pv: 2 } }),
+        ]),
         skill(4, {
-          id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1.0, physHeal: true,
+          id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1, physHeal: true,
           effects: [fx('regeneration', 3, 0.25)],
           desc: 'Le Paladin se soigne et se régénère pendant 3 tours (soins sur la Force)',
         }),
-        minor('rempart-de-foi', 'Rempart de foi', 4, 5, '+6 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 6 } }),
-        minor('consecration', 'Consécration', 5, 3, '+4 % Défense par rang.', { pct: { def: 4 } }),
-        minor('aura-de-devotion', 'Aura de dévotion', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('garde-du-croise', 'Garde du croisé', 6, 'Défendre donne aussi un Bouclier égal à 12 % des PV max.', { passive: { guardShieldPct: 12 } }),
-        minor('endurance-sainte', 'Endurance sainte', 6, 4, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        skill(7, {
+        ...choice(5, [
+          minor('consecration', 'Consécration', { pct: { def: 2 } }),
+          minor('foi-ardente', 'Foi ardente', { passive: { healPct: 2 } }),
+          minor('endurance-sainte', 'Endurance sainte', { passive: { resRegen: 1 } }),
+        ]),
+        passive('vengeance-sacree', 'Vengeance sacrée', 6, 'Vol de vie : 10 % des dégâts directs infligés rendus en PV.', { passive: { lifestealPct: 10 } }),
+        ...choice(7, [
+          minor('aura-de-devotion', 'Aura de dévotion', { pct: { pv: 2 } }),
+          minor('justice', 'Justice', { pct: { physPower: 2 } }),
+          minor('garde-benie', 'Garde bénie', { flat: { blocage: 1 } }),
+        ]),
+        skill(8, {
           id: 'aura-de-protection', name: 'Aura de protection', cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 2), fx('bouclier', 2, 0.6)],
-          desc: "Bouclier sur toute l'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours",
+          desc: 'Bouclier sur toute l\'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours',
         }),
-        minor('bouclier-des-justes', 'Bouclier des justes', 7, 5, '+5 % de valeur des boucliers donnés, par rang.', { passive: { shieldPct: 5 } }),
-        passive('martyr', 'Martyr', 8, 'Intercession coûte 5 Mana de moins et dure 2 tours de plus.', {
-          skillMod: { skill: 'intercession', costDelta: -5, effectTurnsDelta: 2 },
-        }),
-        minor('colosse-sacre', 'Colosse sacré', 8, 4, '+3 % PV par rang.', { pct: { pv: 3 } }),
+        ...choice(9, [
+          minor('colosse-sacre', 'Colosse sacré', { pct: { pv: 2 } }),
+          minor('bouclier-des-justes', 'Bouclier des justes', { passive: { shieldPct: 3 } }),
+          minor('garde-du-croise', 'Garde du croisé', { passive: { guardShieldPct: 1 } }),
+        ]),
         signature({
           id: 'sacrifice-divin', name: 'Sacrifice divin', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 3)],
-          selfEffects: [fx('bouclier', 3, 2.0), fx('protection', 3), fx('provocation', 3)],
-          desc: "Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l'équipe, protégé par un énorme Bouclier et Protection (3 tours)",
+          selfEffects: [fx('bouclier', 3, 2), fx('protection', 3), fx('provocation', 3)],
+          desc: 'Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
         }),
       ],
     },
     {
       key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: "Soigneur : soins de groupe et guérison des effets négatifs. Monte l'Intelligence : armure légère, armes d'Intelligence.",
+      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : armure légère, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
-        minor('eclat-sacre', 'Éclat sacré', 0, 2, '+5 % de soins par rang.', { passive: { healPct: 5 } }),
-        minor('sagesse-du-paladin', 'Sagesse du paladin', 0, 2, '+10 Mana max par rang.', { passive: { resMaxBonus: 10 } }),
-        skill(1, {
-          id: 'lumiere-de-l-aube', name: "Lumière de l'aube", cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
-          desc: "Soigne toute l'équipe",
+        ...choice(1, [
+          minor('eclat-sacre', 'Éclat sacré', { passive: { healPct: 3 } }),
+          minor('sagesse-du-paladin', 'Sagesse du paladin', { passive: { resMaxBonus: 5 } }),
+          minor('illumination-sainte', 'Illumination sainte', { pct: { magPower: 3 } }),
+        ]),
+        skill(2, {
+          id: 'lumiere-de-l-aube', name: 'Lumière de l\'aube', cost: 35, kind: 'heal', target: 'allAllies', power: 0.45,
+          desc: 'Soigne toute l\'équipe',
         }),
-        minor('illumination-sainte', 'Illumination sainte', 1, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('meditation-sacree', 'Méditation sacrée', 2, 3, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        minor('devouement', 'Dévouement', 2, 3, '+4 % de soins par rang.', { passive: { healPct: 4 } }),
-        passive('main-de-lumiere', 'Main de lumière', 3, 'Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.', {
-          skillMod: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 },
-        }),
-        minor('armure-de-foi', 'Armure de foi', 3, 4, '+4 % Défense magique par rang.', { pct: { defMag: 4 } }),
-        skill(4, {
+        ...choice(3, [
+          minor('meditation-sacree', 'Méditation sacrée', { passive: { resRegen: 1 } }),
+          minor('devouement', 'Dévouement', { passive: { healPct: 2 } }),
+          minor('armure-de-foi', 'Armure de foi', { pct: { defMag: 3 } }),
+        ]),
+        passive('main-de-lumiere', 'Main de lumière', 4, 'Lumière sacrée coûte 8 Mana de moins et soigne 20 % de plus.', { skillMod: { skill: 'lumiere-sacree', costDelta: -8, powerPct: 20 } }),
+        ...choice(5, [
+          minor('grace-du-paladin', 'Grâce du paladin', { passive: { healPct: 2 } }),
+          minor('rayonnement', 'Rayonnement', { pct: { magPower: 2 } }),
+          minor('benediction-du-paladin', 'Bénédiction du paladin', { pct: { pv: 2 } }),
+        ]),
+        skill(6, {
           id: 'epuration', name: 'Épuration', cost: 20, kind: 'support', target: 'ally', cleanse: true,
-          desc: "Retire tous les effets négatifs d'un allié",
+          desc: 'Retire tous les effets négatifs d\'un allié',
         }),
-        minor('grace-du-paladin', 'Grâce du paladin', 4, 5, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
-        minor('rayonnement', 'Rayonnement', 5, 3, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
-        minor('benediction-du-paladin', 'Bénédiction du paladin', 5, 3, '+3 % PV par rang.', { pct: { pv: 3 } }),
-        passive('lumiere-purifiante', 'Lumière purifiante', 6, "Lumière de l'aube retire aussi tous les effets négatifs de l'équipe.", {
-          skillMod: { skill: 'lumiere-de-l-aube', cleanse: true },
-        }),
-        minor('ferveur-lumineuse', 'Ferveur lumineuse', 6, 4, '+3 % de soins par rang.', { passive: { healPct: 3 } }),
-        skill(7, {
+        ...choice(7, [
+          minor('ferveur-lumineuse', 'Ferveur lumineuse', { passive: { healPct: 2 } }),
+          minor('aube-eternelle', 'Aube éternelle', { passive: { resRegen: 1 } }),
+          minor('clarte-sainte', 'Clarté sainte', { pct: { magPower: 2 } }),
+        ]),
+        skill(8, {
           id: 'sceau-de-protection', name: 'Sceau de protection', cost: 35, kind: 'support', target: 'ally', magic: true,
-          effects: [fx('bouclier', 3, 1.0), fx('regeneration', 3, 0.25)],
+          effects: [fx('bouclier', 3, 1), fx('regeneration', 3, 0.25)],
           desc: 'Bouclier et Régénération sur un allié pendant 3 tours',
         }),
-        minor('aube-eternelle', 'Aube éternelle', 7, 5, '+2 Mana regagné par tour, par rang.', { passive: { resRegen: 2 } }),
-        passive('aura-de-guerison', 'Aura de guérison', 8, '+10 % de soins et +3 Mana regagné par tour.', { passive: { healPct: 10, resRegen: 3 } }),
-        minor('clarte-sainte', 'Clarté sainte', 8, 4, '+3 % Puissance magique par rang.', { pct: { magPower: 3 } }),
+        ...choice(9, [
+          minor('aura-de-guerison', 'Aura de guérison', { passive: { healPct: 2 } }),
+          minor('clarte-du-paladin', 'Clarté du paladin', { passive: { resRegen: 1 } }),
+          minor('bouclier-de-lumiere-paladin', 'Égide de lumière', { passive: { shieldPct: 3 } }),
+        ]),
         signature({
           id: 'lumiere-divine', name: 'Lumière divine', cost: 80, kind: 'heal', target: 'allAllies', power: 0.9, cleanse: true,
           effects: [fx('regeneration', 3, 0.3), fx('protection', 2)],
-          desc: "Grand soin de toute l'équipe : retire ses effets négatifs, puis Régénération et Protection",
+          desc: 'Grand soin de toute l\'équipe : retire ses effets négatifs, puis Régénération et Protection',
         }),
       ],
     },

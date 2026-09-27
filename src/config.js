@@ -171,12 +171,10 @@ export const XP = {
 };
 
 // Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
-// maximum, de quoi compléter une seule orientation) ; le palier t (0 à 9) d'une
-// branche demande t × tierPoints points déjà investis dans cette branche.
+// maximum : une orientation complète coûte 45 points, voir data/talents.js).
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
 export const TALENT_RULES = {
   pointsPerLevel: 1,
-  tierPoints: 5,
   resetCostPerLevel: 10,
 };
 

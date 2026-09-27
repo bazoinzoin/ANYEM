@@ -109,7 +109,7 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
 test('un légendaire porté modifie la compétence visée (talent compris)', () => {
   const [, voleur] = party();
   voleur.level = 50;
-  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
+  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'toxines', 'toxines', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
   const croc = generateItem({ legendary: 'crocSanglant' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
   assert.equal(lame0.effects[0].turns, 4);

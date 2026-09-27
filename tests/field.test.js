@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { learnStarters } from './helpers.js';
+import { learnStarters, learnPath } from './helpers.js';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
 import { learn, branchesOf } from '../src/game/talents.js';
@@ -27,9 +27,7 @@ test('seuls les soins et les purifications sont utilisables hors combat', () => 
   assert.deepEqual(fieldSkills(p).map((f) => f.skill.id), ['soin-majeur']);
   assert.deepEqual(fieldSkills(createParty()[2]), [], 'sans sort de départ appris');
   p.level = 50;
-  const clerc = branchesOf(p).find((b) => b.key === 'clerc');
-  let ok = true;
-  while (ok) ok = clerc.nodes.some((n) => n.tier <= 7 && learn(p, n.id));
+  learnPath(p, 'clerc', { upTo: 8 });
   const ids = fieldSkills(p).map((f) => f.skill.id);
   assert.ok(ids.includes('priere-de-soins') && ids.includes('purification'));
   assert.ok(!ids.includes('resurrection'), 'pas de résurrection hors combat');

@@ -4,26 +4,26 @@ import { state } from '../../state.js';
 import { getClass, getStats, xpToNext } from '../../game/party.js';
 import {
   branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement,
-  cannotLearnReason, learn, resetTalents, resetCost, pointsSpent,
+  cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, chosenInTier,
 } from '../../game/talents.js';
 import { esc } from '../html.js';
 import { skillEffectLabel } from '../format.js';
 import { nodeSkills } from '../../data/talents.js';
 import { goTo, goBack, backLabel } from '../router.js';
-import { TALENT_RULES, XP } from '../../config.js';
+import { XP } from '../../config.js';
 import { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } from '../icons.js';
 
 // État propre à l'écran : héros affiché, nœud choisi, réinitialisation en attente, message.
 const view = { heroIndex: 0, node: null, confirmReset: false, flash: null };
 
-const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
+const KIND_LABELS = { minor: 'Bonus au choix', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
 
 export function openTalents(heroIndex = view.heroIndex) {
   Object.assign(view, { heroIndex, node: null, confirmReset: false, flash: null });
   goTo('talents');
 }
 
-// Plein écran sans défilement : une colonne par orientation, 10 paliers de nœuds-icônes,
+// Plein écran sans défilement : une colonne par orientation, 11 paliers de nœuds-icônes,
 // et une fenêtre de détail (effet, rangs, bouton Apprendre).
 export function renderTalents(app) {
   const hero = state.party[view.heroIndex];
@@ -91,20 +91,23 @@ function wireLearn(app, hero) {
   });
 }
 
-// Colonne d'une orientation : en-tête, puis les paliers 0 à 9 de haut en bas.
+// Colonne d'une orientation : en-tête, puis les paliers de haut en bas. Gros palier :
+// un nœud (obligatoire) ; petit palier : trois bonus, un seul au choix.
 function branchColumn(hero, branch) {
   const invested = pointsInBranch(hero, branch);
-  const tiers = [...new Set(branch.nodes.map((n) => n.tier))];
-  const max = tierRequirement(tiers.at(-1));
+  const tiers = tiersOf(branch);
+  const max = tierRequirement(branch, tiers.at(-1) + 1);
   return `
     <section class="win tal-branch">
-      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
+      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} / ${max} pts</small></h3>
       <span class="meter xp tal-progress"><span class="fill" style="width:${Math.min(100, (invested / Math.max(1, max)) * 100)}%"></span></span>
       <div class="tal-tiers">
         ${tiers.map((tier) => {
-          const locked = invested < tierRequirement(tier);
-          return `<div class="tal-tier ${locked ? 'locked' : ''}"><span class="tal-req">${tier ? tierRequirement(tier) : '•'}</span>
-            ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
+          const nodes = branch.nodes.filter((n) => n.tier === tier);
+          const locked = !tierOpen(hero, branch, tier);
+          const big = nodes.length === 1;
+          return `<div class="tal-tier ${big ? 'big' : 'pick'} ${locked ? 'locked' : ''}" title="${big ? 'Gros palier (obligatoire)' : 'Petit palier : un bonus au choix parmi les trois'}"><span class="tal-req">${big ? '◆' : '1/3'}</span>
+            ${nodes.map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
         }).join('')}
       </div>
     </section>`;
@@ -112,9 +115,10 @@ function branchColumn(hero, branch) {
 
 function nodeIcon(hero, branch, node) {
   const rank = rankOf(hero, node.id);
-  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
+  const locked = !tierOpen(hero, branch, node.tier);
   const can = !cannotLearnReason(hero, node.id);
-  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : can ? 'open' : 'closed';
+  const other = node.kind === 'minor' ? chosenInTier(hero, branch, node.tier) : null;
+  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : other ? 'excluded' : locked ? 'locked' : can ? 'open' : 'closed';
   return `<button class="tal-node ${node.kind} ${status} ${view.node === node.id ? 'selected' : ''}" data-node="${node.id}" title="${esc(node.name)}">
     ${iconHtml(talentNodeIcon(node, nodeSkills(node)), 32)}<sup>${rank}/${node.ranks}</sup></button>`;
 }
@@ -122,7 +126,7 @@ function nodeIcon(hero, branch, node) {
 function introDetail(hero, cls) {
   return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
-    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}) : de quoi compléter une orientation. Un palier s'ouvre avec ${TALENT_RULES.tierPoints} points investis par palier dans la même orientation, jusqu'à la signature du palier 9 (${tierRequirement(9)} points).</p>
+    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> 1/3 (trois bonus de stats : on n'en prend qu'un, à tous ses rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
 }
 
@@ -137,6 +141,7 @@ function nodeDetail(hero, branch, node) {
     : reason ? `<p class="warning">${esc(reason)}</p>`
     : `<button class="gold" data-learn="${node.id}">Apprendre${node.ranks > 1 ? ` — rang ${rank + 1}/${node.ranks}` : ''}</button>`;
   return `<h3>${iconHtml(talentNodeIcon(node, skills), 32)} ${esc(node.name)} <small>${KIND_LABELS[node.kind]} · ${esc(branch.name)} · palier ${node.tier} · rang ${rank}/${node.ranks}</small></h3>
+    ${node.kind === 'minor' ? '<p class="hint">Petit palier : un seul des trois bonus se prend (réinitialiser pour changer).</p>' : ''}
     ${node.tier === 0 && skills.length ? '<p class="hint">Sort de départ.</p>' : ''}${body}${action}`;
 }
 

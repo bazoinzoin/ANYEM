@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
-import { learn, branchesOf } from '../src/game/talents.js';
+import { learnPath } from './helpers.js';
 import { createCombat, nextTurn, heroAct, enemyAct } from '../src/game/combat.js';
 import { statsOf, damage } from '../src/game/units.js';
 import { addStatus, makeStatus } from '../src/game/statuses.js';
@@ -13,13 +13,11 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 // Équipe [Guerrier, Chasseur, Prêtre, Paladin] ; le héros `heroIndex` (niveau 50)
 // connaît l'orientation `branchKey` jusqu'au palier `maxTier` ; on joue jusqu'à son tour.
-function setup(heroIndex, branchKey, maxTier = 9) {
+function setup(heroIndex, branchKey, maxTier = 10, pick = []) {
   const party = createParty([], ['guerrier', 'chasseur', 'pretre', 'paladin']);
   const hero = party[heroIndex];
   hero.level = 50;
-  const branch = branchesOf(hero).find((b) => b.key === branchKey);
-  let learned = true;
-  while (learned) learned = branch.nodes.some((n) => n.tier <= maxTier && learn(hero, n.id));
+  learnPath(hero, branchKey, { upTo: maxTier, pick });
   const cb = createCombat({ enemies: ['gobelin', 'gobelin'], level: 1, party });
   cb.enemies.forEach((e) => { e.hp = e.stats.pv = 9999; });
   for (let i = 0; i < 50; i++) {
@@ -52,7 +50,7 @@ test("Chasseur : classe à Énergie à l'arc, dégâts physiques sur l'Agilité,
 });
 
 test('Traqueur : le Piège à mâchoires se referme au tour de la cible (dégâts, puis elle perd ce tour)', () => {
-  const { cb, hero } = setup(1, 'traqueur', 1);
+  const { cb, hero } = setup(1, 'traqueur', 2);
   const target = cb.enemies[0];
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'piege-a-machoires'), target: 0 }));
   const trap = target.statuses.find((s) => s.key === 'piege');
@@ -72,7 +70,7 @@ test('Traqueur : le Piège à mâchoires se referme au tour de la cible (dégât
 });
 
 test('Templier : Intercession reporte la moitié des dégâts de l\'allié sur le Paladin', () => {
-  const { cb, hero } = setup(3, 'templier', 1);
+  const { cb, hero } = setup(3, 'templier', 2);
   const ally = cb.party[2];
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'intercession'), target: 2 }));
   hero.statuses = hero.statuses.filter((s) => !s.shield);
@@ -92,11 +90,12 @@ test('Templier : Sceau de vie soigne sur la Force (puissance physique)', () => {
   assert.ok(hero.statuses.some((s) => s.key === 'regeneration'));
 });
 
-test("Lumière : Lumière de l'aube purifie l'équipe grâce à Lumière purifiante", () => {
-  const { cb, hero } = setup(3, 'lumiere', 6);
-  cb.party.forEach((h) => { addStatus(h, makeStatus('poison', 3, 5)); h.hp = Math.round(h.hp / 2); });
+test("Lumière : Lumière de l'aube soigne toute l'équipe", () => {
+  const { cb, hero } = setup(3, 'lumiere', 2);
+  cb.party.forEach((h) => { h.hp = Math.round(h.hp / 2); });
+  const before = cb.party.map((h) => h.hp);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'lumiere-de-l-aube') }));
-  cb.party.forEach((h) => assert.ok(!h.statuses.some((s) => s.key === 'poison'), h.name));
+  cb.party.forEach((h, i) => assert.ok(h.hp > before[i], h.name));
 });
 
 test("Œil de Faucon : Tir fatal est un critique garanti ; l'Énergie limite les gros tirs", () => {
