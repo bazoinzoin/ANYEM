@@ -138,3 +138,8 @@ export function talentNodeIcon(node, skills = []) {
   }
   return node.skillMod ? 1000 : 682;
 }
+
+// Difficultés.
+export const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750 };
+// Positions en combat.
+export const POSITION_ICONS = { melee: 726, ranged: 1482 };

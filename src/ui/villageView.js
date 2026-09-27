@@ -11,11 +11,10 @@ import { sheet, drawFloorAuto } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
 import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
+import { clampView, fitCanvas } from './viewport.js';
 
 const TILE = 16;
 const SCALE = 3;
-const VIEW_W = 21;
-const VIEW_H = 13;
 const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
 const WALK_MS = STEP_MS;
 
@@ -37,23 +36,22 @@ let frameRequested = false;
 const anim = { from: null, to: null, t0: 0, n: 0, followers: [] };
 let groundLayer = null;
 
-export function villageCard() {
+// Carte plein écran (le canvas prend la taille de son conteneur, voir fitCanvas).
+export function villageCanvas() {
+  return '<canvas id="villageMap" class="map-full" width="960" height="540"></canvas>';
+}
+
+// Croix directionnelle, bouton Parler et aide, pour le HUD.
+export function villageControls() {
   return `
-    <div class="card map-card village-card">
-      <canvas id="villageMap" width="${VIEW_W * TILE * SCALE}" height="${VIEW_H * TILE * SCALE}"></canvas>
-      <div class="map-controls">
-        <div class="dpad">
-          <button data-vstep="0,-1" aria-label="Haut">▲</button>
-          <button data-vstep="-1,0" aria-label="Gauche">◀</button>
-          <button data-vstep="1,0" aria-label="Droite">▶</button>
-          <button data-vstep="0,1" aria-label="Bas">▼</button>
-        </div>
-        <div class="map-help">
-          <p class="hint">Promenez-vous (flèches, ZQSD, clic ou croix) et parlez aux habitants : <b>Espace</b> face à eux, ou un clic sur eux. Chacun tient un service du village ; le garde de la porte (en bas) ouvre les portails vers les zones.</p>
-          <button id="talkBtn" class="btn-primary">💬 Parler</button>
-        </div>
-      </div>
-    </div>`;
+    <div class="dpad">
+      <button data-vstep="0,-1" aria-label="Haut">▲</button>
+      <button data-vstep="-1,0" aria-label="Gauche">◀</button>
+      <button data-vstep="1,0" aria-label="Droite">▶</button>
+      <button data-vstep="0,1" aria-label="Bas">▼</button>
+    </div>
+    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Le garde de la porte, en bas, ouvre les portails.</p>
+    <button id="talkBtn" class="btn-primary">Parler</button>`;
 }
 
 // `talk(service)` : ouvre l'écran du service d'un habitant.
@@ -212,6 +210,7 @@ function frame(now) {
   frameRequested = false;
   const canvas = document.querySelector('#villageMap');
   if (!canvas || state.screen !== 'hub') return;
+  fitCanvas(canvas);
   draw(canvas, now);
   requestFrame();
 }
@@ -219,10 +218,9 @@ function frame(now) {
 function camera(canvas, now = performance.now()) {
   const p = currentPos(now);
   const size = TILE * SCALE;
-  const clamp = (v, max) => Math.max(0, Math.min(v, max));
   return {
-    x: Math.round(clamp((p.x + 0.5) * size - canvas.width / 2, VILLAGE.w * size - canvas.width)),
-    y: Math.round(clamp((p.y + 0.5) * size - canvas.height / 2, VILLAGE.h * size - canvas.height)),
+    x: Math.round(clampView((p.x + 0.5) * size - canvas.width / 2, VILLAGE.w * size - canvas.width)),
+    y: Math.round(clampView((p.y + 0.5) * size - canvas.height / 2, VILLAGE.h * size - canvas.height)),
   };
 }
 

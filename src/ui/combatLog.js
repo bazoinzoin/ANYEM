@@ -5,6 +5,7 @@ import { RARITIES, MATERIA_KINDS } from '../data/items.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { esc, tip } from './html.js';
 import { itemChip } from './items.js';
+import { iconHtml, consumableIcon, MATERIA_ICONS, GOLD_ICON } from './icons.js';
 
 // Lignes du journal : les coups critiques ressortent, et le calcul des dégâts
 // s'affiche au survol quand il est connu.
@@ -21,7 +22,7 @@ export function lastCombatLog(last) {
   if (!last?.log?.length) return '';
   return `
     <details class="card last-log">
-      <summary>📜 Journal du dernier combat (${esc(last.title)})</summary>
+      <summary>${iconHtml(96, 16)} Journal du dernier combat (${esc(last.title)})</summary>
       <div class="log">${logLines(last.log)}</div>
     </details>`;
 }
@@ -30,15 +31,15 @@ export function lastCombatLog(last) {
 export function victorySummary(r) {
   if (!r) return '';
   const rows = [
-    ['💰 Or', `+${r.gold}`],
-    ['⭐ Expérience', `+${r.xp} XP pour chaque héros`],
+    [`${iconHtml(GOLD_ICON, 16)} Or`, `+${r.gold}`],
+    [`${iconHtml(682, 16)} Expérience`, `+${r.xp} XP pour chaque héros`],
   ];
-  if (r.levelUps?.length) rows.push(['🎉 Niveau supérieur', r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
-  rows.push(['🎒 Équipement', r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
-  rows.push(['💎 Matéria', r.materia?.length
-    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${MATERIA_KINDS[m.kind].icon} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
+  if (r.levelUps?.length) rows.push([`${iconHtml(648, 16)} Niveau supérieur`, r.levelUps.map((h) => `${esc(h.name)} → niveau ${h.level}`).join(', ')]);
+  rows.push([`${iconHtml(1447, 16)} Équipement`, r.loot?.length ? r.loot.map(itemChip).join(' ') : '<span class="hint">aucun</span>']);
+  rows.push([`${iconHtml(162, 16)} Matéria`, r.materia?.length
+    ? r.materia.map((m) => `<span style="color:${RARITIES[m.rarity].color}">${m.amount} × ${iconHtml(MATERIA_ICONS[m.kind], 16)} ${esc(MATERIA_KINDS[m.kind].label)} ${RARITIES[m.rarity].label.toLowerCase()}</span>`).join(', ')
     : '<span class="hint">aucune</span>']);
-  rows.push(['🧪 Consommables', r.consumables?.length ? r.consumables.map((k) => `${CONSUMABLES[k].icon} ${CONSUMABLES[k].name}`).join(', ') : '<span class="hint">aucun</span>']);
+  rows.push([`${iconHtml(276, 16)} Consommables`, r.consumables?.length ? r.consumables.map((k) => `${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)}`).join(', ') : '<span class="hint">aucun</span>']);
   return `
     <div class="victory-summary">
       <h3>Victoire !</h3>

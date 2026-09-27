@@ -6,7 +6,7 @@ import {
   branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement,
   cannotLearnReason, learn, resetTalents, resetCost, pointsSpent,
 } from '../../game/talents.js';
-import { esc, tip, bar } from '../html.js';
+import { esc } from '../html.js';
 import { skillEffectLabel } from '../format.js';
 import { nodeSkills } from '../../data/talents.js';
 import { goTo, goBack, backLabel } from '../router.js';
@@ -140,49 +140,3 @@ function nodeDetail(hero, branch, node) {
     ${node.tier === 0 && skills.length ? '<p class="hint">Sort de départ.</p>' : ''}${body}${action}`;
 }
 
-// Arbres de talents d'un héros en lecture seule (aperçu à la création d'équipe).
-export function talentTreesPreview(hero) {
-  return `<div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b, true)).join('')}</div>`;
-}
-
-function branchCard(hero, branch, readOnly = false) {
-  const invested = pointsInBranch(hero, branch);
-  return `
-    <div class="card branch">
-      <h3>${branch.icon} ${branch.name}${readOnly ? '' : ` <small>${invested} pt${invested > 1 ? 's' : ''}</small>`}</h3>
-      <p class="hint">${branch.desc}</p>
-      ${[...new Set(branch.nodes.map((n) => n.tier))].map((tier) => {
-        const locked = !readOnly && invested < tierRequirement(tier);
-        return `
-        <div class="tier-group ${locked ? 'locked' : ''}">
-          <div class="tier-title">Palier ${tier}${tier ? ` · ${tierRequirement(tier)} points requis` : ''}</div>
-          ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeCard(hero, branch, n, readOnly)).join('')}
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-
-function nodeCard(hero, branch, node, readOnly = false) {
-  const rank = rankOf(hero, node.id);
-  const reason = cannotLearnReason(hero, node.id);
-  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
-  const status = readOnly ? 'open' : rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : 'open';
-  let body = esc(node.desc);
-  const skills = nodeSkills(node);
-  if (skills.length) {
-    body = `${node.tier === 0 ? '<small class="hint">Sort de départ</small><br>' : ''}${skills.map((s) => `<b>${esc(s.name)}</b> — ${s.cost} ${getClass(hero).resource.name}<br>${esc(s.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), s))}</small>`).join('<br>')}`;
-  }
-  const action = readOnly ? '' : reason
-    ? (rank >= node.ranks ? '' : `<small class="reason">${esc(reason)}</small>`)
-    : `<button data-learn="${node.id}" data-name="${esc(node.name)}">Apprendre${node.ranks > 1 ? ` (rang ${rank + 1})` : ''}</button>`;
-  return `
-    <div class="talent ${node.kind} ${status}">
-      <div class="talent-head">
-        <b>${esc(node.name)}</b>
-        <span class="kind">${KIND_LABELS[node.kind]}</span>
-        <span class="rank">${readOnly ? `${node.ranks} rang${node.ranks > 1 ? 's' : ''}` : `${rank}/${node.ranks}`}</span>
-      </div>
-      <div class="talent-body">${body}</div>
-      ${action}
-    </div>`;
-}

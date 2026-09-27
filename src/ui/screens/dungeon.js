@@ -1,15 +1,15 @@
-// Expédition : exploration de la carte de l'étage (ui/mapView.js), état de l'équipe,
+// Expédition, plein écran : carte de l'étage (ui/mapView.js) avec l'interface posée
+// dessus (ui/hud.js) : état de l'équipe,
 // objets et sorts hors combat, événements, et après un boss le choix entre rentrer
 // au village et continuer.
 
 import { state } from '../../state.js';
-import { DUNGEONS, FLOORS_PER_SUBZONE } from '../../data/dungeons.js';
+import { DUNGEONS } from '../../data/dungeons.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats, getSkills } from '../../game/party.js';
 import { fieldSkills, castOutOfCombat, cannotCastReason } from '../../game/field.js';
 import { healAmount } from '../../game/formulas.js';
 import { statusesOf } from '../../game/statuses.js';
-import { EFFECTS } from '../../data/effects.js';
 import { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
@@ -19,15 +19,20 @@ import {
 import { EVENTS } from '../../data/events.js';
 import { RARITIES } from '../../data/items.js';
 import { MERCHANT } from '../../config.js';
-import { esc, tip, bar } from '../html.js';
+import { esc, tip } from '../html.js';
 import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
 import { consumableEstimate } from '../format.js';
 import { goTo, showHub } from '../router.js';
 import { lastFloor } from '../encounter.js';
-import { mapCard, bindMap } from '../mapView.js';
+import { mapCanvas, mapControls, bindMap } from '../mapView.js';
 import { victorySummary, lastCombatLog } from '../combatLog.js';
 import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
+import { openStats } from './stats.js';
+import { pointsAvailable } from '../../game/talents.js';
+import { iconHtml, itemIcon, consumableIcon, skillIconIndex, CLASS_ICONS, GOLD_ICON } from '../icons.js';
+import { partyHud, hudButton, toast, wireToast } from '../hud.js';
+import { drawPortraits } from '../portraits.js';
 
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
 // panel : 'items' | 'spells' | null (menu ouvert entre deux combats) ; caster /
@@ -44,48 +49,41 @@ export function renderDungeon(app) {
   view.flash = null;
   view.flashLoot = [];
 
+  const usableCount = CONSUMABLE_ORDER.reduce((n, k) => n + (usableIn(k, 'map') ? countOf(state.consumables, k) : 0), 0);
+  const modal = exp.event ? eventPanel(exp.event) : exp.bossChoice ? bossChoicePanel(d) : '';
+  const notice = summary
+    ? `${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}${lastCombatLog(state.lastCombat)}`
+    : message ? `<p>${esc(message)}</p>${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}${lastCombatLog(state.lastCombat)}` : '';
+
   app.innerHTML = `
-    <div class="hero"><h1>${d.icon} ${d.name}</h1><p>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · étage ${floorInSubzone(exp.floor)}/${FLOORS_PER_SUBZONE} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''} de monstres</p></div>
-    ${summary ? `<div class="card notice">${victorySummary(summary)}${message ? `<p><b>${esc(message)}</b></p>` : ''}</div>` : ''}
-    ${!summary && message ? `<div class="card notice">${esc(message)}${loot.length ? `<div class="loot">${loot.map(itemChip).join('')}</div>` : ''}</div>` : ''}
-    ${lastCombatLog(state.lastCombat)}
-    ${exp.event || exp.bossChoice ? '' : mapCard()}
-    <div class="card floor-track">${floorTrack(exp.dungeonKey, exp.floor)}</div>
-    <div class="party-strip">${state.party.map(heroMini).join('')}</div>
-    <div class="card section expedition">
-      <div class="expedition-info">
-        <div>Gains de l'expédition : <b>${exp.gains.gold}</b> or · <b>${exp.gains.xp}</b> XP · <b>${exp.gains.items}</b> équipement${exp.gains.items > 1 ? 's' : ''} · <b>${exp.gains.materia}</b> matéria</div>
+    <div class="map-scr">
+      ${mapCanvas()}
+      <div class="win hud-title">
+        <h2>${esc(d.name)}</h2>
+        <span>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''}</span>
+        ${floorTrack(exp.dungeonKey, exp.floor)}
+        <span class="hud-gains">${iconHtml(GOLD_ICON, 16)} ${exp.gains.gold} · ${iconHtml(682, 16)} ${exp.gains.xp} XP · ${iconHtml(1447, 16)} ${exp.gains.items} · ${iconHtml(162, 16)} ${exp.gains.materia}</span>
       </div>
-      ${exp.event ? eventPanel(exp.event) : ''}
-      <div class="actions field-menu">
-        <button id="itemsBtn" class="${view.panel === 'items' ? 'selected' : ''}" ${tip('Utiliser un objet (potion, remède, tente, corde…).')}>🎒 Objets (${CONSUMABLE_ORDER.reduce((n, k) => n + (usableIn(k, 'map') ? countOf(state.consumables, k) : 0), 0)})</button>
-        <button id="spellsBtn" class="${view.panel === 'spells' ? 'selected' : ''}" ${tip('Lancer un soin ou une purification hors combat (les autres sorts ne servent qu\'en combat).')}>✨ Sorts</button>
-      </div>
-      ${view.panel === 'items' ? itemPanel() : ''}
-      ${view.panel === 'spells' ? spellPanel() : ''}
-      ${exp.bossChoice ? `
-        <div class="boss-choice">
-          <p><b>Le boss est vaincu.</b> Rentrer au village avec tout le butin, ou continuer le donjon ?
-          Continuer rend <b>${DUNGEON.continueRegenPct} %</b> des PV et de la ressource aux héros en vie, mais il faudra ensuite vaincre le prochain boss pour pouvoir rentrer.</p>
-          <div class="actions">
-            <button id="leave" class="btn-primary">🏠 Rentrer au village</button>
-            <button id="continue" class="btn-primary boss-btn">⚔️ Continuer le donjon (+${DUNGEON.continueRegenPct} %)</button>
-          </div>
-        </div>` : `
-      <div class="actions">
-        <button id="leave" ${exp.canLeave ? '' : 'disabled'}
-          ${tip(exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac.")}>
-          🏠 Rentrer au village
-        </button>
-      </div>`}
-      <div class="services">
-        <button id="equip">🎒 Équipement (${state.bag.length} dans le sac)</button>
-        <button id="talents">📖 Talents</button>
-        <button id="stats">📜 Statistiques</button>
-      </div>
-      ${exp.canLeave ? '' : '<p class="hint">Aucun soin automatique entre deux combats : potions, Tente et compétences de soin sont vos seules ressources. Le seul moyen de rentrer est de vaincre le prochain boss (ou une Corde d\'évasion). Les héros tombés restent à terre jusqu\'à une Plume de phénix, une Résurrection ou le retour au village.</p>'}
-    </div>
-  `;
+      <nav class="hud-menu">
+        ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente, corde…)' })}
+        ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
+        ${hudButton('equip', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
+        ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
+        ${hudButton('stats', 610, 'Stats')}
+        ${exp.bossChoice ? '' : hudButton('leave', 93, 'Rentrer', { disabled: !exp.canLeave, title: exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac." })}
+      </nav>
+      ${toast(notice)}
+      ${view.panel === 'items' ? `<div class="win hud-panel">${itemPanel()}</div>` : ''}
+      ${view.panel === 'spells' ? `<div class="win hud-panel">${spellPanel()}</div>` : ''}
+      ${partyHud(state.party, { resource: true })}
+      <div class="win hud-controls">${mapControls()}</div>
+      ${modal ? `<div class="hud-modal"><div class="win">${modal}</div></div>` : ''}
+    </div>`;
+  wireToast(app);
+  drawPortraits(app);
+  app.querySelector('#itemsBtn').classList.toggle('selected', view.panel === 'items');
+  app.querySelector('#spellsBtn').classList.toggle('selected', view.panel === 'spells');
+  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openStats(Number(b.dataset.hudHero)); });
 
   app.querySelectorAll('[data-event-choice]').forEach((btn) => {
     btn.onclick = () => {
@@ -160,16 +158,27 @@ export function renderDungeon(app) {
   app.querySelectorAll('[data-item-target]').forEach((btn) => {
     btn.onclick = () => useItem(view.pendingItem, Number(btn.dataset.itemTarget));
   });
-  app.querySelector('#leave').onclick = () => {
+  app.querySelector('#leave')?.addEventListener('click', () => {
     const d2 = DUNGEONS[exp.dungeonKey];
     const { gold, xp, items, materia } = exp.gains;
     if (leaveExpedition(state)) {
-      showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${esc(subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name)}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
+      showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
-  };
+  });
   app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
-  app.querySelector('#stats').onclick = () => goTo('stats');
+  app.querySelector('#stats').onclick = () => openStats();
+}
+
+// Après un boss : rentrer au village ou continuer.
+function bossChoicePanel(d) {
+  return `
+    <h3>${iconHtml(745, 32)} Le boss est vaincu</h3>
+    <p>Rentrer au village avec tout le butin, ou continuer ${esc(d.name)} ? Continuer rend <b>${DUNGEON.continueRegenPct} %</b> des PV et de la ressource aux héros en vie, mais il faudra ensuite vaincre le prochain boss pour pouvoir rentrer.</p>
+    <div class="actions">
+      <button id="leave" class="gold">${iconHtml(93, 16)} Rentrer au village</button>
+      <button id="continue" class="btn-primary">${iconHtml(726, 16)} Continuer (+${DUNGEON.continueRegenPct} %)</button>
+    </div>`;
 }
 
 function castSpell(skillIndex, targetIndex) {
@@ -184,7 +193,7 @@ function castSpell(skillIndex, targetIndex) {
 function spellPanel() {
   const heroes = state.party.map((h, i) => {
     const usable = h.alive && fieldSkills(h).length > 0;
-    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${getClass(h).icon} ${esc(h.name)}</button>`;
+    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${iconHtml(CLASS_ICONS[h.classKey], 16)} ${esc(h.name)}</button>`;
   }).join('');
   let spells = '';
   if (view.caster !== null) {
@@ -195,11 +204,11 @@ function spellPanel() {
       const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
         .filter(Boolean).join(', ');
       const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
-      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(skill.name)} · ${skill.cost} ${getClass(caster).resource.name} · ${effect}${who}</button>`;
+      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skill.cost} ${getClass(caster).resource.name} · ${effect}${who}</button>`;
     }).join('');
     const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
     if (pending?.target === 'ally') {
-      spells += `<div class="target-zone">${state.party.map((h, i) => (h.alive ? `<button data-spell-target="${i}">Cibler ${esc(h.name)} · PV ${h.hp}/${getStats(h).pv}${statusesOf(h).some((st) => st.kind === 'debuff') ? ' · ⚠️ affaibli' : ''}</button>` : '')).join('')}</div>`;
+      spells += `<div class="target-zone">${state.party.map((h, i) => (h.alive ? `<button data-spell-target="${i}">Cibler ${esc(h.name)} · PV ${h.hp}/${getStats(h).pv}${statusesOf(h).some((st) => st.kind === 'debuff') ? ' · affaibli' : ''}</button>` : '')).join('')}</div>`;
     } else if (pending) {
       spells += `<div class="target-zone"><button data-spell="${view.pendingSpell}" class="danger">Confirmer : ${esc(pending.name)}</button></div>`;
     }
@@ -239,7 +248,7 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${CONSUMABLES[k].icon} ${CONSUMABLES[k].name} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;
@@ -252,31 +261,12 @@ function floorTrack(key, next) {
   const cells = [];
   for (let f = first; f < first + d.bossEvery && f <= d.floors; f++) {
     const cls = f < next ? 'done' : f === next ? 'next' : '';
-    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? '☠️' : floorInSubzone(f)}</div>`);
+    cells.push(`<div class="floor ${cls} ${isBossFloor(key, f) ? 'boss' : ''}">${isBossFloor(key, f) ? iconHtml(745, 16) : floorInSubzone(f)}</div>`);
   }
-  return `<small>Sous-zone ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.subzones.length} · ${esc(subzoneOf(key, next).name)}</small><div class="floors">${cells.join('')}</div>`;
+  return `<div class="floors" title="Sous-zone ${Math.floor((next - 1) / d.bossEvery) + 1}/${d.subzones.length}">${cells.join('')}</div>`;
 }
 
-function heroMini(hero) {
-  const cls = getClass(hero);
-  const stats = getStats(hero);
-  return `
-    <div class="card pmini ${hero.alive ? '' : 'dead'}" style="--c:${cls.color}">
-      <div class="icon">${cls.icon}</div><div><b>${esc(hero.name)}</b> <small>niv. ${hero.level}</small></div>
-      <small>${hero.alive ? `PV ${hero.hp}/${stats.pv}` : 'Tombé'}</small>
-      ${bar(hero.hp, stats.pv, cls.color)}
-      <small>${cls.resource.name} ${hero.res}/${stats.resMax}</small>
-      ${bar(hero.res, stats.resMax, 'var(--gold)')}
-      ${debuffTags(hero)}
-    </div>`;
-}
 
-// Effets négatifs qui suivent le héros d'un combat à l'autre.
-function debuffTags(hero) {
-  const list = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
-  if (!list.length) return '';
-  return `<div class="status">${list.map((st) => `<span class="tag debuff" ${tip(`${EFFECTS[st.key]?.desc ?? ''} Reste jusqu'à un remède, une purification ou le retour au village.`)}>${st.icon ?? ''} ${esc(st.name)}${st.stun ? '' : ` (${st.turns})`}</span>`).join('')}</div>`;
-}
 
 // ---- Événements ----
 
@@ -311,11 +301,11 @@ function eventPanel(event) {
       }).join('')}
     </div>`;
   return `
-    <div class="card event">
-      <h3>${def.icon} ${esc(def.name)}</h3>
+    <div class="event">
+      <h3>${iconHtml(def.kind === 'merchant' ? 157 : 96, 32)} ${esc(def.name)}</h3>
       <p>${esc(def.text)}</p>
       ${body}
-      <button id="eventSkip">${def.kind === 'merchant' ? '👋 Partir' : '🚶 Passer son chemin'}</button>
+      <button id="eventSkip">${def.kind === 'merchant' ? 'Partir' : 'Passer son chemin'}</button>
       <p class="hint">Il faut régler cet événement avant de reprendre l'exploration.</p>
     </div>`;
 }
@@ -325,14 +315,14 @@ function merchantBody(event) {
     const price = eventItemPrice(item);
     return `
       <div class="bag-row" ${tip(itemTooltipText(item))}>
-        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
+        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>
         <small>${itemMeta(item)}</small>
         <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>
       </div>`;
   }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
   const consumables = event.consumables.map((o, i) => `
     <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
-      ${CONSUMABLES[o.key].icon} ${CONSUMABLES[o.key].name} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+      ${iconHtml(consumableIcon(o.key), 16)} ${esc(CONSUMABLES[o.key].name)} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
     </button>`).join('');
   return `
     <p>Or : <b>${state.gold}</b></p>

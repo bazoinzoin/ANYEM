@@ -112,7 +112,7 @@ export function playAction(combat, actor, before, gesture = null) {
     }
     c.added.forEach((s, i) => {
       if (c.delta <= 0) v.fx.push({ type: 'sparkle', t0, dur: 600, color: COLORS[s.kind] ?? COLORS.buff });
-      popup(c.unit, `${s.icon ?? ''} ${s.name}`, COLORS[s.kind] ?? COLORS.buff, t0 + 160 * (i + (c.delta ? 1 : 0)), false, true);
+      popup(c.unit, s.name, COLORS[s.kind] ?? COLORS.buff, t0 + 160 * (i + (c.delta ? 1 : 0)), false, true);
     });
     if (c.died) v.fx.push({ type: 'die', t0: t0 + 150, dur: 750 });
   }
