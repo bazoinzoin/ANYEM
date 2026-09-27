@@ -602,6 +602,68 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .cmd .cost { color: #bfe0ff; }
 .bs-status .st { display: inline-flex; align-items: flex-end; }
 .bs-logbtn { padding: 0 4px; line-height: 0; }
+
+/* ---- Écran Personnage (équipement et inventaire) ---- */
+.inv-screen {
+  position: fixed; inset: 0; margin: 0 auto; max-width: 1280px; z-index: 5; padding: 6px 8px 8px; gap: 6px;
+  display: grid; grid-template-columns: 250px 290px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) 216px;
+  grid-template-areas: "top top top" "stats doll bag" "stats doll detail";
+  background: radial-gradient(ellipse at top, #2a1f14 0%, #120d08 70%); color: var(--cream);
+}
+.inv-top { grid-area: top; display: flex; align-items: center; gap: 8px; }
+.inv-tabs { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.inv-hero { display: flex; align-items: center; gap: 6px; text-align: left; padding: 2px 10px 2px 4px; opacity: .8; }
+.inv-hero span { display: flex; flex-direction: column; line-height: 1.1; }
+.inv-hero small { font-weight: 400; font-size: 12px; }
+.inv-hero.current { opacity: 1; border-image-source: var(--ui-btn-gold); color: #4a2a08; text-shadow: none; }
+.inv-gold { display: flex; align-items: center; gap: 4px; color: #f3d58c; font-weight: 600; margin: 0 6px; }
+.inv-stats { grid-area: stats; overflow: hidden; }
+.inv-stats h3 { margin: 0; font-size: 18px; color: var(--c); }
+.inv-stats h3 small { color: var(--dim); font-size: 13px; font-weight: 400; }
+.inv-stats .xp { margin: 4px 0 8px; font-size: 12px; color: var(--dim); }
+.meter.xp .fill { background: linear-gradient(#ffe38a, #c9962f); }
+.stat-grid { display: grid; grid-template-columns: 1fr auto; row-gap: 2px; column-gap: 6px; font-size: 14px; }
+.stat-grid .k { color: #cfc4b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-grid .v { text-align: right; white-space: nowrap; }
+.stat-grid .up { color: #8ef08a; } .stat-grid .down { color: #ff8a7a; }
+.inv-doll { grid-area: doll; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.doll { display: grid; grid-template-columns: 60px 110px 60px; grid-template-rows: repeat(5, 60px); gap: 6px 10px; align-items: center; justify-items: center; }
+.doll canvas { width: 96px; height: 128px; image-rendering: pixelated; align-self: center; }
+.eq-slot, .bag-cell {
+  position: relative; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+  background: var(--slot-art, var(--ui-slot)) center / 100% 100% no-repeat; image-rendering: pixelated; cursor: pointer;
+}
+.eq-slot.filled { background-image: var(--ui-slot); box-shadow: inset 0 0 0 2px var(--rc), 0 0 8px -2px var(--rc); }
+.eq-slot.ghost { opacity: .45; }
+.eq-slot.can-drop { box-shadow: 0 0 0 2px #f3d58c, 0 0 12px #f3d58c; animation: slot-glow .8s ease-in-out infinite alternate; }
+.eq-slot.over { box-shadow: 0 0 0 3px #8ef08a, 0 0 14px #8ef08a; }
+.eq-slot.selected, .bag-cell.selected { outline: 2px solid #fff3c0; outline-offset: 1px; }
+@keyframes slot-glow { from { filter: brightness(1); } to { filter: brightness(1.3); } }
+.eq-slot sup, .bag-cell sup { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.inv-help { font-size: 12px; text-align: center; margin: 0; }
+.inv-bag { grid-area: bag; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.inv-bag.over { filter: brightness(1.2); }
+.bag-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.bag-tab { font-size: 13px; padding: 0 8px; }
+.bag-tab.current { border-image-source: var(--ui-btn-gold); color: #4a2a08; text-shadow: none; }
+.bag-grid { flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; overflow: hidden; }
+.bag-grid .bag-cell { width: 44px; height: 44px; background-image: var(--ui-slot); }
+.bag-cell[data-item] { box-shadow: inset 0 0 0 2px var(--rc); }
+.bag-cell.unusable .ic { filter: grayscale(1) brightness(.6); }
+.bag-cell.empty { opacity: .45; cursor: default; }
+.bag-pager { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: var(--dim); margin-top: 2px; }
+.bag-pager button { padding: 0 10px; }
+.inv-detail { grid-area: detail; overflow: hidden; font-size: 14px; display: flex; flex-direction: column; }
+.detail-cols { display: flex; gap: 14px; flex: 1; min-height: 0; }
+.detail-cols > div { flex: 1; min-width: 0; position: relative; }
+.detail-cols .item-card { margin: 0; padding-top: 0; }
+.detail-icon { float: left; margin: 0 8px 4px 0; }
+.detail-vs { border-left: 1px dashed rgba(216,181,106,.4); padding-left: 10px; opacity: .85; }
+.detail-vs .ic { float: left; margin-right: 6px; }
+.detail-vs > small { display: block; color: var(--dim); }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.detail-actions .warning { color: #ff9a8a; margin: 0; }
+.inv-detail .item-stats { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; font-size: 13px; margin-top: 2px; }
 </style>
 
 </head>
@@ -6659,7 +6721,7 @@ const SLOT_ART = {
 const FONTS = { FantasyRPGtext: 'fonts/FantasyRPGtext', FantasyRPGtitle: 'fonts/FantasyRPGtitle', FantasyRPGtitleOutline: 'fonts/FantasyRPGtitleOutline' };
 
 function assetUrl(key) {
-  return `url("${ASSET_DATA[key]}")`;
+  return `url(${ASSET_DATA[key]})`;
 }
 
 function applySkin() {
@@ -7976,19 +8038,207 @@ function victorySummary(r) {
 return { logLines, lastCombatLog, victorySummary };
 })();
 
+// ---- src/ui/icons.js
+__modules["src/ui/icons.js"] = (() => {
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
+// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
+// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
+// teinte des armes et des armures quand la planche en propose plusieurs.
+
+
+
+const COLS = 16;
+
+// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
+function iconHtml(index, size = 32, extra = '', title = '') {
+  const x = (index % COLS) * size;
+  const y = Math.floor(index / COLS) * size;
+  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
+}
+
+// Rareté → variante (0 = commune … 5 = divine).
+const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
+
+// Armes : ligne des armes en fer ; +160 = acier bleu, +80 = or.
+const WEAPONS = { epee: 1447, epee2m: 1455, dague: 1443, hache: 1463, hache2m: 1465, masse: 1471, masse2m: 1476, baton: 1491, arc: 1482 };
+const WEAPON_TIER = [0, 0, 160, 160, 80, 80];
+
+// Armures : une icône par rareté, pour chaque pièce et chaque type.
+const ARMOR = {
+  lourde: {
+    casque: [1904, 1905, 1907, 1908, 1910, 1908],
+    epaulieres: [1820, 1820, 1818, 1817, 1821, 1817],
+    plastron: [1920, 1921, 1923, 1924, 1926, 1924],
+    gants: [2057, 2057, 2058, 2058, 2059, 2059],
+    bottes: [1936, 1937, 1939, 1940, 1942, 1940],
+  },
+  moyenne: {
+    casque: [2014, 2014, 2015, 2015, 2015, 2015],
+    epaulieres: [2069, 2070, 2071, 2072, 2073, 2073],
+    plastron: [2018, 2024, 2025, 2027, 2028, 2028],
+    gants: [2054, 2054, 2055, 2055, 2059, 2059],
+    bottes: [2034, 2040, 2041, 2043, 2044, 2044],
+  },
+  legere: {
+    casque: [1952, 1953, 1954, 1960, 1962, 1963],
+    epaulieres: [1819, 1819, 1818, 1818, 1821, 1821],
+    plastron: [1968, 1969, 1970, 1976, 1978, 1979],
+    gants: [2055, 2055, 2054, 2054, 2059, 2059],
+    bottes: [1984, 1985, 1986, 1992, 1994, 1995],
+  },
+};
+const JEWELS = {
+  anneau: [1842, 1843, 1846, 1845, 1844, 2061],
+  collier: [2065, 2064, 1849, 1848, 1847, 2181],
+};
+const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
+
+function itemIcon(item) {
+  const tier = TIER[item.rarity] ?? 0;
+  if (item.slotType === 'arme') return (WEAPONS[item.weaponType] ?? 1447) + WEAPON_TIER[tier];
+  if (item.slotType === 'bouclier') return SHIELD[tier];
+  if (JEWELS[item.slotType]) return JEWELS[item.slotType][tier];
+  return ARMOR[item.armorType]?.[item.slotType]?.[tier] ?? 1920;
+}
+
+// Consommables.
+const CONSUMABLE_ICONS = {
+  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
+  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
+  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
+};
+function consumableIcon(key) {
+  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
+}
+
+// Matéria : une gemme par catégorie d'équipement.
+const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
+const GOLD_ICON = 130;
+
+// Effets (buffs / debuffs).
+const EFFECT_ICONS = {
+  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
+  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
+  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
+};
+function effectIcon(key) {
+  return EFFECT_ICONS[key] ?? 1000;
+}
+
+// Compétences : d'après leur nom (élément), puis leur nature.
+const SKILL_RULES = [
+  [/feu|flamme|brasier|immolation|météore/i, 992],
+  [/glace|givre|blizzard|gel/i, 1008],
+  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
+  [/poison|peste|nauséabond|empoisonn/i, 674],
+  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
+  [/résurrection|sacrifice/i, 669],
+  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
+  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
+  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
+  [/piège|terrain/i, 127],
+  [/tir|salve|flèche/i, 2169],
+  [/tourbillon|déluge|carnage/i, 724],
+  [/cri|provocation/i, 662],
+  [/exécution|éviscération|marque|fatal/i, 745],
+];
+function skillIconIndex(skill) {
+  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
+  if (skill.kind === 'heal') return 1057;
+  if (skill.kind === 'revive') return 669;
+  if (skill.magic) return 1000;
+  return 726;
+}
+
+// Orientations de talents et classes.
+const BRANCH_ICONS = {
+  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
+  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
+  Templier: 1810, 'Lumière': 1055,
+};
+function branchIcon(branch) {
+  return BRANCH_ICONS[branch.name] ?? 1000;
+}
+const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
+
+// Commandes de combat.
+const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
+
+return { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS };
+})();
+
+// ---- src/ui/bagView.js
+__modules["src/ui/bagView.js"] = (() => {
+const { RARITY_ORDER, JEWELS } = __modules["src/data/items.js"];
+const { cannotEquipReason } = __modules["src/game/equipment.js"];
+// Présentation du sac : onglets (catégories), tri et pages de la grille d'inventaire.
+// Pur, testable sous Node.
+
+
+
+
+// Onglets du sac : objets d'équipement par catégorie, puis consommables et matéria.
+const BAG_TABS = [
+  { id: 'all', label: 'Tout' },
+  { id: 'usable', label: 'Équipable' },
+  { id: 'weapons', label: 'Armes' },
+  { id: 'armor', label: 'Armures' },
+  { id: 'jewels', label: 'Bijoux' },
+  { id: 'consumables', label: 'Objets' },
+  { id: 'materia', label: 'Matéria' },
+];
+
+const FILTERS = {
+  all: () => true,
+  usable: (item, hero) => !cannotEquipReason(hero, item),
+  weapons: (item) => item.slotType === 'arme',
+  armor: (item) => item.slotType !== 'arme' && !JEWELS[item.slotType],
+  jewels: (item) => !!JEWELS[item.slotType],
+};
+
+// Objets du sac pour un onglet d'équipement, du plus rare au moins rare, puis par niveau.
+function bagItems(bag, tab, hero) {
+  const keep = FILTERS[tab] ?? FILTERS.all;
+  return bag.filter((item) => keep(item, hero)).sort((a, b) =>
+    RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level || a.name.localeCompare(b.name));
+}
+
+// Page `page` (0…) d'une liste découpée en pages de `perPage` : { items, page, pages }.
+function paginate(list, page, perPage) {
+  const pages = Math.max(1, Math.ceil(list.length / Math.max(1, perPage)));
+  const p = Math.max(0, Math.min(page, pages - 1));
+  return { items: list.slice(p * perPage, (p + 1) * perPage), page: p, pages };
+}
+
+return { BAG_TABS, bagItems, paginate };
+})();
+
 // ---- src/ui/screens/equipment.js
 __modules["src/ui/screens/equipment.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { isTwoHanded } = __modules["src/game/items.js"];
-const { SLOT_ORDER, RARITY_ORDER, RARITIES } = __modules["src/data/items.js"];
-const { STAT_ORDER } = __modules["src/data/stats.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { SLOT_ORDER, RARITIES, MATERIA_KINDS, MATERIA_RARITIES } = __modules["src/data/items.js"];
+const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
+const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
+const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
-const { esc, tip } = __modules["src/ui/html.js"];
-const { itemCard, itemMeta, itemName, formatStat, slotLabel, materiaTable, consumablesLine } = __modules["src/ui/items.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { itemCard, slotLabel } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
-const { statsList } = __modules["src/ui/heroStats.js"];
-// Équipement : emplacements du héros, sac de l'équipe, comparaison avant d'équiper.
+const { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, CLASS_ICONS, GOLD_ICON } = __modules["src/ui/icons.js"];
+const { SLOT_ART, assetUrl } = __modules["src/ui/skin.js"];
+const { BAG_TABS, bagItems, paginate } = __modules["src/ui/bagView.js"];
+const { drawActor } = __modules["src/ui/actors.js"];
+const { CLASS_SPRITES } = __modules["src/ui/spriteCatalog.js"];
+const { openTalents } = __modules["src/ui/screens/talents.js"];
+// Écran Personnage (équipement et inventaire), plein écran et sans défilement :
+// à gauche les statistiques du héros (écart en vert / rouge quand on survole un objet),
+// au centre le héros et ses emplacements, à droite le sac en grille d'icônes (onglets,
+// pages) et la fiche de l'objet survolé ou choisi.
+// Équiper : glisser un objet du sac sur un emplacement (les emplacements possibles
+// s'allument), double-clic, ou clic sur l'objet puis sur l'emplacement. Retirer : glisser
+// l'objet équipé vers le sac, ou double-clic.
 
 
 
@@ -8001,8 +8251,21 @@ const { statsList } = __modules["src/ui/heroStats.js"];
 
 
 
-// État propre à l'écran (pas de l'état de jeu).
-const view = { heroIndex: 0, selected: null }; // selected : { from: 'bag', id } | { from: 'slot', slot }
+
+
+
+
+
+
+// État propre à l'écran : héros affiché, onglet et page du sac, objet choisi
+// ({ from: 'bag', id } | { from: 'slot', slot }), taille d'une page de la grille.
+const view = { heroIndex: 0, tab: 'all', page: 0, selected: null, perPage: 40 };
+
+// Disposition des emplacements autour du héros : [emplacement, colonne, ligne].
+const DOLL = [
+  ['casque', 1, 1], ['epaulieres', 1, 2], ['plastron', 1, 3], ['gants', 1, 4], ['bottes', 1, 5],
+  ['collier', 3, 1], ['anneau1', 3, 2], ['anneau2', 3, 3], ['mainDroite', 3, 4], ['mainGauche', 3, 5],
+];
 
 function openEquipment(heroIndex = view.heroIndex) {
   view.heroIndex = heroIndex;
@@ -8011,64 +8274,130 @@ function openEquipment(heroIndex = view.heroIndex) {
 }
 
 function renderEquipment(app) {
+  view.heroIndex = Math.min(view.heroIndex, state.party.length - 1);
   const hero = state.party[view.heroIndex];
   const cls = getClass(hero);
-
   app.innerHTML = `
-    <div class="hero"><h1>Équipement</h1><p>Sac de l'équipe : ${state.bag.length} objet${state.bag.length > 1 ? 's' : ''}</p></div>
-    <div class="hero-tabs">
-      ${state.party.map((h, i) => `
-        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
-          ${getClass(h).icon} ${esc(h.name)}
-        </button>`).join('')}
-    </div>
-    <div class="equip-layout">
-      <div class="card slot-list" style="--c:${cls.color}">
-        <h3>${cls.icon} ${esc(hero.name)} <small>— ${cls.name}</small></h3>
-        ${SLOT_ORDER.map((slot) => slotRow(hero, slot)).join('')}
-        <div class="equip-stats">${statsList(hero)}</div>
-      </div>
-      <div>
-        <div class="card detail">${detailPanel(hero)}</div>
-        <div class="card bag">
-          <h3>Sac</h3>
-          ${bagList(hero)}
-          <h3>Matéria</h3>
-          ${materiaTable(state.materia)}
-          <h3>Consommables</h3>
-          <p class="hint">${consumablesLine(state.consumables)}</p>
+    <div class="inv-screen">
+      <header class="inv-top">
+        <div class="inv-tabs">${state.party.map((h, i) => `
+          <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}" style="--c:${getClass(h).color}">
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+          </button>`).join('')}
         </div>
-      </div>
-    </div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
-
-  app.querySelectorAll('[data-hero]').forEach((btn) => {
-    btn.onclick = () => openEquipment(Number(btn.dataset.hero));
-  });
-  app.querySelectorAll('[data-slot]').forEach((row) => {
-    row.onclick = () => select({ from: 'slot', slot: row.dataset.slot });
-  });
-  app.querySelectorAll('[data-item]').forEach((row) => {
-    row.onclick = () => select({ from: 'bag', id: row.dataset.item });
-  });
-  app.querySelectorAll('[data-equip]').forEach((btn) => {
-    btn.onclick = () => {
-      const item = selectedItem(hero);
-      if (equip(hero, state.bag, item, btn.dataset.equip)) select({ from: 'slot', slot: btn.dataset.equip });
-    };
-  });
-  app.querySelector('#unequip')?.addEventListener('click', () => {
-    const item = selectedItem(hero);
-    if (unequip(hero, state.bag, view.selected.slot)) select({ from: 'bag', id: item.id });
-  });
-  app.querySelector('#backHub').onclick = () => goBack();
+        <span class="inv-gold">${iconHtml(GOLD_ICON, 32)} ${state.gold.toLocaleString('fr-FR')}</span>
+        <button id="toTalents">${iconHtml(96, 32)} Talents</button>
+        <button id="backHub">${esc(backLabel())}</button>
+      </header>
+      <section class="win inv-stats" style="--c:${cls.color}">
+        <h3>${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+        <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
+        <div class="stat-grid" id="statGrid">${statGrid(hero, null)}</div>
+      </section>
+      <section class="win inv-doll">
+        <div class="doll">
+          ${DOLL.map(([slot, col, row]) => slotCell(hero, slot, col, row)).join('')}
+          <canvas id="dollHero" width="96" height="124" style="grid-column:2; grid-row:1 / span 5"></canvas>
+        </div>
+        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic). Glissez-le vers le sac pour le retirer.</p>
+      </section>
+      <section class="win inv-bag" id="bagDrop">
+        <nav class="bag-tabs">${BAG_TABS.map((t) => `<button class="bag-tab ${t.id === view.tab ? 'current' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}</nav>
+        <div class="bag-grid" id="bagGrid">${bagContent(hero)}</div>
+      </section>
+      <section class="win inv-detail" id="detail">${detail(hero, selectedItem(hero))}</section>
+    </div>`;
+  drawHero(app.querySelector('#dollHero'), hero);
+  wire(app, hero);
+  fitGrid(app);
 }
 
-function select(selection) {
-  view.selected = selection;
-  goTo('equipment');
+// ---- Stats ----
+
+// Stats du héros ; avec `preview` (héros après échange), écart affiché en couleur.
+function statGrid(hero, preview) {
+  const now = getStats(hero);
+  const after = preview ? getStats(preview) : null;
+  const cls = getClass(hero);
+  const rows = [
+    ['physPower', 'Puiss. physique', ''], ['magPower', 'Puiss. magique', ''],
+    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === cls.mainStat ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
+  ];
+  return rows.map(([k, label, suffix]) => {
+    const d = after ? after[k] - now[k] : 0;
+    const value = k === 'pv' ? `${hero.hp}/${now.pv}` : `${now[k]}${suffix}`;
+    return `<span class="k">${label}</span><span class="v">${value}${d ? ` <b class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</b>` : ''}</span>`;
+  }).join('');
 }
+
+// ---- Poupée ----
+
+function slotCell(hero, slot, col, row) {
+  const item = hero.equipment[slot];
+  const twoHand = slot === 'mainGauche' && !item && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite);
+  const shown = item ?? (twoHand ? hero.equipment.mainDroite : null);
+  const selected = view.selected?.from === 'slot' && view.selected.slot === slot ? 'selected' : '';
+  return `
+    <div class="eq-slot ${shown ? 'filled' : ''} ${twoHand ? 'ghost' : ''} ${selected}" data-slot="${slot}" style="grid-column:${col}; grid-row:${row}; --slot-art:${assetUrl(SLOT_ART[slot])}${shown ? `; --rc:${RARITIES[shown.rarity].color}` : ''}"
+      title="${esc(slotLabel(slot))}${twoHand ? ' (arme à deux mains)' : ''}" ${item ? 'draggable="true"' : ''}>
+      ${shown ? `${iconHtml(itemIcon(shown), 32)}${shown.plus ? `<sup>+${shown.plus}</sup>` : ''}` : ''}
+    </div>`;
+}
+
+function drawHero(canvas, hero) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const draw = (now) => {
+    if (!canvas.isConnected) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawActor(ctx, { sx: 0, sy: 0, size: 96, scale: 4, dir: 'down', now, sprite: CLASS_SPRITES[hero.classKey] ?? CLASS_SPRITES.paladin });
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+}
+
+// ---- Sac ----
+
+function bagContent(hero) {
+  if (view.tab === 'consumables') {
+    const owned = CONSUMABLE_ORDER.filter((k) => state.consumables[k] > 0);
+    return owned.map((k) => `
+      <div class="bag-cell" data-consumable="${k}" title="${esc(CONSUMABLES[k].name)}">${iconHtml(consumableIcon(k), 32)}<sup>${state.consumables[k]}</sup></div>`).join('')
+      || '<p class="hint">Aucun consommable.</p>';
+  }
+  if (view.tab === 'materia') {
+    return Object.keys(MATERIA_KINDS).flatMap((kind) => MATERIA_RARITIES.map((r) => `
+      <div class="bag-cell ${state.materia[kind][r] ? '' : 'empty'}" style="--rc:${RARITIES[r].color}" title="${esc(`${MATERIA_KINDS[kind].label} ${RARITIES[r].label.toLowerCase()}`)}">${iconHtml(MATERIA_ICONS[kind], 32)}<sup>${state.materia[kind][r]}</sup></div>`)).join('');
+  }
+  const { items, page, pages } = paginate(bagItems(state.bag, view.tab, hero), view.page, view.perPage);
+  view.page = page;
+  const cells = items.map((item) => {
+    const usable = !cannotEquipReason(hero, item);
+    const selected = view.selected?.from === 'bag' && view.selected.id === item.id ? 'selected' : '';
+    return `<div class="bag-cell ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}" draggable="true" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`;
+  });
+  for (let i = items.length; i < view.perPage; i++) cells.push('<div class="bag-cell empty"></div>');
+  return `${cells.join('')}
+    <div class="bag-pager"><button id="pgPrev" ${page ? '' : 'disabled'}>◂</button><span>Page ${page + 1} / ${pages} · ${state.bag.length} objets</span><button id="pgNext" ${page < pages - 1 ? '' : 'disabled'}>▸</button></div>`;
+}
+
+// Nombre de cases par page : ce qui tient dans la grille (mesuré après affichage).
+function fitGrid(app) {
+  const grid = app.querySelector('#bagGrid');
+  if (!grid || view.tab === 'consumables' || view.tab === 'materia') return;
+  const cell = 46;
+  const cols = Math.max(4, Math.floor((grid.clientWidth + 4) / cell));
+  const rows = Math.max(2, Math.floor((grid.clientHeight - 34 + 4) / cell));
+  const perPage = cols * rows;
+  if (perPage !== view.perPage) {
+    view.perPage = perPage;
+    grid.innerHTML = bagContent(state.party[view.heroIndex]);
+    wire(app, state.party[view.heroIndex]);
+  }
+}
+
+// ---- Fiche ----
 
 function selectedItem(hero) {
   const sel = view.selected;
@@ -8077,80 +8406,139 @@ function selectedItem(hero) {
   return state.bag.find((item) => item.id === sel.id) ?? null;
 }
 
-function isSelected(sel) {
-  const cur = view.selected;
-  return !!cur && cur.from === sel.from && (cur.slot ?? cur.id) === (sel.slot ?? sel.id);
+function detail(hero, item, hoverSlot = null) {
+  if (!item) return '<p class="hint">Survolez un objet pour voir sa fiche ; cliquez pour le choisir.</p>';
+  const equipped = SLOT_ORDER.find((s) => hero.equipment[s] === item);
+  let actions = '';
+  if (equipped) actions = `<button data-unequip="${equipped}">Retirer</button>`;
+  else {
+    const reason = cannotEquipReason(hero, item);
+    actions = reason ? `<p class="warning">${esc(reason)}.</p>`
+      : slotsFor(hero, item).map((slot) => `<button class="gold" data-equip="${slot}" data-id="${item.id}">Équiper — ${esc(slotLabel(slot))}</button>`).join('');
+  }
+  const compare = !equipped ? comparedWith(hero, item, hoverSlot) : null;
+  return `<div class="detail-cols">
+      <div>${iconHtml(itemIcon(item), 64, 'detail-icon')}${itemCard(item)}</div>
+      ${compare ? `<div class="detail-vs"><small>Équipé :</small>${iconHtml(itemIcon(compare), 32)}${itemCard(compare)}</div>` : ''}
+    </div><div class="detail-actions">${actions}</div>`;
 }
 
-function slotRow(hero, slot) {
+// Objet actuellement porté à la place où irait `item`.
+function comparedWith(hero, item, slot) {
+  const target = slot ?? slotsFor(hero, item)[0];
+  return target ? hero.equipment[target] ?? null : null;
+}
+
+// ---- Événements ----
+
+function rerender() {
+  const app = document.getElementById('app');
+  if (app && state.screen === 'equipment') renderEquipment(app);
+}
+
+function doEquip(hero, item, slot) {
+  if (!item || !equip(hero, state.bag, item, slot)) return false;
+  view.selected = { from: 'slot', slot };
+  rerender();
+  return true;
+}
+
+function doUnequip(hero, slot) {
   const item = hero.equipment[slot];
-  const selected = isSelected({ from: 'slot', slot }) ? 'selected' : '';
-  // Une arme à deux mains occupe aussi la main gauche.
-  const twoHand = hero.equipment.mainDroite;
-  if (!item && slot === 'mainGauche' && twoHand && isTwoHanded(twoHand)) {
-    return `
-    <button class="slot-row two-handed" data-slot="mainDroite" ${tip('Occupée par une arme à deux mains.')}>
-      <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[twoHand.rarity].color}">${esc(itemName(twoHand))} <small>· deux mains</small></span>
-    </button>`;
-  }
-  if (!item) return `<div class="slot-row empty"><span class="slot-name">${slotLabel(slot)}</span><span>— vide —</span></div>`;
-  return `
-    <button class="slot-row ${selected}" data-slot="${slot}">
-      <span class="slot-name">${slotLabel(slot)}</span>
-      <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))} <small>· ${RARITIES[item.rarity].label}</small></span>
-    </button>`;
+  if (!unequip(hero, state.bag, slot)) return;
+  view.selected = { from: 'bag', id: item.id };
+  rerender();
 }
 
-function bagList(hero) {
-  if (!state.bag.length) return '<p class="hint">Le sac est vide. Le butin des donjons arrive ici.</p>';
-  const sorted = [...state.bag].sort((a, b) =>
-    RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.level - a.level);
-  return sorted.map((item) => {
-    const usable = !cannotEquipReason(hero, item);
-    const selected = isSelected({ from: 'bag', id: item.id }) ? 'selected' : '';
-    return `
-      <button class="bag-row ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}">
-        <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${esc(itemName(item))}</span>
-        <small>${itemMeta(item)}</small>
-      </button>`;
-  }).join('');
+// Aperçu au survol : fiche, comparaison, écart de stats, emplacements possibles.
+function preview(app, hero, item, slot = null) {
+  const panel = app.querySelector('#detail');
+  if (panel) panel.innerHTML = detail(hero, item, slot);
+  wireDetail(app, hero);
+  const inBag = item && !SLOT_ORDER.some((s) => hero.equipment[s] === item);
+  const target = inBag ? slot ?? slotsFor(hero, item)[0] : null;
+  const after = target ? previewEquip(hero, item, target) : null;
+  app.querySelector('#statGrid').innerHTML = statGrid(hero, after);
+  const ok = inBag ? slotsFor(hero, item) : [];
+  app.querySelectorAll('.eq-slot').forEach((el) => el.classList.toggle('can-drop', ok.includes(el.dataset.slot)));
 }
 
-function detailPanel(hero) {
-  const item = selectedItem(hero);
-  if (!item) return '<p class="hint">Sélectionne un objet équipé ou un objet du sac pour voir ses détails et le comparer.</p>';
-
-  if (view.selected.from === 'slot') {
-    return `${itemCard(item)}<div class="actions"><button id="unequip">Retirer (vers le sac)</button></div>`;
-  }
-
-  const reason = cannotEquipReason(hero, item);
-  if (reason) return `${itemCard(item)}<p class="warning">${esc(hero.name)} ne peut pas l'équiper : ${reason}.</p>`;
-
-  const options = slotsFor(hero, item).map((slot) => {
-    const current = hero.equipment[slot];
-    return `
-      <div class="equip-option">
-        <button data-equip="${slot}">Équiper — ${slotLabel(slot)}</button>
-        <small>${current ? `remplace ${esc(itemName(current))}` : 'emplacement vide'}</small>
-        ${statDiff(hero, previewEquip(hero, item, slot))}
-      </div>`;
+function wireDetail(app, hero) {
+  app.querySelectorAll('[data-equip]').forEach((b) => {
+    b.onclick = () => doEquip(hero, state.bag.find((i) => i.id === b.dataset.id), b.dataset.equip);
   });
-  return `${itemCard(item)}${options.join('')}`;
+  app.querySelectorAll('[data-unequip]').forEach((b) => { b.onclick = () => doUnequip(hero, b.dataset.unequip); });
 }
 
-// Différence de stats du héros entre maintenant et après l'échange.
-function statDiff(hero, preview) {
-  if (!preview) return '';
-  const before = getStats(hero);
-  const after = getStats(preview);
-  const changes = STAT_ORDER
-    .map((k) => [k, after[k] - before[k]])
-    .filter(([, d]) => d !== 0)
-    .map(([k, d]) => `<span class="${d > 0 ? 'up' : 'down'}">${formatStat(k, d)}</span>`);
-  return `<div class="diff">${changes.length ? changes.join('') : '<span>Aucun changement de stats</span>'}</div>`;
+function wire(app, hero) {
+  app.querySelectorAll('[data-hero]').forEach((b) => { b.onclick = () => openEquipment(Number(b.dataset.hero)); });
+  app.querySelector('#backHub').onclick = () => goBack();
+  app.querySelector('#toTalents').onclick = () => openTalents(view.heroIndex);
+  app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => { view.tab = b.dataset.tab; view.page = 0; rerender(); }; });
+  app.querySelector('#pgPrev')?.addEventListener('click', () => { view.page--; rerender(); });
+  app.querySelector('#pgNext')?.addEventListener('click', () => { view.page++; rerender(); });
+  wireDetail(app, hero);
+  const chosen = () => selectedItem(hero);
+  const restore = () => preview(app, hero, chosen());
+
+  // Objets du sac.
+  app.querySelectorAll('.bag-cell[data-item]').forEach((cell) => {
+    const item = state.bag.find((i) => i.id === cell.dataset.item);
+    cell.onmouseenter = () => preview(app, hero, item);
+    cell.onmouseleave = restore;
+    cell.onclick = () => { view.selected = { from: 'bag', id: item.id }; rerender(); };
+    cell.ondblclick = () => { const slot = slotsFor(hero, item)[0]; if (slot) doEquip(hero, item, slot); };
+    cell.ondragstart = (ev) => {
+      ev.dataTransfer.setData('text/plain', `bag:${item.id}`);
+      ev.dataTransfer.effectAllowed = 'move';
+      preview(app, hero, item);
+    };
+    cell.ondragend = restore;
+  });
+  app.querySelectorAll('.bag-cell[data-consumable]').forEach((cell) => {
+    const c = CONSUMABLES[cell.dataset.consumable];
+    cell.onmouseenter = () => { app.querySelector('#detail').innerHTML = `<p>${iconHtml(consumableIcon(cell.dataset.consumable), 64, 'detail-icon')}<b>${esc(c.name)}</b> ×${state.consumables[cell.dataset.consumable]}</p><p>${esc(c.desc)}</p>`; };
+  });
+
+  // Emplacements.
+  app.querySelectorAll('.eq-slot').forEach((el) => {
+    const slot = el.dataset.slot;
+    const item = hero.equipment[slot];
+    el.onmouseenter = () => { if (item) preview(app, hero, item); else if (chosen() && !SLOT_ORDER.some((s) => hero.equipment[s] === chosen())) preview(app, hero, chosen(), slot); };
+    el.onmouseleave = restore;
+    el.onclick = () => {
+      const sel = chosen();
+      // Un objet du sac est choisi et va ici : on l'équipe.
+      if (sel && view.selected.from === 'bag' && slotsFor(hero, sel).includes(slot)) return doEquip(hero, sel, slot);
+      if (item) { view.selected = { from: 'slot', slot }; rerender(); }
+    };
+    el.ondblclick = () => { if (item) doUnequip(hero, slot); };
+    el.ondragstart = (ev) => { if (!item) return ev.preventDefault(); ev.dataTransfer.setData('text/plain', `slot:${slot}`); };
+    el.ondragover = (ev) => { if (el.classList.contains('can-drop')) { ev.preventDefault(); el.classList.add('over'); } };
+    el.ondragleave = () => el.classList.remove('over');
+    el.ondrop = (ev) => {
+      ev.preventDefault();
+      const [from, id] = ev.dataTransfer.getData('text/plain').split(':');
+      if (from === 'bag') doEquip(hero, state.bag.find((i) => i.id === id), slot);
+    };
+  });
+
+  // Déposer un objet équipé sur le sac le retire.
+  const bag = app.querySelector('#bagDrop');
+  bag.ondragover = (ev) => { if (ev.dataTransfer.types.includes('text/plain')) { ev.preventDefault(); bag.classList.add('over'); } };
+  bag.ondragleave = () => bag.classList.remove('over');
+  bag.ondrop = (ev) => {
+    ev.preventDefault();
+    bag.classList.remove('over');
+    const [from, slot] = ev.dataTransfer.getData('text/plain').split(':');
+    if (from === 'slot') doUnequip(hero, slot);
+  };
 }
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => { if (state.screen === 'equipment') rerender(); });
+}
+
 
 return { openEquipment, renderEquipment };
 })();
@@ -10207,136 +10595,6 @@ function enemyGesture(enemy, diff) {
 }
 
 return { snapshotBattle, diffBattle, heroGesture, enemyGesture };
-})();
-
-// ---- src/ui/icons.js
-__modules["src/ui/icons.js"] = (() => {
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
-// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
-// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
-// teinte des armes et des armures quand la planche en propose plusieurs.
-
-
-
-const COLS = 16;
-
-// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
-function iconHtml(index, size = 32, extra = '', title = '') {
-  const x = (index % COLS) * size;
-  const y = Math.floor(index / COLS) * size;
-  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
-}
-
-// Rareté → variante (0 = commune … 5 = divine).
-const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
-
-// Armes : ligne des armes en fer ; +160 = acier bleu, +80 = or.
-const WEAPONS = { epee: 1447, epee2m: 1455, dague: 1443, hache: 1463, hache2m: 1465, masse: 1471, masse2m: 1476, baton: 1491, arc: 1482 };
-const WEAPON_TIER = [0, 0, 160, 160, 80, 80];
-
-// Armures : une icône par rareté, pour chaque pièce et chaque type.
-const ARMOR = {
-  lourde: {
-    casque: [1904, 1905, 1907, 1908, 1910, 1908],
-    epaulieres: [1820, 1820, 1818, 1817, 1821, 1817],
-    plastron: [1920, 1921, 1923, 1924, 1926, 1924],
-    gants: [2057, 2057, 2058, 2058, 2059, 2059],
-    bottes: [1936, 1937, 1939, 1940, 1942, 1940],
-  },
-  moyenne: {
-    casque: [2014, 2014, 2015, 2015, 2015, 2015],
-    epaulieres: [2069, 2070, 2071, 2072, 2073, 2073],
-    plastron: [2018, 2024, 2025, 2027, 2028, 2028],
-    gants: [2054, 2054, 2055, 2055, 2059, 2059],
-    bottes: [2034, 2040, 2041, 2043, 2044, 2044],
-  },
-  legere: {
-    casque: [1952, 1953, 1954, 1960, 1962, 1963],
-    epaulieres: [1819, 1819, 1818, 1818, 1821, 1821],
-    plastron: [1968, 1969, 1970, 1976, 1978, 1979],
-    gants: [2055, 2055, 2054, 2054, 2059, 2059],
-    bottes: [1984, 1985, 1986, 1992, 1994, 1995],
-  },
-};
-const JEWELS = {
-  anneau: [1842, 1843, 1846, 1845, 1844, 2061],
-  collier: [2065, 2064, 1849, 1848, 1847, 2181],
-};
-const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
-
-function itemIcon(item) {
-  const tier = TIER[item.rarity] ?? 0;
-  if (item.slotType === 'arme') return (WEAPONS[item.weaponType] ?? 1447) + WEAPON_TIER[tier];
-  if (item.slotType === 'bouclier') return SHIELD[tier];
-  if (JEWELS[item.slotType]) return JEWELS[item.slotType][tier];
-  return ARMOR[item.armorType]?.[item.slotType]?.[tier] ?? 1920;
-}
-
-// Consommables.
-const CONSUMABLE_ICONS = {
-  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
-  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
-  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
-};
-function consumableIcon(key) {
-  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
-}
-
-// Matéria : une gemme par catégorie d'équipement.
-const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
-const GOLD_ICON = 130;
-
-// Effets (buffs / debuffs).
-const EFFECT_ICONS = {
-  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
-  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
-  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
-};
-function effectIcon(key) {
-  return EFFECT_ICONS[key] ?? 1000;
-}
-
-// Compétences : d'après leur nom (élément), puis leur nature.
-const SKILL_RULES = [
-  [/feu|flamme|brasier|immolation|météore/i, 992],
-  [/glace|givre|blizzard|gel/i, 1008],
-  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
-  [/poison|peste|nauséabond|empoisonn/i, 674],
-  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
-  [/résurrection|sacrifice/i, 669],
-  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
-  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
-  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
-  [/piège|terrain/i, 127],
-  [/tir|salve|flèche/i, 2169],
-  [/tourbillon|déluge|carnage/i, 724],
-  [/cri|provocation/i, 662],
-  [/exécution|éviscération|marque|fatal/i, 745],
-];
-function skillIconIndex(skill) {
-  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
-  if (skill.kind === 'heal') return 1057;
-  if (skill.kind === 'revive') return 669;
-  if (skill.magic) return 1000;
-  return 726;
-}
-
-// Orientations de talents et classes.
-const BRANCH_ICONS = {
-  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
-  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
-  Templier: 1810, 'Lumière': 1055,
-};
-function branchIcon(branch) {
-  return BRANCH_ICONS[branch.name] ?? 1000;
-}
-const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
-
-// Commandes de combat.
-const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
-
-return { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS };
 })();
 
 // ---- src/ui/battleStage.js

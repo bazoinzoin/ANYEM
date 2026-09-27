@@ -44,7 +44,7 @@ export const SLOT_ART = {
 const FONTS = { FantasyRPGtext: 'fonts/FantasyRPGtext', FantasyRPGtitle: 'fonts/FantasyRPGtitle', FantasyRPGtitleOutline: 'fonts/FantasyRPGtitleOutline' };
 
 export function assetUrl(key) {
-  return `url("${ASSET_DATA[key]}")`;
+  return `url(${ASSET_DATA[key]})`;
 }
 
 export function applySkin() {
