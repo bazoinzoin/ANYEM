@@ -490,3 +490,13 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
 .slot-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
 .slot-actions { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
 .slot-actions .warning { color: #ff9a8a; margin: 0; text-align: center; }
+/* Lexique au survol (ui/glossary.js) */
+.gloss { text-decoration: underline dotted rgba(243,213,140,.75); text-underline-offset: 2px; cursor: help; }
+.gloss:hover { color: #fff4d0; text-decoration-style: solid; }
+.gloss-tip {
+  position: fixed; z-index: 100; display: none; max-width: 320px; pointer-events: none;
+  padding: 8px 10px; font-size: 13px; line-height: 1.35; color: #3a2208; text-align: left;
+  border: 10px solid transparent; border-image: var(--ui-parch) 10 fill / 12px stretch;
+  background: #f1dfb6; box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+.gloss-tip b { color: #7d3833; }

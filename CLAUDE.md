@@ -54,6 +54,7 @@ Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` 
 
 - Textes du jeu et commentaires en français ; identifiants en anglais.
 - Tout texte dynamique inséré dans du HTML passe par `esc()` (`ui/html.js`).
+- Lexique : les mots de `data/glossary.js` (plus les effets de `data/effects.js`) sont soulignés automatiquement dans tous les textes affichés, avec une bulle au survol (`ui/glossary.js`, observateur lancé dans `main.js`) ; un nouveau terme du jeu s'ajoute à `data/glossary.js` (`cs: true` pour un mot courant qui ne compte qu'avec sa majuscule). Pas de soulignement dans les boutons, titres, ni un texte qui a déjà une infobulle (`.no-gloss` pour exclure une zone).
 - Toute nouvelle règle dans `src/game/` s'accompagne d'un test dans `tests/`.
 
 ## Préférences du joueur (à respecter)

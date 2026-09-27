@@ -21,6 +21,7 @@ import { renderBestiary } from './ui/screens/bestiary.js';
 import { renderPortals } from './ui/screens/portals.js';
 import { renderDefeat } from './ui/screens/defeat.js';
 import { renderSlots } from './ui/screens/slots.js';
+import { startGlossary } from './ui/glossary.js';
 // Menu Échap : ui/pause.js écoute le clavier dès son chargement.
 import { openPause } from './ui/pause.js';
 
@@ -48,3 +49,4 @@ registerScreens({
 
 applySkin();
 render();
+startGlossary();

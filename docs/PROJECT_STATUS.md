@@ -106,6 +106,10 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
 - Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).
 
+## Lexique au survol
+
+- Les mots importants du jeu (équipement, matéria, consommable, légendaire, divin, stats, ressources, combo, finisher, positions, boss, élite, talents, orientations, paliers, expédition, sous-zone, difficulté, effets positifs et négatifs…) sont **soulignés en pointillés** partout où ils apparaissent (une fois par bloc de texte) ; au survol, une bulle parchemin les explique. Contenu : `data/glossary.js` ; moteur : `ui/glossary.js` (découpage pur `splitGloss`, testé, et un observateur de la page qui traite chaque nouvel écran). Les boutons, les titres et les textes qui ont déjà leur infobulle ne sont pas soulignés.
+
 ## Sauvegardes et menu Échap
 
 - **4 emplacements** (stockage du navigateur, `ui/saves.js`). « Nouvelle partie » demande d'abord un emplacement (écraser une aventure demande confirmation) : l'aventure s'y sauvegarde toujours, dès la création de l'équipe, sans toucher aux autres. « Charger » liste les emplacements (équipe en portraits, lieu, difficulté, or, zones terminées, date) ; on peut aussi effacer une aventure.
