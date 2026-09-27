@@ -1,66 +1,62 @@
 // Village d'Anyem : petite carte à parcourir (cases de 16 px). Chaque service est un
 // personnage ; lui parler ouvre son écran. Données pures : la grille de marche et les
-// règles sont dans game/village.js, le rendu dans ui/village.js.
+// règles sont dans game/village.js, le rendu dans ui/villageView.js.
+// Graphismes : chipsets RPG Maker 2003 (assets/rm2k3/chip_village, chip_town).
 //
-// Objets posés (bâtiments, décors) : { key (image de assets/), w, h (px), x (colonne de
-// gauche), bottom (ligne du bas), block }. Le sprite est dessiné pieds sur la ligne
-// `bottom` ; `block` : 'all' (toute son emprise), 'base' (sa ligne du bas), 'none', ou
-// liste de cases [dx, dy] relatives au coin bas-gauche (dy ≤ 0).
+// Maisons : { id, x (colonne de gauche), bottom (ligne du bas), cols, roofRows, wallRows,
+//   roof ('red' | 'teal' | 'green' | 'brown'), wall ('plaster' | 'stone' | 'brick'),
+//   door (colonne de la porte, relative), windows ([colonnes]), sign ({ chip, tile, dx }) }
+//   Toute l'emprise bloque le passage (l'habitant attend devant la porte).
+// Objets : { chip ('village' | 'town'), rect: [col, ligne, largeur, hauteur] dans le chipset,
+//   x (colonne de gauche), bottom (ligne du bas), block } ; block : 'all', 'base' (ligne du
+//   bas), 'none', ou cases [dx, dy] relatives au coin bas-gauche (dy ≤ 0).
+
+const bush = (x) => ({ chip: 'village', rect: [19, 9, 1, 1], x, bottom: 23, block: 'all' });
+const flowers = (x, bottom) => ({ chip: 'village', rect: [18, 11, 1, 1], x, bottom, block: 'none' });
 
 export const VILLAGE = {
   w: 34,
   h: 24,
   spawn: { x: 17, y: 20 },       // arrivée (retour d'expédition, début de partie)
-  // Chemins de terre battue : rectangles { x, y, w, h }.
+  // Rues pavées : rectangles { x, y, w, h }.
   paths: [
     { x: 1, y: 9, w: 32, h: 2 },   // grand-rue, devant l'auberge et la forge
     { x: 16, y: 9, w: 3, h: 15 },  // allée centrale jusqu'à la porte
     { x: 10, y: 11, w: 13, h: 6 }, // place du puits
     { x: 2, y: 21, w: 30, h: 1 },  // rue du bas (banque, marchand)
-    { x: 4, y: 20, w: 1, h: 1 },   // seuil de la banque
-    { x: 30, y: 20, w: 1, h: 1 },  // seuil du marchand
     { x: 25, y: 20, w: 3, h: 1 },  // devant l'étal
   ],
   buildings: [
-    { id: 'inn', key: 'fantasy/House_Hay_3', w: 180, h: 128, x: 1, bottom: 8, block: 'all' },
-    { id: 'forge', key: 'fantasy/House_Hay_2', w: 157, h: 112, x: 22, bottom: 7, block: 'all' },
-    { id: 'bank', key: 'fantasy/House_Hay_1', w: 88, h: 103, x: 2, bottom: 20, block: 'all' },
-    { id: 'shop', key: 'fantasy/House_Hay_4_Purple', w: 128, h: 128, x: 24, bottom: 20, block: 'all' },
-    { id: 'well', key: 'fantasy/Well_Hay_1', w: 56, h: 75, x: 11, bottom: 15, block: [[0, 0], [1, 0], [2, 0], [3, 0], [0, -1], [1, -1], [2, -1], [3, -1]] },
-    // Porte de la ville : piliers seulement, on passe sous l'arche.
-    { id: 'gate', key: 'fantasy/CityWall_Gate_1', w: 80, h: 96, x: 15, bottom: 23, block: [[0, 0], [0, -1], [0, -2], [4, 0], [4, -1], [4, -2]] },
+    { id: 'inn', x: 1, bottom: 8, cols: 12, roofRows: 4, wallRows: 3, roof: 'red', wall: 'plaster', door: 7, windows: [2, 4, 9, 10], sign: { chip: 'village', tile: [22, 14], dx: 6 } },
+    { id: 'forge', x: 22, bottom: 7, cols: 10, roofRows: 3, wallRows: 3, roof: 'teal', wall: 'stone', door: 5, windows: [2, 8], sign: { chip: 'dungeon', tile: [21, 5], dx: 4 } },
+    { id: 'bank', x: 2, bottom: 20, cols: 6, roofRows: 3, wallRows: 3, roof: 'teal', wall: 'brick', door: 2, windows: [4] },
+    { id: 'shop', x: 24, bottom: 20, cols: 8, roofRows: 3, wallRows: 3, roof: 'red', wall: 'stone', door: 6, windows: [1, 3], sign: { chip: 'dungeon', tile: [20, 8], dx: 5 } },
   ],
   props: [
-    { key: 'fantasy/BulletinBoard_1', w: 44, h: 42, x: 13, bottom: 8, block: 'base' },
-    { key: 'fantasy/Animation_Campfire', w: 32, h: 32, x: 20, bottom: 13, block: 'all', frames: 8 },
-    { key: 'fantasy/Banner_Stick_1_Purple', w: 24, h: 59, x: 21, bottom: 11, block: [[0, 0]] },
-    { key: 'fantasy/LampPost_3', w: 46, h: 62, x: 14, bottom: 17, block: [[1, 0]] },
-    { key: 'fantasy/LampPost_3', w: 46, h: 62, x: 18, bottom: 17, block: [[1, 0]] },
-    { key: 'fantasy/Table_Medium_1', w: 42, h: 39, x: 8, bottom: 17, block: 'base' },
-    { key: 'fantasy/Basket_Empty', w: 22, h: 17, x: 8, bottom: 16, block: 'none' },
-    { key: 'fantasy/Barrel_Small_Empty', w: 16, h: 20, x: 31, bottom: 8, block: 'all' },
-    { key: 'fantasy/Barrel_Small_Empty', w: 16, h: 20, x: 32, bottom: 8, block: 'all' },
-    { key: 'fantasy/Crate_Large_Empty', w: 24, h: 29, x: 20, bottom: 7, block: 'all' },
-    { key: 'fantasy/Crate_Water_1', w: 30, h: 22, x: 22, bottom: 20, block: 'all' },
-    { key: 'fantasy/Crate_Medium_Closed', w: 16, h: 21, x: 23, bottom: 19, block: 'all' },
-    { key: 'fantasy/Sack_3', w: 16, h: 14, x: 22, bottom: 18, block: 'all' },
-    { key: 'fantasy/HayStack_2', w: 29, h: 32, x: 1, bottom: 12, block: 'all' },
-    { key: 'fantasy/Chopped_Tree_1', w: 32, h: 31, x: 30, bottom: 11, block: 'all' },
-    { key: 'fantasy/Bench_3', w: 14, h: 14, x: 10, bottom: 16, block: 'all' },
-    { key: 'fantasy/Bench_3', w: 14, h: 14, x: 22, bottom: 16, block: 'all' },
-    { key: 'fantasy/Sign_1', w: 24, h: 22, x: 21, bottom: 19, block: 'base' },
-    { key: 'fantasy/Plant_2', w: 15, h: 11, x: 9, bottom: 20, block: 'none' },
-    { key: 'fantasy/Plant_2', w: 15, h: 11, x: 13, bottom: 21, block: 'none' },
+    { chip: 'village', rect: [22, 12, 1, 1], x: 12, bottom: 14, block: 'all' },   // puits
+    { chip: 'village', rect: [26, 8, 1, 2], x: 11, bottom: 12, block: 'all' },    // statue
+    { chip: 'village', rect: [21, 12, 1, 1], x: 20, bottom: 13, block: 'all' },   // feu de camp
+    { chip: 'village', rect: [29, 5, 1, 2], x: 21, bottom: 11, block: [[0, 0]] }, // bannière
+    { chip: 'village', rect: [18, 10, 1, 1], x: 15, bottom: 17, block: 'all' },   // braseros
+    { chip: 'village', rect: [18, 10, 1, 1], x: 19, bottom: 17, block: 'all' },
+    { chip: 'village', rect: [20, 14, 1, 1], x: 14, bottom: 8, block: 'all' },    // panneau
+    { chip: 'village', rect: [27, 10, 2, 1], x: 8, bottom: 17, block: 'all' },    // table
+    { chip: 'village', rect: [27, 5, 1, 1], x: 31, bottom: 8, block: 'all' },     // tonneaux
+    { chip: 'village', rect: [27, 5, 1, 1], x: 32, bottom: 8, block: 'all' },
+    { chip: 'town', rect: [22, 13, 1, 1], x: 20, bottom: 7, block: 'all' },       // caisse
+    { chip: 'town', rect: [22, 12, 1, 1], x: 21, bottom: 7, block: 'all' },       // tonneau
+    { chip: 'town', rect: [27, 12, 3, 4], x: 21, bottom: 20, block: 'base' },     // charrette de fleurs
+    { chip: 'village', rect: [19, 8, 1, 1], x: 1, bottom: 12, block: 'all' },     // souches
+    { chip: 'village', rect: [19, 8, 1, 1], x: 30, bottom: 11, block: 'all' },
+    { chip: 'town', rect: [18, 10, 1, 1], x: 10, bottom: 16, block: 'all' },      // pots de fleurs
+    { chip: 'town', rect: [19, 10, 1, 1], x: 22, bottom: 16, block: 'all' },
+    { chip: 'village', rect: [20, 14, 1, 1], x: 21, bottom: 19, block: 'all' },   // panneau
+    flowers(9, 20), flowers(13, 21), flowers(11, 19), flowers(29, 12), flowers(4, 12),
+    // Porte de la ville : deux piliers, on passe entre eux.
+    { chip: 'village', rect: [27, 8, 1, 2], x: 15, bottom: 23, block: [[0, 0]] },
+    { chip: 'village', rect: [27, 8, 1, 2], x: 19, bottom: 23, block: [[0, 0]] },
     // Haie de buissons au bas du village (des arbres y cacheraient les habitants).
-    { key: 'fantasy/Bush_Emerald_1', w: 40, h: 29, x: 1, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_3', w: 28, h: 28, x: 3, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_1', w: 40, h: 29, x: 6, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_3', w: 28, h: 28, x: 9, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_1', w: 40, h: 29, x: 12, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_3', w: 28, h: 28, x: 21, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_1', w: 40, h: 29, x: 24, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_3', w: 28, h: 28, x: 27, bottom: 23, block: 'base' },
-    { key: 'fantasy/Bush_Emerald_1', w: 40, h: 29, x: 30, bottom: 23, block: 'base' },
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32].map(bush),
   ],
   // Arbres : pieds sur la case (x, y). Une case d'arbre bloque le passage.
   trees: [

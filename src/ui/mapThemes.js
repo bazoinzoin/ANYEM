@@ -121,6 +121,11 @@ function chipOf(theme) {
   return canvas;
 }
 
+// Chipset `key` prêt à dessiner (couleur clé des objets transparente), ou null s'il charge.
+export function chipImage(key) {
+  return chipOf({ chip: key });
+}
+
 const cache = new WeakMap();
 
 // Couche fixe de la carte (canvas map.w × map.h cases de 16 px), mise en cache par carte.
