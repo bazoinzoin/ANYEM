@@ -46,8 +46,13 @@ async function loadModule(file, modules, order, visiting) {
 }
 
 export async function build() {
-  const html = await readFile(join(root, 'index.html'), 'utf8');
+  let html = await readFile(join(root, 'index.html'), 'utf8');
 
+  // Icône (logo, onglet du navigateur) : intégrée en data URI.
+  for (const [tag, href] of html.matchAll(/<link rel="icon" type="image\/png" href="(assets\/[^"]+\.png)">/g)) {
+    const png = await readFile(join(root, href));
+    html = html.replace(tag, `<link rel="icon" type="image/png" href="data:image/png;base64,${png.toString('base64')}">`);
+  }
   // CSS : chaque <link rel="stylesheet" href="css/..."> local est remplacé par son contenu.
   let out = html;
   for (const [tag, href] of html.matchAll(/<link rel="stylesheet" href="(css\/[^"]+)">/g)) {
