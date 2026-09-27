@@ -707,6 +707,11 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-detail .warning { color: #ff9a8a; }
 @media (max-width: 900px) { .tal-screen { grid-template-columns: repeat(var(--branches), minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) 170px; } .tal-detail { grid-column: 1 / -1; } }
 .inv-hero .badge { display: inline-block; flex-direction: row; vertical-align: 1px; }
+
+/* Lignes d'objets cliquables (forge, banque, auberge…) : pas d'habillage de bouton,
+   pour garder le nom coloré par rareté lisible. */
+button[class*="-row"] { border: 1px solid rgba(216,181,106,.25); border-image: none; background: rgba(0,0,0,.22); text-shadow: none; color: var(--cream); font-family: var(--font-body); font-weight: 400; }
+button[class*="-row"]:hover:not(:disabled) { background: rgba(243,213,140,.1); border-color: #d8b56a; }
 </style>
 
 </head>
