@@ -10,6 +10,7 @@
 import { drawActor } from './actors.js';
 import { CLASS_SPRITES, ENEMY_SPRITES } from './spriteCatalog.js';
 import { statsOf } from '../game/units.js';
+import { statusesOf } from '../game/statuses.js';
 import { diffBattle } from './battleDiff.js';
 
 const W = 512;             // taille du canvas (pixels ; affiché agrandi, net)
@@ -17,7 +18,7 @@ const H = 280;
 const SCALE = 2;           // zoom des sprites (24 × 32 → 48 × 64)
 const BOSS_SCALE = 3;
 const TOP = 96;            // ligne des pieds du premier et du dernier personnage d'un camp
-const BOTTOM = 262;
+const BOTTOM = 246;
 const LUNGE = 44;          // longueur du bond d'une attaque (px)
 const HIT_DELAY = 190;     // l'impact tombe au sommet du bond (ms)
 
@@ -58,6 +59,16 @@ export function attachStage(el, combat) {
     running = true;
     requestAnimationFrame(loop);
   }
+}
+
+// Taille d'affichage : la plus grande qui tient dans le parent, proportions gardées.
+export function fitStage() {
+  const parent = canvas?.parentElement;
+  if (!parent) return;
+  const k = Math.min(parent.clientWidth / W, parent.clientHeight / H);
+  if (!(k > 0)) return;
+  canvas.style.width = `${Math.floor(W * k)}px`;
+  canvas.style.height = `${Math.floor(H * k)}px`;
 }
 
 // Ciblage : met en évidence les cibles valides ; un clic sur l'une appelle onPick(unité).
@@ -404,6 +415,24 @@ function drawBars(ctx, unit, v, y) {
   const k = Math.max(0, Math.min(1, unit.hp / max));
   ctx.fillStyle = k > 0.5 ? '#6fcf5a' : k > 0.25 ? '#e0b23c' : '#e0523c';
   ctx.fillRect(x, by, Math.round(w * k), 4);
+  // Monstres : nom sous la barre ; tout le monde : effets en cours au-dessus de la tête.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  if (sideOf(unit) === 'enemy') {
+    ctx.font = 'bold 9px sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,.8)';
+    ctx.strokeText(unit.name, v.x, by + 6);
+    ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
+    ctx.fillText(unit.name, v.x, by + 6);
+  }
+  const icons = [...(unit.guard ? ['🛡️'] : []), ...statusesOf(unit).map((st) => st.icon ?? '•')];
+  if (icons.length) {
+    const scale = unit.boss ? BOSS_SCALE : SCALE;
+    ctx.font = '10px sans-serif';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(icons.join(''), v.x, y - 30 * scale - 2);
+  }
 }
 
 function drawPopups(ctx, now) {

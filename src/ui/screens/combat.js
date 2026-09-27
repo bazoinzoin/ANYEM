@@ -1,8 +1,11 @@
-// Écran de combat. Le ciblage est toujours demandé explicitement, même s'il ne
-// reste qu'une seule cible possible ; une compétence de zone, de groupe ou
-// personnelle demande une confirmation qui montre qui sera touché.
-// Un héros à Énergie (Voleur) enchaîne plusieurs actions puis finit son tour ;
-// tout héros peut passer son tour.
+// Écran de combat, plein écran et sans défilement : en haut le titre et les dernières
+// lignes du journal, au centre la scène animée (ui/battleStage.js), en bas trois fenêtres
+// façon JRPG : l'équipe (PV, ressource, combo, effets), les commandes du héros actif, et
+// une fenêtre d'infos (description et estimation au survol, choix de la cible).
+// Le ciblage est toujours demandé explicitement, même s'il ne reste qu'une cible ; une
+// compétence de zone, de groupe ou personnelle demande une confirmation.
+// Un héros à Énergie enchaîne plusieurs actions puis finit son tour ; tout héros peut
+// passer son tour. Raccourcis : 1-6 pour les commandes, Échap pour revenir.
 
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
@@ -16,195 +19,317 @@ import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../gam
 import { usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
-import { esc, tip, bar, range } from '../html.js';
-import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
+import { esc, range } from '../html.js';
+import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillIcon } from '../format.js';
+import { statsList } from '../heroStats.js';
 import { playerAction } from '../encounter.js';
 import { logLines } from '../combatLog.js';
-import { attachStage, setStagePick } from '../battleStage.js';
+import { attachStage, setStagePick, fitStage } from '../battleStage.js';
+
+// État de l'interface (pas du combat) : menu ouvert pour le héros actif, action en cours
+// de ciblage, fenêtre superposée (journal ou fiche d'un héros).
+const ui = { hero: null, mode: 'main', action: null, overlay: null };
 
 export function renderCombat(app) {
   const cb = state.combat;
   const acting = cb.acting;
-  const activeHero = acting?.side === 'hero' ? acting.unit : null;
+  const hero = acting?.side === 'hero' && !cb.result ? acting.unit : null;
+  if (hero !== ui.hero) Object.assign(ui, { hero, mode: 'main', action: null });
 
   app.innerHTML = `
-    <div class="hero"><h1>⚔️ Combat</h1><p>${esc(cb.title)} · niveau ${cb.level}</p></div>
-    <div class="battle-stage"><canvas id="battleStage"></canvas></div>
-    <div class="combatants">
-      <div>
-        <h3 class="side-title">VOTRE ÉQUIPE</h3>
-        ${cb.party.map((h) => heroUnit(h, h === acting?.unit)).join('')}
+    <div class="battle-screen">
+      <header class="bs-top">
+        <span class="bs-title">${esc(cb.title)} <small>niv. ${cb.level}</small></span>
+        <div class="bs-ticker">${logLines(cb.log.slice(-2))}</div>
+        <button class="bs-logbtn" data-overlay="log" title="Journal du combat">📜</button>
+      </header>
+      <div class="bs-stage"><canvas id="battleStage"></canvas></div>
+      <div class="bs-bottom">
+        <section class="win bs-party" aria-label="Équipe">${cb.party.map((h, i) => heroRow(h, i, h === acting?.unit)).join('')}</section>
+        <section class="win bs-commands" aria-label="Commandes">${hero ? commands(hero) : waiting(acting)}</section>
+        <section class="win bs-info" aria-label="Informations" id="bsInfo">${hero ? info(hero) : ''}</section>
       </div>
-      <div>
-        <h3 class="side-title">ENNEMIS</h3>
-        ${cb.enemies.map((e) => enemyUnit(e, e === acting?.unit)).join('')}
-      </div>
-    </div>
-    <div class="log">${logLines(cb.log)}</div>
-    ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
-  `;
+      ${overlay()}
+    </div>`;
 
   attachStage(app.querySelector('#battleStage'), cb);
-  if (activeHero) wireActions(app, activeHero);
+  fitStage();
+  wire(app, hero);
 }
 
-function heroUnit(hero, active) {
+// ---- Équipe ----
+
+function heroRow(hero, i, active) {
   const cls = getClass(hero);
   const stats = statsOf(hero);
-  const res = cls.resource.name;
-  return `
-    <div class="unit ${hero.alive ? '' : 'dead'} ${active ? 'active-turn' : ''}" style="--c:${cls.color}">
-      <div class="row1"><b>${cls.icon} ${esc(hero.name)} ${rowTag(hero)}</b><small>${hero.hp}/${stats.pv} PV</small></div>
-      ${bar(hero.hp, stats.pv, cls.color)}
-      <small ${tip(resourceTip(hero))}>${res}: ${hero.res}/${stats.resMax}</small>
-      ${bar(hero.res, stats.resMax, 'var(--gold)')}
-      ${comboDots(hero)}
-      ${statusTags(hero)}
-    </div>`;
-}
-
-// Position de l'unité : ⚔️ corps à corps ou 🏹 distance.
-function rowTag(unit) {
-  const melee = unit.row === 'melee';
-  return `<span class="row-tag ${unit.row}" ${tip(melee ? 'Corps à corps : plus souvent ciblé par les ennemis ; peut riposter aux attaques au corps à corps.' : 'Distance : moins souvent ciblé ; ne riposte pas.')}>${melee ? '⚔️' : '🏹'}</span>`;
-}
-
-function resourceTip(hero) {
-  const cls = getClass(hero);
-  const r = cls.resource;
-  if (!r.multiAction) return `${r.name} : ressource dépensée pour lancer les compétences de ${cls.name}.`;
-  const regen = r.regen + (statsOf(hero).resRegen ?? 0);
-  return `${r.name} : chaque action coûte de l'${r.name} (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}, compétences : leur coût). `
-    + `Le ${cls.name} agit plusieurs fois par tour tant qu'il peut payer, puis finit son tour. +${regen} au début de chacun de ses tours ; pleine au début de chaque combat.`;
-}
-
-// Points de combo : ●●●○○
-function comboDots(hero) {
   const max = comboMax(hero);
-  if (!max || !hero.alive) return '';
-  const n = comboOf(hero);
-  const dots = '●'.repeat(n) + '○'.repeat(max - n);
-  return `<small class="combo" ${tip(`Points de combo : ${n}/${max}. Gagnés par les compétences marquées « +1 combo », dépensés tous à la fois par les finishers (plus il y en a, plus le finisher est fort). Remis à zéro au début de chaque combat.`)}>Combo <b>${dots}</b></small>`;
+  const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
+  return `
+    <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
+      <span class="bs-name">${active ? '▶ ' : ''}${cls.icon} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${hero.row === 'melee' ? '⚔️' : '🏹'}</span></span>
+      <span class="bs-bars">
+        ${meter(hero.hp, stats.pv, 'hp')}
+        ${meter(hero.res, stats.resMax, 'res', cls.resource.name)}
+      </span>
+      <span class="bs-status">${combo}${statusIcons(hero)}</span>
+    </button>`;
 }
 
-function enemyUnit(enemy, active) {
+function meter(value, max, kind, label = 'PV') {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  const low = kind === 'hp' && pct <= 25 ? 'low' : '';
+  return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
+}
+
+function statusIcons(unit) {
+  if (!unit.alive) return '<span class="ko">K.O.</span>';
+  const icons = [];
+  if (unit.guard) icons.push('<span class="st buff" title="En garde : dégâts réduits de moitié">🛡️</span>');
+  for (const s of statusesOf(unit)) {
+    const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
+    const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
+    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${s.icon ?? '•'}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+  }
+  return icons.join('');
+}
+
+// ---- Commandes ----
+
+function commands(hero) {
+  const cb = state.combat;
+  if (ui.mode === 'skills') return subMenu(skillButtons(hero));
+  if (ui.mode === 'items') return subMenu(itemButtons());
+  if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? '🎯 Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
+  const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
+  const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
+  const items = CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0);
+  const skills = getSkills(hero);
+  const cmd = (key, id, icon, label, enabled, extra = '') =>
+    `<button class="cmd" id="${id}" data-key="${key}" ${enabled ? '' : 'disabled'}><span class="ico">${icon}</span>${label}${extra}</button>`;
   return `
-    <div class="unit ${enemy.alive ? '' : 'dead'} ${active ? 'active-turn' : ''} ${enemy.boss ? 'boss' : ''}" style="--c:var(--danger)">
-      <div class="row1"><b>${enemy.icon} ${esc(enemy.name)} ${rowTag(enemy)}${enemy.boss ? ' <span class="boss-tag">BOSS</span>' : ''}</b><small>${enemy.hp}/${enemy.stats.pv} PV</small></div>
-      ${bar(enemy.hp, enemy.stats.pv, 'var(--danger)')}
-      ${statusTags(enemy)}
+    <div class="cmd-grid">
+      ${cmd(1, 'actAttack', '⚔️', 'Attaquer', canDoAction(cb, hero, 'attack'), `<small class="est">~${atkEst}</small>${cost('attack')}`)}
+      ${cmd(2, 'actSkills', '✨', 'Compétences', skills.length > 0)}
+      ${cmd(3, 'actItem', '🎒', 'Objets', CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)), `<small>${items}</small>`)}
+      ${cmd(4, 'actDefend', '🛡️', hero.guard ? 'En garde' : 'Défendre', canDoAction(cb, hero, 'defend'), cost('defend'))}
+      ${cmd(5, 'actMove', '↔️', hero.row === 'melee' ? 'Reculer' : 'Avancer', canChangePosition(hero))}
+      ${cmd(6, 'actEnd', '⏭️', isMultiAction(hero) ? 'Finir le tour' : 'Passer', true)}
     </div>`;
 }
 
-function statusTags(unit) {
-  if (!unit.alive) return '';
-  const tags = [];
-  if (unit.guard) tags.push('<span class="tag buff">🛡️ En garde</span>');
-  for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` -${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : s.trap ? ` ${s.trap}` : s.source ? ` (${esc(s.source.name)})` : '';
-    const turns = s.stun ? '' : ` (${s.turns})`;
-    tags.push(`<span class="tag ${s.kind}">${s.icon ?? ''} ${esc(s.name)}${value}${turns}</span>`);
-  }
-  return tags.length ? `<div class="status">${tags.join('')}</div>` : '';
+function subMenu(content) {
+  return `<div class="sub-list">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
 }
 
-function waitingPanel(acting) {
+function skillButtons(hero) {
+  const cb = state.combat;
+  const stats = statsOf(hero);
+  const res = getClass(hero).resource.name;
+  return getSkills(hero).map((base, i) => {
+    const s = atCombo(base, Math.max(1, comboOf(hero)));
+    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
+      <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
+      <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost" title="${esc(res)}">${s.cost}</small></button>`;
+  }).join('');
+}
+
+function itemButtons() {
+  const cb = state.combat;
+  return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
+    const c = CONSUMABLES[k];
+    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${c.icon}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+  }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
+}
+
+function waiting(acting) {
   const result = state.combat.result;
   const text = result === 'victory' ? '🏆 Victoire !'
     : result === 'defeat' ? "💀 L'équipe est vaincue..."
     : result === 'escape' ? "🪢 L'équipe s'échappe !"
     : acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
-  return `<div class="card waiting">${text}</div>`;
+  return `<p class="bs-wait">${text}</p>`;
 }
 
-function actionPanel(hero) {
-  const cb = state.combat;
+// ---- Infos ----
+
+// Fenêtre d'infos par défaut : à qui le tour, et l'aide de la commande survolée.
+function info(hero) {
+  if (ui.mode === 'target' || ui.mode === 'confirm') return targetInfo(hero);
   const cls = getClass(hero);
-  const stats = statsOf(hero);
-  const atkEst = range(estimateHit(stats, BASIC_ATTACK));
-  const critTip = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} % de chance, +${stats.critDmg} % de dégâts.`;
   const multi = isMultiAction(hero);
-  const res = cls.resource.name;
-  const cost = (type) => (actionCost(hero, type) ? ` (${actionCost(hero, type)} ${res})` : '');
-  const takesTurn = multi ? '' : ' Prend le tour du héros.';
   return `
-    <div class="card">
-      <p>Au tour de <b class="hero-name" style="--c:${cls.color}">${esc(hero.name)}</b> (${cls.name}, ${hero.row === 'melee' ? 'au corps à corps' : 'à distance'})${multi ? ` · <b>${hero.res} ${res}</b> : plusieurs actions possibles` : ''}</p>
-      <div class="actions">
-        <button id="actAttack" ${tip(`${weaponBlockedReason(hero) ? `${weaponBlockedReason(hero)} ` : ''}Attaque simple avec l'arme équipée : dégâts physiques (Attaque des armes + ${STATS[cls.physStat].label}). Dégâts estimés : ${atkEst} (avant défense de la cible). ${critTip}`)} ${canDoAction(cb, hero, 'attack') ? '' : 'disabled'}>Attaquer${cost('attack')} · ~${atkEst}</button>
-        <button id="actDefend" ${tip("Réduit de moitié les dégâts subis jusqu'au prochain tour du héros." + takesTurn)} ${canDoAction(cb, hero, 'defend') ? '' : 'disabled'}>${hero.guard ? 'En garde' : 'Défendre'}${cost('defend')}</button>
-        <button id="actItem" ${tip(`Utilise un consommable (potion, remède, corde…).${takesTurn}`)} ${CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)) ? '' : 'disabled'}>Objet${cost('item')} · ${CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0)}</button>
-        <button id="actMove" ${tip(`Passe ${hero.row === 'melee' ? 'à distance' : 'au corps à corps'}. Prend tout le tour${multi ? ", et n'est possible qu'avant d'avoir agi" : ''}. Une arme ne sert que depuis sa position (arc : distance ; autres armes : corps à corps) ; au corps à corps, on est plus souvent ciblé.`)} ${canChangePosition(hero) ? '' : 'disabled'}>↔️ ${hero.row === 'melee' ? 'Passer à distance' : 'Passer au corps à corps'}</button>
-        <button id="actEnd" class="end-turn" ${tip(multi ? `Termine le tour de ${hero.name} : l'${res} restante est conservée.` : `${hero.name} ne fait rien ce tour-ci.`)}>${multi ? '⏭️ Finir le tour' : '⏭️ Passer le tour'}</button>
-        <span class="hint">Compétences ↓</span>
-      </div>
-      <div class="skillbox">
-        ${getSkills(hero).map((base, i) => {
-          const s = atCombo(base, Math.max(1, comboOf(hero)));
-          return `
-          <button data-skill="${i}" ${tip(`${s.desc}. ${skillEffectLabel(stats, s)}.${s.boosted ? ' ★ Renforcée (objet légendaire ou talent).' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : ''}`)} ${canUseSkill(cb, hero, base) ? '' : 'disabled'}>
-            ${s.name} (${s.cost} ${res}) · ${skillShortEstimate(stats, s)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}
-          </button>`;
-        }).join('') || `<span class="hint">${esc(hero.name)} ne connaît encore aucun sort : apprends son sort de départ au Maître des compétences (premier point de talent).</span>`}
-      </div>
-      <div id="targetZone" class="target-zone"></div>
-    </div>`;
+    <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${cls.name} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
+    ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
+    <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
 }
 
-function wireActions(app, hero) {
+function targetInfo(hero) {
   const cb = state.combat;
-  const zone = app.querySelector('#targetZone');
-
-  const stats = statsOf(hero);
-
-  // Estimation affichée sur chaque cible (défense de la cible comprise).
-  const targetEstimate = (action, unit) => {
-    if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
-    if (action.type === 'item') return consumableEstimate(action.item, unit);
-    const skill = atCombo(getSkills(hero)[action.skill], comboOf(hero));
-    return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
-  };
-
-  // Affiche les cibles valides ; l'action n'est lancée qu'au clic sur une cible.
-  // Sans cible unique (zone, groupe, soi-même) : bouton de confirmation.
-  const chooseTarget = (action) => {
-    const targets = targetsFor(cb, action);
-    if (!targets) {
-      const label = action.type === 'item'
-        ? `${CONSUMABLES[action.item].name} — ${CONSUMABLES[action.item].desc}`
-        : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)))}`;
-      zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
-      zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
-      setStagePick(null);
-      return;
-    }
-    const list = targets.side === 'enemy' ? cb.enemies : cb.party;
-    const verb = targets.units.some((u) => !u.alive) ? 'Relever' : 'Cibler';
-    zone.innerHTML = `<span class="hint">Choisis la cible (bouton ou clic sur le personnage) :</span>` + targets.units
-      .map((u) => `<button data-target="${list.indexOf(u)}">${verb} ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
-      .join('');
-    setStagePick(targets.units, (u) => playerAction({ ...action, target: list.indexOf(u) }));
-    zone.querySelectorAll('[data-target]').forEach((btn) => {
-      btn.onclick = () => playerAction({ ...action, target: Number(btn.dataset.target) });
-    });
-  };
-
-  app.querySelector('#actAttack').onclick = () => chooseTarget({ type: 'attack' });
-  app.querySelector('#actDefend').onclick = () => playerAction({ type: 'defend' });
-  app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
-  app.querySelector('#actMove').onclick = () => playerAction({ type: 'move' });
-  app.querySelector('#actItem').onclick = () => {
-    setStagePick(null);
-    zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
-      const c = CONSUMABLES[k];
-      return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;
-    }).join('');
-    zone.querySelectorAll('[data-item]').forEach((btn) => {
-      btn.onclick = () => chooseTarget({ type: 'item', item: btn.dataset.item });
-    });
-  };
-  app.querySelectorAll('[data-skill]').forEach((btn) => {
-    btn.onclick = () => chooseTarget({ type: 'skill', skill: Number(btn.dataset.skill) });
-  });
+  const action = ui.action;
+  const targets = targetsFor(cb, action);
+  const title = `<p class="bs-turn">${actionTitle(hero, action)}</p>`;
+  if (!targets) return `${title}<p class="bs-help">${esc(actionDesc(hero, action))}</p><button class="btn-primary bs-confirm" id="actConfirm">Confirmer <small>Entrée</small></button>`;
+  const list = targets.side === 'enemy' ? cb.enemies : cb.party;
+  const verb = targets.units.some((u) => !u.alive) ? 'Relever' : '';
+  return `${title}
+    <div class="bs-targets">${targets.units.map((u) => `
+      <button class="target" data-target="${list.indexOf(u)}">${verb ? `${verb} ` : ''}<b>${esc(u.name)}</b>${u.alive ? ` <small>${u.hp} PV</small>` : ''}<span class="est">${esc(targetEstimate(hero, action, u))}</span></button>`).join('')}
+    </div>
+    <p class="hint">…ou cliquez sur le personnage.</p>`;
 }
 
+function actionTitle(hero, action) {
+  if (action.type === 'attack') return '⚔️ Attaquer';
+  if (action.type === 'item') return `${CONSUMABLES[action.item].icon} ${esc(CONSUMABLES[action.item].name)}`;
+  const s = getSkills(hero)[action.skill];
+  return `${skillIcon(s)} ${esc(s.name)}`;
+}
+
+function actionDesc(hero, action) {
+  const stats = statsOf(hero);
+  if (action.type === 'item') return CONSUMABLES[action.item].desc;
+  if (action.type === 'attack') return 'Attaque simple avec l\'arme équipée.';
+  return skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)));
+}
+
+// Estimation affichée sur chaque cible (défense de la cible comprise).
+function targetEstimate(hero, action, unit) {
+  const stats = statsOf(hero);
+  if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
+  if (action.type === 'item') return consumableEstimate(action.item, unit);
+  const skill = atCombo(getSkills(hero)[action.skill], comboOf(hero));
+  return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
+}
+
+// Aide affichée au survol d'une commande.
+function helpFor(hero, el) {
+  const stats = statsOf(hero);
+  const cls = getClass(hero);
+  const res = cls.resource.name;
+  const takesTurn = isMultiAction(hero) ? '' : ' Prend le tour du héros.';
+  const crit = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} %, +${stats.critDmg} % de dégâts.`;
+  if (el.dataset.skill !== undefined) {
+    const base = getSkills(hero)[Number(el.dataset.skill)];
+    const s = atCombo(base, Math.max(1, comboOf(hero)));
+    const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
+    return `<b>${skillIcon(s)} ${esc(s.name)}</b> — ${s.cost} ${esc(res)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
+  }
+  if (el.dataset.item) {
+    const c = CONSUMABLES[el.dataset.item];
+    return `<b>${c.icon} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+  }
+  switch (el.id) {
+    case 'actAttack': return `<b>⚔️ Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
+    case 'actSkills': return '<b>✨ Compétences</b><br>Les sorts et techniques appris par le héros.';
+    case 'actItem': return `<b>🎒 Objets</b><br>Potions, remèdes, corde d'évasion…${takesTurn}`;
+    case 'actDefend': return `<b>🛡️ Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
+    case 'actMove': return `<b>↔️ ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
+    case 'actEnd': return isMultiAction(hero) ? `<b>⏭️ Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>⏭️ Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;
+    default: return '';
+  }
+}
+
+// ---- Fenêtres superposées ----
+
+function overlay() {
+  if (!ui.overlay) return '';
+  const cb = state.combat;
+  if (ui.overlay === 'log') {
+    return `<div class="bs-modal"><div class="win"><h3>📜 Journal du combat</h3><div class="log">${logLines(cb.log)}</div><button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;
+  }
+  const hero = cb.party[ui.overlay.hero];
+  if (!hero) return '';
+  const cls = getClass(hero);
+  return `<div class="bs-modal"><div class="win"><h3>${cls.icon} ${esc(hero.name)} <small>${cls.name} · niv. ${hero.level}</small></h3>
+    <div class="stat-list">${statsList(hero)}</div>
+    <div class="bs-status big">${statusIcons(hero)}</div>
+    <button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;
+}
+
+// ---- Événements ----
+
+function act(action) {
+  Object.assign(ui, { mode: 'main', action: null });
+  setStagePick(null);
+  playerAction(action);
+}
+
+function rerender() {
+  const app = document.getElementById('app');
+  if (app && state.screen === 'combat') renderCombat(app);
+}
+
+function choose(action) {
+  const cb = state.combat;
+  const targets = targetsFor(cb, action);
+  Object.assign(ui, { mode: targets ? 'target' : 'confirm', action });
+  rerender();
+  if (targets) {
+    const list = targets.side === 'enemy' ? cb.enemies : cb.party;
+    setStagePick(targets.units, (u) => act({ ...action, target: list.indexOf(u) }));
+  }
+}
+
+function back() {
+  if (ui.overlay) ui.overlay = null;
+  else if (ui.mode === 'target' || ui.mode === 'confirm') ui.mode = ui.action?.type === 'skill' ? 'skills' : ui.action?.type === 'item' ? 'items' : 'main';
+  else ui.mode = 'main';
+  if (ui.mode !== 'target') ui.action = ui.mode === 'main' ? null : ui.action;
+  setStagePick(null);
+  rerender();
+}
+
+function wire(app, hero) {
+  app.querySelectorAll('[data-overlay]').forEach((b) => { b.onclick = () => { ui.overlay = b.dataset.overlay; rerender(); }; });
+  app.querySelector('#closeOverlay')?.addEventListener('click', () => { ui.overlay = null; rerender(); });
+  app.querySelectorAll('[data-hero]').forEach((b) => {
+    b.onclick = () => {
+      const i = Number(b.dataset.hero);
+      // En plein ciblage d'un allié : cliquer sa ligne le choisit.
+      if (ui.mode === 'target') {
+        const targets = targetsFor(state.combat, ui.action);
+        if (targets?.side === 'hero' && targets.units.includes(state.combat.party[i])) return act({ ...ui.action, target: i });
+      }
+      ui.overlay = { hero: i };
+      rerender();
+    };
+  });
+  if (!hero) return;
+  if (ui.mode === 'target') {
+    const cb = state.combat;
+    const targets = targetsFor(cb, ui.action);
+    const list = targets.side === 'enemy' ? cb.enemies : cb.party;
+    setStagePick(targets.units, (u) => act({ ...ui.action, target: list.indexOf(u) }));
+  }
+  const help = app.querySelector('#bsHelp');
+  app.querySelectorAll('.bs-commands .cmd').forEach((b) => {
+    b.addEventListener('mouseenter', () => { if (help) help.innerHTML = helpFor(hero, b) || help.innerHTML; });
+    b.addEventListener('focus', () => { if (help) help.innerHTML = helpFor(hero, b) || help.innerHTML; });
+  });
+  const on = (id, fn) => { const el = app.querySelector(`#${id}`); if (el) el.onclick = fn; };
+  on('actAttack', () => choose({ type: 'attack' }));
+  on('actSkills', () => { ui.mode = 'skills'; rerender(); });
+  on('actItem', () => { ui.mode = 'items'; rerender(); });
+  on('actDefend', () => act({ type: 'defend' }));
+  on('actMove', () => act({ type: 'move' }));
+  on('actEnd', () => act({ type: 'endTurn' }));
+  on('actBack', back);
+  on('actConfirm', () => act(ui.action));
+  app.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => choose({ type: 'skill', skill: Number(b.dataset.skill) }); });
+  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => choose({ type: 'item', item: b.dataset.item }); });
+  app.querySelectorAll('[data-target]').forEach((b) => { b.onclick = () => act({ ...ui.action, target: Number(b.dataset.target) }); });
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', (ev) => {
+    if (state.screen !== 'combat' || !state.combat) return;
+    if (ev.key === 'Escape') { ev.preventDefault(); back(); return; }
+    if (!ui.hero || ui.overlay) return;
+    if (ui.mode === 'confirm' && ev.key === 'Enter') { ev.preventDefault(); act(ui.action); return; }
+    if (ui.mode === 'main' && /^[1-6]$/.test(ev.key)) {
+      const btn = document.querySelector(`.bs-commands [data-key="${ev.key}"]`);
+      if (btn && !btn.disabled) { ev.preventDefault(); btn.click(); }
+    }
+  });
+  window.addEventListener('resize', () => { if (state.screen === 'combat') fitStage(); });
+}

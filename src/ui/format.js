@@ -90,3 +90,19 @@ export function consumableEstimate(key, hero) {
   }
   return '';
 }
+
+// Icône d'une compétence, déduite de ce qu'elle fait (en attendant de vraies icônes).
+export function skillIcon(skill) {
+  if (skill.kind === 'revive') return '🕊️';
+  if (skill.kind === 'heal') return skill.target === 'allAllies' ? '💞' : '💚';
+  if (skill.kind === 'damage') {
+    if (skill.finisher) return '💥';
+    if (skill.target === 'allEnemies') return skill.magic ? '☄️' : '🌀';
+    return skill.magic ? '🔥' : '⚔️';
+  }
+  const main = [...(skill.effects ?? []), ...(skill.selfEffects ?? [])][0];
+  if (main && EFFECTS[main.id]?.icon) return EFFECTS[main.id].icon;
+  if (skill.cleanse) return '✨';
+  if (skill.resourceGain) return '⚡';
+  return '✦';
+}
