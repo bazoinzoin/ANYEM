@@ -500,3 +500,23 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
   background: #f1dfb6; box-shadow: 0 4px 12px rgba(0,0,0,.5);
 }
 .gloss-tip b { color: #7d3833; }
+
+/* Médailles de zone (ui/medals.js) : emplacements vides en creux, médailles gagnées qui
+   brillent d'autant plus que la difficulté est élevée ; la dernière est plus grande. */
+.medals { display: flex; justify-content: center; align-items: flex-end; gap: 6px; min-height: 76px; padding: 2px 0; }
+.medal { display: inline-flex; line-height: 0; }
+.medal svg { image-rendering: pixelated; }
+.medal.empty { opacity: .55; }
+.medal.won { filter: drop-shadow(0 0 2px var(--medal-glow)); }
+.medal.won.medal-r1 { filter: drop-shadow(0 0 4px var(--medal-glow)); }
+.medal.won.medal-r2, .medal.won.medal-r3, .medal.won.medal-r4 { filter: drop-shadow(0 0 6px var(--medal-glow)); }
+.medal.won.major { animation: medal-pulse 2.2s ease-in-out infinite; }
+.medal-spark { animation: medal-spark 1.8s steps(2, end) infinite; opacity: 0; }
+@keyframes medal-spark { 0%, 60%, 100% { opacity: 0; } 70%, 85% { opacity: 1; } }
+@keyframes medal-pulse {
+  0%, 100% { filter: drop-shadow(0 0 5px var(--medal-glow)); transform: translateY(0); }
+  50% { filter: drop-shadow(0 0 12px var(--medal-glow)) brightness(1.15); transform: translateY(-1px); }
+}
+@media (max-height: 660px) { .medals { min-height: 56px; } .medal svg { width: 32px; height: auto; } .medal.major svg { width: 44px; } }
+.portal-art { overflow: hidden; }
+.portal-art canvas { max-height: 100%; width: auto; }

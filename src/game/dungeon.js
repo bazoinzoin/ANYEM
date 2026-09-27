@@ -1,6 +1,7 @@
 // Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
 //
-// game.dungeons[clé] = { checkpoint, cleared }
+// game.dungeons[clé] = { checkpoint, cleared, medals? }
+//   medals : difficultés dans lesquelles le dernier boss a été vaincu (voir game/medals.js)
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
 // game.expedition = { dungeonKey, floor, map, engaged, canLeave, bossChoice, event, gains } | null
@@ -22,6 +23,7 @@ import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
 import { recordKills } from './bestiary.js';
+import { awardMedal } from './medals.js';
 import { restoreParty } from './consumables.js';
 import { pick, random } from './rng.js';
 
@@ -204,7 +206,8 @@ export function takeLadder(game) {
  * Combat gagné contre le groupe engagé : récompenses, le groupe disparaît de la carte.
  * Contre un boss, l'étage est franchi : point de passage, étage suivant (choix
  * rentrer / continuer), ou fin de la zone si c'était le dernier boss.
- * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked, medal } (medal :
+ * difficulté de la médaille gagnée à l'instant, ou null).
  */
 export function winFight(game, combat) {
   const exp = game.expedition;
@@ -222,12 +225,14 @@ export function winFight(game, combat) {
   exp.engaged = null;
   let cleared = false;
   let unlocked = null;
+  let medal = null;
   if (boss) {
     const progress = progressOf(game, key);
     progress.checkpoint = Math.max(progress.checkpoint, exp.floor);
     if (final) {
       cleared = true;
       progress.cleared = true;
+      medal = awardMedal(game, key, difficultyOf(game));
       unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
       game.expedition = null;
     } else {
@@ -236,7 +241,7 @@ export function winFight(game, combat) {
       exp.bossChoice = true;
     }
   }
-  return { ...result, boss, cleared, unlocked };
+  return { ...result, boss, cleared, unlocked, medal };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.

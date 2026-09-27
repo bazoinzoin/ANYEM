@@ -3,7 +3,7 @@
 // l'expédition (game/dungeon.js).
 
 import { state } from '../state.js';
-import { TIMING } from '../config.js';
+import { TIMING, DIFFICULTIES } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
 import { floorCombat, winFight, loseExpedition, subzoneOf } from '../game/dungeon.js';
 import { recordEncounter } from '../game/bestiary.js';
@@ -103,7 +103,8 @@ function finish() {
   const r = winFight(state, cb);
   if (r.cleared) {
     const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
-    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
+    const medal = r.medal ? ` Vous gagnez la médaille ${DIFFICULTIES[r.medal].name} de la zone (visible aux portails) !` : '';
+    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}${medal}`, r.loot);
     return;
   }
   const nextZone = r.boss ? subzoneOf(dungeonKey, state.expedition.floor) : null;

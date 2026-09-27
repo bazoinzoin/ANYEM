@@ -124,6 +124,11 @@ export const DIFFICULTIES = {
 };
 export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
 
+// Médailles (game/medals.js) : battre le dernier boss d'une zone dans une difficulté à
+// partir de `from` donne la médaille de cette zone pour cette difficulté. Toute
+// difficulté ajoutée après `from` ajoute une médaille (la dernière est la plus grande).
+export const MEDALS = { from: 'horreur' };
+
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon la sous-zone : 0 = étages 1-5…), nombre
 // d'acolytes accompagnant un boss, chance qu'un ennemi ordinaire soit remplacé
