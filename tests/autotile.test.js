@@ -26,3 +26,15 @@ test('tuiles blob : 48 formes distinctes, coins seulement si les deux côtés so
   const diag = at(['#..', '.#.', '...']);
   assert.deepEqual(blobTile(diag(1, 1)), [0, 3]);
 });
+
+test('autotiles RPG Maker : centre, coin intérieur, bords et coins extérieurs', async () => {
+  const { rmQuarter } = await import('../src/ui/autotile.js');
+  const all = () => true;
+  assert.deepEqual([0, 1, 2, 3].map((q) => rmQuarter(all, q)), [[1, 2], [1, 2], [1, 2], [1, 2]]);
+  const noDiag = (dx, dy) => !(dx === -1 && dy === -1);
+  assert.deepEqual(rmQuarter(noDiag, 0), [2, 0], 'coin intérieur haut-gauche');
+  const none = (dx, dy) => dx === 0 && dy === 0;
+  assert.deepEqual([0, 1, 2, 3].map((q) => rmQuarter(none, q)), [[0, 1], [2, 1], [0, 3], [2, 3]], 'case isolée : 4 coins extérieurs');
+  const row = (dx, dy) => dy === 0; // bande horizontale
+  assert.deepEqual([rmQuarter(row, 0), rmQuarter(row, 3)], [[1, 1], [1, 3]], 'bords haut et bas');
+});

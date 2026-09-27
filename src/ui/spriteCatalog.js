@@ -1,9 +1,7 @@
 // Sprites des personnages sur les cartes : héros par classe, habitants du village,
 // monstres par ennemi. Planches RPG Maker 2003 (assets/rm2k3/, 3 images × 4 directions de
 // 24 × 32 px) ; certaines sont recolorées (`tint` : décalage de teinte, saturation,
-// luminosité) pour distinguer les variantes d'un même monstre. Paladin : sprite du joueur.
-
-import { PLAYER } from './actors.js';
+// luminosité) pour distinguer les variantes d'un même monstre.
 
 // tint : { hue (degrés ajoutés), sat (×), light (×) }
 const rm = (name, tint = null) => ({ kind: 'rm', key: `rm2k3/${name}`, tint, frameW: 24, frameH: 32, footOffset: -1 });
@@ -14,7 +12,7 @@ export const CLASS_SPRITES = {
   pretre: rm('hero_pretre'),
   mage: rm('hero_mage'),
   chasseur: rm('hero_chasseur'),
-  paladin: PLAYER,
+  paladin: rm('hero_paladin'),
 };
 
 // Habitants du village, par id (data/village.js).

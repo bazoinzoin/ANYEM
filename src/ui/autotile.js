@@ -34,3 +34,21 @@ export function blobTile(same) {
   ];
   return BY_PATTERN.get(cells.map((c) => (c ? 1 : 0)).join(''));
 }
+
+// Autotiles RPG Maker 2000/2003 (bloc de 3 × 4 tuiles de 16 px) : chaque quart de case
+// (8 × 8 px) est pris dans le bloc selon ses voisins. Ligne 0 : tuile isolée, (inutilisée),
+// coins intérieurs ; lignes 1 à 3 : bords et centre (3 × 3).
+// Retourne pour le quart `q` (0 haut-gauche, 1 haut-droite, 2 bas-gauche, 3 bas-droite)
+// [colonne, ligne] de la tuile source dans le bloc ; `same(dx, dy)` comme blobTile.
+export function rmQuarter(same, q) {
+  const qx = q % 2;
+  const qy = q >> 1;
+  const hx = qx ? 1 : -1;
+  const vy = qy ? 1 : -1;
+  const h = same(hx, 0);
+  const v = same(0, vy);
+  if (h && v) return same(hx, vy) ? [1, 2] : [2, 0];
+  if (h) return [1, qy ? 3 : 1];
+  if (v) return [qx ? 2 : 0, 2];
+  return [qx ? 2 : 0, qy ? 3 : 1];
+}

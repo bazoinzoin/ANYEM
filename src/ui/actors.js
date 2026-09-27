@@ -1,6 +1,6 @@
 // Personnages sur les cartes (expédition, village) : sprites animés (marche pendant un
-// pas, attente sinon). Joueur : paladin (PLAYER) ; habitants : héros du pack Fan-tasy
-// (HERO) en variantes de couleurs.
+// pas, attente sinon) : planches RPG Maker 2003 (voir ui/spriteCatalog.js), ou héros du
+// pack Fan-tasy (HERO) en variantes de couleurs.
 
 import { image, isReady } from './sprites.js';
 import { rgbToHsl, hslToRgb, recolored } from './recolor.js';
@@ -53,17 +53,6 @@ export function tintedSheet(key, look) {
   return canvas;
 }
 
-// Personnage du joueur : paladin en pixel art (planche 32 × 32, de profil uniquement :
-// retourné vers la gauche, il garde son dernier profil quand il monte ou descend).
-export const PLAYER = {
-  sheet: 'custom/paladin_spritesheet',
-  frameW: 32,
-  frameH: 32,
-  sideOnly: true,
-  anims: { idle: { row: 0, frames: 4, ms: 200 }, walk: { row: 1, frames: 6, ms: 100 } },
-  footOffset: -1,
-};
-
 const RM_ROWS = { up: 0, right: 1, down: 2, left: 3 };
 
 // Direction d'un déplacement d'une case (from → to), ou null s'il n'y en a pas.
@@ -78,9 +67,8 @@ export function dirBetween(from, to) {
 /**
  * Dessine un personnage pieds au bas de la case dont le coin haut-gauche est (sx, sy)
  * (pixels d'écran, case de `size` px, zoom `scale`), avec son ombre.
- * `sprite` : PLAYER, HERO (planches du pack, 4 directions, recolorables par `look`), ou
+ * `sprite` : HERO (planches du pack, 4 directions, recolorables par `look`), ou
  * une planche RPG Maker 2003 (`kind: 'rm'`, voir ui/spriteCatalog.js).
- * `facing` : dernier profil ('left' | 'right') pour un sprite de profil uniquement.
  */
 export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, now, look = null, sprite = HERO, shadow = true }) {
   if (shadow) {
@@ -104,10 +92,6 @@ export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'ri
     frames = 1;
     ms = 1;
     flip = false;
-  } else if (sprite.sideOnly) {
-    sheet = image(sprite.sheet);
-    ({ row, frames, ms } = sprite.anims[moving ? 'walk' : 'idle']);
-    flip = (dir === 'left' || dir === 'right' ? dir : facing) === 'left';
   } else {
     sheet = tintedSheet(moving ? sprite.walk : sprite.idle, look);
     row = sprite.rows[dir];
