@@ -28,17 +28,15 @@ export function iconHtml(index, size = 32, extra = '', title = '') {
 const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
 
 // Équipement : planche dédiée (une icône par pièce et par rareté). Lignes : casque, plastron,
-// épaulières, gants, bottes (léger, moyen, lourd chacun), puis les armes, puis les bijoux.
+// épaulières, gants, bottes (léger, moyen, lourd chacun), puis les armes, les bijoux et le
+// bouclier.
 const ARMOR_ROWS = { casque: 0, plastron: 3, epaulieres: 6, gants: 9, bottes: 12 };
 const ARMOR_WEIGHT = { legere: 0, moyenne: 1, lourde: 2 };
 const WEAPON_ROWS = { dague: 15, epee: 16, hache: 17, masse: 18, epee2m: 19, hache2m: 20, masse2m: 21, baton: 22, arc: 23 };
-const JEWEL_ROWS = { anneau: 24, collier: 25 };
-// Boucliers : planche Raven Fantasy (absents de la planche d'équipement).
-const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
+const JEWEL_ROWS = { anneau: 24, collier: 25, bouclier: 26 };
 
 export function itemIcon(item) {
   const tier = TIER[item.rarity] ?? 0;
-  if (item.slotType === 'bouclier') return SHIELD[tier];
   const row = item.slotType === 'arme' ? WEAPON_ROWS[item.weaponType] ?? WEAPON_ROWS.epee
     : JEWEL_ROWS[item.slotType] ?? (ARMOR_ROWS[item.slotType] ?? ARMOR_ROWS.plastron) + (ARMOR_WEIGHT[item.armorType] ?? 2);
   return EQUIP_BASE + row * EQUIP_COLS + tier;
