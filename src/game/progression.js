@@ -30,6 +30,14 @@ function materiaText(materia) {
   return materia.map((m) => `${m.amount} × ${MATERIA_KINDS[m.kind].label} ${RARITIES[m.rarity].label.toLowerCase()}`).join(', ');
 }
 
+// Niveau du butin : celui de la zone, sans dépasser le niveau du joueur (le héros le plus
+// haut de l'équipe). Zone au-dessus du joueur : butin à son niveau ; zone en dessous :
+// butin au niveau de la zone.
+export function lootLevel(game, zoneLevel) {
+  const player = Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
+  return Math.min(zoneLevel, player);
+}
+
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
  * (équipement dans le sac, matéria, consommables — voir loot.js),
@@ -41,7 +49,7 @@ function materiaText(materia) {
 export function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, difficulty: difficultyOf(game) });
+  const { items: loot, materia, consumables: found } = rollLoot(lootLevel(game, level), enemies, { final, difficulty: difficultyOf(game) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
