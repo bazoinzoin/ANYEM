@@ -1,6 +1,7 @@
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
 
 import { registerScreens, render } from './ui/router.js';
+import { applySkin } from './ui/skin.js';
 import { renderTitle } from './ui/screens/title.js';
 import { renderCreate } from './ui/screens/create.js';
 import { renderHub } from './ui/screens/hub.js';
@@ -39,4 +40,5 @@ registerScreens({
   portals: renderPortals,
 });
 
+applySkin();
 render();

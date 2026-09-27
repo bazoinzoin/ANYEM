@@ -20,7 +20,11 @@ import { usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition } from
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, range } from '../html.js';
-import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillIcon } from '../format.js';
+import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
+import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
+
+const skillIcon = (s, size = 32) => iconHtml(skillIconIndex(s), size);
+const itemIc = (k, size = 32) => iconHtml(consumableIcon(k), size);
 import { statsList } from '../heroStats.js';
 import { playerAction } from '../encounter.js';
 import { logLines } from '../combatLog.js';
@@ -41,7 +45,7 @@ export function renderCombat(app) {
       <header class="bs-top">
         <span class="bs-title">${esc(cb.title)} <small>niv. ${cb.level}</small></span>
         <div class="bs-ticker">${logLines(cb.log.slice(-2))}</div>
-        <button class="bs-logbtn" data-overlay="log" title="Journal du combat">📜</button>
+        <button class="bs-logbtn" data-overlay="log" title="Journal du combat">${iconHtml(104, 32)}</button>
       </header>
       <div class="bs-stage"><canvas id="battleStage"></canvas></div>
       <div class="bs-bottom">
@@ -66,7 +70,7 @@ function heroRow(hero, i, active) {
   const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
   return `
     <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
-      <span class="bs-name">${active ? '▶ ' : ''}${cls.icon} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${hero.row === 'melee' ? '⚔️' : '🏹'}</span></span>
+      <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
         ${meter(hero.res, stats.resMax, 'res', cls.resource.name)}
@@ -84,11 +88,11 @@ function meter(value, max, kind, label = 'PV') {
 function statusIcons(unit) {
   if (!unit.alive) return '<span class="ko">K.O.</span>';
   const icons = [];
-  if (unit.guard) icons.push('<span class="st buff" title="En garde : dégâts réduits de moitié">🛡️</span>');
+  if (unit.guard) icons.push(`<span class="st buff" title="En garde : dégâts réduits de moitié">${iconHtml(COMMAND_ICONS.defend, 16)}</span>`);
   for (const s of statusesOf(unit)) {
     const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
     const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${s.icon ?? '•'}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
 }
@@ -99,7 +103,7 @@ function commands(hero) {
   const cb = state.combat;
   if (ui.mode === 'skills') return subMenu(skillButtons(hero));
   if (ui.mode === 'items') return subMenu(itemButtons());
-  if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? '🎯 Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
+  if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? 'Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
   const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
   const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
   const items = CONSUMABLE_ORDER.reduce((n, k) => n + countOf(cb.consumables, k), 0);
@@ -108,12 +112,12 @@ function commands(hero) {
     `<button class="cmd" id="${id}" data-key="${key}" ${enabled ? '' : 'disabled'}><span class="ico">${icon}</span>${label}${extra}</button>`;
   return `
     <div class="cmd-grid">
-      ${cmd(1, 'actAttack', '⚔️', 'Attaquer', canDoAction(cb, hero, 'attack'), `<small class="est">~${atkEst}</small>${cost('attack')}`)}
-      ${cmd(2, 'actSkills', '✨', 'Compétences', skills.length > 0)}
-      ${cmd(3, 'actItem', '🎒', 'Objets', CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)), `<small>${items}</small>`)}
-      ${cmd(4, 'actDefend', '🛡️', hero.guard ? 'En garde' : 'Défendre', canDoAction(cb, hero, 'defend'), cost('defend'))}
-      ${cmd(5, 'actMove', '↔️', hero.row === 'melee' ? 'Reculer' : 'Avancer', canChangePosition(hero))}
-      ${cmd(6, 'actEnd', '⏭️', isMultiAction(hero) ? 'Finir le tour' : 'Passer', true)}
+      ${cmd(1, 'actAttack', iconHtml(COMMAND_ICONS.attack), 'Attaquer', canDoAction(cb, hero, 'attack'), `<small class="est">~${atkEst}</small>${cost('attack')}`)}
+      ${cmd(2, 'actSkills', iconHtml(COMMAND_ICONS.skills), 'Compétences', skills.length > 0)}
+      ${cmd(3, 'actItem', iconHtml(COMMAND_ICONS.items), 'Objets', CONSUMABLE_ORDER.some((k) => canUseItem(cb, k)), `<small>${items}</small>`)}
+      ${cmd(4, 'actDefend', iconHtml(COMMAND_ICONS.defend), hero.guard ? 'En garde' : 'Défendre', canDoAction(cb, hero, 'defend'), cost('defend'))}
+      ${cmd(5, 'actMove', iconHtml(COMMAND_ICONS.move), hero.row === 'melee' ? 'Reculer' : 'Avancer', canChangePosition(hero))}
+      ${cmd(6, 'actEnd', iconHtml(COMMAND_ICONS.end), isMultiAction(hero) ? 'Finir le tour' : 'Passer', true)}
     </div>`;
 }
 
@@ -137,7 +141,7 @@ function itemButtons() {
   const cb = state.combat;
   return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
     const c = CONSUMABLES[k];
-    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${c.icon}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${itemIc(k)}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
   }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
 }
 
@@ -179,10 +183,10 @@ function targetInfo(hero) {
 }
 
 function actionTitle(hero, action) {
-  if (action.type === 'attack') return '⚔️ Attaquer';
-  if (action.type === 'item') return `${CONSUMABLES[action.item].icon} ${esc(CONSUMABLES[action.item].name)}`;
+  if (action.type === 'attack') return `${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer`;
+  if (action.type === 'item') return `${itemIc(action.item, 16)} ${esc(CONSUMABLES[action.item].name)}`;
   const s = getSkills(hero)[action.skill];
-  return `${skillIcon(s)} ${esc(s.name)}`;
+  return `${skillIcon(s, 16)} ${esc(s.name)}`;
 }
 
 function actionDesc(hero, action) {
@@ -212,19 +216,19 @@ function helpFor(hero, el) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
     const s = atCombo(base, Math.max(1, comboOf(hero)));
     const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
-    return `<b>${skillIcon(s)} ${esc(s.name)}</b> — ${s.cost} ${esc(res)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
+    return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${s.cost} ${esc(res)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];
-    return `<b>${c.icon} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
   }
   switch (el.id) {
-    case 'actAttack': return `<b>⚔️ Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
-    case 'actSkills': return '<b>✨ Compétences</b><br>Les sorts et techniques appris par le héros.';
-    case 'actItem': return `<b>🎒 Objets</b><br>Potions, remèdes, corde d'évasion…${takesTurn}`;
-    case 'actDefend': return `<b>🛡️ Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
-    case 'actMove': return `<b>↔️ ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
-    case 'actEnd': return isMultiAction(hero) ? `<b>⏭️ Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>⏭️ Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;
+    case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
+    case 'actSkills': return `<b>${iconHtml(COMMAND_ICONS.skills, 16)} Compétences</b><br>Les sorts et techniques appris par le héros.`;
+    case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, corde d'évasion…${takesTurn}`;
+    case 'actDefend': return `<b>${iconHtml(COMMAND_ICONS.defend, 16)} Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
+    case 'actMove': return `<b>${iconHtml(COMMAND_ICONS.move, 16)} ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
+    case 'actEnd': return isMultiAction(hero) ? `<b>${iconHtml(COMMAND_ICONS.end, 16)} Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>${iconHtml(COMMAND_ICONS.end, 16)} Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;
     default: return '';
   }
 }
@@ -235,12 +239,12 @@ function overlay() {
   if (!ui.overlay) return '';
   const cb = state.combat;
   if (ui.overlay === 'log') {
-    return `<div class="bs-modal"><div class="win"><h3>📜 Journal du combat</h3><div class="log">${logLines(cb.log)}</div><button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;
+    return `<div class="bs-modal"><div class="win"><h3>${iconHtml(104, 32)} Journal du combat</h3><div class="log">${logLines(cb.log)}</div><button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;
   }
   const hero = cb.party[ui.overlay.hero];
   if (!hero) return '';
   const cls = getClass(hero);
-  return `<div class="bs-modal"><div class="win"><h3>${cls.icon} ${esc(hero.name)} <small>${cls.name} · niv. ${hero.level}</small></h3>
+  return `<div class="bs-modal"><div class="win"><h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niv. ${hero.level}</small></h3>
     <div class="stat-list">${statsList(hero)}</div>
     <div class="bs-status big">${statusIcons(hero)}</div>
     <button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;

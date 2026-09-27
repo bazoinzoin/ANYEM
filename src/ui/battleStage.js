@@ -11,6 +11,8 @@ import { drawActor } from './actors.js';
 import { CLASS_SPRITES, ENEMY_SPRITES } from './spriteCatalog.js';
 import { statsOf } from '../game/units.js';
 import { statusesOf } from '../game/statuses.js';
+import { image, isReady } from './sprites.js';
+import { effectIcon, COMMAND_ICONS } from './icons.js';
 import { diffBattle } from './battleDiff.js';
 
 const W = 512;             // taille du canvas (pixels ; affiché agrandi, net)
@@ -426,12 +428,14 @@ function drawBars(ctx, unit, v, y) {
     ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
     ctx.fillText(unit.name, v.x, by + 6);
   }
-  const icons = [...(unit.guard ? ['🛡️'] : []), ...statusesOf(unit).map((st) => st.icon ?? '•')];
-  if (icons.length) {
+  const icons = [...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
+  const sheet = image('icons/raven16');
+  if (icons.length && isReady(sheet)) {
     const scale = unit.boss ? BOSS_SCALE : SCALE;
-    ctx.font = '10px sans-serif';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(icons.join(''), v.x, y - 30 * scale - 2);
+    const size = 12;
+    const left = Math.round(v.x - (icons.length * (size + 1)) / 2);
+    const top = Math.round(y - 30 * scale - size - 2);
+    icons.forEach((ix, i) => ctx.drawImage(sheet, (ix % 16) * 16, Math.floor(ix / 16) * 16, 16, 16, left + i * (size + 1), top, size, size));
   }
 }
 

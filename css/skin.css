@@ -1,0 +1,61 @@
+/* Habillage pixel art (pack d'interface Franuka, icônes Raven Fantasy) : images fournies en
+   variables CSS par ui/skin.js. Chargé après les autres feuilles : il les surcharge. */
+
+:root { --font-pixel: 'FantasyRPGtitle', 'Cinzel', serif; --ink: #2d1e22; }
+
+/* Icônes : <i class="ic" style="--is:32px; background-position:…"> (ui/icons.js) */
+.ic {
+  display: inline-block; width: var(--is); height: var(--is); flex: none; vertical-align: middle;
+  background-image: var(--ui-icons); background-repeat: no-repeat; background-size: calc(var(--is) * 16) auto;
+  image-rendering: pixelated;
+}
+
+/* Titres en police pixel (tailles multiples de 17 pour rester nettes) */
+/* (h3 et petits titres gardent la police de texte : la police pixel n'est lisible qu'en grand) */
+h1, h2 { font-family: var(--font-pixel); font-weight: normal; letter-spacing: 0; }
+.hero h1 { font-size: 51px; text-shadow: 0 3px 0 #3a2208; color: #f3d58c; }
+h2 { font-size: 34px; }
+h3 { font-family: var(--font-body); font-weight: 700; }
+
+/* Fenêtres : cadre bleu nuit à bordure pixel */
+.card, .win {
+  border: 12px solid transparent; border-radius: 0; background: none; box-shadow: none;
+  border-image: var(--ui-box) 10 fill / 20px stretch; image-rendering: pixelated; padding: 8px 10px;
+}
+.card.notice { border-image-source: var(--ui-box); }
+
+/* Boutons */
+button {
+  border: 6px solid transparent; border-radius: 0; background: none; color: #fff3e2; text-shadow: 0 1px 0 #4a2224;
+  border-image: var(--ui-btn) 3 fill / 6px stretch; image-rendering: pixelated;
+  font-family: var(--font-body); font-weight: 600; font-size: 16px; padding: 3px 12px;
+}
+button:hover:not(:disabled) { background: none; border-image-source: var(--ui-btn-hover); }
+button:active:not(:disabled) { border-image-source: var(--ui-btn-down); }
+button:disabled { opacity: .45; filter: grayscale(.6); }
+.btn-primary { border-image-source: var(--ui-btn-red); font-size: 17px; padding: 6px 22px; }
+.btn-primary:hover:not(:disabled) { border-image-source: var(--ui-btn-red-hover); }
+button.gold { border-image-source: var(--ui-btn-gold); color: #4a2a08; text-shadow: none; }
+button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover); }
+
+/* Infobulles sur parchemin */
+.tooltip:hover::after, .tooltip:focus-visible::after {
+  background: none; color: var(--ink); border: 8px solid transparent; border-radius: 0; box-shadow: none;
+  border-image: var(--ui-parch) 10 fill / 20px stretch; font-family: var(--font-body); text-shadow: none;
+}
+.tooltip:hover::before, .tooltip:focus-visible::before { display: none; }
+
+/* Menu principal et combat : fenêtres et listes */
+.title-panel { border: 12px solid transparent; border-image: var(--ui-box) 10 fill / 20px stretch; background: none; box-shadow: none; border-radius: 0; }
+.title-item, .bs-hero { border-image: none; text-shadow: none; }
+.title-item { border: 0; }
+.bs-hero { border: 1px solid transparent; border-left: 3px solid var(--c); }
+.cmd, .target, .bs-logbtn { border: 6px solid transparent; border-image: var(--ui-btn) 3 fill / 6px stretch; background: none; color: #fff3e2; }
+.cmd:hover:not(:disabled), .target:hover { border-image-source: var(--ui-btn-hover); }
+.cmd:hover:not(:disabled), .cmd:focus-visible, .target:hover { background: none; border-color: transparent; }
+.cmd .ico { width: auto; display: inline-flex; }
+.cmd small, .target small { color: #f3dcb8; }
+.cmd .est, .target .est { color: #c9f5a6; }
+.cmd .cost { color: #bfe0ff; }
+.bs-status .st { display: inline-flex; align-items: flex-end; }
+.bs-logbtn { padding: 0 4px; line-height: 0; }
