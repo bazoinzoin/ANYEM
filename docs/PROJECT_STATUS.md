@@ -175,8 +175,8 @@ Contenu dans `src/data/dungeons.js` et `src/data/enemies.js`, logique dans `src/
   - Pics gelés : Contreforts (forêt enneigée), Col des tempêtes (falaises de roche sous la neige), Nid du dragon (lac gelé) ; neige qui tombe.
   - Abîme infernal : La Porte (champ d'ossements, tombes, arbres rouges, cristaux), Palais des tourments (dalles au-dessus du vide), Trône (lac d'acide).
   - Village : maisons entières (auberge à deux pignons avec porche, maison du maître, forge avec annexe en pierre et fourneau, banque en pierre au toit bleu, échoppe de la marchande), chemins de terre, puits, table de runes, alambic de l'Oracle, tente du traqueur, clôtures, fleurs.
-  - Intérieurs des maisons : pack Interiors (`assets/raven/interiors_obj.png`), chaque maison meublée selon son métier (banque : statues, coffres, comptoir et pièces ; forge : fourneau, enclumes, minerai ; auberge : tables, tonneaux, lits, cheminée…).
-  - Packs achetés non encore utilisés : désert (Red Rock Desert, Red Desert Ruin, Sun City), plage (Beach, Ocean and Shore), Honey Bee, Farmlands (animaux), Cozy Home, Winter Village.
+  - Intérieurs des maisons : packs Interiors et Cozy Home (planches RPG Maker réduites : `interiors_A4/A5/B/C`, `cozy_A5/B`), murs en autotiles (plafond + façade), sols en tuiles, meubles entiers ; chaque maison meublée selon son métier (banque : statues, coffres, comptoir et pièces ; forge : fourneau, enclumes, minerai ; auberge : tables, tonneaux, lits, cheminée…).
+  - Packs achetés non encore utilisés : désert (Red Rock Desert, Red Desert Ruin, Sun City), plage (Beach, Ocean and Shore), Honey Bee, Farmlands (animaux), Winter Village.
 - Images : `assets/` (crédits dans `assets/CREDITS.md`), intégrées au jeu par `tools/assets.mjs` → `src/ui/assetData.js`.
 - **Butin** : le niveau des équipements (et l'or, l'XP) suit le niveau des ennemis vaincus, pas celui des héros.
 - **XP** : courbe réglée pour que les héros finissent chaque zone vers son niveau maximum (simulation : niv. 12, 20, 30, 38, 46 en Balade).

@@ -6,12 +6,11 @@
 
 import { state } from '../state.js';
 import { VILLAGE, VILLAGE_ART, VILLAGE_SERVICES } from '../data/village.js';
-import { INTERIOR_ART } from '../data/interiors.js';
 import {
   sceneOf, villageStep, talkTarget, spotsNextTo, npcAt, canWalk, sizeOf, rollResidents, doorstep, entryOf, doorAt,
 } from '../game/village.js';
 import { stepToward } from '../game/floorMap.js';
-import { sheet, drawFloorAuto } from './mapThemes.js';
+import { sheet, drawFloorAuto, drawWallAuto } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
 import { NPC_SPRITES } from './spriteCatalog.js';
@@ -326,48 +325,54 @@ function villageGround(grid) {
   return canvas;
 }
 
-// Intérieur : sol en motif (3 × 3 tuiles), mur du fond (lambris + soubassement), murs
-// latéraux et du bas vus de dessus, seuil de la porte, tapis.
+// Intérieur, façon RPG Maker : sol en tuiles, dessus des murs (plafond) tout autour, façade
+// de 2 cases au fond (autotiles `interiors_A4`), porte ouverte en bas ; puis objets accrochés
+// au mur et tapis. Le mobilier debout est dessiné avec les personnages (tri par ligne).
 function roomGround(room) {
-  const obj = sheet('interiors_obj');
-  if (!obj) return null;
+  const walls = sheet('interiors_A4');
+  const floorImg = sheet(room.floor[0]);
+  const needed = room.furniture.filter((f) => f.layer).map((f) => sheet(f.img[0]));
+  if (!walls || !floorImg || needed.some((i) => !i)) return null;
   const { w, h } = room;
   const canvas = document.createElement('canvas');
   canvas.width = w * TILE;
   canvas.height = h * TILE;
   const ctx = canvas.getContext('2d');
-  const tileOf = (art, x, y) => {
-    const cols = art[3] / TILE;
-    const rows = art[4] / TILE;
-    ctx.drawImage(obj, art[1] + (x % cols) * TILE, art[2] + (y % rows) * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
-  };
-  const floor = INTERIOR_ART.floors[room.floor] ?? INTERIOR_ART.floors.wood;
-  for (let y = 2; y < h; y++) for (let x = 0; x < w; x++) tileOf(floor, x, y);
-  for (let x = 0; x < w; x++) {
-    ctx.drawImage(obj, INTERIOR_ART.wallTop[1] + (x % 3) * TILE, INTERIOR_ART.wallTop[2], TILE, TILE, x * TILE, 0, TILE, TILE);
-    ctx.drawImage(obj, INTERIOR_ART.wallBottom[1] + (x % 3) * TILE, INTERIOR_ART.wallBottom[2], TILE, TILE, x * TILE, TILE, TILE, TILE);
+  const isDoor = (x, y) => y === h - 1 && x === room.exit;
+  const isTop = (x, y) => !isDoor(x, y) && (y === 0 || x === 0 || x === w - 1 || y === h - 1);
+  const face = (x, y) => (x > 0 && x < w - 1 && (y === 1 || y === 2) ? (y === 1 ? 'high' : 'low') : null);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const f = face(x, y);
+      if (f) {
+        drawWallAuto(ctx, walls, room.wall.face, x, y, (dx, dy) => {
+          if (dy) return f === 'high' ? dy > 0 : true;
+          return !!face(x + dx, y);
+        });
+      } else if (isTop(x, y)) {
+        drawFloorAuto(ctx, walls, room.wall.top, x, y, (dx, dy) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) return true;
+          return isTop(nx, ny);
+        });
+      } else {
+        ctx.drawImage(floorImg, room.floor[1] * TILE, room.floor[2] * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+      }
+    }
   }
-  // Murs vus de dessus : bandeau sombre bordé d'une arête claire côté pièce.
-  const wallTile = (x, y, edge) => {
-    ctx.fillStyle = '#2b1d14';
-    ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-    ctx.fillStyle = '#6b4a30';
-    if (edge === 'right') ctx.fillRect(x * TILE + TILE - 3, y * TILE, 3, TILE);
-    if (edge === 'left') ctx.fillRect(x * TILE, y * TILE, 3, TILE);
-    if (edge === 'top') ctx.fillRect(x * TILE, y * TILE, TILE, 3);
-  };
-  for (let y = 0; y < h; y++) { wallTile(0, y, 'right'); wallTile(w - 1, y, 'left'); }
-  for (let x = 1; x < w - 1; x++) if (x !== room.exit) wallTile(x, h - 1, 'top');
-  // Seuil : paillasson devant la porte, lumière du dehors.
-  ctx.fillStyle = 'rgba(255, 236, 170, 0.35)';
-  ctx.fillRect(room.exit * TILE, (h - 1) * TILE, TILE, TILE);
-  ctx.fillStyle = '#7a3b24';
-  ctx.fillRect(room.exit * TILE + 2, (h - 2) * TILE + 10, TILE - 4, 5);
-  for (const f of room.furniture) {
-    if (f.layer !== 'floor') continue;
-    const { cols } = sizeOf(f);
-    const [, sx, sy, fw, fh] = f.img;
-    ctx.drawImage(obj, sx, sy, fw, fh, f.x * TILE + (cols * TILE - fw) / 2, (f.bottom + 1) * TILE - fh, fw, fh);
+  // Seuil : la lumière du dehors entre par la porte.
+  const light = ctx.createLinearGradient(0, (h - 1) * TILE, 0, (h - 3) * TILE);
+  light.addColorStop(0, 'rgba(255, 236, 170, 0.35)');
+  light.addColorStop(1, 'rgba(255, 236, 170, 0)');
+  ctx.fillStyle = light;
+  ctx.fillRect((room.exit - 1) * TILE, (h - 3) * TILE, TILE * 3, TILE * 3);
+  for (const layer of ['floor', 'wall']) {
+    for (const f of room.furniture) {
+      if (f.layer !== layer) continue;
+      const [name, sx, sy, fw, fh] = f.img;
+      ctx.drawImage(sheet(name), sx, sy, fw, fh, f.x * TILE, (f.bottom + 1) * TILE - fh, fw, fh);
+    }
   }
   return canvas;
 }
@@ -410,8 +415,8 @@ function draw(canvas, now) {
       items.push({ y, draw: () => blit(ctx, tree, sx, sy) });
     }
   } else {
-    // Objets adossés au mur du fond d'abord, puis par ligne.
-    for (const f of sc.place.furniture) if (f.layer !== 'floor') placed(f.img, f.x, f.bottom, f.bottom - (f.block === 'none' ? 0.5 : 0));
+    // Mobilier debout, trié par ligne avec les personnages (z : objet posé sur un meuble).
+    for (const f of sc.place.furniture) if (!f.layer) placed(f.img, f.x, f.bottom, f.z ?? f.bottom);
   }
   const p = pos();
   const hp = currentPos(now);

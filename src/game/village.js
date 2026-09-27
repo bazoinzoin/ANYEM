@@ -7,7 +7,7 @@
 // À chaque retour au village, chaque habitant est chez lui ou devant sa porte (rollResidents).
 
 import { VILLAGE } from '../data/village.js';
-import { INTERIORS } from '../data/interiors.js';
+import { INTERIORS, ROOM_TOP } from '../data/interiors.js';
 import { random } from './rng.js';
 
 const grids = new Map();
@@ -46,12 +46,12 @@ export function placeGrid(id = 'village') {
     for (const s of place.signs) set(grid.tiles, s.x, s.y, 0);
     for (const [x, y] of place.trees) set(grid.tiles, x, y, 0); // tronc
   } else {
-    // Murs : les deux lignes du haut, les côtés et la ligne du bas (sauf la porte).
+    // Murs : le mur du fond (dessus + façade), les côtés et la ligne du bas (sauf la porte).
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if (y < 2 || x === 0 || x === w - 1 || y === h - 1) set(grid.tiles, x, y, 0);
+      if (y < ROOM_TOP || x === 0 || x === w - 1 || y === h - 1) set(grid.tiles, x, y, 0);
     }
     set(grid.tiles, place.exit, h - 1, 1);
-    for (const obj of place.furniture) for (const [x, y] of footprint(obj)) set(grid.tiles, x, y, 0);
+    for (const obj of place.furniture.filter((f) => !f.layer)) for (const [x, y] of footprint(obj)) set(grid.tiles, x, y, 0);
   }
   grids.set(id, grid);
   return grid;
