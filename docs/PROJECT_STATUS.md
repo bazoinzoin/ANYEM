@@ -64,6 +64,12 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Scène de combat (sprites)
+
+- Au-dessus des fiches des combattants : scène sur fond neutre (un vrai décor de combat viendra plus tard), l'équipe à gauche tournée vers les monstres à droite ; corps à corps plus près du centre, distance en retrait ; boss agrandi.
+- Animations générées par le code : respiration, entrée en scène, marche sur place et flèche au-dessus de l'unité active, bond + entaille pour un coup d'arme, halo et étincelles pour un sort / soin / objet, recul + éclair blanc à l'impact, chiffres de dégâts (jaunes et plus grands en critique) et de soins, nom des effets posés, clignement puis disparition d'un monstre vaincu, héros à terre couché et grisé.
+- Ciblage : les cibles valides sont entourées ; clic sur le personnage ou sur le bouton (estimation affichée sur le bouton). Fin de combat : le dernier coup reste visible ~1,2 s (`TIMING.outcomeMs`).
+
 ## Combat : règles de défense et journal (choix d'implémentation)
 
 - **Esquive** (rare, max 50 %) : annule entièrement un coup direct, quel qu'il soit (attaque simple ou compétence, physique ou magique, dans les deux camps). **Blocage** (plus fréquent, boucliers, max 50 %) : réduit un coup direct de 50 %. **Riposte** : renvoie des dégâts au corps à corps. Les dégâts sur la durée ne s'esquivent pas.

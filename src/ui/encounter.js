@@ -9,6 +9,9 @@ import { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } fr
 import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
+import { getSkills } from '../game/party.js';
+import { snapshotBattle, diffBattle, heroGesture, enemyGesture } from './battleDiff.js';
+import { playAction } from './battleStage.js';
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
 export const lastFloor = { message: null, loot: [], summary: null };
@@ -24,16 +27,23 @@ export function startFloor() {
 
 export function playerAction(action) {
   const cb = state.combat;
+  if (!cb || cb.result) return;
+  const hero = cb.acting?.unit;
+  const skill = action.type === 'skill' ? getSkills(hero)[action.skill] : null;
+  const before = snapshotBattle(cb);
   if (!heroAct(cb, action)) return;
+  playAction(cb, hero, before, heroGesture(skill, action));
   // Héros à Énergie : il garde la main tant qu'il n'a pas fini son tour.
-  if (cb.acting) render();
+  if (cb.acting && !checkOutcome(cb)) render();
   else advance();
 }
 
 function advance() {
   const cb = state.combat;
-  const turn = nextTurn(cb);
-  if (!turn) return finish();
+  const before = snapshotBattle(cb);
+  const turn = nextTurn(cb); // effets de début de tour (poison, pièges...) compris
+  playAction(cb, null, before);
+  if (!turn) return endAfterAnimation();
 
   if (turn.side === 'hero') {
     render();
@@ -44,11 +54,19 @@ function advance() {
   log(cb, `${turn.unit.name} se prépare à agir...`);
   render();
   setTimeout(() => {
+    const beforeAct = snapshotBattle(cb);
     enemyAct(cb);
+    playAction(cb, turn.unit, beforeAct, enemyGesture(turn.unit, diffBattle(cb, beforeAct)));
     render();
-    if (checkOutcome(cb)) return finish();
+    if (checkOutcome(cb)) return endAfterAnimation();
     setTimeout(advance, TIMING.enemyAfterMs);
   }, TIMING.enemyThinkMs);
+}
+
+// Laisse voir le dernier coup (et la chute) avant de quitter l'écran de combat.
+function endAfterAnimation() {
+  render();
+  setTimeout(finish, TIMING.outcomeMs);
 }
 
 function finish() {
