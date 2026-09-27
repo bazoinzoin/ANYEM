@@ -535,3 +535,6 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
 @media (max-height: 660px) { .medals { min-height: 56px; } .medal svg { width: 32px; height: auto; } .medal.major svg { width: 44px; } }
 .portal-art { overflow: hidden; }
 .portal-art canvas { max-height: 100%; width: auto; }
+
+/* Manette (ui/gamepad.js) : curseur doré sur l'élément visé, visible seulement en mode manette. */
+body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-shadow: 0 0 10px 2px rgba(243,213,140,.8); position: relative; z-index: 4; }

@@ -1078,6 +1078,9 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
 @media (max-height: 660px) { .medals { min-height: 56px; } .medal svg { width: 32px; height: auto; } .medal.major svg { width: 44px; } }
 .portal-art { overflow: hidden; }
 .portal-art canvas { max-height: 100%; width: auto; }
+
+/* Manette (ui/gamepad.js) : curseur doré sur l'élément visé, visible seulement en mode manette. */
+body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-shadow: 0 0 10px 2px rgba(243,213,140,.8); position: relative; z-index: 4; }
 </style>
 
 </head>
@@ -9876,7 +9879,7 @@ function villageControls() {
       <button data-vstep="0,1" aria-label="Bas">▼</button>
     </div>
     ${helpButton()}
-    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails. <b>Manette</b> : croix ou stick pour marcher, A pour parler, Y pour les menus, Start pour la pause.</p>
     <button id="talkBtn" class="btn-primary">Parler</button>`;
 }
 
@@ -15760,7 +15763,7 @@ function mapControls() {
       <button data-step="0,1" aria-label="Bas">▼</button>
     </div>
     ${helpButton()}
-    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements. <b>Manette</b> : croix ou stick pour marcher, A pour descendre l'échelle, Y pour les menus, Start pour la pause.</p>
     ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }
 
@@ -17895,6 +17898,274 @@ function startGlossary() {
 return { splitGloss, glossify, startGlossary };
 })();
 
+// ---- src/ui/gamepadNav.js
+__modules["src/ui/gamepadNav.js"] = (() => {
+
+// Navigation à la manette dans les menus : choix de l'élément voisin dans une direction.
+// Pur (testé) : on travaille sur des rectangles { x, y, w, h }.
+
+const center = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+
+/**
+ * Index du rectangle le plus proche de `from` dans la direction { dx, dy } (une seule des
+ * deux vaut ±1), ou -1. Un candidat doit être devant (au-delà du centre de départ) ; on
+ * préfère ce qui est aligné : distance dans l'axe + 2 × écart sur l'autre axe.
+ */
+function pickNext(from, rects, { dx, dy }) {
+  const a = center(from);
+  let best = -1;
+  let bestScore = Infinity;
+  rects.forEach((r, i) => {
+    const b = center(r);
+    const along = dx ? (b.x - a.x) * dx : (b.y - a.y) * dy;
+    if (along <= 1) return;
+    const across = dx ? Math.abs(b.y - a.y) : Math.abs(b.x - a.x);
+    // Chevauchement sur l'autre axe : considéré comme aligné.
+    const overlap = dx ? r.y < from.y + from.h && r.y + r.h > from.y : r.x < from.x + from.w && r.x + r.w > from.x;
+    const score = along + (overlap ? 0 : 2 * across);
+    if (score < bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+
+// Index du rectangle dont le centre est le plus proche du point (x, y), ou -1.
+function nearest(point, rects) {
+  let best = -1;
+  let bestD = Infinity;
+  rects.forEach((r, i) => {
+    const c = center(r);
+    const d = (c.x - point.x) ** 2 + (c.y - point.y) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+// Direction d'une manette standard : croix (boutons 12 à 15) ou stick gauche (seuil 0,5,
+// axe dominant). Retourne { dx, dy } ou null.
+function padDirection(buttons, axes) {
+  const pressed = (i) => !!buttons[i]?.pressed;
+  if (pressed(12)) return { dx: 0, dy: -1 };
+  if (pressed(13)) return { dx: 0, dy: 1 };
+  if (pressed(14)) return { dx: -1, dy: 0 };
+  if (pressed(15)) return { dx: 1, dy: 0 };
+  const [x = 0, y = 0] = axes ?? [];
+  if (Math.max(Math.abs(x), Math.abs(y)) < 0.5) return null;
+  return Math.abs(x) > Math.abs(y) ? { dx: Math.sign(x), dy: 0 } : { dx: 0, dy: Math.sign(y) };
+}
+
+return { pickNext, nearest, padDirection };
+})();
+
+// ---- src/ui/gamepad.js
+__modules["src/ui/gamepad.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { isPaused } = __modules["src/ui/pauseClock.js"];
+const { pickNext, nearest, padDirection } = __modules["src/ui/gamepadNav.js"];
+// Jeu à la manette (API Gamepad du navigateur, manette « standard » : Xbox, PlayStation,
+// Switch Pro…). Aucune règle ici : la manette imite le clavier et la souris.
+//   Sur les cartes (village, expédition) : croix / stick gauche = marcher (flèches),
+//     A = parler / agir (Espace ; en expédition, descendre l'échelle quand on est dessus),
+//     Y = passer aux menus de l'écran (curseur sur les boutons), Y ou B pour revenir à la carte.
+//   Partout ailleurs (menus, combat, fenêtres) : un curseur doré va de bouton en bouton
+//     (croix / stick), A = cliquer, B = retour (bouton de retour de l'écran, sinon Échap),
+//     LB / RB = page précédente / suivante (ou héros précédent / suivant).
+//   Start = menu Échap (pause). Le survol est simulé : la fiche de l'élément visé s'affiche.
+// Le curseur disparaît dès que la souris bouge ; il revient au premier appui sur la manette.
+
+
+
+
+
+const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, BACK: 8, START: 9 };
+const FIRST_REPEAT_MS = 320; // maintien d'une direction dans les menus : 1re répétition
+const REPEAT_MS = 120;       // puis répétitions
+const FOCUSABLE = [
+  'button', 'a[href]', 'select', 'input', '[data-cell]', '[data-worn]', '[data-slot]', '[data-legendary]',
+  '[data-consumable]', '[data-item]', '.bag-cell:not(.empty)',
+].join(', ');
+const ARROWS = { '0,-1': 'ArrowUp', '0,1': 'ArrowDown', '-1,0': 'ArrowLeft', '1,0': 'ArrowRight' };
+
+let focused = null;       // élément sous le curseur
+let lastPoint = null;     // centre du dernier élément visé (pour retrouver un voisin après un rendu)
+let menuOnMap = false;    // Y sur une carte : les menus prennent la main
+let prev = [];            // boutons enfoncés à l'image précédente
+let heldDir = null;       // direction tenue { key, since, last }
+let walkKey = null;       // flèche simulée enfoncée (marche)
+let running = false;
+
+const key = (type, k) => document.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true, cancelable: true }));
+
+// Carte affichée et rien par-dessus : la manette fait marcher.
+function walking() {
+  if (isPaused() || menuOnMap) return false;
+  if (!['hub', 'dungeon'].includes(state.screen)) return false;
+  if (!document.querySelector('#villageMap, #floorMap')) return false;
+  return !document.querySelector('.hud-modal, .hud-panel');
+}
+
+// Zone où chercher les boutons : le menu Échap, sinon une fenêtre modale, sinon l'écran.
+function scope() {
+  return document.getElementById('pauseMenu') ?? document.querySelector('.hud-modal') ?? document.getElementById('app');
+}
+
+function candidates() {
+  const root = scope();
+  if (!root) return [];
+  return [...root.querySelectorAll(FOCUSABLE)].filter((el) => {
+    if (el.disabled || el.closest('[hidden], .hidden')) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 2 && r.height > 2 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth
+      && getComputedStyle(el).visibility !== 'hidden';
+  });
+}
+
+const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+
+function setFocus(el) {
+  if (focused === el) return;
+  if (focused?.isConnected) {
+    focused.classList.remove('pad-focus');
+    focused.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    focused.dispatchEvent(new MouseEvent('mouseleave'));
+  }
+  focused = el;
+  if (!el) return;
+  el.classList.add('pad-focus');
+  const r = rectOf(el);
+  lastPoint = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  el.dispatchEvent(new MouseEvent('mouseenter'));
+  el.focus?.({ preventScroll: true });
+}
+
+// Après un nouveau rendu, l'élément visé a pu disparaître : on reprend son plus proche voisin.
+function ensureFocus() {
+  const list = candidates();
+  if (focused?.isConnected && list.includes(focused)) {
+    focused.classList.add('pad-focus');
+    return list;
+  }
+  focused = null;
+  if (!list.length) return list;
+  // Choix d'une cible en combat : le curseur va directement sur la première cible.
+  const target = list.find((el) => el.matches('[data-target]'));
+  const i = target ? list.indexOf(target) : lastPoint ? nearest(lastPoint, list.map(rectOf)) : 0;
+  setFocus(list[Math.max(0, i)]);
+  return list;
+}
+
+function moveFocus(dir) {
+  const list = ensureFocus();
+  if (!focused) return;
+  const others = list.filter((el) => el !== focused);
+  const i = pickNext(rectOf(focused), others.map(rectOf), dir);
+  if (i >= 0) setFocus(others[i]);
+}
+
+function clickFocused() {
+  ensureFocus();
+  if (!focused) return;
+  // Le rendu qui suit remplace souvent l'élément : on retient sa position avant le clic
+  // pour viser ensuite son plus proche voisin.
+  const r = rectOf(focused);
+  lastPoint = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  focused.click();
+}
+
+function back() {
+  if (isPaused() || state.screen === 'combat') return key('keydown', 'Escape');
+  if (menuOnMap) { menuOnMap = false; setFocus(null); return; }
+  const close = document.querySelector('.hud-modal #eventSkip, .hud-close, #scrBack, #backHub, #backBtn');
+  if (close) return close.click();
+  key('keydown', 'Escape');
+}
+
+// Page précédente / suivante d'une grille, sinon héros précédent / suivant (onglets).
+function page(step) {
+  const pager = [...document.querySelectorAll(`[data-page$=":${step}"]`)].find((b) => !b.disabled);
+  if (pager) return pager.click();
+  const tabs = [...document.querySelectorAll('[data-hero]')];
+  const current = tabs.findIndex((b) => b.classList.contains('current'));
+  if (tabs.length > 1 && current >= 0) tabs[(current + step + tabs.length) % tabs.length].click();
+}
+
+function releaseWalk() {
+  if (walkKey) key('keyup', walkKey);
+  walkKey = null;
+}
+
+function frame(now) {
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+  const pad = pads.find((p) => p.mapping === 'standard') ?? pads[0];
+  if (!pad) { running = false; releaseWalk(); return; }
+  const down = pad.buttons.map((b) => b.pressed);
+  const pressed = (i) => down[i] && !prev[i];
+  const dir = padDirection(pad.buttons, pad.axes);
+  const dirKey = dir ? `${dir.dx},${dir.dy}` : null;
+  const active = down.some(Boolean) || !!dir;
+  if (active) document.body.classList.add('pad-mode');
+
+  if (pressed(BTN.START)) key('keydown', 'Escape');
+  if (walking()) {
+    setFocus(null);
+    const arrow = dirKey ? ARROWS[dirKey] : null;
+    if (arrow !== walkKey) {
+      releaseWalk();
+      if (arrow) { key('keydown', arrow); walkKey = arrow; }
+    }
+    if (pressed(BTN.A)) {
+      const ladder = document.querySelector('#ladderBtn:not(:disabled)');
+      if (ladder) ladder.click(); else key('keydown', ' ');
+    }
+    if (pressed(BTN.Y)) { menuOnMap = true; releaseWalk(); ensureFocus(); }
+  } else {
+    releaseWalk();
+    if (active) ensureFocus();
+    if (dirKey) {
+      if (!heldDir || heldDir.key !== dirKey) {
+        heldDir = { key: dirKey, next: now + FIRST_REPEAT_MS };
+        moveFocus(dir);
+      } else if (now >= heldDir.next) {
+        heldDir.next = now + REPEAT_MS;
+        moveFocus(dir);
+      }
+    } else heldDir = null;
+    if (pressed(BTN.A)) clickFocused();
+    if (pressed(BTN.B)) back();
+    if (pressed(BTN.Y) && menuOnMap) { menuOnMap = false; setFocus(null); }
+    if (pressed(BTN.LB)) page(-1);
+    if (pressed(BTN.RB)) page(1);
+  }
+  // Retour sur la carte : quitter le mode menu si l'écran n'est plus une carte.
+  if (menuOnMap && !['hub', 'dungeon'].includes(state.screen)) menuOnMap = false;
+  prev = down;
+  requestAnimationFrame(frame);
+}
+
+function start() {
+  if (running) return;
+  running = true;
+  prev = [];
+  requestAnimationFrame(frame);
+}
+
+// Lance l'écoute (une fois, au démarrage) : la boucle ne tourne que manette branchée.
+function startGamepad() {
+  if (typeof window === 'undefined' || !navigator.getGamepads) return;
+  window.addEventListener('gamepadconnected', start);
+  window.addEventListener('gamepaddisconnected', () => { if (![...navigator.getGamepads()].some(Boolean)) setFocus(null); });
+  // La souris reprend la main : le curseur de la manette s'efface.
+  window.addEventListener('mousemove', () => {
+    if (!document.body.classList.contains('pad-mode')) return;
+    document.body.classList.remove('pad-mode');
+    setFocus(null);
+  });
+  if ([...navigator.getGamepads()].some(Boolean)) start();
+}
+
+return { startGamepad };
+})();
+
 // ---- src/main.js
 __modules["src/main.js"] = (() => {
 const { registerScreens, render } = __modules["src/ui/router.js"];
@@ -17919,8 +18190,10 @@ const { renderPortals } = __modules["src/ui/screens/portals.js"];
 const { renderDefeat } = __modules["src/ui/screens/defeat.js"];
 const { renderSlots } = __modules["src/ui/screens/slots.js"];
 const { startGlossary } = __modules["src/ui/glossary.js"];
+const { startGamepad } = __modules["src/ui/gamepad.js"];
 const { openPause } = __modules["src/ui/pause.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -17972,6 +18245,7 @@ registerScreens({
 applySkin();
 render();
 startGlossary();
+startGamepad();
 
 return {  };
 })();

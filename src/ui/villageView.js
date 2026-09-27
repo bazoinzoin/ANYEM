@@ -75,7 +75,7 @@ export function villageControls() {
       <button data-vstep="0,1" aria-label="Bas">▼</button>
     </div>
     ${helpButton()}
-    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails. <b>Manette</b> : croix ou stick pour marcher, A pour parler, Y pour les menus, Start pour la pause.</p>
     <button id="talkBtn" class="btn-primary">Parler</button>`;
 }
 
