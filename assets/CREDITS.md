@@ -8,3 +8,4 @@
 - `icons/equipment.png` : icônes d'équipement 16 × 16 fournies par le joueur (27 pièces × 6 raretés, commun → divin : casques, plastrons, épaulières, gants, bottes en léger / moyen / lourd, 9 armes, anneau, collier, bouclier).
 - `icons/raven16.png` : **Raven Fantasy Icons (Free)**, Clockwork Raven Studios — planche 16 × 16 (2 192 icônes).
 - `ui/` et `fonts/` : **RPG UI pack**, par Franuka (https://franuka.itch.io/) — usage commercial et non commercial autorisé, crédit apprécié, pas de redistribution telle quelle. Cadres recadrés (`box_*`), variante sombre `box_night` / `slot_night` générée à partir de `BGbox_01B` / `Slot_02_Empty`.
+- `logo/` : logo d'Anyem (icône du jeu et de l'onglet) dessiné en pixel art à partir du « A » de la police FantasyRPGtitle (RPG UI pack, Franuka), généré par `tools/logo.py` (qui écrit aussi `dist/anyem.ico`).

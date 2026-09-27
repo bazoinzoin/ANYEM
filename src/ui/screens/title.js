@@ -1,5 +1,5 @@
-// Menu principal : nom du jeu sur une scène animée (clairière de nuit, feu de camp, les
-// six classes autour), menu façon JRPG (flèches + Entrée, ou souris) : Nouvelle partie,
+// Menu principal, plein écran : nom du jeu orné sur une scène animée (clairière de nuit, feu
+// de camp avec étincelles, les six classes autour, lucioles), menu façon JRPG (flèches + Entrée, ou souris) : Nouvelle partie,
 // Charger (emplacements de sauvegarde, ui/screens/slots.js), Options, Quitter, Debug (partie de
 // test, voir game/debug.js).
 
@@ -43,11 +43,12 @@ export function renderTitle(app) {
   }
   app.innerHTML = `
     <div class="title-screen">
-      <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas>
-        <div class="title-logo">
-          <h1>Anyem</h1>
-          <p>Un RPG tour par tour</p>
-        </div>
+      <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas></div>
+      <div class="title-vignette" aria-hidden="true"></div>
+      <div class="title-logo">
+        <span class="title-orn top" aria-hidden="true"><i></i><b></b><i></i></span>
+        <h1>Anyem</h1>
+        <span class="title-orn" aria-hidden="true"><i></i><b></b><i></i></span>
       </div>
       <nav class="title-panel" aria-label="Menu principal">
         ${MENU.map((m, i) => `
@@ -119,26 +120,57 @@ if (typeof document !== 'undefined') {
 }
 
 // ---- Scène animée ----
+// Clairière de nuit en plein écran (480 × 272 pixels de sprites, agrandie sans lissage et
+// recadrée pour couvrir la fenêtre) : forêt dense, feu de camp avec étincelles et fumée, les six
+// classes autour, tente, rondins, tas de bois, lucioles.
 
 const TILE = 16;
-const W = 320;          // taille de la scène en pixels (affichée agrandie, nette)
-const H = 176;
+const W = 480;
+const H = 272;
 const COLS = W / TILE;
-const ROWS = H / TILE;
-const FIRE = { x: 10, y: 8 };                                 // case du feu de camp
+const ROWS = Math.ceil(H / TILE);
+const FIRE = { x: 12, y: 10 };                                // case du feu de camp
 const FIRE_FRAMES = [2, 3, 4].map((i) => ['forest_obj', 144 + i * 16, 57, 16, 20]);
 const TREES = [['forest_obj', 0, 80, 48, 64], ['forest2_obj', 1, 150, 46, 55], ['forest2_obj', 49, 150, 46, 55], ['forest_obj', 48, 80, 48, 64]];
-// Arbres autour de la clairière : [x (case du tronc), y, variante].
-const TREE_SPOTS = [
-  [1, 3, 0], [4, 2, 1], [7, 1, 2], [11, 1, 0], [15, 2, 1], [18, 3, 2], [0, 7, 1], [19, 7, 0],
-  [1, 11, 2], [18, 11, 1], [3, 12, 0], [16, 12, 2], [5, 13, 1], [14, 13, 0], [-1, 5, 2], [20, 5, 1], [13, 1, 3], [9, 0, 1],
+const F = (x, y, w, h) => ['forest_obj', x, y, w, h];
+// Décor posé : [image, x (case), bas (case)].
+const DECOR = [
+  [F(96, 96, 48, 64), 15, 8],        // tente
+  [F(128, 32, 32, 16), 8, 12],       // rondin creux (banc)
+  [F(144, 64, 32, 16), 16, 10],      // tas de bois
+  [F(144, 144, 16, 16), 18, 8],      // sac
+  [F(16, 16, 16, 16), 18, 9],        // coffre
+  [F(112, 64, 16, 32), 7, 8],        // souche
+  [F(96, 0, 32, 32), 19, 12],        // rocher
+  [F(96, 32, 32, 32), 2, 8],         // rocher moussu
+  [F(64, 16, 16, 16), 16, 13],       // cailloux
+  [F(80, 160, 16, 32), 5, 12],       // massettes
+  [F(80, 160, 16, 32), 7, 14],
+  [F(96, 160, 16, 16), 9, 14],       // baies
+  [F(192, 16, 16, 16), 14, 13],      // fleurs
+  [F(192, 16, 16, 16), 6, 9],
+  [F(208, 0, 16, 32), 10, 7],        // tournesol
 ];
 // Héros autour du feu : [classe, x, y, direction].
 const CAMP = [
-  [CLASS_ORDER[0], 8, 7, 'right'], [CLASS_ORDER[1], 12, 7, 'left'], [CLASS_ORDER[2], 8, 9, 'right'],
-  [CLASS_ORDER[3], 12, 9, 'left'], [CLASS_ORDER[4], 10, 6, 'down'], [CLASS_ORDER[5], 10, 10, 'up'],
+  [CLASS_ORDER[0], 10, 9, 'right'], [CLASS_ORDER[1], 14, 9, 'left'], [CLASS_ORDER[2], 10, 11, 'right'],
+  [CLASS_ORDER[3], 14, 11, 'left'], [CLASS_ORDER[4], 12, 8, 'down'], [CLASS_ORDER[5], 12, 12, 'up'],
 ];
-const flies = Array.from({ length: 14 }, (_, i) => ({ x: (i * 97) % W, y: 20 + ((i * 53) % (H - 40)), p: i * 1.7 }));
+const inClearing = (x, y) => ((x - FIRE.x) / 6.2) ** 2 + ((y - FIRE.y) / 3.8) ** 2 <= 1;
+const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+// Arbres : une forêt dense tout autour de la clairière (placement fixe, pseudo-aléatoire).
+const TREE_SPOTS = [];
+for (let y = -1; y <= ROWS + 2; y += 2) {
+  for (let x = -1; x <= COLS + 1; x += 3) {
+    const tx = x + Math.floor(hash(x, y) * 3) - (y % 4 ? 1 : 0);
+    const ty = y + Math.floor(hash(y, x) * 2);
+    const d = ((tx - FIRE.x) / 7.8) ** 2 + ((ty - FIRE.y) / 5.4) ** 2;
+    if (d > 1 && !(tx >= 13 && tx <= 19 && ty >= 4 && ty <= 13)) TREE_SPOTS.push([tx, ty, Math.floor(hash(tx + 7, ty) * TREES.length)]);
+  }
+}
+const flies = Array.from({ length: 42 }, (_, i) => ({ x: hash(i, 3) * W, y: hash(3, i) * H, p: i * 1.7, s: 0.6 + hash(i, 9) * 0.8 }));
+const sparks = [];
+let lastSpark = 0;
 
 let running = false;
 let ground = null;
@@ -159,7 +191,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// Clairière : herbe, cercle de terre autour du feu (dessiné une fois).
+// Sol : herbe et clairière de terre autour du feu (dessinés une fois).
 function groundLayer() {
   if (ground) return ground;
   const grass = sheet('forest_A5');
@@ -169,11 +201,10 @@ function groundLayer() {
   c.width = W;
   c.height = H;
   const g = c.getContext('2d');
-  const clearing = (x, y) => ((x - FIRE.x) / 4.2) ** 2 + ((y - FIRE.y) / 3) ** 2 <= 1;
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
-      g.drawImage(grass, (x + y) % 5 ? 0 : TILE, TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
-      if (clearing(x, y)) drawFloorAuto(g, dirt, [8, 0], x, y, (dx, dy) => clearing(x + dx, y + dy));
+      g.drawImage(grass, hash(x, y) < 0.8 ? 0 : TILE, TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+      if (inClearing(x, y)) drawFloorAuto(g, dirt, [8, 0], x, y, (dx, dy) => inClearing(x + dx, y + dy));
     }
   }
   ground = c;
@@ -199,33 +230,65 @@ function drawScene(ctx, now) {
     const t = TREES[v];
     items.push({ y, draw: () => blit(ctx, t, (x + 0.5) * TILE - t[3] / 2, (y + 1) * TILE - t[4]) });
   }
+  for (const [img, x, bottom] of DECOR) {
+    const cols = Math.ceil(img[3] / TILE);
+    items.push({ y: bottom, draw: () => blit(ctx, img, x * TILE + (cols * TILE - img[3]) / 2, (bottom + 1) * TILE - img[4]) });
+  }
   const fire = FIRE_FRAMES[Math.floor(now / 140) % FIRE_FRAMES.length];
   items.push({ y: FIRE.y, draw: () => blit(ctx, fire, FIRE.x * TILE, (FIRE.y + 1) * TILE - fire[4]) });
   for (const [cls, x, y, dir] of CAMP) {
-    items.push({ y, draw: () => drawActor(ctx, { sx: x * TILE, sy: y * TILE, size: TILE, scale: 1, dir, now, sprite: lookSprite(CLASS_LOOKS[cls]) }) });
+    items.push({ y: y + 0.1, draw: () => drawActor(ctx, { sx: x * TILE, sy: y * TILE, size: TILE, scale: 1, dir, now, sprite: lookSprite(CLASS_LOOKS[cls]) }) });
   }
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 
-  // Nuit, puis lueur du feu qui vacille.
-  ctx.fillStyle = 'rgba(8,10,34,.58)';
+  // Nuit bleutée, plus sombre sur les bords.
+  ctx.fillStyle = 'rgba(8,10,34,.6)';
   ctx.fillRect(0, 0, W, H);
   const cx = (FIRE.x + 0.5) * TILE;
   const cy = (FIRE.y + 0.6) * TILE;
-  const r = 70 + Math.sin(now / 90) * 3 + Math.sin(now / 37) * 2;
+  // Lueur du feu qui vacille.
+  const r = 105 + Math.sin(now / 90) * 4 + Math.sin(now / 37) * 3;
   const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
-  glow.addColorStop(0, 'rgba(255,170,80,.55)');
-  glow.addColorStop(0.5, 'rgba(255,120,40,.18)');
+  glow.addColorStop(0, 'rgba(255,170,80,.6)');
+  glow.addColorStop(0.45, 'rgba(255,120,40,.2)');
   glow.addColorStop(1, 'rgba(255,120,40,0)');
   ctx.globalCompositeOperation = 'lighter';
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
-  // Lucioles.
+  // Étincelles qui montent du feu.
+  if (now - lastSpark > 90 && sparks.length < 36) {
+    lastSpark = now;
+    sparks.push({ x: cx + (Math.random() - 0.5) * 8, y: cy - 10, vx: (Math.random() - 0.5) * 8, vy: -14 - Math.random() * 14, t0: now, life: 1200 + Math.random() * 1300 });
+  }
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    const t = (now - s.t0) / 1000;
+    if (t * 1000 > s.life) { sparks.splice(i, 1); continue; }
+    const k = 1 - (t * 1000) / s.life;
+    ctx.fillStyle = `rgba(255,${Math.round(140 + 90 * k)},60,${0.9 * k})`;
+    ctx.fillRect(Math.round(s.x + s.vx * t + Math.sin(t * 5 + i) * 2), Math.round(s.y + s.vy * t), 1, 1);
+  }
+  // Lucioles, avec leur halo.
   for (const f of flies) {
-    const x = (f.x + Math.sin(now / 1900 + f.p) * 18 + W) % W;
-    const y = f.y + Math.cos(now / 1400 + f.p) * 8;
-    const a = 0.35 + 0.35 * Math.sin(now / 300 + f.p * 3);
-    ctx.fillStyle = `rgba(220,255,140,${a})`;
+    const x = (f.x + Math.sin(now / 1900 * f.s + f.p) * 22 + W) % W;
+    const y = (f.y + Math.cos(now / 1400 * f.s + f.p) * 10 + H) % H;
+    const a = 0.25 + 0.35 * Math.sin(now / 320 + f.p * 3);
+    if (a <= 0.05) continue;
+    ctx.fillStyle = `rgba(160,255,90,${a * 0.25})`;
+    ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+    ctx.fillStyle = `rgba(230,255,150,${a})`;
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
   ctx.globalCompositeOperation = 'source-over';
+  // Fumée légère au-dessus du feu.
+  for (let i = 0; i < 4; i++) {
+    const t = ((now / 2600) + i / 4) % 1;
+    ctx.fillStyle = `rgba(150,150,170,${0.12 * (1 - t)})`;
+    const sx = cx + Math.sin(t * 6 + i) * 4 + t * 10;
+    const sy = cy - 14 - t * 46;
+    const rr = 2 + t * 5;
+    ctx.beginPath();
+    ctx.arc(sx, sy, rr, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

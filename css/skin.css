@@ -535,3 +535,38 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
 @media (max-height: 660px) { .medals { min-height: 56px; } .medal svg { width: 32px; height: auto; } .medal.major svg { width: 44px; } }
 .portal-art { overflow: hidden; }
 .portal-art canvas { max-height: 100%; width: auto; }
+
+/* Manette (ui/gamepad.js) : curseur doré sur l'élément visé, visible seulement en mode manette. */
+body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-shadow: 0 0 10px 2px rgba(243,213,140,.8); position: relative; z-index: 4; }
+
+/* ---- Écran titre (ui/screens/title.js) : plein écran, scène animée, titre orné, menu à droite ---- */
+.title-screen { position: fixed; inset: 0; z-index: 5; display: block; padding: 0; overflow: hidden; background: #07080f; }
+.title-scene { position: absolute; inset: 0; width: auto; border: 0; border-radius: 0; box-shadow: none; }
+.title-scene canvas { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.title-vignette { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 40% 58%, transparent 45%, rgba(4,4,12,.55) 80%, rgba(2,2,8,.85) 100%),
+              linear-gradient(rgba(4,5,16,.55), transparent 32%); }
+.title-screen .title-logo { position: absolute; inset: auto 0 auto 0; top: 3vh; padding: 0; display: flex; flex-direction: column; align-items: center; gap: .6vh; pointer-events: none; }
+.title-screen .title-logo h1 {
+  font-family: var(--font-pixel); font-weight: 400; font-size: clamp(64px, 11vw, 168px); line-height: 1; letter-spacing: .14em; margin-right: -.14em;
+  background: linear-gradient(#fff6d4 0%, #ffe08a 35%, #e8a93c 62%, #9c5a18 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 0 #2a1406) drop-shadow(0 0 2px #2a1406) drop-shadow(0 0 22px rgba(255,160,60,.45));
+  animation: title-glow 2.6s ease-in-out infinite alternate;
+}
+@keyframes title-glow {
+  from { filter: drop-shadow(0 4px 0 #2a1406) drop-shadow(0 0 2px #2a1406) drop-shadow(0 0 16px rgba(255,150,50,.35)); }
+  to { filter: drop-shadow(0 4px 0 #2a1406) drop-shadow(0 0 2px #2a1406) drop-shadow(0 0 30px rgba(255,180,80,.6)); }
+}
+/* Ornements : filets dorés et losange, au-dessus et au-dessous du titre. */
+.title-orn { display: flex; align-items: center; gap: 12px; width: min(62vw, 720px); }
+.title-orn i { flex: 1; height: 3px; background: linear-gradient(90deg, transparent, #b8862e 20%, #ffe08a 50%, #b8862e 80%, transparent); box-shadow: 0 1px 0 #2a1406; }
+.title-orn b { width: 14px; height: 14px; transform: rotate(45deg); background: linear-gradient(135deg, #fff2c4, #d8a64a 60%, #8a5214); border: 2px solid #2a1406; box-shadow: 0 0 10px rgba(255,170,60,.6); }
+.title-orn i:first-child { background: linear-gradient(90deg, transparent, #b8862e 40%, #ffe08a); }
+.title-orn i:last-child { background: linear-gradient(90deg, #ffe08a, #b8862e 60%, transparent); }
+.title-orn.top { width: min(40vw, 460px); }
+.title-orn.top b { width: 9px; height: 9px; }
+.title-screen > .title-panel { position: absolute; right: 5vw; bottom: 8vh; width: min(340px, 36vw); margin: 0;
+  background: rgba(10,12,26,.35); backdrop-filter: blur(1px); }
+.title-screen .title-item { font-size: 21px; }
+.title-screen .title-hint { font-size: 13px; }
+@media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
