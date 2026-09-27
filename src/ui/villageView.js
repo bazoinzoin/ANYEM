@@ -1,11 +1,15 @@
 // Village à parcourir (écran du village) : le groupe se promène, chaque service est un
 // habitant ; lui parler (Espace / Entrée / E face à lui, ou clic dessus) ouvre son écran.
-// Carte : data/village.js ; règles de marche : game/village.js. Graphismes : packs Raven
-// Fantasy (assets/raven/).
+// On entre dans une maison en montant dans sa porte ; on en sort par la porte du bas.
+// Carte : data/village.js, intérieurs : data/interiors.js ; règles de marche : game/village.js.
+// Graphismes : packs Raven Fantasy (assets/raven/).
 
 import { state } from '../state.js';
 import { VILLAGE, VILLAGE_ART, VILLAGE_SERVICES } from '../data/village.js';
-import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk, sizeOf } from '../game/village.js';
+import { INTERIOR_ART } from '../data/interiors.js';
+import {
+  sceneOf, villageStep, talkTarget, spotsNextTo, npcAt, canWalk, sizeOf, rollResidents, doorstep, entryOf, doorAt,
+} from '../game/village.js';
 import { stepToward } from '../game/floorMap.js';
 import { sheet, drawFloorAuto } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
@@ -13,21 +17,41 @@ import { holdToWalk } from './heldKeys.js';
 import { NPC_SPRITES } from './spriteCatalog.js';
 import { heroSprite } from './heroSprite.js';
 import { clampView, fitCanvas } from './viewport.js';
+import { image, isReady } from './sprites.js';
 
 const TILE = 16;
 const SCALE = 3;
 const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
 const WALK_MS = STEP_MS;
 
-// Position du groupe au village (conservée entre deux menus) : state.village = { x, y, dir }.
+// Position du groupe (conservée entre deux menus) : state.village = { place ('village' ou
+// maison), x, y, dir, residents (chez lui / dehors, tiré à chaque arrivée) }.
 function pos() {
-  state.village ??= { ...VILLAGE.spawn, dir: 'down' };
+  state.village ??= { ...VILLAGE.spawn, dir: 'down', place: 'village' };
+  state.village.place ??= 'village';
+  state.village.residents ??= rollResidents();
   return state.village;
 }
 
-// Remet le groupe à l'entrée du village (retour d'expédition).
+// Remet le groupe à l'entrée du village (retour d'expédition) ; les habitants ont bougé.
 export function arriveAtVillage() {
-  state.village = { ...VILLAGE.spawn, dir: 'up' };
+  state.village = { ...VILLAGE.spawn, dir: 'up', place: 'village', residents: rollResidents() };
+}
+
+// Scène courante (lieu, grille, habitants présents), recalculée quand le lieu change.
+let cached = null;
+function scene() {
+  const p = pos();
+  if (!cached || cached.id !== p.place || cached.residents !== p.residents) {
+    cached = { ...sceneOf(p.place, p.residents), residents: p.residents };
+  }
+  return cached;
+}
+
+// Nom du lieu (titre du HUD).
+export function placeName() {
+  const p = pos();
+  return p.place === 'village' ? "Village d'Anyem" : VILLAGE.buildings.find((b) => b.id === p.place)?.name ?? '';
 }
 
 let onTalk = () => {};
@@ -35,7 +59,6 @@ let walk = null;
 let frameRequested = false;
 // followers : compagnons en file indienne derrière le meneur ({ from, to, t0, dir }).
 const anim = { from: null, to: null, t0: 0, n: 0, followers: [] };
-let groundLayer = null;
 
 // Carte plein écran (le canvas prend la taille de son conteneur, voir fitCanvas).
 export function villageCanvas() {
@@ -51,7 +74,7 @@ export function villageControls() {
       <button data-vstep="1,0" aria-label="Droite">▶</button>
       <button data-vstep="0,1" aria-label="Bas">▼</button>
     </div>
-    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Le garde de la porte, en bas, ouvre les portails.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails.</p>
     <button id="talkBtn" class="btn-primary">Parler</button>`;
 }
 
@@ -60,10 +83,9 @@ export function bindVillage(app, talk) {
   onTalk = talk;
   const canvas = app.querySelector('#villageMap');
   if (!canvas) return;
-  const p = pos();
-  anim.from = { x: p.x, y: p.y };
-  anim.to = { x: p.x, y: p.y };
-  anim.followers = state.party.slice(1).map(() => ({ from: { x: p.x, y: p.y }, to: { x: p.x, y: p.y }, t0: 0, dir: p.dir }));
+  resetAnim();
+  const title = app.querySelector('.hud-title h2');
+  if (title) title.textContent = placeName();
   requestFrame();
   app.querySelectorAll('[data-vstep]').forEach((btn) => {
     btn.onclick = () => {
@@ -78,8 +100,11 @@ export function bindVillage(app, talk) {
     const cam = camera(canvas);
     const x = Math.floor((((ev.clientX - rect.left) / rect.width) * canvas.width + cam.x) / (TILE * SCALE));
     const y = Math.floor((((ev.clientY - rect.top) / rect.height) * canvas.height + cam.y) / (TILE * SCALE));
-    const npc = npcAt(x, y) ?? npcAt(x, y + 1); // clic sur la tête d'un habitant
+    const sc = scene();
+    const npc = npcAt(x, y, sc) ?? npcAt(x, y + 1, sc); // clic sur la tête d'un habitant
+    const door = sc.id === 'village' ? doorAt(x, y) : null;
     if (npc) walkTo(npc);
+    else if (door) walkTo({ ...doorstep(door.id), then: () => step(0, -1) });
     else walkTo({ x, y });
   };
 }
@@ -96,7 +121,11 @@ function step(dx, dy) {
   const p = pos();
   p.dir = DIRS[`${dx},${dy}`] ?? p.dir;
   if (dx) p.facing = dx > 0 ? 'right' : 'left';
-  const r = villageStep(p, dx, dy);
+  const r = villageStep(p, dx, dy, scene());
+  if (r.enter) {
+    moveTo(r.enter, entryOf(r.enter), 'up');
+    return false;
+  }
   if (!r.moved) {
     requestFrame();
     return false;
@@ -121,12 +150,37 @@ function step(dx, dy) {
     setTimeout(() => onTalk('portals'), STEP_MS);
     return false;
   }
+  if (r.leave) {
+    stopWalk();
+    const house = p.place;
+    setTimeout(() => { if (pos().place === house) moveTo('village', doorstep(house), 'down'); }, STEP_MS);
+    return false;
+  }
   return true;
+}
+
+// Change de lieu (entrer / sortir d'une maison) : le groupe apparaît groupé sur la case.
+function moveTo(place, at, dir) {
+  stopWalk();
+  const p = pos();
+  Object.assign(p, { place, x: at.x, y: at.y, dir });
+  resetAnim();
+  const title = document.querySelector('.hud-title h2');
+  if (title) title.textContent = placeName();
+  requestFrame();
+}
+
+function resetAnim() {
+  const p = pos();
+  anim.from = { x: p.x, y: p.y };
+  anim.to = { x: p.x, y: p.y };
+  anim.t0 = 0;
+  anim.followers = state.party.slice(1).map(() => ({ from: { x: p.x, y: p.y }, to: { x: p.x, y: p.y }, t0: 0, dir: p.dir }));
 }
 
 function talk_() {
   const p = pos();
-  const npc = talkTarget(p, FACING[p.dir]);
+  const npc = talkTarget(p, FACING[p.dir], scene());
   if (npc) {
     stopWalk();
     face(npc);
@@ -148,15 +202,17 @@ function stopWalk() {
 // Marche vers une case, ou vers un habitant (puis lui parle).
 function walkTo(target) {
   stopWalk();
-  const grid = villageGrid();
-  const map = { w: grid.w, h: grid.h, tiles: grid.tiles.map((t, i) => (t && !npcAt(i % grid.w, Math.floor(i / grid.w)) ? 1 : 0)) };
+  const sc = scene();
+  const grid = sc.grid;
+  const map = { w: grid.w, h: grid.h, tiles: grid.tiles.map((t, i) => (t && !npcAt(i % grid.w, Math.floor(i / grid.w), sc) ? 1 : 0)) };
   const npc = target.name ? target : null; // un habitant (avec ou sans service)
-  const goals = npc ? spotsNextTo(npc) : canWalk(target.x, target.y) ? [target] : [];
+  const goals = npc ? spotsNextTo(npc, sc) : canWalk(target.x, target.y, sc) ? [target] : [];
   if (!goals.length) return;
   walk = { timer: null };
   const tick = () => {
     if (!walk) return;
     const p = pos();
+    if (p.place !== sc.id) return stopWalk();
     if (goals.some((g) => g.x === p.x && g.y === p.y)) {
       stopWalk();
       if (npc) {
@@ -164,6 +220,7 @@ function walkTo(target) {
         requestFrame();
         onTalk(npc.service);
       }
+      target.then?.();
       return;
     }
     // Case d'arrivée la plus proche.
@@ -219,9 +276,10 @@ function frame(now) {
 function camera(canvas, now = performance.now()) {
   const p = currentPos(now);
   const size = TILE * SCALE;
+  const { w, h } = scene().place;
   return {
-    x: Math.round(clampView((p.x + 0.5) * size - canvas.width / 2, VILLAGE.w * size - canvas.width)),
-    y: Math.round(clampView((p.y + 0.5) * size - canvas.height / 2, VILLAGE.h * size - canvas.height)),
+    x: Math.round(clampView((p.x + 0.5) * size - canvas.width / 2, w * size - canvas.width)),
+    y: Math.round(clampView((p.y + 0.5) * size - canvas.height / 2, h * size - canvas.height)),
   };
 }
 
@@ -238,17 +296,24 @@ function blit(ctx, [name, x, y, w, h], sx, sy) {
   if (img) ctx.drawImage(img, x, y, w, h, Math.round(sx), Math.round(sy), w * SCALE, h * SCALE);
 }
 
-// Sol : herbe et chemins de terre (autotile). Dessiné une fois.
-function ground() {
-  if (groundLayer) return groundLayer;
+// Sol d'un lieu (dessiné une fois par lieu) : herbe et chemins de terre au village ;
+// dans une maison, parquet ou dalles, murs et tapis.
+const groundLayers = new Map();
+function ground(sc) {
+  if (groundLayers.has(sc.id)) return groundLayers.get(sc.id);
+  const layer = sc.id === 'village' ? villageGround(sc.grid) : roomGround(sc.place);
+  if (layer) groundLayers.set(sc.id, layer);
+  return layer;
+}
+
+function villageGround(grid) {
   const { grass, path } = VILLAGE_ART;
   const grassImg = sheet(grass.sheet);
   const pathImg = sheet(path.sheet);
   if (!grassImg || !pathImg) return null;
-  const grid = villageGrid();
   const canvas = document.createElement('canvas');
-  canvas.width = VILLAGE.w * TILE;
-  canvas.height = VILLAGE.h * TILE;
+  canvas.width = grid.w * TILE;
+  canvas.height = grid.h * TILE;
   const ctx = canvas.getContext('2d');
   const onPath = (x, y) => x >= 0 && y >= 0 && x < grid.w && y < grid.h && !!grid.path[y * grid.w + x];
   for (let y = 0; y < grid.h; y++) {
@@ -258,7 +323,52 @@ function ground() {
       if (onPath(x, y)) drawFloorAuto(ctx, pathImg, path.auto, x, y, (dx, dy) => onPath(x + dx, y + dy));
     }
   }
-  groundLayer = canvas;
+  return canvas;
+}
+
+// Intérieur : sol en motif (3 × 3 tuiles), mur du fond (lambris + soubassement), murs
+// latéraux et du bas vus de dessus, seuil de la porte, tapis.
+function roomGround(room) {
+  const obj = sheet('interiors_obj');
+  if (!obj) return null;
+  const { w, h } = room;
+  const canvas = document.createElement('canvas');
+  canvas.width = w * TILE;
+  canvas.height = h * TILE;
+  const ctx = canvas.getContext('2d');
+  const tileOf = (art, x, y) => {
+    const cols = art[3] / TILE;
+    const rows = art[4] / TILE;
+    ctx.drawImage(obj, art[1] + (x % cols) * TILE, art[2] + (y % rows) * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+  };
+  const floor = INTERIOR_ART.floors[room.floor] ?? INTERIOR_ART.floors.wood;
+  for (let y = 2; y < h; y++) for (let x = 0; x < w; x++) tileOf(floor, x, y);
+  for (let x = 0; x < w; x++) {
+    ctx.drawImage(obj, INTERIOR_ART.wallTop[1] + (x % 3) * TILE, INTERIOR_ART.wallTop[2], TILE, TILE, x * TILE, 0, TILE, TILE);
+    ctx.drawImage(obj, INTERIOR_ART.wallBottom[1] + (x % 3) * TILE, INTERIOR_ART.wallBottom[2], TILE, TILE, x * TILE, TILE, TILE, TILE);
+  }
+  // Murs vus de dessus : bandeau sombre bordé d'une arête claire côté pièce.
+  const wallTile = (x, y, edge) => {
+    ctx.fillStyle = '#2b1d14';
+    ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+    ctx.fillStyle = '#6b4a30';
+    if (edge === 'right') ctx.fillRect(x * TILE + TILE - 3, y * TILE, 3, TILE);
+    if (edge === 'left') ctx.fillRect(x * TILE, y * TILE, 3, TILE);
+    if (edge === 'top') ctx.fillRect(x * TILE, y * TILE, TILE, 3);
+  };
+  for (let y = 0; y < h; y++) { wallTile(0, y, 'right'); wallTile(w - 1, y, 'left'); }
+  for (let x = 1; x < w - 1; x++) if (x !== room.exit) wallTile(x, h - 1, 'top');
+  // Seuil : paillasson devant la porte, lumière du dehors.
+  ctx.fillStyle = 'rgba(255, 236, 170, 0.35)';
+  ctx.fillRect(room.exit * TILE, (h - 1) * TILE, TILE, TILE);
+  ctx.fillStyle = '#7a3b24';
+  ctx.fillRect(room.exit * TILE + 2, (h - 2) * TILE + 10, TILE - 4, 5);
+  for (const f of room.furniture) {
+    if (f.layer !== 'floor') continue;
+    const { cols } = sizeOf(f);
+    const [, sx, sy, fw, fh] = f.img;
+    ctx.drawImage(obj, sx, sy, fw, fh, f.x * TILE + (cols * TILE - fw) / 2, (f.bottom + 1) * TILE - fh, fw, fh);
+  }
   return canvas;
 }
 
@@ -266,11 +376,12 @@ function draw(canvas, now) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   const size = TILE * SCALE;
+  const sc = scene();
   const cam = camera(canvas, now);
-  ctx.fillStyle = '#4f7a4a';
+  ctx.fillStyle = sc.id === 'village' ? '#4f7a4a' : '#120c08';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const layer = ground();
-  if (layer) ctx.drawImage(layer, cam.x / SCALE, cam.y / SCALE, canvas.width / SCALE, canvas.height / SCALE, 0, 0, canvas.width, canvas.height);
+  const layer = ground(sc);
+  if (layer) ctx.drawImage(layer, -cam.x, -cam.y, layer.width * SCALE, layer.height * SCALE);
 
   // Tout ce qui a de la hauteur est trié par la ligne de ses pieds (les plus bas devant).
   const items = [];
@@ -281,25 +392,31 @@ function draw(canvas, now) {
     const sy = (bottom + 1) * size - image[4] * SCALE - cam.y;
     items.push({ y, draw: () => blit(ctx, image, sx, sy) });
   };
-  for (const b of VILLAGE.buildings) {
-    const sx = b.x * size - cam.x;
-    const sy = (b.bottom + 1) * size - b.img[4] * SCALE - cam.y;
-    items.push({ y: b.bottom, draw: () => {
-      blit(ctx, b.img, sx, sy);
-      for (const d of b.decor ?? []) blit(ctx, d.img, sx + d.dx * SCALE, sy + d.dy * SCALE);
-    } });
-  }
-  for (const o of VILLAGE.props) placed(o.img, o.x, o.bottom);
-  for (const [x, y, v] of VILLAGE.trees) {
-    const tree = VILLAGE_ART.trees[v % VILLAGE_ART.trees.length];
-    const sx = (x + 0.5) * size - (tree[3] / 2) * SCALE - cam.x;
-    const sy = (y + 1) * size - tree[4] * SCALE - cam.y;
-    items.push({ y, draw: () => blit(ctx, tree, sx, sy) });
+  if (sc.id === 'village') {
+    for (const b of VILLAGE.buildings) {
+      const sx = b.x * size - cam.x;
+      const sy = (b.bottom + 1) * size - b.img[4] * SCALE - cam.y;
+      items.push({ y: b.bottom, draw: () => {
+        blit(ctx, b.img, sx, sy);
+        for (const d of b.decor ?? []) blit(ctx, d.img, sx + d.dx * SCALE, sy + d.dy * SCALE);
+      } });
+    }
+    for (const o of VILLAGE.props) placed(o.img, o.x, o.bottom);
+    for (const s of VILLAGE.signs) items.push({ y: s.y, draw: () => drawSign(ctx, s, cam, size) });
+    for (const [x, y, v] of VILLAGE.trees) {
+      const tree = VILLAGE_ART.trees[v % VILLAGE_ART.trees.length];
+      const sx = (x + 0.5) * size - (tree[3] / 2) * SCALE - cam.x;
+      const sy = (y + 1) * size - tree[4] * SCALE - cam.y;
+      items.push({ y, draw: () => blit(ctx, tree, sx, sy) });
+    }
+  } else {
+    // Objets adossés au mur du fond d'abord, puis par ligne.
+    for (const f of sc.place.furniture) if (f.layer !== 'floor') placed(f.img, f.x, f.bottom, f.bottom - (f.block === 'none' ? 0.5 : 0));
   }
   const p = pos();
   const hp = currentPos(now);
-  const near = VILLAGE.npcs.filter((n) => Math.abs(n.x - p.x) + Math.abs(n.y - p.y) <= 3);
-  for (const npc of VILLAGE.npcs) {
+  const near = sc.npcs.filter((n) => Math.abs(n.x - p.x) + Math.abs(n.y - p.y) <= 3);
+  for (const npc of sc.npcs) {
     const dir = near.includes(npc) ? faceTowards(npc, p) : 'down';
     items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, sprite: NPC_SPRITES[npc.id], shadow: NPC_SPRITES[npc.id]?.kind === 'hero' }) });
   }
@@ -312,9 +429,32 @@ function draw(canvas, now) {
   });
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 
-  // Nom et rôle des habitants proches, au-dessus de leur tête.
-  const target = talkTarget(p, FACING[p.dir]);
+  // Nom et rôle des habitants proches, au-dessus de leur tête ; nom de la maison devant
+  // un panneau.
+  const target = talkTarget(p, FACING[p.dir], sc);
+  if (sc.id === 'village') {
+    for (const s of VILLAGE.signs) {
+      if (Math.abs(s.x - p.x) + Math.abs(s.y - p.y) > 2) continue;
+      const house = VILLAGE.buildings.find((b) => b.id === s.house);
+      const home = VILLAGE.npcs.filter((n) => n.home === s.house);
+      const inside = home.length && home.every((n) => p.residents[n.id] === 'home');
+      bubble(ctx, (s.x + 0.5) * size - cam.x, s.y * size - cam.y - size * 0.3, [house.name, inside ? 'À l\'intérieur — entrez par la porte' : 'Entrez par la porte'], false, size);
+    }
+  }
   for (const npc of near) label(ctx, npc, npc === target, cam, size);
+}
+
+// Panneau devant une maison : planche sur son poteau, icône du métier peinte dessus.
+function drawSign(ctx, s, cam, size) {
+  const board = VILLAGE_ART.signBoard;
+  const sx = (s.x + 0.5) * size - (board[3] / 2) * SCALE - cam.x;
+  const sy = (s.y + 1) * size - board[4] * SCALE - cam.y;
+  blit(ctx, board, sx, sy);
+  const icons = image('icons/raven16');
+  if (!isReady(icons)) return;
+  const d = 12 * SCALE;
+  ctx.drawImage(icons, (s.icon % 16) * 16, Math.floor(s.icon / 16) * 16, 16, 16,
+    Math.round((s.x + 0.5) * size - d / 2 - cam.x), Math.round(sy + (board[4] * SCALE - d) / 2 - 2), d, d);
 }
 
 function faceTowards(npc, p) {
@@ -325,9 +465,12 @@ function faceTowards(npc, p) {
 }
 
 function label(ctx, npc, active, cam, size) {
-  const cx = (npc.x + 0.5) * size - cam.x;
-  const top = npc.y * size - cam.y - size * 1.9;
   const lines = [npc.name, npc.service ? VILLAGE_SERVICES[npc.service] + (active ? ' — Espace pour parler' : '') : `« ${npc.line} »`];
+  bubble(ctx, (npc.x + 0.5) * size - cam.x, npc.y * size - cam.y - size * 1.9, lines, active, size);
+}
+
+// Bulle de deux lignes centrée en `cx`, bas en `top`.
+function bubble(ctx, cx, top, lines, active, size) {
   ctx.font = `bold ${Math.round(size * 0.3)}px sans-serif`;
   const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + size * 0.4;
   const h = size * 0.85;
