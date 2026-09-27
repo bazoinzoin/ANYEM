@@ -13,7 +13,7 @@ import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
 import { staticLayer, themeOf, TILE } from './mapThemes.js';
-import { drawActor } from './actors.js';
+import { drawActor, PLAYER } from './actors.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
 const VIEW_W = 21;         // cases visibles (largeur × hauteur)
@@ -26,7 +26,7 @@ const ENCOUNTER_MS = 400;  // le monstre touché reste visible un instant avant 
 let walk = null;
 let busy = false; // combat en cours de déclenchement
 // Animation : positions affichées (interpolées) du groupe et des monstres.
-const anim = { map: null, party: null, dir: 'down', mobs: new Map(), highlight: null };
+const anim = { map: null, party: null, dir: 'down', facing: 'right', mobs: new Map(), highlight: null };
 let frameRequested = false;
 
 function stopWalk() {
@@ -91,6 +91,7 @@ const DIR_NAMES = { '1,0': 'right', '-1,0': 'left', '0,1': 'down', '0,-1': 'up' 
 function step(dx, dy) {
   if (busy || state.screen !== 'dungeon' || !canExplore(state)) return false;
   anim.dir = DIR_NAMES[`${dx},${dy}`] ?? anim.dir;
+  if (dx) anim.facing = dx > 0 ? 'right' : 'left';
   const r = stepParty(state, dx, dy);
   syncAnim();
   requestFrame();
@@ -311,7 +312,7 @@ function drawMob(ctx, mob, p, at, size) {
 // Héros : sprite animé (marche pendant un pas, attente sinon), pieds au bas de la case.
 function drawHero(ctx, p, at, now) {
   const [sx, sy] = at(p.x, p.y);
-  drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: anim.dir, moving: p.moving, now });
+  drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: anim.dir, facing: anim.facing, moving: p.moving, now, sprite: PLAYER });
 }
 
 // Neige qui tombe (Pics gelés) : flocons en espace monde, qui dérivent doucement, et

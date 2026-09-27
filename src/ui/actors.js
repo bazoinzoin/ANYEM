@@ -1,5 +1,6 @@
-// Personnages sur les cartes (expédition, village) : sprite du pack Fan-tasy animé
-// (marche pendant un pas, attente sinon), et variantes de couleurs pour les habitants.
+// Personnages sur les cartes (expédition, village) : sprites animés (marche pendant un
+// pas, attente sinon). Joueur : paladin (PLAYER) ; habitants : héros du pack Fan-tasy
+// (HERO) en variantes de couleurs.
 
 import { image, isReady } from './sprites.js';
 import { rgbToHsl, hslToRgb } from './recolor.js';
@@ -52,26 +53,53 @@ export function tintedSheet(key, look) {
   return canvas;
 }
 
+// Personnage du joueur : paladin en pixel art (planche 32 × 32, de profil uniquement :
+// retourné vers la gauche, il garde son dernier profil quand il monte ou descend).
+export const PLAYER = {
+  sheet: 'custom/paladin_spritesheet',
+  frameW: 32,
+  frameH: 32,
+  sideOnly: true,
+  anims: { idle: { row: 0, frames: 4, ms: 200 }, walk: { row: 1, frames: 6, ms: 100 } },
+  footOffset: -1,
+};
+
 /**
  * Dessine un personnage pieds au bas de la case dont le coin haut-gauche est (sx, sy)
  * (pixels d'écran, case de `size` px, zoom `scale`), avec son ombre.
+ * `sprite` : PLAYER, ou HERO (planches du pack, 4 directions, recolorables par `look`).
+ * `facing` : dernier profil ('left' | 'right') pour un sprite de profil uniquement.
  */
-export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', moving = false, now, look = null }) {
+export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, now, look = null, sprite = HERO }) {
   ctx.fillStyle = 'rgba(0,0,0,.35)';
   ctx.beginPath();
   ctx.ellipse(sx + size / 2, sy + size * 0.88, size * 0.34, size * 0.13, 0, 0, Math.PI * 2);
   ctx.fill();
-  const sheet = tintedSheet(moving ? HERO.walk : HERO.idle, look);
+  let sheet;
+  let row;
+  let frames;
+  let ms;
+  let flip;
+  if (sprite.sideOnly) {
+    sheet = image(sprite.sheet);
+    ({ row, frames, ms } = sprite.anims[moving ? 'walk' : 'idle']);
+    flip = (dir === 'left' || dir === 'right' ? dir : facing) === 'left';
+  } else {
+    sheet = tintedSheet(moving ? sprite.walk : sprite.idle, look);
+    row = sprite.rows[dir];
+    frames = sprite.frames;
+    ms = moving ? 90 : 200;
+    flip = dir === 'left';
+  }
   if (!sheet || (sheet instanceof HTMLImageElement && !isReady(sheet))) return;
-  const { frameW, frameH, frames, rows } = HERO;
-  const frameIndex = Math.floor(now / (moving ? 90 : 200)) % frames;
-  const row = rows[dir];
+  const { frameW, frameH } = sprite;
+  const frameIndex = Math.floor(now / ms) % frames;
   const w = frameW * scale;
   const h = frameH * scale;
   const dx = Math.round(sx + size / 2 - w / 2);
-  const dy = Math.round(sy + size - h + HERO.footOffset * scale);
+  const dy = Math.round(sy + size - h + sprite.footOffset * scale);
   ctx.save();
-  if (dir === 'left') {
+  if (flip) {
     ctx.translate(dx + w, dy);
     ctx.scale(-1, 1);
     ctx.drawImage(sheet, frameIndex * frameW, row * frameH, frameW, frameH, 0, 0, w, h);

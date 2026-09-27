@@ -8,7 +8,7 @@ import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk } fro
 import { stepToward } from '../game/floorMap.js';
 import { blobTile } from './autotile.js';
 import { image, isReady } from './sprites.js';
-import { drawActor } from './actors.js';
+import { drawActor, PLAYER } from './actors.js';
 
 const TILE = 16;
 const SCALE = 3;
@@ -94,6 +94,7 @@ function step(dx, dy) {
   if (state.screen !== 'hub') return false;
   const p = pos();
   p.dir = DIRS[`${dx},${dy}`] ?? p.dir;
+  if (dx) p.facing = dx > 0 ? 'right' : 'left';
   const r = villageStep(p, dx, dy);
   if (!r.moved) {
     requestFrame();
@@ -284,7 +285,7 @@ function draw(canvas, now) {
     const dir = near.includes(npc) ? faceTowards(npc, p) : 'down';
     items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look }) });
   }
-  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, moving: hp.moving, now }) });
+  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, now, sprite: PLAYER }) });
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 
   // Nom et rôle des habitants proches, au-dessus de leur tête.
