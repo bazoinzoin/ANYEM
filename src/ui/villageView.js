@@ -10,7 +10,8 @@ import { stepToward } from '../game/floorMap.js';
 import { sheet, drawFloorAuto } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
-import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
+import { NPC_SPRITES } from './spriteCatalog.js';
+import { heroSprite } from './heroSprite.js';
 import { clampView, fitCanvas } from './viewport.js';
 
 const TILE = 16;
@@ -149,7 +150,7 @@ function walkTo(target) {
   stopWalk();
   const grid = villageGrid();
   const map = { w: grid.w, h: grid.h, tiles: grid.tiles.map((t, i) => (t && !npcAt(i % grid.w, Math.floor(i / grid.w)) ? 1 : 0)) };
-  const npc = target.service ? target : null;
+  const npc = target.name ? target : null; // un habitant (avec ou sans service)
   const goals = npc ? spotsNextTo(npc) : canWalk(target.x, target.y) ? [target] : [];
   if (!goals.length) return;
   walk = { timer: null };
@@ -300,9 +301,8 @@ function draw(canvas, now) {
   const near = VILLAGE.npcs.filter((n) => Math.abs(n.x - p.x) + Math.abs(n.y - p.y) <= 3);
   for (const npc of VILLAGE.npcs) {
     const dir = near.includes(npc) ? faceTowards(npc, p) : 'down';
-    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look, sprite: NPC_SPRITES[npc.id] }) });
+    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, sprite: NPC_SPRITES[npc.id], shadow: NPC_SPRITES[npc.id]?.kind === 'hero' }) });
   }
-  const heroSprite = (hero) => CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
   items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, stride: hp.n, progress: hp.k, now, sprite: heroSprite(state.party[0]) }) });
   anim.followers.forEach((f, i) => {
     const hero = state.party[i + 1];
@@ -327,7 +327,7 @@ function faceTowards(npc, p) {
 function label(ctx, npc, active, cam, size) {
   const cx = (npc.x + 0.5) * size - cam.x;
   const top = npc.y * size - cam.y - size * 1.9;
-  const lines = [npc.name, VILLAGE_SERVICES[npc.service] + (active ? ' — Espace pour parler' : '')];
+  const lines = [npc.name, npc.service ? VILLAGE_SERVICES[npc.service] + (active ? ' — Espace pour parler' : '') : `« ${npc.line} »`];
   ctx.font = `bold ${Math.round(size * 0.3)}px sans-serif`;
   const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + size * 0.4;
   const h = size * 0.85;

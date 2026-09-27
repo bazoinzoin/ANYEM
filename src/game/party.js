@@ -12,6 +12,7 @@ import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
 import { generateItem, itemStats } from './items.js';
 import { talentEffects } from './talents.js';
+import { sanitizeLook } from './appearance.js';
 
 export function getClass(hero) {
   return CLASSES[hero.classKey];
@@ -133,7 +134,7 @@ export function gainXp(hero, amount) {
   return levels;
 }
 
-export function createHero(classKey, name) {
+export function createHero(classKey, name, look = null) {
   const cls = CLASSES[classKey];
   const hero = {
     classKey,
@@ -148,6 +149,7 @@ export function createHero(classKey, name) {
     position: cls.position ?? 'melee', // position de combat choisie (écran Stratégie)
     equipment: {},
     talents: {},
+    look: sanitizeLook(look, classKey), // apparence (data/appearance.js)
   };
   for (const piece of cls.starterKit) {
     const item = generateItem({ level: 1, rarity: 'commun', ...piece });
@@ -158,8 +160,9 @@ export function createHero(classKey, name) {
 }
 
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
-export function createParty(names = [], classes = PARTY_ORDER) {
-  return classes.map((key, i) => createHero(key, names[i]?.trim()));
+// `looks` : apparences choisies à la création (défaut : celle de chaque classe).
+export function createParty(names = [], classes = PARTY_ORDER, looks = []) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i]));
 }
 
 export function gainResource(hero, amount) {

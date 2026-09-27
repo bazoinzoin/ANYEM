@@ -93,17 +93,20 @@ export const VILLAGE = {
     [23, 29, 2], [26, 29, 0], [29, 29, 1], [32, 29, 2], [35, 29, 0], [38, 29, 1], [39, 24, 2], [39, 18, 0], [39, 7, 1], [39, 3, 2],
     [22, 3, 0], [25, 2, 1], [23, 7, 2], [16, 2, 1], [36, 20, 1],
   ],
-  // Habitants : un par service.
+  // Habitants : un par service, et quelques villageois qui n'ont qu'une phrase (`line`).
   npcs: [
     { id: 'inn', name: 'Brunhild l\'aubergiste', service: 'inn', x: 5, y: 13 },
     { id: 'forge', name: 'Borin le forgeron', service: 'forge', x: 29, y: 12 },
     { id: 'bank', name: 'Mathis le banquier', service: 'bank', x: 8, y: 25 },
-    { id: 'shop', name: 'Lisa la marchande', service: 'merchant', x: 32, y: 26 },
+    { id: 'shop', name: 'Lars le marchand', service: 'merchant', x: 32, y: 26 },
     { id: 'runes', name: 'Ysolde la runomancienne', service: 'runes', x: 21, y: 17 },
     { id: 'master', name: 'Maître Aldric', service: 'talents', x: 19, y: 12 },
     { id: 'hunter', name: 'Garrec le traqueur', service: 'bestiary', x: 27, y: 22 },
     { id: 'oracle', name: 'L\'Oracle', service: 'difficulty', x: 14, y: 16 },
     { id: 'guard', name: 'Garde de la porte', service: 'portals', x: 21, y: 29 },
+    { id: 'fisher', name: 'Gaspard le pêcheur', service: null, line: 'Ça ne mord pas, aujourd\'hui…', x: 1, y: 21 },
+    { id: 'kid1', name: 'Tom', service: null, line: 'Un jour, je serai aventurier !', x: 25, y: 18 },
+    { id: 'kid2', name: 'Lina', service: null, line: 'Tu as déjà vu un dragon ?', x: 27, y: 17 },
   ],
   // Franchir la porte (ligne du bas) ouvre aussi les portails.
   gateExit: [{ x: 18, y: 29 }, { x: 19, y: 29 }, { x: 20, y: 29 }],

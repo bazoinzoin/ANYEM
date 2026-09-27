@@ -7,7 +7,7 @@ import { statusesOf } from '../game/statuses.js';
 import { pointsAvailable } from '../game/talents.js';
 import { esc } from './html.js';
 import { iconHtml, effectIcon } from './icons.js';
-import { portrait } from './portraits.js';
+import { heroPortrait } from './portraits.js';
 
 const pct = (v, max) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
 const meter = (kind, v, max) => `<span class="meter ${kind}"><span class="fill" style="width:${pct(v, max)}%"></span></span>`;
@@ -22,7 +22,7 @@ export function partyHud(party, { resource = false } = {}) {
     const debuffs = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
     return `
       <button class="hud-hero ${hero.alive ? '' : 'dead'}" data-hud-hero="${i}" style="--c:${cls.color}" title="${esc(`${hero.name} — ${cls.name} niveau ${hero.level} · ${STATS[cls.mainStat].label}`)}">
-        ${portrait(`classe:${hero.classKey}`, 2)}
+        ${heroPortrait(hero, 2)}
         <span class="hud-hero-info">
           <b>${esc(hero.name)} ${points ? `<span class="badge">${points}</span>` : ''}</b>
           <small>niv. ${hero.level}${hero.alive ? '' : ' · tombé'}</small>

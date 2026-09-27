@@ -7,7 +7,6 @@
 // Le canvas occupe tout l'écran d'expédition (fitCanvas), l'interface est posée dessus.
 
 import { state } from '../state.js';
-import { ENEMIES } from '../data/enemies.js';
 import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
@@ -15,7 +14,8 @@ import { startFloor } from './encounter.js';
 import { staticLayer, themeOf, TILE } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
-import { CLASS_SPRITES, ENEMY_SPRITES } from './spriteCatalog.js';
+import { heroSprite } from './heroSprite.js';
+import { enemySprite, mobScale, mobTier } from './mobSprites.js';
 import { clampView, fitCanvas } from './viewport.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
@@ -304,26 +304,19 @@ function draw(canvas, now) {
 function drawMob(ctx, mob, p, dir, at, size, now) {
   const [sx, sy] = at(p.x, p.y);
   const cx = sx + size / 2;
-  const cy = sy + size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.ellipse(cx, sy + size * 0.85, size * 0.38, size * 0.14, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const lead = leadOf(mob);
   if (mob.boss || mob.id === anim.highlight) {
     ctx.strokeStyle = mob.id === anim.highlight ? '#fff' : '#f0c060';
     ctx.lineWidth = SCALE;
     ctx.beginPath();
-    ctx.ellipse(cx, sy + size * 0.85, size * 0.46, size * 0.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, sy + size * 0.9, size * 0.46, size * 0.2, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
-  const sprite = ENEMY_SPRITES[mob.enemies[0]];
+  // Le plus fort du groupe le représente ; élites et boss sont dessinés plus grands.
+  const sprite = enemySprite(lead);
   if (sprite) {
-    drawActor(ctx, { sx, sy, size, scale: SCALE, dir, moving: p.moving, stride: p.n, progress: p.k, now: now + mob.x * 53, sprite, shadow: false });
-  } else {
-    ctx.font = `${Math.round(size * (mob.boss ? 0.95 : 0.78))}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(ENEMIES[mob.enemies[0]].icon, cx, cy);
+    const scale = mobScale(lead, SCALE, size * 2.2);
+    drawActor(ctx, { sx, sy, size, scale, dir, moving: p.moving, stride: p.n, progress: p.k, now: now + mob.x * 53, sprite, shadow: false });
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -339,10 +332,16 @@ function drawMob(ctx, mob, p, dir, at, size, now) {
   }
 }
 
-// Héros : sprite de sa classe (marche pendant un pas, attente sinon), pieds au bas de la case.
+// Monstre qui représente un groupe sur la carte : boss, sinon élite, sinon le premier.
+function leadOf(mob) {
+  const rank = { boss: 2, elite: 1, normal: 0 };
+  return mob.enemies.reduce((best, key) => (rank[mobTier(key)] > rank[mobTier(best)] ? key : best), mob.enemies[0]);
+}
+
+// Héros : son apparence (marche pendant un pas, attente sinon), pieds au bas de la case.
 function drawHero(ctx, hero, p, dir, at, now) {
   const [sx, sy] = at(p.x, p.y);
-  const sprite = CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
+  const sprite = heroSprite(hero);
   drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: dir ?? 'down', facing: anim.facing, moving: p.moving, stride: p.n, progress: p.k, now, sprite });
 }
 

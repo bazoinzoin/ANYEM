@@ -71,7 +71,7 @@ test('bestiaire : rencontre notée une fois par combat, ennemis vaincus comptés
   recordKills(game, [a, b]);
   assert.equal(bestiaryOf(game).loup.kills, 1);
   assert.ok(isDiscovered(game, 'gobelin'));
-  assert.equal(isDiscovered(game, 'araignee'), false);
+  assert.equal(isDiscovered(game, 'serpentAile'), false);
 });
 
 test('bestiaire : victoire et défaite en expédition comptent les vaincus', () => {
@@ -112,8 +112,8 @@ test('stats du bestiaire = stats de combat (hors Vitesse tirée au hasard)', () 
 });
 
 test('bestiaire : niveaux où la créature apparaît dans la zone', () => {
-  assert.deepEqual(levelRange('foretMaudite', 'gobelin'), { minLevel: 1, maxLevel: 10 });
-  assert.deepEqual(levelRange('foretMaudite', 'araignee'), { minLevel: 4, maxLevel: 10 });
+  assert.deepEqual(levelRange('foretMaudite', 'gobelin'), { minLevel: 1, maxLevel: 6 });
+  assert.deepEqual(levelRange('foretMaudite', 'serpentAile'), { minLevel: 4, maxLevel: 10 });
   assert.deepEqual(levelRange('foretMaudite', 'chefGobelin'), { minLevel: 1, maxLevel: 3 });
   assert.equal(levelRange('foretMaudite', 'liche'), null);
 });

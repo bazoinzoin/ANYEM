@@ -8,7 +8,8 @@ import { setupDebugGame } from '../../game/debug.js';
 import { goTo, showHub } from '../router.js';
 import { sheet, drawFloorAuto } from '../mapThemes.js';
 import { drawActor } from '../actors.js';
-import { CLASS_SPRITES } from '../spriteCatalog.js';
+import { CLASS_LOOKS } from '../../data/appearance.js';
+import { lookSprite } from '../heroSprite.js';
 import { esc } from '../html.js';
 
 const MENU = [
@@ -194,7 +195,7 @@ function drawScene(ctx, now) {
   const fire = FIRE_FRAMES[Math.floor(now / 140) % FIRE_FRAMES.length];
   items.push({ y: FIRE.y, draw: () => blit(ctx, fire, FIRE.x * TILE, (FIRE.y + 1) * TILE - fire[4]) });
   for (const [cls, x, y, dir] of CAMP) {
-    items.push({ y, draw: () => drawActor(ctx, { sx: x * TILE, sy: y * TILE, size: TILE, scale: 1, dir, now, sprite: CLASS_SPRITES[cls] }) });
+    items.push({ y, draw: () => drawActor(ctx, { sx: x * TILE, sy: y * TILE, size: TILE, scale: 1, dir, now, sprite: lookSprite(CLASS_LOOKS[cls]) }) });
   }
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 

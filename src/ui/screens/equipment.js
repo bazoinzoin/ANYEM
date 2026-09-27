@@ -20,7 +20,7 @@ import { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, CLASS_ICONS, GOLD_IC
 import { SLOT_ART, assetUrl } from '../skin.js';
 import { BAG_TABS, bagItems, paginate } from '../bagView.js';
 import { drawActor } from '../actors.js';
-import { CLASS_SPRITES } from '../spriteCatalog.js';
+import { heroSprite } from '../heroSprite.js';
 import { openTalents } from './talents.js';
 
 // État propre à l'écran : héros affiché, onglet et page du sac, objet choisi
@@ -117,7 +117,7 @@ function drawHero(canvas, hero) {
   const draw = (now) => {
     if (!canvas.isConnected) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawActor(ctx, { sx: 0, sy: 0, size: 96, scale: 4, dir: 'down', now, sprite: CLASS_SPRITES[hero.classKey] ?? CLASS_SPRITES.paladin });
+    drawActor(ctx, { sx: 0, sy: 0, size: 96, scale: 4, dir: 'down', now, sprite: heroSprite(hero) });
     requestAnimationFrame(draw);
   };
   requestAnimationFrame(draw);

@@ -14,7 +14,7 @@ import { equipmentTooltip, itemName } from '../items.js';
 import { goTo } from '../router.js';
 import { iconHtml, itemIcon } from '../icons.js';
 import { frame, wireFrame } from '../screenFrame.js';
-import { portrait, drawPortraits } from '../portraits.js';
+import { portrait, heroPortrait, drawPortraits } from '../portraits.js';
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
@@ -147,7 +147,7 @@ function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = 
   const pv = getStats(hero).pv;
   return `
     <button ${attr} class="inn-hero ${selected ? 'selected' : ''} ${clickable ? 'clickable' : ''}" style="--c:${cls.color}" ${clickable && !rosterLockedReason(state) ? '' : 'disabled'} title="${esc(equipmentTooltip(hero))}">
-      ${portrait(`classe:${hero.classKey}`, 3)}
+      ${heroPortrait(hero, 3)}
       <span class="inn-hero-info">
         <b>${esc(hero.name)}</b>
         <small>${esc(cls.name)} · niv. ${hero.level}</small>

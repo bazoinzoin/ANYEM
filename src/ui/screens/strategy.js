@@ -10,7 +10,7 @@ import { esc } from '../html.js';
 import { goTo } from '../router.js';
 import { iconHtml, itemIcon, POSITION_ICONS } from '../icons.js';
 import { frame, wireFrame } from '../screenFrame.js';
-import { portrait, drawPortraits } from '../portraits.js';
+import { heroPortrait, drawPortraits } from '../portraits.js';
 
 export function renderStrategy(app) {
   app.innerHTML = frame({
@@ -44,7 +44,7 @@ function heroColumn(hero, i) {
   return `
     <section class="win strat-hero" style="--c:${getClass(hero).color}">
       <h3>${esc(hero.name)} <small>${esc(cls.name)} · niv. ${hero.level}</small></h3>
-      <div class="strat-portrait ${hero.position}">${portrait(`classe:${hero.classKey}`, 5)}</div>
+      <div class="strat-portrait ${hero.position}">${heroPortrait(hero, 5)}</div>
       <p class="strat-weapon">${weapon ? iconHtml(itemIcon(weapon), 32) : ''} ${esc(weaponName)} <small>(${RANGE_LABELS[range].toLowerCase()}) · Riposte ${getStats(hero).riposte} %</small></p>
       <div class="strat-choice">
         ${POSITIONS.map((p) => `<button data-hero="${i}" data-pos="${p}" class="choice ${hero.position === p ? 'selected' : ''}">${iconHtml(POSITION_ICONS[p], 32)}<span>${RANGE_LABELS[p]}</span></button>`).join('')}

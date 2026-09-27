@@ -1,5 +1,6 @@
-// Création de l'équipe, plein écran : quatre colonnes (une par héros) avec portrait,
-// choix de la classe en portraits, nom, ressource et orientations. « Détails » ouvre une
+// Création de l'équipe, plein écran : quatre colonnes (une par héros) avec l'aperçu animé
+// du personnage, son nom, sa classe et son apparence (coupe, couleur des cheveux, yeux,
+// peau, haut et bas du corps : data/appearance.js). « Classes et légendaires » ouvre une
 // fenêtre à deux onglets : le détail d'une classe (stats, sorts et équipement de départ,
 // orientations) et tous les légendaires en icônes.
 
@@ -19,10 +20,17 @@ import { goTo } from '../router.js';
 import { iconHtml, itemIcon, branchIcon, skillIconIndex, CLASS_ICONS } from '../icons.js';
 import { frame, wireFrame, itemDetail } from '../screenFrame.js';
 import { portrait, drawPortraits } from '../portraits.js';
+import { LOOK_PARTS, BODIES, TOPS } from '../../data/appearance.js';
+import { defaultLook, cycleLook, randomLook, lookKey } from '../../game/appearance.js';
+import { lookSprite } from '../heroSprite.js';
+import { drawActor } from '../actors.js';
 
 // Choix en cours (classes et noms), conservés quand on change une classe.
 // Détails ouverts : { tab: 'classes' | 'legendaries', classKey } ou null.
-const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), details: null };
+const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), looks: PARTY_ORDER.map(defaultLook), details: null };
+
+// Parties de l'apparence, dans l'ordre de l'écran.
+const PART_LABELS = { hair: 'Coupe', hairColor: 'Cheveux', eyes: 'Yeux', skin: 'Peau', top: 'Haut', bottom: 'Bas' };
 
 export function renderCreate(app) {
   app.innerHTML = `${frame({
@@ -32,6 +40,7 @@ export function renderCreate(app) {
       <button id="startBtn" class="btn-primary">Commencer l'aventure</button>`,
     body: draft.classes.map(heroColumn).join(''),
   })}${draft.details ? detailsWindow() : ''}`;
+  app.querySelectorAll('canvas[data-preview]').forEach((c) => animatePreview(c, draft.looks[Number(c.dataset.preview)]));
 
   const rerender = (change) => () => {
     readNames(app);
@@ -45,8 +54,22 @@ export function renderCreate(app) {
       const i = Number(btn.dataset.classSlot);
       // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
       if (draft.names[i] === CLASSES[draft.classes[i]].name) draft.names[i] = CLASSES[btn.dataset.class].name;
+      // Apparence encore celle de l'ancienne classe : elle suit aussi.
+      if (lookKey(draft.looks[i]) === lookKey(defaultLook(draft.classes[i]))) draft.looks[i] = defaultLook(btn.dataset.class);
       draft.classes[i] = btn.dataset.class;
     });
+  });
+  app.querySelectorAll('[data-look]').forEach((btn) => {
+    btn.onclick = rerender(() => {
+      const [i, part, step] = btn.dataset.look.split(':');
+      draft.looks[i] = cycleLook(draft.looks[i], part, Number(step));
+    });
+  });
+  app.querySelectorAll('[data-random]').forEach((btn) => {
+    btn.onclick = rerender(() => { draft.looks[Number(btn.dataset.random)] = randomLook(); });
+  });
+  app.querySelectorAll('[data-reset]').forEach((btn) => {
+    btn.onclick = rerender(() => { const i = Number(btn.dataset.reset); draft.looks[i] = defaultLook(draft.classes[i]); });
   });
   app.querySelector('#detailsBtn').onclick = rerender(() => { draft.details = { tab: 'classes', classKey: draft.classes[0] }; });
   app.querySelector('#closeDetails')?.addEventListener('click', rerender(() => { draft.details = null; }));
@@ -63,7 +86,7 @@ export function renderCreate(app) {
   app.querySelector('#startBtn').onclick = () => {
     readNames(app);
     draft.details = null;
-    state.party = createParty(draft.names, draft.classes);
+    state.party = createParty(draft.names, draft.classes, draft.looks);
     goTo('hub');
   };
 }
@@ -74,18 +97,50 @@ function readNames(app) {
 
 function heroColumn(key, i) {
   const cls = CLASSES[key];
+  const look = draft.looks[i];
   return `
     <section class="win create-hero" style="--c:${cls.color}">
       <h3>Héros ${i + 1} · ${esc(cls.name)}</h3>
-      <div class="create-portrait">${portrait(`classe:${key}`, 5)}</div>
+      <div class="create-portrait"><canvas data-preview="${i}" width="120" height="130" class="portrait"></canvas></div>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].name)}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
-      <p class="create-meta">${esc(cls.resource.name)} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''}</p>
-      <div class="create-branches">${TALENTS[key].map((b) => `<span>${iconHtml(branchIcon(b), 16)} ${esc(b.name)}</span>`).join('')}</div>
-      <p class="hint create-desc">${esc(cls.desc)}</p>
+      <p class="create-meta" title="${esc(cls.desc)}">${esc(cls.resource.name)} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
+      <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
+      <div class="look-actions"><button data-random="${i}">Au hasard</button><button data-reset="${i}">Tenue de la classe</button></div>
     </section>`;
+}
+
+// Une ligne « Coupe ◀ Courts ▶ » avec un échantillon de couleur pour les teintes.
+function lookRow(i, look, part, label) {
+  const option = LOOK_PARTS[part][look[part]];
+  const name = typeof option === 'string' ? option : option.label;
+  const swatch = part === 'hairColor' || part === 'skin' ? option.ramp[0] : part === 'eyes' ? option.colors[1] : part === 'bottom' ? option.pants[1] : null;
+  const hidden = part === 'bottom' && BODIES[TOPS[look.top].body].robe;
+  return `
+    <div class="look-row ${hidden ? 'hidden-part' : ''}">
+      <span class="look-label">${label}</span>
+      <button class="look-step" data-look="${i}:${part}:-1" aria-label="${label} précédent">◀</button>
+      <span class="look-value">${swatch ? `<i class="swatch" style="background:${swatch}"></i>` : ''}${esc(name)}${hidden ? ' <small>(sous la robe)</small>' : ''}</span>
+      <button class="look-step" data-look="${i}:${part}:1" aria-label="${label} suivant">▶</button>
+    </div>`;
+}
+
+// Aperçu animé : le héros tourne sur lui-même en marchant.
+const DIRS = ['down', 'left', 'up', 'right'];
+function animatePreview(canvas, look) {
+  const sprite = lookSprite(look);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const draw = (now) => {
+    if (!canvas.isConnected) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dir = DIRS[Math.floor(now / 1600) % 4];
+    drawActor(ctx, { sx: 0, sy: -2, size: 120, scale: 5, dir, now, sprite, shadow: false, anim: 'walk' });
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
 }
 
 // ---- Fenêtre de détails ----

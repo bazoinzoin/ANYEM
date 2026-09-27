@@ -67,7 +67,7 @@ test('un boss tous les 5 étages, dans l\'ordre, avec des acolytes selon le pali
   assert.equal(isBossFloor('foretMaudite', 6), false);
   assert.deepEqual(encounterFor('foretMaudite', 5).enemies, ['chefGobelin']);
   const e10 = encounterFor('foretMaudite', 10);
-  assert.equal(e10.enemies[0], 'mereAraignee');
+  assert.equal(e10.enemies[0], 'ogre');
   assert.equal(e10.enemies.length, 2);
   assert.equal(encounterFor('foretMaudite', 15).enemies[0], 'reineSylvestre');
   assert.equal(encounterFor('foretMaudite', 15).final, true);
@@ -138,10 +138,10 @@ test('dernier étage : donjon terminé, expédition finie, donjon suivant annonc
   assert.equal(game.dungeonLvl, DUNGEONS.foretMaudite.maxLevel);
 });
 
-test('capacités ennemies : un boss peut empoisonner toute l\'équipe', () => {
+test('capacités ennemies : une abomination peut empoisonner toute l\'équipe', () => {
   setRandomSource(() => 0.1); // sous la chance de la première capacité
   const party = createParty();
-  const cb = createCombat({ party, enemies: ['mereAraignee'], level: 10 });
+  const cb = createCombat({ party, enemies: ['abomination'], level: 15 });
   const boss = cb.enemies[0];
   cb.acting = { side: 'enemy', unit: boss };
   const hp = party.map((h) => h.hp);
@@ -150,7 +150,7 @@ test('capacités ennemies : un boss peut empoisonner toute l\'équipe', () => {
     assert.ok(h.hp < hp[i], h.name);
     assert.ok(h.statuses.some((s) => s.key === 'poison'), h.name);
   });
-  assert.match(cb.log[0].text, /Pluie de venin/);
+  assert.match(cb.log[0].text, /Vomi putride/);
 });
 
 test('capacités ennemies : les acolytes d\'un boss sont renforcés par son cri', () => {
