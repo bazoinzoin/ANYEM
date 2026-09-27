@@ -7,6 +7,7 @@ import { ASSET_DATA } from './assetData.js';
 // Variable CSS → clé d'asset (assets/…).
 const IMAGES = {
   '--ui-icons': 'icons/raven16',
+  '--ui-equip-icons': 'icons/equipment',
   '--ui-box': 'ui/box_night',
   '--ui-box-light': 'ui/box_01B',
   '--ui-parch': 'ui/box_01A',

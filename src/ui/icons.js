@@ -7,8 +7,18 @@ import { CONSUMABLES } from '../data/consumables.js';
 
 const COLS = 16;
 
+// Planche des équipements (assets/icons/equipment.png) : une ligne par pièce, une colonne
+// par rareté (commun → divin). Ses icônes ont des numéros à partir de EQUIP_BASE.
+export const EQUIP_BASE = 100000;
+const EQUIP_COLS = 6;
+
 // Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
 export function iconHtml(index, size = 32, extra = '', title = '') {
+  if (index >= EQUIP_BASE) {
+    const i = index - EQUIP_BASE;
+    extra = `eq ${extra}`;
+    return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${(i % EQUIP_COLS) * size}px -${Math.floor(i / EQUIP_COLS) * size}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
+  }
   const x = (index % COLS) * size;
   const y = Math.floor(index / COLS) * size;
   return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
@@ -17,46 +27,21 @@ export function iconHtml(index, size = 32, extra = '', title = '') {
 // Rareté → variante (0 = commune … 5 = divine).
 const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
 
-// Armes : ligne des armes en fer ; +160 = acier bleu, +80 = or.
-const WEAPONS = { epee: 1447, epee2m: 1455, dague: 1443, hache: 1463, hache2m: 1465, masse: 1471, masse2m: 1476, baton: 1491, arc: 1482 };
-const WEAPON_TIER = [0, 0, 160, 160, 80, 80];
-
-// Armures : une icône par rareté, pour chaque pièce et chaque type.
-const ARMOR = {
-  lourde: {
-    casque: [1904, 1905, 1907, 1908, 1910, 1908],
-    epaulieres: [1820, 1820, 1818, 1817, 1821, 1817],
-    plastron: [1920, 1921, 1923, 1924, 1926, 1924],
-    gants: [2057, 2057, 2058, 2058, 2059, 2059],
-    bottes: [1936, 1937, 1939, 1940, 1942, 1940],
-  },
-  moyenne: {
-    casque: [2014, 2014, 2015, 2015, 2015, 2015],
-    epaulieres: [2069, 2070, 2071, 2072, 2073, 2073],
-    plastron: [2018, 2024, 2025, 2027, 2028, 2028],
-    gants: [2054, 2054, 2055, 2055, 2059, 2059],
-    bottes: [2034, 2040, 2041, 2043, 2044, 2044],
-  },
-  legere: {
-    casque: [1952, 1953, 1954, 1960, 1962, 1963],
-    epaulieres: [1819, 1819, 1818, 1818, 1821, 1821],
-    plastron: [1968, 1969, 1970, 1976, 1978, 1979],
-    gants: [2055, 2055, 2054, 2054, 2059, 2059],
-    bottes: [1984, 1985, 1986, 1992, 1994, 1995],
-  },
-};
-const JEWELS = {
-  anneau: [1842, 1843, 1846, 1845, 1844, 2061],
-  collier: [2065, 2064, 1849, 1848, 1847, 2181],
-};
+// Équipement : planche dédiée (une icône par pièce et par rareté). Lignes : casque, plastron,
+// épaulières, gants, bottes (léger, moyen, lourd chacun), puis les armes, puis les bijoux.
+const ARMOR_ROWS = { casque: 0, plastron: 3, epaulieres: 6, gants: 9, bottes: 12 };
+const ARMOR_WEIGHT = { legere: 0, moyenne: 1, lourde: 2 };
+const WEAPON_ROWS = { dague: 15, epee: 16, hache: 17, masse: 18, epee2m: 19, hache2m: 20, masse2m: 21, baton: 22, arc: 23 };
+const JEWEL_ROWS = { anneau: 24, collier: 25 };
+// Boucliers : planche Raven Fantasy (absents de la planche d'équipement).
 const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
 
 export function itemIcon(item) {
   const tier = TIER[item.rarity] ?? 0;
-  if (item.slotType === 'arme') return (WEAPONS[item.weaponType] ?? 1447) + WEAPON_TIER[tier];
   if (item.slotType === 'bouclier') return SHIELD[tier];
-  if (JEWELS[item.slotType]) return JEWELS[item.slotType][tier];
-  return ARMOR[item.armorType]?.[item.slotType]?.[tier] ?? 1920;
+  const row = item.slotType === 'arme' ? WEAPON_ROWS[item.weaponType] ?? WEAPON_ROWS.epee
+    : JEWEL_ROWS[item.slotType] ?? (ARMOR_ROWS[item.slotType] ?? ARMOR_ROWS.plastron) + (ARMOR_WEIGHT[item.armorType] ?? 2);
+  return EQUIP_BASE + row * EQUIP_COLS + tier;
 }
 
 // Consommables.
