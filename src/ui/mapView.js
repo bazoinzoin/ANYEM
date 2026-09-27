@@ -14,7 +14,8 @@ import { startFloor } from './encounter.js';
 import { staticLayer, themeOf, TILE, sheet } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
-import { heroSprite } from './heroSprite.js';
+import { heroSprite, lookSprite } from './heroSprite.js';
+import { EVENTS } from '../data/events.js';
 import { enemySprite, mobScale, mobTier } from './mobSprites.js';
 import { clampView, fitCanvas } from './viewport.js';
 
@@ -53,7 +54,7 @@ export function mapControls() {
       <button data-step="1,0" aria-label="Droite">▶</button>
       <button data-step="0,1" aria-label="Bas">▼</button>
     </div>
-    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Cercle violet = événement.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements.</p>
     ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }
 
@@ -226,6 +227,58 @@ function drawLadder(ctx, sx, sy, size, now) {
   for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u, ay + r * u, (5 - r) * 2 * u, u);
 }
 
+// Événements de la carte (data/events.js, `look`) : un objet (coffre, autel, source,
+// dépouille) ou un personnage, mis en valeur par un halo qui pulse et un « ! » qui flotte.
+const eventSprites = new Map();
+function eventLook(e) {
+  return EVENTS[e.key]?.look ?? null;
+}
+function drawEventGround(ctx, e, sx, sy, size, now) {
+  const look = eventLook(e);
+  const cx = sx + size / 2;
+  const cy = sy + size * 0.8;
+  const pulse = 0.5 + 0.5 * Math.sin(now / 400 + e.x);
+  const color = look?.hero ? '120,190,255' : '255,210,110';
+  const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, size * (0.75 + 0.1 * pulse));
+  glow.addColorStop(0, `rgba(${color},${0.35 + 0.25 * pulse})`);
+  glow.addColorStop(1, `rgba(${color},0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, size * 0.8, size * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawObject(ctx, obj, sx, sy, size) {
+  const [name, x, y, w, h] = obj;
+  const img = sheet(name);
+  if (!img) return;
+  // Posé sur la case : centré, pieds en bas de la case.
+  const dw = w * SCALE;
+  const dh = h * SCALE;
+  ctx.drawImage(img, x, y, w, h, Math.round(sx + (size - dw) / 2), Math.round(sy + size - dh), dw, dh);
+}
+function drawEventMarker(ctx, e, sx, sy, size, now) {
+  const look = eventLook(e);
+  if (!look) return;
+  if (look.object) drawObject(ctx, look.object, sx, sy, size);
+  if (look.hero) {
+    if (!eventSprites.has(e.key)) eventSprites.set(e.key, lookSprite(look.hero));
+    if (look.extra) drawObject(ctx, look.extra, sx + size * 0.55, sy + size * 0.1, size);
+    const hurt = look.pose === 'hit';
+    drawActor(ctx, { sx, sy, size, scale: SCALE, dir: 'down', now: now + e.x * 97, sprite: eventSprites.get(e.key), anim: hurt ? 'hit' : null, animT: 0.5, shadow: true });
+  }
+  // « ! » qui flotte au-dessus.
+  const u = SCALE;
+  const bob = Math.round(Math.sin(now / 300 + e.y) * 2) * u;
+  const x = Math.round(sx + size / 2 - u);
+  const y = Math.round(sy - size * (look.hero ? 0.55 : 0.2)) + bob;
+  ctx.fillStyle = '#1a0f2a';
+  ctx.fillRect(x - u, y - u, 4 * u, 8 * u);
+  ctx.fillRect(x - u, y + 8 * u, 4 * u, 4 * u);
+  ctx.fillStyle = look.hero ? '#8ec5ff' : '#f3d58c';
+  ctx.fillRect(x, y, 2 * u, 6 * u);
+  ctx.fillRect(x, y + 9 * u, 2 * u, 2 * u);
+}
+
 // Position (pixels d'écran) du coin haut-gauche de la vue : centrée sur le groupe.
 function camera(canvas, now = performance.now()) {
   const map = state.expedition.map;
@@ -286,10 +339,16 @@ function draw(canvas, now) {
     ctx.fillText(text, cx, cy);
   };
   if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', null);
-  for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '?', 'rgba(90,50,160,.6)', 'rgba(190,150,255,.8)');
+  const eventActors = [];
+  for (const e of map.events) {
+    if (!map.seen[idx(map, e.x, e.y)]) continue;
+    const [sx, sy] = at(e.x, e.y);
+    drawEventGround(ctx, e, sx, sy, size, now);
+    eventActors.push({ y: e.y, draw: () => drawEventMarker(ctx, e, sx, sy, size, now) });
+  }
 
   // Personnages, triés de haut en bas (les plus bas passent devant).
-  const actors = [];
+  const actors = [...eventActors];
   for (const mob of map.mobs) {
     if (!visible.has(idx(map, mob.x, mob.y)) && mob.id !== anim.highlight) continue;
     const t = anim.mobs.get(mob.id) ?? tween(mob, mob, 0);

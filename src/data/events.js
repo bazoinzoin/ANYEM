@@ -15,11 +15,19 @@
 //   restoreAll  %                       PV et ressource rendus aux héros en vie
 //   hurtRandom  { count, pct }          `count` héros au hasard perdent pct % de leurs PV max
 //   hurtAll     %                       chaque héros en vie perd ce % de ses PV max
+//   curseRandom { id, turns }           un héros au hasard subit cet effet négatif (il reste
+//                                       d'un combat à l'autre, voir data/effects.js)
 // Un événement ne tue jamais : un héros garde au moins 1 PV.
+//
+// look : ce qui le représente sur la carte (dessiné par ui/mapView.js, mis en valeur) :
+//   { hero: apparence (data/appearance.js), pose? }  un personnage (pose 'hit' : blessé)
+//   { object: [planche, x, y, l, h] }                 un objet d'une planche Raven Fantasy
+//   extra : objet posé à côté du personnage (même format que object)
 
 export const EVENTS = {
   sorciere: {
     name: 'La sorcière', icon: '🧙‍♀️', weight: 10,
+    look: { hero: { hair: 'longs', hairColor: 'noir', eyes: 'violets', skin: 'pale', top: 'sorciere', bottom: 'sombre' } },
     text: 'Une sorcière encapuchonnée vous barre la route et vous propose un marché.',
     choices: [{
       label: 'Accepter le marché',
@@ -31,6 +39,7 @@ export const EVENTS = {
   },
   autel: {
     name: 'Autel oublié', icon: '🕯️', weight: 10,
+    look: { object: ['dungeon_obj', 248, 176, 32, 32] },
     text: "Un autel couvert d'offrandes anciennes luit faiblement dans la pénombre.",
     choices: [
       {
@@ -51,6 +60,7 @@ export const EVENTS = {
   },
   coffre: {
     name: 'Coffre abandonné', icon: '🧰', weight: 12,
+    look: { object: ['dungeon_obj', 323, 124, 26, 19] },
     text: 'Un coffre abandonné gît au milieu du chemin. Trop beau pour être vrai ?',
     choices: [{
       label: "L'ouvrir",
@@ -62,6 +72,7 @@ export const EVENTS = {
   },
   voyageur: {
     name: 'Voyageur blessé', icon: '🤕', weight: 8,
+    look: { hero: { hair: 'courts', hairColor: 'chatain', eyes: 'clos', skin: 'halee', top: 'voyageur', bottom: 'cuir' }, pose: 'hit' },
     text: 'Un voyageur blessé, adossé à un arbre, implore votre aide.',
     choices: [{
       label: 'Lui donner une potion de soin', cost: { consumable: 'potion' },
@@ -72,6 +83,7 @@ export const EVENTS = {
   },
   source: {
     name: 'Source mystérieuse', icon: '⛲', weight: 10,
+    look: { object: ['dungeon_obj', 290, 177, 28, 30] },
     text: "Une source aux reflets irisés murmure doucement. L'eau semble… vivante.",
     choices: [{
       label: 'Boire',
@@ -83,6 +95,7 @@ export const EVENTS = {
   },
   joueur: {
     name: 'Le joueur de dés', icon: '🎲', weight: 8,
+    look: { hero: { hair: 'crete', hairColor: 'rose', eyes: 'plisses', skin: 'mate', top: 'barde', bottom: 'pourpre' } },
     text: 'Un joueur de dés goguenard vous propose de parier votre or.',
     choices: [{
       label: 'Parier', cost: { gold: { base: 10, perLevel: 5 } },
@@ -94,7 +107,21 @@ export const EVENTS = {
   },
   marchand: {
     kind: 'merchant', name: 'Marchand ambulant', icon: '🧳', weight: 10,
+    look: { hero: { hair: 'chignon', hairColor: 'blanc', eyes: 'dores', skin: 'foncee', top: 'rodeur', bottom: 'toile' }, extra: ['dungeon_obj', 322, 156, 26, 19] },
     text: "Un marchand ambulant déballe sa marchandise : des pièces rares, à des prix qu'on ne trouve pas au village.",
+  },
+  cadavre: {
+    name: "Dépouille d'aventurier", icon: '💀', weight: 9,
+    look: { object: ['dungeon_obj', 226, 66, 27, 32] },
+    text: "Les restes d'un aventurier enchaîné gisent là. Sa besace n'a pas l'air vide… mais une odeur de maladie flotte autour.",
+    choices: [{
+      label: 'Fouiller le cadavre',
+      outcomes: [
+        { chance: 55, text: 'Sa besace contient encore de quoi survivre.', effects: { gold: { base: 12, perLevel: 5 }, consumable: 'random' } },
+        { chance: 20, text: 'Sous les haillons, une pièce d\'équipement intacte !', effects: { item: { minRarity: 'rare' } } },
+        { chance: 25, text: 'Une maladie ronge celui qui a fouillé la dépouille.', effects: { curseRandom: { id: 'affaibli', turns: 4 } } },
+      ],
+    }],
   },
 };
 

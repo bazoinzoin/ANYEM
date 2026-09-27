@@ -15,7 +15,7 @@
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
 
-import { rollEvent } from './events.js';
+import { rollEvent, rollEventKey } from './events.js';
 import { generateFloorMap, reveal, moveMobs, mobAt, isFloor } from './floorMap.js';
 import { difficultyOf, enemyPower, difficultyLevel } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js';
@@ -111,7 +111,11 @@ export function buildFloorMap(key, floor) {
   for (let n = fightsOnFloor(key, floor); n > 0; n--) groups.push({ enemies: ordinaryEncounter(key, floor) });
   if (isBossFloor(key, floor)) groups.push({ enemies: encounterFor(key, floor).enemies, boss: true });
   const events = isBossFloor(key, floor) ? 0 : DUNGEON.mapEventChances.filter((c) => random() < c).length;
-  return generateFloorMap({ groups, events });
+  const map = generateFloorMap({ groups, events });
+  // Chaque événement est connu dès la génération : il est dessiné sur la carte (coffre,
+  // autel, personnage…).
+  for (const e of map.events) e.key = rollEventKey();
+  return map;
 }
 
 // Arrivée à un étage : nouvelle carte.
@@ -179,7 +183,7 @@ export function stepParty(game, dx, dy) {
   const marker = map.events.find((e) => e.x === x && e.y === y);
   if (marker) {
     map.events = map.events.filter((e) => e !== marker);
-    event = rollEvent(expeditionLevel(game, exp.dungeonKey, exp.floor));
+    event = rollEvent(expeditionLevel(game, exp.dungeonKey, exp.floor), marker.key);
     exp.event = event;
   }
   const catcher = event ? null : moveMobs(map);

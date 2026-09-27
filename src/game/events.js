@@ -7,6 +7,8 @@
 
 import { EVENT_RULES, LOOT, MERCHANT } from '../config.js';
 import { EVENTS } from '../data/events.js';
+import { EFFECTS } from '../data/effects.js';
+import { addStatus, makeStatus } from './statuses.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { RARITY_ORDER, MATERIA_KINDS } from '../data/items.js';
 import { generateItem, weightedPick } from './items.js';
@@ -18,9 +20,14 @@ import { random, pick } from './rng.js';
 
 const scaled = (v, level) => Math.round((v.base ?? 0) + (v.perLevel ?? 0) * level);
 
-// Tire l'événement d'une rencontre de niveau `level` (stock tiré pour un marchand).
-export function rollEvent(level) {
-  const key = weightedPick(Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, e.weight])));
+// Tire le type d'un événement (selon les poids).
+export function rollEventKey() {
+  return weightedPick(Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, e.weight])));
+}
+
+// Événement d'une rencontre de niveau `level` : celui annoncé sur la carte (`key`), ou tiré
+// au hasard (stock tiré pour un marchand).
+export function rollEvent(level, key = rollEventKey()) {
   const event = { key, level };
   if (EVENTS[key].kind === 'merchant') {
     event.stock = Array.from({ length: EVENT_RULES.merchantItems }, () =>
@@ -109,6 +116,11 @@ function applyEffects(game, effects, level) {
       const hero = pool.splice(Math.floor(random() * pool.length), 1)[0];
       parts.push(`${hero.name} −${hurt(hero, effects.hurtRandom.pct)} PV`);
     }
+  }
+  if (effects.curseRandom && alive.length) {
+    const hero = pick(alive);
+    addStatus(hero, makeStatus(effects.curseRandom.id, effects.curseRandom.turns));
+    parts.push(`${hero.name} : ${EFFECTS[effects.curseRandom.id].name}`);
   }
   if (effects.hurtAll) {
     for (const hero of alive) parts.push(`${hero.name} −${hurt(hero, effects.hurtAll)} PV`);
