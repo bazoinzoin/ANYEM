@@ -27,7 +27,7 @@ test('seuls les soins et les purifications sont utilisables hors combat', () => 
   assert.deepEqual(fieldSkills(p).map((f) => f.skill.id), ['soin-majeur']);
   assert.deepEqual(fieldSkills(createParty()[2]), [], 'sans sort de départ appris');
   p.level = 50;
-  learnPath(p, 'clerc', { upTo: 8 });
+  learnPath(p, 'clerc', { upTo: 10 });
   const ids = fieldSkills(p).map((f) => f.skill.id);
   assert.ok(ids.includes('priere-de-soins') && ids.includes('purification'));
   assert.ok(!ids.includes('resurrection'), 'pas de résurrection hors combat');

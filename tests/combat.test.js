@@ -193,7 +193,7 @@ test("un sort est magique : il utilise l'Intelligence et la défense magique", (
   heroAct(cb, { type: 'skill', skill: 0, target: 0 }); // Boule de Feu
   const stats = getStats(turn.unit);
   assert.equal(stats.magPower, stats.intelligence * 2);
-  assert.equal(hp - target.hp, Math.round(stats.magPower * 2.1 * (0.9 + 0.5 * 0.25)));
+  assert.equal(hp - target.hp, Math.round(stats.magPower * 1.8 * (0.9 + 0.5 * 0.25)));
 });
 
 test("la puissance physique du voleur dépend de l'Agilité, celle du guerrier de la Force", () => {

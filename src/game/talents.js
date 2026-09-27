@@ -1,11 +1,11 @@
 // Arbres de compétences : points, paliers, apprentissage, réinitialisation,
 // et effets cumulés des talents appris (lus par getStats / getSkills).
-// Gros paliers obligatoires, petits paliers = un bonus au choix parmi trois
+// Gros paliers obligatoires, petits paliers = deux bonus au choix parmi trois
 // (voir data/talents.js) ; un palier s'ouvre quand les précédents sont complets.
 //
 // hero.talents : { idDuNœud: rang }
 
-import { TALENTS, nodeSkills } from '../data/talents.js';
+import { TALENTS, CHOICE_PICKS, nodeSkills } from '../data/talents.js';
 import { TALENT_RULES } from '../config.js';
 
 export function branchesOf(hero) {
@@ -40,10 +40,12 @@ export function pointsInBranch(hero, branch) {
   return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
 }
 
-// Rangs d'un palier une fois complet (le rang maximum de ses nœuds : un petit palier
-// ne se prend qu'une fois, sur un seul de ses trois bonus).
+// Rangs d'un palier une fois complet : le nœud d'un gros palier ; dans un petit palier,
+// CHOICE_PICKS bonus (parmi trois) à leur rang maximum.
 export function tierMax(branch, tier) {
-  return Math.max(0, ...branch.nodes.filter((n) => n.tier === tier).map((n) => n.ranks));
+  const nodes = branch.nodes.filter((n) => n.tier === tier);
+  const picks = nodes.some((n) => n.kind === 'minor') ? Math.min(CHOICE_PICKS, nodes.length) : nodes.length;
+  return nodes.map((n) => n.ranks).sort((a, b) => b - a).slice(0, picks).reduce((sum, r) => sum + r, 0);
 }
 
 export function tiersOf(branch) {
@@ -68,9 +70,15 @@ export function tierOpen(hero, branch, tier) {
   return tiersOf(branch).filter((t) => t < tier).every((t) => tierComplete(hero, branch, t));
 }
 
-// Petit palier : le bonus déjà choisi parmi les trois (ou null).
+// Petit palier : les bonus déjà choisis parmi les trois.
 export function chosenInTier(hero, branch, tier) {
-  return branch.nodes.find((n) => n.tier === tier && n.kind === 'minor' && rankOf(hero, n.id) > 0) ?? null;
+  return branch.nodes.filter((n) => n.tier === tier && n.kind === 'minor' && rankOf(hero, n.id) > 0);
+}
+
+// Petit palier : le bonus ne peut plus être pris (les deux choix sont faits, sans lui).
+export function excludedInTier(hero, branch, node) {
+  if (node.kind !== 'minor' || rankOf(hero, node.id) > 0) return false;
+  return chosenInTier(hero, branch, node.tier).length >= CHOICE_PICKS;
 }
 
 // Raison pour laquelle le nœud ne peut pas être appris maintenant, ou null.
@@ -79,12 +87,14 @@ export function cannotLearnReason(hero, nodeId) {
   if (!found) return 'Talent inconnu';
   const { branch, node } = found;
   if (rankOf(hero, nodeId) >= node.ranks) return 'Rang maximum atteint';
-  const chosen = node.kind === 'minor' ? chosenInTier(hero, branch, node.tier) : null;
-  if (chosen && chosen !== node) return `Choix déjà fait : ${chosen.name} (réinitialiser pour changer)`;
+  if (excludedInTier(hero, branch, node)) {
+    const chosen = chosenInTier(hero, branch, node.tier).map((n) => n.name).join(' et ');
+    return `Choix déjà faits : ${chosen} (réinitialiser pour changer)`;
+  }
   const missing = tiersOf(branch).find((t) => t < node.tier && !tierComplete(hero, branch, t));
   if (missing !== undefined) {
     const gate = branch.nodes.filter((n) => n.tier === missing);
-    return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (un bonus au choix, ${tierMax(branch, missing)} rangs)`;
+    return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (${CHOICE_PICKS} bonus au choix, ${tierMax(branch, missing)} rangs)`;
   }
   if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
   return null;
@@ -107,6 +117,24 @@ export function resetTalents(game, hero) {
   game.gold -= cost;
   hero.talents = {};
   return true;
+}
+
+// Talents d'une ancienne sauvegarde (arbres modifiés depuis) : retire les nœuds inconnus,
+// ramène chaque rang au maximum du nœud ; si l'arbre n'est plus cohérent (palier appris
+// sans ses prédécesseurs, trop de bonus dans un petit palier), les points sont rendus.
+// Retourne vrai si les talents ont été réinitialisés.
+export function sanitizeTalents(hero) {
+  const nodes = new Map(branchesOf(hero).flatMap((b) => b.nodes.map((n) => [n.id, n])));
+  const talents = {};
+  for (const [id, rank] of Object.entries(hero.talents ?? {})) {
+    const node = nodes.get(id);
+    if (node && rank > 0) talents[id] = Math.min(rank, node.ranks);
+  }
+  hero.talents = talents;
+  const broken = branchesOf(hero).some((branch) => branch.nodes.some((n) => rankOf(hero, n.id) > 0 && (!tierOpen(hero, branch, n.tier)
+    || (n.kind === 'minor' && chosenInTier(hero, branch, n.tier).length > CHOICE_PICKS))));
+  if (broken) hero.talents = {};
+  return broken;
 }
 
 /**

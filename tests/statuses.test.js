@@ -13,7 +13,7 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 // Crée un combat où le héros d'index `heroIndex` (niveau 50) connaît tous les
 // talents de l'orientation `branchKey` jusqu'au palier `maxTier`, et joue jusqu'à son tour.
-function setup(heroIndex, branchKey, maxTier = 10, pick = []) {
+function setup(heroIndex, branchKey, maxTier = 14, pick = []) {
   const party = createParty();
   const hero = party[heroIndex];
   hero.level = 50;
@@ -94,8 +94,8 @@ test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plu
   const { cb, hero } = setup(1, 'assassin', 10, ['vivacite', 'souffle', 'second-souffle']);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  assert.equal(getStats(hero).resMax, 120);
-  assert.equal(getStats(hero).resRegen, 26);
+  assert.equal(getStats(hero).resMax, 108);
+  assert.equal(getStats(hero).resRegen, 10);
   hero.combo = 3;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
   assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
@@ -157,7 +157,7 @@ test('Prêcheur : Rénovation soigne à chaque fin de round', () => {
 });
 
 test('Profane : Confusion fait frapper un allié à l\'ennemi confus', () => {
-  const { cb, hero } = setup(2, 'profane', 6);
+  const { cb, hero } = setup(2, 'profane', 8);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'confusion'), target: 0 });
   const [confused, other] = cb.enemies;
   assert.ok(confused.statuses.some((s) => s.confuse));
@@ -213,12 +213,12 @@ test('Berserker : vol de vie et Exécution (dégâts doublés sous 30 % de PV)',
 });
 
 test('Gardien : Garde de fer renforce la garde ; les boucliers donnés sont renforcés', () => {
-  const { cb, hero } = setup(0, 'gardien', 10, ['bastion', 'protecteur', 'garde-de-fer']);
+  const { cb, hero } = setup(0, 'gardien', 14, ['bastion', 'protecteur', 'garde-de-fer']);
   assert.equal(statsOf(hero).guardBonus, 11);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'mur-de-boucliers') });
   const shield = cb.party[2].statuses.find((s) => s.key === 'bouclier').shield;
   const base = Math.round(statsOf(hero).physPower * 0.9);
-  assert.ok(shield > base * 1.5, `boucliers renforcés par Bastion et Protecteur (${shield} > ${base})`);
+  assert.ok(shield > base * 1.4, `boucliers renforcés par Bastion et Protecteur (${shield} > ${base})`);
 });
 
 test("Assassin : Poussée d'adrénaline rend de l'Énergie, une seule fois par combat", () => {

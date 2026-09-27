@@ -13,7 +13,7 @@ beforeEach(() => setRandomSource(() => 0.5));
 
 // Équipe [Guerrier, Chasseur, Prêtre, Paladin] ; le héros `heroIndex` (niveau 50)
 // connaît l'orientation `branchKey` jusqu'au palier `maxTier` ; on joue jusqu'à son tour.
-function setup(heroIndex, branchKey, maxTier = 10, pick = []) {
+function setup(heroIndex, branchKey, maxTier = 14, pick = []) {
   const party = createParty([], ['guerrier', 'chasseur', 'pretre', 'paladin']);
   const hero = party[heroIndex];
   hero.level = 50;

@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills, gainXp, xpToNext } from '../src/game/party.js';
 import {
-  branchesOf, pointsAvailable, cannotLearnReason, learn, resetTalents, resetCost, rankOf, tiersOf, tierRequirement,
+  branchesOf, pointsAvailable, cannotLearnReason, learn, resetTalents, resetCost, rankOf, tiersOf, tierRequirement, sanitizeTalents,
 } from '../src/game/talents.js';
 import { learnPath } from './helpers.js';
 import { EFFECTS } from '../src/data/effects.js';
 import { applyVictory, xpReward } from '../src/game/progression.js';
 import { createEnemies } from '../src/game/enemies.js';
-import { TALENTS, nodeSkills, CHOICE_RANKS, SIGNATURE_TIER } from '../src/data/talents.js';
+import { TALENTS, nodeSkills, CHOICE_RANKS, CHOICE_PICKS, SIGNATURE_TIER } from '../src/data/talents.js';
 import { CLASSES } from '../src/data/classes.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
@@ -34,7 +34,7 @@ const skillFlags = (s) => {
 // Bonus de petit palier → ce que la branche doit déjà offrir pour qu'il ait un sens.
 const NEEDS = { dotPct: 'dot', healPct: 'heal', shieldPct: 'shield', vsDebuffedPct: 'debuff', aoePct: 'aoe', trapPct: 'trap', finisherRefund: 'finisher' };
 
-test('chaque orientation alterne gros paliers (obligatoires) et petits paliers (3 bonus au choix), jusqu\'à la signature', () => {
+test('chaque orientation alterne gros paliers (obligatoires) et petits paliers (2 bonus sur 3), jusqu\'à la signature', () => {
   const names = (k) => TALENTS[k].map((b) => b.key);
   assert.deepEqual(names('guerrier'), ['gardien', 'berserker']);
   assert.deepEqual(names('voleur'), ['assassin', 'empoisonneur']);
@@ -47,7 +47,7 @@ test('chaque orientation alterne gros paliers (obligatoires) et petits paliers (
   const all = Object.values(TALENTS).flat().flatMap((br) => br.nodes).flatMap(nodeSkills);
   for (const branches of Object.values(TALENTS)) {
     for (const b of branches) {
-      assert.deepEqual(tiersOf(b), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], b.key);
+      assert.deepEqual(tiersOf(b), [...Array(SIGNATURE_TIER + 1).keys()], b.key);
       for (const t of tiersOf(b)) {
         const nodes = b.nodes.filter((n) => n.tier === t);
         if (t % 2) {
@@ -59,7 +59,10 @@ test('chaque orientation alterne gros paliers (obligatoires) et petits paliers (
           assert.ok(t === 0 ? nodeSkills(nodes[0]).length : t === SIGNATURE_TIER ? nodes[0].kind === 'signature' : ['skill', 'passive'].includes(nodes[0].kind), `${b.key} palier ${t}`);
         }
       }
-      assert.equal(tierRequirement(b, 99), 45, `${b.key} : 45 points pour l'orientation entière`);
+      assert.equal(tierRequirement(b, 99), 36, `${b.key} : 36 points pour l'orientation entière`);
+      // Plus de gros nœuds qu'avant (8), et les petits paliers ne dominent plus l'arbre.
+      assert.equal(b.nodes.filter((n) => n.kind !== 'minor').length, 8, b.key);
+      assert.equal(CHOICE_PICKS, 2);
       // Logique : un bonus ne vient qu'après ce qu'il renforce (pas de bonus aux dégâts sur la
       // durée avant le premier sort qui en inflige…).
       const offered = {};
@@ -84,7 +87,7 @@ test('chaque orientation alterne gros paliers (obligatoires) et petits paliers (
   }
 });
 
-test('1 point par niveau ; petits paliers : un seul bonus sur trois ; gros paliers obligatoires', () => {
+test('1 point par niveau ; petits paliers : deux bonus sur trois ; gros paliers obligatoires', () => {
   const [guerrier] = createParty();
   assert.equal(pointsAvailable(guerrier), 1);
   assert.match(cannotLearnReason(guerrier, 'peau-de-fer'), /Cri de guerre/);
@@ -92,10 +95,13 @@ test('1 point par niveau ; petits paliers : un seul bonus sur trois ; gros palie
   assert.match(cannotLearnReason(guerrier, 'peau-de-fer'), /Aucun point/);
   guerrier.level = 10;
   assert.ok(learn(guerrier, 'peau-de-fer'));
-  assert.match(cannotLearnReason(guerrier, 'posture-defensive'), /Choix déjà fait : Peau de fer/);
+  assert.ok(learn(guerrier, 'posture-defensive'), 'deuxième bonus du palier');
+  assert.match(cannotLearnReason(guerrier, 'robustesse'), /Choix déjà faits : Peau de fer et Posture défensive/);
   assert.match(cannotLearnReason(guerrier, 'provocation'), /palier 1/);
-  for (let i = 0; i < 3; i++) assert.ok(learn(guerrier, 'peau-de-fer'));
+  assert.ok(learn(guerrier, 'peau-de-fer'));
   assert.match(cannotLearnReason(guerrier, 'peau-de-fer'), /maximum/);
+  assert.match(cannotLearnReason(guerrier, 'provocation'), /palier 1/, 'les deux bonus au rang maximum');
+  assert.ok(learn(guerrier, 'posture-defensive'));
   assert.match(cannotLearnReason(guerrier, 'endurance'), /Provocation/, 'le gros palier passe avant le suivant');
   assert.ok(learn(guerrier, 'provocation'));
   assert.equal(rankOf(guerrier, 'provocation'), 1);
@@ -110,8 +116,8 @@ test('les talents modifient les stats et ajoutent des compétences', () => {
   learn(guerrier, 'depart-gardien');
   const pv = getStats(guerrier).pv;
   learn(guerrier, 'peau-de-fer');
-  assert.equal(getStats(guerrier).pv, Math.round(pv * 1.03));
-  for (const id of ['peau-de-fer', 'peau-de-fer', 'peau-de-fer', 'provocation']) assert.ok(learn(guerrier, id), id);
+  assert.equal(getStats(guerrier).pv, Math.round(pv * 1.025));
+  for (const id of ['peau-de-fer', 'posture-defensive', 'posture-defensive', 'provocation']) assert.ok(learn(guerrier, id), id);
   assert.ok(getSkills(guerrier).some((s) => s.id === 'provocation'));
 });
 
@@ -122,8 +128,8 @@ test("un gros palier peut améliorer une compétence existante (Clerc : Grâce)"
   const soin = getSkills(pretre).find((s) => s.id === 'soin-majeur');
   assert.equal(soin.cost, 25);
   assert.equal(soin.power, 1.32);
-  assert.equal(getStats(pretre).healPct, 12);
-  assert.equal(getStats(pretre).resMax, 100);
+  assert.equal(getStats(pretre).healPct, 10);
+  assert.equal(getStats(pretre).resMax, 88);
 });
 
 test('réinitialiser rend tous les points contre de l\'or (et libère les choix)', () => {
@@ -132,13 +138,14 @@ test('réinitialiser rend tous les points contre de l\'or (et libère les choix)
   guerrier.level = 4;
   learn(guerrier, 'depart-berserker');
   learn(guerrier, 'soif-de-sang');
-  assert.match(cannotLearnReason(guerrier, 'brutalite'), /Choix déjà fait/);
+  learn(guerrier, 'brutalite');
+  assert.match(cannotLearnReason(guerrier, 'fureur'), /Choix déjà faits/);
   const cost = resetCost(guerrier);
   assert.ok(resetTalents(game, guerrier));
   assert.equal(game.gold, 1000 - cost);
   assert.equal(pointsAvailable(guerrier), 4);
   learn(guerrier, 'depart-berserker');
-  assert.ok(learn(guerrier, 'brutalite'));
+  assert.ok(learn(guerrier, 'fureur'));
   assert.equal(resetTalents(game, { ...guerrier, talents: {} }), false, 'rien à réinitialiser');
 });
 
@@ -177,7 +184,7 @@ test('toutes les compétences de talents sont définies correctement', () => {
   assert.ok(branchesOf({ classKey: 'mage' }).length === 3);
 });
 
-test('niveau maximum 50 : 50 points, une orientation complète (45) et le début d\'une autre', () => {
+test('niveau maximum 50 : 50 points, une orientation complète (36) et une partie d\'une autre', () => {
   const [guerrier] = createParty();
   gainXp(guerrier, 10_000_000);
   assert.equal(guerrier.level, 50);
@@ -189,11 +196,12 @@ test('niveau maximum 50 : 50 points, une orientation complète (45) et le début
   let learned = true;
   while (learned) learned = gardien.nodes.some((n) => learn(guerrier, n.id));
   assert.equal(rankOf(guerrier, 'dernier-rempart'), 1, 'la signature est atteinte');
-  assert.equal(pointsAvailable(guerrier), 5);
+  assert.equal(pointsAvailable(guerrier), 14);
   learned = true;
   while (learned) learned = berserker.nodes.some((n) => learn(guerrier, n.id));
   assert.equal(rankOf(guerrier, 'depart-berserker'), 1);
-  assert.equal(rankOf(guerrier, 'frappe-sauvage'), 0, 'pas assez pour un 2e gros palier');
+  assert.equal(rankOf(guerrier, 'berserk'), 1, 'deux gros paliers de la seconde orientation');
+  assert.equal(rankOf(guerrier, 'rage-aveugle'), 0, 'pas assez pour le troisième');
   assert.equal(pointsAvailable(guerrier), 0);
 });
 
@@ -211,4 +219,16 @@ test('un héros commence sans sort : le sort de départ est son premier point de
   for (const branches of Object.values(TALENTS)) {
     for (const b of branches) assert.ok(b.nodes.some((n) => n.tier === 0 && nodeSkills(n).length), `${b.key} : sort de départ au palier 0`);
   }
+});
+
+test('ancienne sauvegarde : talents inconnus retirés, rangs ramenés au maximum, arbre incohérent remboursé', () => {
+  const [guerrier] = createParty();
+  guerrier.level = 20;
+  guerrier.talents = { 'depart-gardien': 1, 'peau-de-fer': 4, 'ancien-talent': 3 };
+  assert.equal(sanitizeTalents(guerrier), false);
+  assert.deepEqual(guerrier.talents, { 'depart-gardien': 1, 'peau-de-fer': 2 });
+  guerrier.talents = { 'depart-gardien': 1, 'peau-de-fer': 2, provocation: 1 };
+  assert.equal(sanitizeTalents(guerrier), true, 'Provocation sans palier 1 complet');
+  assert.deepEqual(guerrier.talents, {});
+  assert.equal(pointsAvailable(guerrier), 20);
 });

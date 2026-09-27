@@ -153,8 +153,8 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
     starterSkills: [
-      { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
-      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.45, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 1.8, magic: true, desc: 'Dégâts de feu' },
+      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.25, magic: true, desc: 'Dégâts de foudre' },
       { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
     ],
   },
