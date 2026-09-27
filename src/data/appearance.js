@@ -56,7 +56,9 @@ export const SKINS = {
 };
 
 // Corps disponibles (héros du pack) : `robe` = le vêtement du haut descend jusqu'aux
-// pieds (le bas ne se voit pas). `bottom` : couleurs de la zone des jambes → rôle
+// pieds (le bas ne se voit pas). Les héros sont tous grands : les corps du pack plus
+// petits que celui du gladiateur ont été allongés (ligne des épaules répétée au-dessus
+// des mains, image par image), si bien que tous ont le cou à la ligne 24 (`cut`). `bottom` : couleurs de la zone des jambes → rôle
 // ('light', 'mid', 'dark' du pantalon, 'bootLight', 'bootDark' des bottes).
 export const BODIES = {
   gladiator: {
@@ -64,12 +66,12 @@ export const BODIES = {
     bottom: { '#cc2f7b': 'light', '#9c2a70': 'mid', '#633d4c': 'dark', '#7d3833': 'bootLight', '#4f1d4c': 'bootDark' },
   },
   beastmaster: {
-    sheet: 'heroes/body_beastmaster', cut: 27,
+    sheet: 'heroes/body_beastmaster', cut: 24,
     bottom: { '#bd6a62': 'light', '#8f4d57': 'mid', '#63ab3f': 'bootLight', '#3b7d4f': 'bootDark' },
   },
-  sorcerer: { sheet: 'heroes/body_sorcerer', cut: 26, robe: true, bottom: {} },
+  sorcerer: { sheet: 'heroes/body_sorcerer', cut: 24, robe: true, bottom: {} },
   swashbuckler: {
-    sheet: 'heroes/body_swashbuckler', cut: 26,
+    sheet: 'heroes/body_swashbuckler', cut: 24,
     bottom: { '#8f4d57': 'mid', '#3a3f5e': 'bootDark' },
   },
 };
@@ -117,6 +119,47 @@ export const TOPS = {
     label: "Tenue d'ombre", body: 'swashbuckler',
     map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#f5ffe8': '#9d9387', '#d7d3bd': '#633d4c', '#e64539': '#8a52c4', '#ad2f45': '#56307e', '#9c2a70': '#56307e' },
   },
+  // Nouvelles tenues (toutes à la même taille : voir la note des corps plus haut).
+  noire: {
+    label: 'Armure noire', body: 'gladiator',
+    map: { '#d7d3bd': '#6b7d99', '#9d9387': '#3a3f5e', '#633d4c': '#1b1a2c', '#8f4d57': '#2b2b45', '#7d3833': '#1b1a2c', '#a47d72': '#4d4f6e', '#ff8933': '#e64539' },
+  },
+  templier: {
+    label: 'Armure de templier', body: 'gladiator',
+    map: { '#d7d3bd': '#f5ffe8', '#9d9387': '#c9c3a8', '#633d4c': '#ad2f45', '#8f4d57': '#e64539', '#7d3833': '#7d3833', '#a47d72': '#c9c3a8', '#ff8933': '#ffc933' },
+  },
+  bronze: {
+    label: 'Cuirasse de bronze', body: 'gladiator',
+    map: { '#d7d3bd': '#e0a63a', '#9d9387': '#b8833a', '#633d4c': '#4a2a1e', '#8f4d57': '#8f5a3c', '#7d3833': '#4a2a1e', '#a47d72': '#b8833a', '#ff8933': '#63ab3f' },
+  },
+  loup: {
+    label: 'Peau de loup', body: 'beastmaster',
+    map: { '#8f4d57': '#9d9387', '#bd6a62': '#d7d3bd', '#63ab3f': '#633d4c', '#3b7d4f': '#52333f' },
+  },
+  rodeur: {
+    label: 'Tunique de rôdeur', body: 'beastmaster',
+    map: { '#8f4d57': '#2f5a3a', '#bd6a62': '#3b7d4f', '#63ab3f': '#8f5a3c', '#3b7d4f': '#6b3f2a' },
+  },
+  bure: {
+    label: 'Bure de moine', body: 'sorcerer',
+    map: { '#e64539': '#9a5c38', '#ad2f45': '#6d3d27', '#8f4d57': '#c78550', '#ff8933': '#e8b85a' },
+  },
+  givre: {
+    label: 'Robe de givre', body: 'sorcerer',
+    map: { '#e64539': '#e9eef2', '#ad2f45': '#9aa7b8', '#8f4d57': '#4a6fc4', '#ff8933': '#6fa8e8' },
+  },
+  sorciere: {
+    label: 'Robe de sorcière', body: 'sorcerer',
+    map: { '#e64539': '#2b2b45', '#ad2f45': '#1b1a2c', '#8f4d57': '#8a52c4', '#ff8933': '#c08ae8' },
+  },
+  barde: {
+    label: 'Pourpoint de barde', body: 'swashbuckler',
+    map: { '#2b2b45': '#56307e', '#3a3f5e': '#8a52c4', '#e64539': '#ffc933', '#ad2f45': '#e0a63a', '#9c2a70': '#b8833a' },
+  },
+  duelliste: {
+    label: 'Tenue de duelliste', body: 'swashbuckler',
+    map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#e64539': '#4a6fc4', '#ad2f45': '#2f437a', '#9c2a70': '#2f437a' },
+  },
 };
 
 // Bas : pantalon [clair, moyen, foncé] et bottes [claires, foncées].
@@ -140,7 +183,7 @@ export const CLASS_LOOKS = {
   pretre: { hair: 'longs', hairColor: 'blond', eyes: 'bleus', skin: 'claire', top: 'pretre', bottom: 'lin' },
   mage: { hair: 'chignon', hairColor: 'roux', eyes: 'verts', skin: 'claire', top: 'mage', bottom: 'azur' },
   chasseur: { hair: 'queue', hairColor: 'chatain', eyes: 'verts', skin: 'halee', top: 'druide', bottom: 'cuir' },
-  paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'plates', bottom: 'jambieres' },
+  paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'templier', bottom: 'jambieres' },
 };
 
 // Champs d'une apparence → catalogue de ses choix (ordre de l'écran de création).
