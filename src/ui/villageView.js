@@ -9,14 +9,15 @@ import { stepToward } from '../game/floorMap.js';
 import { rmQuarter } from './autotile.js';
 import { chipImage } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
+import { holdToWalk } from './heldKeys.js';
 import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
 
 const TILE = 16;
 const SCALE = 3;
 const VIEW_W = 21;
 const VIEW_H = 13;
-const STEP_MS = 150;
-const WALK_MS = 150;
+const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
+const WALK_MS = STEP_MS;
 // Chipsets RPG Maker 2003 du village (voir data/village.js).
 const CHIPS = { village: 'rm2k3/chip_village', town: 'rm2k3/chip_town', dungeon: 'rm2k3/chip_dungeon' };
 const GRASS = [1, 10];          // herbe (chip_village)
@@ -53,7 +54,7 @@ let onTalk = () => {};
 let walk = null;
 let frameRequested = false;
 // followers : compagnons en file indienne derrière le meneur ({ from, to, t0, dir }).
-const anim = { from: null, to: null, t0: 0, followers: [] };
+const anim = { from: null, to: null, t0: 0, n: 0, followers: [] };
 let groundLayer = null;
 
 export function villageCard() {
@@ -111,6 +112,8 @@ const FACING = { right: { dx: 1, dy: 0 }, left: { dx: -1, dy: 0 }, down: { dx: 0
 
 function step(dx, dy) {
   if (state.screen !== 'hub') return false;
+  // Un pas à la fois : le précédent doit être (presque) fini.
+  if (performance.now() - anim.t0 < STEP_MS - 20) return false;
   const p = pos();
   p.dir = DIRS[`${dx},${dy}`] ?? p.dir;
   if (dx) p.facing = dx > 0 ? 'right' : 'left';
@@ -125,11 +128,12 @@ function step(dx, dy) {
   anim.followers = anim.followers.map((f, i) => {
     const target = targets[i];
     if (f.to.x === target.x && f.to.y === target.y) return f;
-    return { from: tweenPos(f, now), to: { ...target }, t0: now, dir: dirBetween(f.to, target) ?? f.dir };
+    return { from: tweenPos(f, now), to: { ...target }, t0: now, n: (f.n ?? 0) + 1, dir: dirBetween(f.to, target) ?? f.dir };
   });
   anim.from = currentPos(now);
   anim.to = { ...r.pos };
   anim.t0 = now;
+  anim.n += 1;
   p.x = r.pos.x;
   p.y = r.pos.y;
   requestFrame();
@@ -195,36 +199,27 @@ function walkTo(target) {
   tick();
 }
 
-const KEYS = {
-  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
-  z: [0, -1], s: [0, 1], q: [-1, 0], d: [1, 0], w: [0, -1], a: [-1, 0],
-};
-if (typeof document !== 'undefined') {
-  document.addEventListener('keydown', (ev) => {
-    if (state.screen !== 'hub' || !document.querySelector('#villageMap') || ev.target.closest?.('input, textarea, select')) return;
-    if ([' ', 'Enter', 'e', 'E'].includes(ev.key)) {
-      ev.preventDefault();
-      talk_();
-      return;
-    }
-    const dir = KEYS[ev.key] ?? KEYS[ev.key.toLowerCase()];
-    if (!dir) return;
-    ev.preventDefault();
+// Clavier : un pas par appui, puis au rythme de la marche tant que la touche est enfoncée.
+holdToWalk({
+  active: () => state.screen === 'hub' && !!document.querySelector('#villageMap'),
+  onMove: (dx, dy) => {
     stopWalk();
-    step(...dir);
-  });
-}
+    step(dx, dy);
+  },
+  onAction: () => talk_(),
+  interval: STEP_MS,
+});
 
 // ---- Affichage ----
 
 function tweenPos(t, now) {
   const k = Math.min(1, (now - t.t0) / STEP_MS);
-  return { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k, moving: k < 1 };
+  return { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k, moving: k < 1, k, n: t.n ?? 0 };
 }
 
 function currentPos(now) {
   const k = Math.min(1, (now - anim.t0) / STEP_MS);
-  return { x: anim.from.x + (anim.to.x - anim.from.x) * k, y: anim.from.y + (anim.to.y - anim.from.y) * k, moving: k < 1 };
+  return { x: anim.from.x + (anim.to.x - anim.from.x) * k, y: anim.from.y + (anim.to.y - anim.from.y) * k, moving: k < 1, k, n: anim.n };
 }
 
 function requestFrame() {
@@ -360,12 +355,12 @@ function draw(canvas, now) {
     items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look, sprite: NPC_SPRITES[npc.id] }) });
   }
   const heroSprite = (hero) => CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
-  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, now, sprite: heroSprite(state.party[0]) }) });
+  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, stride: hp.n, progress: hp.k, now, sprite: heroSprite(state.party[0]) }) });
   anim.followers.forEach((f, i) => {
     const hero = state.party[i + 1];
     if (!hero) return;
     const fp = tweenPos(f, now);
-    items.push({ y: fp.y + 0.015 - i * 0.001, draw: () => drawActor(ctx, { sx: fp.x * size - cam.x, sy: fp.y * size - cam.y, size, scale: SCALE, dir: f.dir, facing: p.facing, moving: fp.moving, now, sprite: heroSprite(hero) }) });
+    items.push({ y: fp.y + 0.015 - i * 0.001, draw: () => drawActor(ctx, { sx: fp.x * size - cam.x, sy: fp.y * size - cam.y, size, scale: SCALE, dir: f.dir, facing: p.facing, moving: fp.moving, stride: fp.n, progress: fp.k, now, sprite: heroSprite(hero) }) });
   });
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 

@@ -69,8 +69,9 @@ export function dirBetween(from, to) {
  * (pixels d'écran, case de `size` px, zoom `scale`), avec son ombre.
  * `sprite` : HERO (planches du pack, 4 directions, recolorables par `look`), ou
  * une planche RPG Maker 2003 (`kind: 'rm'`, voir ui/spriteCatalog.js).
+ * `stride` : numéro du pas en cours, `progress` : avancement du pas (0 à 1).
  */
-export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, now, look = null, sprite = HERO, shadow = true }) {
+export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, stride = 0, progress = 0, now, look = null, sprite = HERO, shadow = true }) {
   if (shadow) {
     ctx.fillStyle = 'rgba(0,0,0,.35)';
     ctx.beginPath();
@@ -83,7 +84,8 @@ export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'ri
   let ms;
   let flip;
   if (sprite.kind === 'rm') {
-    // Planche RPG Maker 2003 : lignes haut, droite, bas, gauche ; marche = images 0-1-2-1.
+    // Planche RPG Maker 2003 : lignes haut, droite, bas, gauche ; image 1 = debout,
+    // 0 et 2 = pied gauche / pied droit en avant.
     const t = sprite.tint;
     sheet = t
       ? recolored(sprite.key, `${t.hue}|${t.sat}|${t.light}`, (h, s, l) => (s < 0.1 ? null : [h + t.hue, s * t.sat, l * t.light]))
@@ -102,7 +104,9 @@ export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'ri
   if (!sheet || (sheet instanceof HTMLImageElement && !isReady(sheet))) return;
   const { frameW, frameH } = sprite;
   const frameIndex = sprite.kind === 'rm'
-    ? (moving ? [0, 1, 2, 1][Math.floor(now / 120) % 4] : 1)
+    // Chaque pas : pied en avant pendant la première moitié, puis jambes rassemblées ;
+    // un pas sur deux change de pied (cycle 0-1-2-1 en marche continue).
+    ? (moving && progress < 0.5 ? (stride % 2 ? 0 : 2) : 1)
     : Math.floor(now / ms) % frames;
   const w = frameW * scale;
   const h = frameH * scale;
