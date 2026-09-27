@@ -13,7 +13,8 @@ import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
 import { staticLayer, themeOf, TILE } from './mapThemes.js';
-import { drawActor, PLAYER } from './actors.js';
+import { drawActor, dirBetween } from './actors.js';
+import { CLASS_SPRITES, ENEMY_SPRITES } from './spriteCatalog.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
 const VIEW_W = 21;         // cases visibles (largeur × hauteur)
@@ -26,7 +27,8 @@ const ENCOUNTER_MS = 400;  // le monstre touché reste visible un instant avant 
 let walk = null;
 let busy = false; // combat en cours de déclenchement
 // Animation : positions affichées (interpolées) du groupe et des monstres.
-const anim = { map: null, party: null, dir: 'down', facing: 'right', mobs: new Map(), highlight: null };
+// followers : compagnons en file indienne derrière le meneur (ils reprennent ses cases).
+const anim = { map: null, party: null, followers: [], dir: 'down', facing: 'right', mobs: new Map(), highlight: null };
 let frameRequested = false;
 
 function stopWalk() {
@@ -159,9 +161,15 @@ function syncAnim(reset = false) {
   if (reset || anim.map !== map) {
     anim.map = map;
     anim.party = tween(map.party, map.party, now);
+    anim.followers = state.party.slice(1).map(() => tween(map.party, map.party, now));
     anim.mobs = new Map();
   }
   const moveTo = (current, pos) => (current.to.x === pos.x && current.to.y === pos.y ? current : tween(posOf(current, now), pos, now));
+  if (anim.party.to.x !== map.party.x || anim.party.to.y !== map.party.y) {
+    // Chaque compagnon prend la case que quitte celui qui le précède.
+    const targets = [anim.party.to, ...anim.followers.map((f) => f.to)];
+    anim.followers = anim.followers.map((f, i) => moveTo(f, targets[i]));
+  }
   anim.party = moveTo(anim.party, map.party);
   for (const mob of map.mobs) {
     const current = anim.mobs.get(mob.id);
@@ -169,7 +177,7 @@ function syncAnim(reset = false) {
   }
 }
 
-const tween = (from, to, t0) => ({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }, t0 });
+const tween = (from, to, t0) => ({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }, t0, dir: dirBetween(from, to) });
 
 function posOf(t, now) {
   const k = Math.min(1, (now - t.t0) / STEP_MS);
@@ -253,11 +261,18 @@ function draw(canvas, now) {
   const actors = [];
   for (const mob of map.mobs) {
     if (!visible.has(idx(map, mob.x, mob.y)) && mob.id !== anim.highlight) continue;
-    const p = posOf(anim.mobs.get(mob.id) ?? tween(mob, mob, 0), now);
-    actors.push({ y: p.y, draw: () => drawMob(ctx, mob, p, at, size) });
+    const t = anim.mobs.get(mob.id) ?? tween(mob, mob, 0);
+    const p = posOf(t, now);
+    actors.push({ y: p.y, draw: () => drawMob(ctx, mob, p, t.dir ?? 'down', at, size, now) });
   }
   const hp = posOf(anim.party, now);
-  actors.push({ y: hp.y, draw: () => drawHero(ctx, hp, at, now) });
+  actors.push({ y: hp.y + 0.02, draw: () => drawHero(ctx, state.party[0], hp, anim.dir, at, now) });
+  anim.followers.forEach((f, i) => {
+    const hero = state.party[i + 1];
+    if (!hero) return;
+    const fp = posOf(f, now);
+    actors.push({ y: fp.y + 0.01 - i * 0.001, draw: () => drawHero(ctx, hero, fp, f.dir ?? anim.dir, at, now) });
+  });
   actors.sort((a, b) => a.y - b.y).forEach((a) => a.draw());
 
   // Brouillard : jamais vu = noir ; déjà vu mais hors de vue = assombri.
@@ -278,7 +293,7 @@ function draw(canvas, now) {
   if (themeOf(exp.dungeonKey)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
 }
 
-function drawMob(ctx, mob, p, at, size) {
+function drawMob(ctx, mob, p, dir, at, size, now) {
   const [sx, sy] = at(p.x, p.y);
   const cx = sx + size / 2;
   const cy = sy + size / 2;
@@ -293,10 +308,17 @@ function drawMob(ctx, mob, p, at, size) {
     ctx.ellipse(cx, sy + size * 0.85, size * 0.46, size * 0.2, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.font = `${Math.round(size * (mob.boss ? 0.95 : 0.78))}px serif`;
+  const sprite = ENEMY_SPRITES[mob.enemies[0]];
+  if (sprite) {
+    drawActor(ctx, { sx, sy, size, scale: SCALE, dir, moving: p.moving, now: now + mob.x * 53, sprite, shadow: false });
+  } else {
+    ctx.font = `${Math.round(size * (mob.boss ? 0.95 : 0.78))}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ENEMIES[mob.enemies[0]].icon, cx, cy);
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(ENEMIES[mob.enemies[0]].icon, cx, cy);
   if (mob.enemies.length > 1) {
     ctx.fillStyle = '#fff';
     ctx.font = `bold ${Math.round(size * 0.3)}px sans-serif`;
@@ -309,10 +331,11 @@ function drawMob(ctx, mob, p, at, size) {
   }
 }
 
-// Héros : sprite animé (marche pendant un pas, attente sinon), pieds au bas de la case.
-function drawHero(ctx, p, at, now) {
+// Héros : sprite de sa classe (marche pendant un pas, attente sinon), pieds au bas de la case.
+function drawHero(ctx, hero, p, dir, at, now) {
   const [sx, sy] = at(p.x, p.y);
-  drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: anim.dir, facing: anim.facing, moving: p.moving, now, sprite: PLAYER });
+  const sprite = CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
+  drawActor(ctx, { sx, sy, size: TILE * SCALE, scale: SCALE, dir: dir ?? 'down', facing: anim.facing, moving: p.moving, now, sprite });
 }
 
 // Neige qui tombe (Pics gelés) : flocons en espace monde, qui dérivent doucement, et

@@ -8,7 +8,8 @@ import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk } fro
 import { stepToward } from '../game/floorMap.js';
 import { blobTile } from './autotile.js';
 import { image, isReady } from './sprites.js';
-import { drawActor, PLAYER } from './actors.js';
+import { drawActor, dirBetween } from './actors.js';
+import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
 
 const TILE = 16;
 const SCALE = 3;
@@ -35,7 +36,8 @@ export function arriveAtVillage() {
 let onTalk = () => {};
 let walk = null;
 let frameRequested = false;
-const anim = { from: null, to: null, t0: 0 };
+// followers : compagnons en file indienne derrière le meneur ({ from, to, t0, dir }).
+const anim = { from: null, to: null, t0: 0, followers: [] };
 let groundLayer = null;
 
 export function villageCard() {
@@ -65,6 +67,7 @@ export function bindVillage(app, talk) {
   const p = pos();
   anim.from = { x: p.x, y: p.y };
   anim.to = { x: p.x, y: p.y };
+  anim.followers = state.party.slice(1).map(() => ({ from: { x: p.x, y: p.y }, to: { x: p.x, y: p.y }, t0: 0, dir: p.dir }));
   requestFrame();
   app.querySelectorAll('[data-vstep]').forEach((btn) => {
     btn.onclick = () => {
@@ -100,9 +103,17 @@ function step(dx, dy) {
     requestFrame();
     return false;
   }
-  anim.from = currentPos(performance.now());
+  const now = performance.now();
+  // Chaque compagnon prend la case que quitte celui qui le précède.
+  const targets = [anim.to, ...anim.followers.map((f) => f.to)];
+  anim.followers = anim.followers.map((f, i) => {
+    const target = targets[i];
+    if (f.to.x === target.x && f.to.y === target.y) return f;
+    return { from: tweenPos(f, now), to: { ...target }, t0: now, dir: dirBetween(f.to, target) ?? f.dir };
+  });
+  anim.from = currentPos(now);
   anim.to = { ...r.pos };
-  anim.t0 = performance.now();
+  anim.t0 = now;
   p.x = r.pos.x;
   p.y = r.pos.y;
   requestFrame();
@@ -189,6 +200,11 @@ if (typeof document !== 'undefined') {
 }
 
 // ---- Affichage ----
+
+function tweenPos(t, now) {
+  const k = Math.min(1, (now - t.t0) / STEP_MS);
+  return { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k, moving: k < 1 };
+}
 
 function currentPos(now) {
   const k = Math.min(1, (now - anim.t0) / STEP_MS);
@@ -283,9 +299,16 @@ function draw(canvas, now) {
   const near = VILLAGE.npcs.filter((n) => Math.abs(n.x - p.x) + Math.abs(n.y - p.y) <= 3);
   for (const npc of VILLAGE.npcs) {
     const dir = near.includes(npc) ? faceTowards(npc, p) : 'down';
-    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look }) });
+    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look, sprite: NPC_SPRITES[npc.id] }) });
   }
-  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, now, sprite: PLAYER }) });
+  const heroSprite = (hero) => CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
+  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, now, sprite: heroSprite(state.party[0]) }) });
+  anim.followers.forEach((f, i) => {
+    const hero = state.party[i + 1];
+    if (!hero) return;
+    const fp = tweenPos(f, now);
+    items.push({ y: fp.y + 0.015 - i * 0.001, draw: () => drawActor(ctx, { sx: fp.x * size - cam.x, sy: fp.y * size - cam.y, size, scale: SCALE, dir: f.dir, facing: p.facing, moving: fp.moving, now, sprite: heroSprite(hero) }) });
+  });
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 
   // Nom et rôle des habitants proches, au-dessus de leur tête.

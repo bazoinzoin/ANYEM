@@ -3,7 +3,7 @@
 // (HERO) en variantes de couleurs.
 
 import { image, isReady } from './sprites.js';
-import { rgbToHsl, hslToRgb } from './recolor.js';
+import { rgbToHsl, hslToRgb, recolored } from './recolor.js';
 
 // Planches du pack : 4 images par ligne, 40 × 48 px. Lignes : 0 = profil (vers la droite,
 // retourné pour la gauche), 2 = dos, 3 = face.
@@ -64,23 +64,47 @@ export const PLAYER = {
   footOffset: -1,
 };
 
+const RM_ROWS = { up: 0, right: 1, down: 2, left: 3 };
+
+// Direction d'un déplacement d'une case (from → to), ou null s'il n'y en a pas.
+export function dirBetween(from, to) {
+  const dx = Math.sign(to.x - from.x);
+  const dy = Math.sign(to.y - from.y);
+  if (dx) return dx > 0 ? 'right' : 'left';
+  if (dy) return dy > 0 ? 'down' : 'up';
+  return null;
+}
+
 /**
  * Dessine un personnage pieds au bas de la case dont le coin haut-gauche est (sx, sy)
  * (pixels d'écran, case de `size` px, zoom `scale`), avec son ombre.
- * `sprite` : PLAYER, ou HERO (planches du pack, 4 directions, recolorables par `look`).
+ * `sprite` : PLAYER, HERO (planches du pack, 4 directions, recolorables par `look`), ou
+ * une planche RPG Maker 2003 (`kind: 'rm'`, voir ui/spriteCatalog.js).
  * `facing` : dernier profil ('left' | 'right') pour un sprite de profil uniquement.
  */
-export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, now, look = null, sprite = HERO }) {
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.ellipse(sx + size / 2, sy + size * 0.88, size * 0.34, size * 0.13, 0, 0, Math.PI * 2);
-  ctx.fill();
+export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'right', moving = false, now, look = null, sprite = HERO, shadow = true }) {
+  if (shadow) {
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath();
+    ctx.ellipse(sx + size / 2, sy + size * 0.88, size * 0.34, size * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   let sheet;
   let row;
   let frames;
   let ms;
   let flip;
-  if (sprite.sideOnly) {
+  if (sprite.kind === 'rm') {
+    // Planche RPG Maker 2003 : lignes haut, droite, bas, gauche ; marche = images 0-1-2-1.
+    const t = sprite.tint;
+    sheet = t
+      ? recolored(sprite.key, `${t.hue}|${t.sat}|${t.light}`, (h, s, l) => (s < 0.1 ? null : [h + t.hue, s * t.sat, l * t.light]))
+      : image(sprite.key);
+    row = RM_ROWS[dir] ?? 2;
+    frames = 1;
+    ms = 1;
+    flip = false;
+  } else if (sprite.sideOnly) {
     sheet = image(sprite.sheet);
     ({ row, frames, ms } = sprite.anims[moving ? 'walk' : 'idle']);
     flip = (dir === 'left' || dir === 'right' ? dir : facing) === 'left';
@@ -93,7 +117,9 @@ export function drawActor(ctx, { sx, sy, size, scale, dir = 'down', facing = 'ri
   }
   if (!sheet || (sheet instanceof HTMLImageElement && !isReady(sheet))) return;
   const { frameW, frameH } = sprite;
-  const frameIndex = Math.floor(now / ms) % frames;
+  const frameIndex = sprite.kind === 'rm'
+    ? (moving ? [0, 1, 2, 1][Math.floor(now / 120) % 4] : 1)
+    : Math.floor(now / ms) % frames;
   const w = frameW * scale;
   const h = frameH * scale;
   const dx = Math.round(sx + size / 2 - w / 2);

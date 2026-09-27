@@ -95,6 +95,7 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 
 ## Village : auberge et banque (choix d'implémentation)
 
+- **Personnages sur les cartes** (`ui/spriteCatalog.js`) : un sprite par classe (le Paladin utilise le sprite `custom/paladin_spritesheet`), habitants et monstres issus d'une compilation de charsets RPG Maker 2003 (`assets/rm2k3/`, 4 directions, recolorés par zone) ; l'équipe avance en file indienne. Usage non commercial (voir `assets/CREDITS.md`).
 - **Village à parcourir** (`data/village.js` : carte 34 × 24, bâtiments, décors, arbres, habitants ; `game/village.js` : grille de marche, parler ; `ui/villageView.js` : rendu et contrôles). Chaque service est un habitant (aubergiste, forgeron, banquier, marchande, runomancienne, maître des compétences, traqueur du bestiaire, Oracle de la difficulté, garde des portails) : Espace/Entrée/E face à lui, ou clic dessus (le groupe y marche). Passer sous l'arche de la porte ouvre aussi les portails (`ui/screens/portals.js`). Équipement, statistiques et stratégie restent en raccourcis sous la carte. Les habitants utilisent le sprite du héros recoloré (`tintedSheet`, `ui/actors.js`) en attendant de vrais personnages. Retour d'expédition : le groupe réapparaît à la porte (`arriveAtVillage`).
 
 - Auberge : au plus 4 compagnons au repos (`INN.maxReserve`) ; on peut renvoyer définitivement un compagnon au repos (`dismiss`) : ses objets communs portés sont détruits, les autres rendus au sac.
