@@ -30,6 +30,8 @@
 .pmini.dead { opacity: .5; }
 
 /* ---- Combat ---- */
+.battle-stage { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #2a2119; }
+.battle-stage canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: manipulation; }
 .combatants { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
 @media (max-width: 600px) { .combatants { grid-template-columns: 1fr; } }
 .side-title { font-size: 14px; color: var(--dim); margin-bottom: 6px; }

@@ -214,4 +214,5 @@ export const REWARDS = {
 export const TIMING = {
   enemyThinkMs: 800,
   enemyAfterMs: 500,
+  outcomeMs: 1200, // dernier coup, puis fin du combat
 };

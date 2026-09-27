@@ -4,7 +4,7 @@ import { ASSET_DATA } from './assetData.js';
 
 const cache = new Map();
 
-// Image d'une clé d'asset (ex. « fantasy/Tree_Emerald_1 ») ; chargée à la première demande.
+// Image d'une clé d'asset (ex. « rm2k3/chip_forest ») ; chargée à la première demande.
 export function image(key) {
   if (!cache.has(key)) {
     const img = new Image();

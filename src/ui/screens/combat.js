@@ -20,6 +20,7 @@ import { esc, tip, bar, range } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
 import { playerAction } from '../encounter.js';
 import { logLines } from '../combatLog.js';
+import { attachStage, setStagePick } from '../battleStage.js';
 
 export function renderCombat(app) {
   const cb = state.combat;
@@ -28,6 +29,7 @@ export function renderCombat(app) {
 
   app.innerHTML = `
     <div class="hero"><h1>⚔️ Combat</h1><p>${esc(cb.title)} · niveau ${cb.level}</p></div>
+    <div class="battle-stage"><canvas id="battleStage"></canvas></div>
     <div class="combatants">
       <div>
         <h3 class="side-title">VOTRE ÉQUIPE</h3>
@@ -42,6 +44,7 @@ export function renderCombat(app) {
     ${activeHero ? actionPanel(activeHero) : waitingPanel(acting)}
   `;
 
+  attachStage(app.querySelector('#battleStage'), cb);
   if (activeHero) wireActions(app, activeHero);
 }
 
@@ -106,7 +109,11 @@ function statusTags(unit) {
 }
 
 function waitingPanel(acting) {
-  const text = acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
+  const result = state.combat.result;
+  const text = result === 'victory' ? '🏆 Victoire !'
+    : result === 'defeat' ? "💀 L'équipe est vaincue..."
+    : result === 'escape' ? "🪢 L'équipe s'échappe !"
+    : acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
   return `<div class="card waiting">${text}</div>`;
 }
 
@@ -168,13 +175,15 @@ function wireActions(app, hero) {
         : `${getSkills(hero)[action.skill].name} — ${skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)))}`;
       zone.innerHTML = `<button data-confirm>Confirmer : ${esc(label)}</button>`;
       zone.querySelector('[data-confirm]').onclick = () => playerAction(action);
+      setStagePick(null);
       return;
     }
     const list = targets.side === 'enemy' ? cb.enemies : cb.party;
     const verb = targets.units.some((u) => !u.alive) ? 'Relever' : 'Cibler';
-    zone.innerHTML = targets.units
+    zone.innerHTML = `<span class="hint">Choisis la cible (bouton ou clic sur le personnage) :</span>` + targets.units
       .map((u) => `<button data-target="${list.indexOf(u)}">${verb} ${esc(u.name)} · ${targetEstimate(action, u)}</button>`)
       .join('');
+    setStagePick(targets.units, (u) => playerAction({ ...action, target: list.indexOf(u) }));
     zone.querySelectorAll('[data-target]').forEach((btn) => {
       btn.onclick = () => playerAction({ ...action, target: Number(btn.dataset.target) });
     });
@@ -185,6 +194,7 @@ function wireActions(app, hero) {
   app.querySelector('#actEnd').onclick = () => playerAction({ type: 'endTurn' });
   app.querySelector('#actMove').onclick = () => playerAction({ type: 'move' });
   app.querySelector('#actItem').onclick = () => {
+    setStagePick(null);
     zone.innerHTML = CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
       const c = CONSUMABLES[k];
       return `<button data-item="${k}" ${tip(c.desc)} ${canUseItem(cb, k) ? '' : 'disabled'}>${c.icon} ${c.name} (${countOf(cb.consumables, k)})</button>`;

@@ -6,20 +6,38 @@ import { state } from '../state.js';
 import { VILLAGE, VILLAGE_SERVICES } from '../data/village.js';
 import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk } from '../game/village.js';
 import { stepToward } from '../game/floorMap.js';
-import { blobTile } from './autotile.js';
-import { image, isReady } from './sprites.js';
-import { drawActor } from './actors.js';
+import { rmQuarter } from './autotile.js';
+import { chipImage } from './mapThemes.js';
+import { drawActor, dirBetween } from './actors.js';
+import { holdToWalk } from './heldKeys.js';
+import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
 
 const TILE = 16;
 const SCALE = 3;
 const VIEW_W = 21;
 const VIEW_H = 13;
-const STEP_MS = 150;
-const WALK_MS = 150;
-const GROUND = 'fantasy/Tileset_Ground';
-const GROUND_COL = 6; // herbe sur terre battue
-const GRASS_VARIANTS = [[0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [0, 9], [1, 9], [2, 9], [3, 9], [4, 9], [5, 9]];
-const TREES = ['fantasy/Tree_Emerald_1', 'fantasy/Tree_Emerald_2', 'fantasy/Tree_Emerald_3', 'fantasy/Tree_Emerald_4'];
+const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
+const WALK_MS = STEP_MS;
+// Chipsets RPG Maker 2003 du village (voir data/village.js).
+const CHIPS = { village: 'rm2k3/chip_village', town: 'rm2k3/chip_town', dungeon: 'rm2k3/chip_dungeon' };
+const GRASS = [1, 10];          // herbe (chip_village)
+const PAVING = [9, 8];          // autotile de pavés (chip_village)
+const TREES = [[22, 8, 2, 2], [20, 8, 1, 2]]; // arbres (chip_village)
+// Toits (chip_town) : tuiles de la rangée du haut et du reste, en alternance par colonne.
+const ROOFS = {
+  red: { top: [[14, 3], [15, 3]], body: [[14, 4], [15, 4]] },
+  teal: { top: [[16, 3]], body: [[16, 4]] },
+  green: { top: [[14, 5], [15, 5]], body: [[14, 11], [15, 11]] },
+  brown: { top: [[12, 3], [13, 3]], body: [[12, 4], [13, 4]] },
+};
+// Murs (chip_town) : lignes haut, milieu, bas ; colonnes gauche, milieu, droite.
+const WALLS = {
+  plaster: [[[12, 0], [13, 0], [14, 0]], [[12, 1], [13, 1], [14, 1]], [[12, 2], [13, 2], [14, 2]]],
+  stone: [[[15, 0], [16, 0], [17, 0]], [[15, 1], [16, 1], [17, 1]], [[15, 2], [16, 2], [17, 2]]],
+  brick: [[[14, 9], [15, 9], [16, 9]], [[14, 9], [15, 9], [16, 9]], [[14, 9], [15, 9], [16, 9]]],
+};
+const DOOR = [21, 6, 1, 2];     // porte (chip_town)
+const WINDOW = [25, 2];         // fenêtre (chip_town)
 
 // Position du groupe au village (conservée entre deux menus) : state.village = { x, y, dir }.
 function pos() {
@@ -35,7 +53,8 @@ export function arriveAtVillage() {
 let onTalk = () => {};
 let walk = null;
 let frameRequested = false;
-const anim = { from: null, to: null, t0: 0 };
+// followers : compagnons en file indienne derrière le meneur ({ from, to, t0, dir }).
+const anim = { from: null, to: null, t0: 0, n: 0, followers: [] };
 let groundLayer = null;
 
 export function villageCard() {
@@ -65,6 +84,7 @@ export function bindVillage(app, talk) {
   const p = pos();
   anim.from = { x: p.x, y: p.y };
   anim.to = { x: p.x, y: p.y };
+  anim.followers = state.party.slice(1).map(() => ({ from: { x: p.x, y: p.y }, to: { x: p.x, y: p.y }, t0: 0, dir: p.dir }));
   requestFrame();
   app.querySelectorAll('[data-vstep]').forEach((btn) => {
     btn.onclick = () => {
@@ -92,16 +112,28 @@ const FACING = { right: { dx: 1, dy: 0 }, left: { dx: -1, dy: 0 }, down: { dx: 0
 
 function step(dx, dy) {
   if (state.screen !== 'hub') return false;
+  // Un pas à la fois : le précédent doit être (presque) fini.
+  if (performance.now() - anim.t0 < STEP_MS - 20) return false;
   const p = pos();
   p.dir = DIRS[`${dx},${dy}`] ?? p.dir;
+  if (dx) p.facing = dx > 0 ? 'right' : 'left';
   const r = villageStep(p, dx, dy);
   if (!r.moved) {
     requestFrame();
     return false;
   }
-  anim.from = currentPos(performance.now());
+  const now = performance.now();
+  // Chaque compagnon prend la case que quitte celui qui le précède.
+  const targets = [anim.to, ...anim.followers.map((f) => f.to)];
+  anim.followers = anim.followers.map((f, i) => {
+    const target = targets[i];
+    if (f.to.x === target.x && f.to.y === target.y) return f;
+    return { from: tweenPos(f, now), to: { ...target }, t0: now, n: (f.n ?? 0) + 1, dir: dirBetween(f.to, target) ?? f.dir };
+  });
+  anim.from = currentPos(now);
   anim.to = { ...r.pos };
-  anim.t0 = performance.now();
+  anim.t0 = now;
+  anim.n += 1;
   p.x = r.pos.x;
   p.y = r.pos.y;
   requestFrame();
@@ -167,31 +199,27 @@ function walkTo(target) {
   tick();
 }
 
-const KEYS = {
-  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
-  z: [0, -1], s: [0, 1], q: [-1, 0], d: [1, 0], w: [0, -1], a: [-1, 0],
-};
-if (typeof document !== 'undefined') {
-  document.addEventListener('keydown', (ev) => {
-    if (state.screen !== 'hub' || !document.querySelector('#villageMap') || ev.target.closest?.('input, textarea, select')) return;
-    if ([' ', 'Enter', 'e', 'E'].includes(ev.key)) {
-      ev.preventDefault();
-      talk_();
-      return;
-    }
-    const dir = KEYS[ev.key] ?? KEYS[ev.key.toLowerCase()];
-    if (!dir) return;
-    ev.preventDefault();
+// Clavier : un pas par appui, puis au rythme de la marche tant que la touche est enfoncée.
+holdToWalk({
+  active: () => state.screen === 'hub' && !!document.querySelector('#villageMap'),
+  onMove: (dx, dy) => {
     stopWalk();
-    step(...dir);
-  });
-}
+    step(dx, dy);
+  },
+  onAction: () => talk_(),
+  interval: STEP_MS,
+});
 
 // ---- Affichage ----
 
+function tweenPos(t, now) {
+  const k = Math.min(1, (now - t.t0) / STEP_MS);
+  return { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k, moving: k < 1, k, n: t.n ?? 0 };
+}
+
 function currentPos(now) {
   const k = Math.min(1, (now - anim.t0) / STEP_MS);
-  return { x: anim.from.x + (anim.to.x - anim.from.x) * k, y: anim.from.y + (anim.to.y - anim.from.y) * k, moving: k < 1 };
+  return { x: anim.from.x + (anim.to.x - anim.from.x) * k, y: anim.from.y + (anim.to.y - anim.from.y) * k, moving: k < 1, k, n: anim.n };
 }
 
 function requestFrame() {
@@ -224,26 +252,66 @@ function hash(x, y, salt = 0) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// Sol : herbe, chemins de terre battue (bords « blob »). Dessiné une fois.
+// Sol : herbe et rues pavées (autotile RPG Maker). Dessiné une fois.
 function ground() {
   if (groundLayer) return groundLayer;
-  const img = image(GROUND);
-  if (!isReady(img)) return null;
+  const chip = chipImage(CHIPS.village);
+  if (!chip) return null;
   const grid = villageGrid();
   const canvas = document.createElement('canvas');
   canvas.width = VILLAGE.w * TILE;
   canvas.height = VILLAGE.h * TILE;
   const ctx = canvas.getContext('2d');
-  const grass = (x, y) => x < 0 || y < 0 || x >= grid.w || y >= grid.h || !grid.path[y * grid.w + x];
+  const paved = (x, y) => x >= 0 && y >= 0 && x < grid.w && y < grid.h && !!grid.path[y * grid.w + x];
   for (let y = 0; y < grid.h; y++) {
     for (let x = 0; x < grid.w; x++) {
-      let [tx, ty] = blobTile((dx, dy) => grass(x + dx, y + dy));
-      tx += GROUND_COL;
-      if (tx === GROUND_COL + 2 && ty === 1 && hash(x, y) < 0.35) [tx, ty] = GRASS_VARIANTS[Math.floor(hash(x, y, 1) * GRASS_VARIANTS.length)];
-      ctx.drawImage(img, tx * TILE, ty * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+      if (!paved(x, y)) {
+        ctx.drawImage(chip, GRASS[0] * TILE, GRASS[1] * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+        continue;
+      }
+      for (let q = 0; q < 4; q++) {
+        const [col, row] = rmQuarter((dx, dy) => paved(x + dx, y + dy), q);
+        const qx = (q % 2) * 8;
+        const qy = (q >> 1) * 8;
+        ctx.drawImage(chip, (PAVING[0] + col) * TILE + qx, (PAVING[1] + row) * TILE + qy, 8, 8, x * TILE + qx, y * TILE + qy, 8, 8);
+      }
     }
   }
   groundLayer = canvas;
+  return canvas;
+}
+
+// Maison construite tuile par tuile (toit, murs, fenêtres, porte, enseigne), mise en cache.
+const houses = new Map();
+function house(b) {
+  if (houses.has(b.id)) return houses.get(b.id);
+  const town = chipImage(CHIPS.town);
+  const signChip = b.sign ? chipImage(CHIPS[b.sign.chip]) : null;
+  if (!town || (b.sign && !signChip)) return null;
+  const rows = b.roofRows + b.wallRows;
+  const canvas = document.createElement('canvas');
+  canvas.width = b.cols * TILE;
+  canvas.height = rows * TILE;
+  const ctx = canvas.getContext('2d');
+  const put = (chip, [c, r], x, y, w = 1, h = 1) => ctx.drawImage(chip, c * TILE, r * TILE, w * TILE, h * TILE, x * TILE, y * TILE, w * TILE, h * TILE);
+  const roof = ROOFS[b.roof];
+  for (let y = 0; y < b.roofRows; y++) {
+    const set = y === 0 ? roof.top : roof.body;
+    for (let x = 0; x < b.cols; x++) put(town, set[x % set.length], x, y);
+  }
+  const wall = WALLS[b.wall];
+  const wallRows = b.wallRows === 2 ? [wall[1], wall[2]] : [wall[0], ...Array(b.wallRows - 2).fill(wall[1]), wall[2]];
+  wallRows.forEach((row, i) => {
+    for (let x = 0; x < b.cols; x++) put(town, row[x === 0 ? 0 : x === b.cols - 1 ? 2 : 1], x, b.roofRows + i);
+  });
+  // Ombre du toit sur le haut des murs.
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.fillRect(0, b.roofRows * TILE, b.cols * TILE, 3);
+  const windowRow = b.roofRows + (b.wallRows >= 3 ? 1 : 0);
+  for (const dx of b.windows ?? []) put(town, WINDOW, dx, windowRow);
+  put(town, DOOR, b.door, rows - 2, DOOR[2], DOOR[3]);
+  if (b.sign) put(signChip, b.sign.tile, b.sign.dx, b.roofRows);
+  houses.set(b.id, canvas);
   return canvas;
 }
 
@@ -252,39 +320,48 @@ function draw(canvas, now) {
   ctx.imageSmoothingEnabled = false;
   const size = TILE * SCALE;
   const cam = camera(canvas, now);
-  ctx.fillStyle = '#2e4a24';
+  ctx.fillStyle = '#3b6d2a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const layer = ground();
   if (layer) ctx.drawImage(layer, cam.x / SCALE, cam.y / SCALE, canvas.width / SCALE, canvas.height / SCALE, 0, 0, canvas.width, canvas.height);
 
   // Tout ce qui a de la hauteur est trié par la ligne de ses pieds (les plus bas devant).
   const items = [];
-  const sprite = (key, x, bottom, w, h, frames = 1) => {
-    const img = image(key);
-    if (!isReady(img)) return;
-    const fw = img.width / frames;
-    const f = frames > 1 ? Math.floor(now / 120) % frames : 0;
+  // Objet du chipset `chip` (rect en tuiles), coin bas-gauche en (x, bottom).
+  const object = (chipKey, [c, r, w, h], x, bottom) => {
+    const chip = chipImage(CHIPS[chipKey]);
+    if (!chip) return;
     const sx = x * size - cam.x;
-    const sy = (bottom + 1) * size - h * SCALE - cam.y;
-    items.push({ y: bottom, draw: () => ctx.drawImage(img, f * fw, 0, fw, img.height, sx, sy, w * SCALE, h * SCALE) });
+    const sy = (bottom - h + 1) * size - cam.y;
+    items.push({ y: bottom, draw: () => ctx.drawImage(chip, c * TILE, r * TILE, w * TILE, h * TILE, sx, sy, w * size, h * size) });
   };
-  for (const b of [...VILLAGE.buildings, ...VILLAGE.props]) sprite(b.key, b.x, b.bottom, b.w, b.h, b.frames);
+  for (const b of VILLAGE.buildings) {
+    const img = house(b);
+    if (!img) continue;
+    const sx = b.x * size - cam.x;
+    const sy = (b.bottom + 1) * size - img.height * SCALE - cam.y;
+    items.push({ y: b.bottom, draw: () => ctx.drawImage(img, sx, sy, img.width * SCALE, img.height * SCALE) });
+  }
+  for (const o of VILLAGE.props) object(o.chip, o.rect, o.x, o.bottom);
   for (const [x, y] of VILLAGE.trees) {
-    const key = TREES[Math.floor(hash(x, y, 3) * TREES.length)];
-    const img = image(key);
-    if (!isReady(img)) continue;
-    const sx = Math.round((x + 0.5) * size - (img.width * SCALE) / 2 - cam.x);
-    const sy = (y + 1) * size - img.height * SCALE - cam.y;
-    items.push({ y, draw: () => ctx.drawImage(img, sx, sy, img.width * SCALE, img.height * SCALE) });
+    const tree = TREES[Math.floor(hash(x, y, 3) * TREES.length)];
+    object('village', tree, x - Math.floor((tree[2] - 1) / 2), y);
   }
   const p = pos();
   const hp = currentPos(now);
   const near = VILLAGE.npcs.filter((n) => Math.abs(n.x - p.x) + Math.abs(n.y - p.y) <= 3);
   for (const npc of VILLAGE.npcs) {
     const dir = near.includes(npc) ? faceTowards(npc, p) : 'down';
-    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look }) });
+    items.push({ y: npc.y + 0.01, draw: () => drawActor(ctx, { sx: npc.x * size - cam.x, sy: npc.y * size - cam.y, size, scale: SCALE, dir, now: now + npc.x * 97, look: npc.look, sprite: NPC_SPRITES[npc.id] }) });
   }
-  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, moving: hp.moving, now }) });
+  const heroSprite = (hero) => CLASS_SPRITES[hero?.classKey] ?? CLASS_SPRITES.paladin;
+  items.push({ y: hp.y + 0.02, draw: () => drawActor(ctx, { sx: hp.x * size - cam.x, sy: hp.y * size - cam.y, size, scale: SCALE, dir: p.dir, facing: p.facing, moving: hp.moving, stride: hp.n, progress: hp.k, now, sprite: heroSprite(state.party[0]) }) });
+  anim.followers.forEach((f, i) => {
+    const hero = state.party[i + 1];
+    if (!hero) return;
+    const fp = tweenPos(f, now);
+    items.push({ y: fp.y + 0.015 - i * 0.001, draw: () => drawActor(ctx, { sx: fp.x * size - cam.x, sy: fp.y * size - cam.y, size, scale: SCALE, dir: f.dir, facing: p.facing, moving: fp.moving, stride: fp.n, progress: fp.k, now, sprite: heroSprite(hero) }) });
+  });
   items.sort((a, b) => a.y - b.y).forEach((i) => i.draw());
 
   // Nom et rôle des habitants proches, au-dessus de leur tête.

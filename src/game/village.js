@@ -5,16 +5,21 @@
 
 import { VILLAGE } from '../data/village.js';
 
-const TILE = 16;
 let cached = null;
 
+// Taille en cases : maison (cols × toit + murs) ou objet (rect du chipset).
+export function sizeOf(obj) {
+  if (obj.cols) return { cols: obj.cols, rows: obj.roofRows + obj.wallRows };
+  return { cols: obj.rect[2], rows: obj.rect[3] };
+}
+
 function footprint(obj) {
-  const cols = Math.ceil(obj.w / TILE);
-  const rows = Math.ceil(obj.h / TILE);
-  if (obj.block === 'none') return [];
-  if (Array.isArray(obj.block)) return obj.block.map(([dx, dy]) => [obj.x + dx, obj.bottom + dy]);
+  const { cols, rows } = sizeOf(obj);
+  const block = obj.block ?? 'all';
+  if (block === 'none') return [];
+  if (Array.isArray(block)) return block.map(([dx, dy]) => [obj.x + dx, obj.bottom + dy]);
   const cells = [];
-  const top = obj.block === 'base' ? obj.bottom : obj.bottom - rows + 1;
+  const top = block === 'base' ? obj.bottom : obj.bottom - rows + 1;
   for (let y = top; y <= obj.bottom; y++) for (let x = obj.x; x < obj.x + cols; x++) cells.push([x, y]);
   return cells;
 }
