@@ -1,13 +1,15 @@
 // Difficulté, plein écran : une colonne par difficulté (puissance des ennemis, butin).
 
 import { state } from '../../state.js';
-import { DIFFICULTIES, DIFFICULTY_ORDER } from '../../config.js';
+import { DIFFICULTIES, DIFFICULTY_ORDER, REWARDS } from '../../config.js';
 import { RARITIES, RARITY_ORDER } from '../../data/items.js';
 import { difficultyOf, setDifficulty, lootRules, enemyPower } from '../../game/difficulty.js';
 import { esc } from '../html.js';
 import { goTo } from '../router.js';
 import { iconHtml, DIFFICULTY_ICONS } from '../icons.js';
 import { frame, wireFrame } from '../screenFrame.js';
+
+let scroll = 0;
 
 export function renderDifficulty(app) {
   const current = difficultyOf(state);
@@ -17,6 +19,13 @@ export function renderDifficulty(app) {
     body: DIFFICULTY_ORDER.map((k) => card(k, k === current)).join(''),
   });
   wireFrame(app);
+  // Défilement horizontal : garder la position, molette verticale → horizontale.
+  const body = app.querySelector('.scr-body');
+  body.scrollLeft = scroll;
+  body.onscroll = () => { scroll = body.scrollLeft; };
+  body.onwheel = (e) => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { body.scrollLeft += e.deltaY; e.preventDefault(); }
+  };
   app.querySelectorAll('[data-difficulty]').forEach((btn) => {
     btn.onclick = () => {
       setDifficulty(state, btn.dataset.difficulty);
@@ -28,8 +37,9 @@ export function renderDifficulty(app) {
 const short = (label) => label.split(' ').map((w) => w[0].toUpperCase()).join('');
 const pct = (v) => `${Math.round(v * 100)} %`;
 
-function weights(w) {
-  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${w[r] ? `${w[r]} %` : '—'}</td>`).join('');
+// Pas de matéria divine : la case reste vide (pas de tiret).
+function weights(w, materia = false) {
+  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${materia && r === 'divin' ? '' : w[r] ? `${w[r]} %` : '—'}</td>`).join('');
 }
 
 function card(key, selected) {
@@ -41,14 +51,15 @@ function card(key, selected) {
         ${head}
         <tbody>
           <tr><th>Équipement</th>${weights(items)}</tr>
-          <tr><th>Matéria</th>${weights(materia)}</tr>
+          <tr><th>Matéria</th>${weights(materia, true)}</tr>
         </tbody>
       </table>`;
   const amount = ({ min, max }) => (min === max ? `${min}` : `${min} à ${max}`);
   return `
     <section class="win difficulty ${selected ? 'selected' : ''}">
       <h3>${iconHtml(DIFFICULTY_ICONS[key], 32)} ${esc(d.name)}</h3>
-      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
+      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts${d.maxLevel ? ', <b>tous niveau 50</b>' : ''}</p>
+      <p>Mort : ${pct(REWARDS.defeatGoldLossPct)} de l'or, une partie du sac${loot.defeatWornLossChance ? ` <b>et de l'équipement porté</b> (${pct(loot.defeatWornLossChance)} par pièce)` : ''}</p>
       <h4>Monstre normal</h4>
       <ul class="loot-lines">
         <li>Équipement : ${pct(loot.dropChance)} de chances</li>

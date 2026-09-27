@@ -2,15 +2,15 @@
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
 
-import { REWARDS, LOOT, XP } from '../config.js';
+import { REWARDS, XP } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
 import { rollLoot } from './loot.js';
-import { difficultyOf } from './difficulty.js';
+import { difficultyOf, lootRules } from './difficulty.js';
 import { emptyMateria } from './forge.js';
 import { addConsumable } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
-import { RARITIES, MATERIA_KINDS } from '../data/items.js';
+import { RARITIES, MATERIA_KINDS, SLOT_ORDER } from '../data/items.js';
 import { random } from './rng.js';
 
 const mult = (enemy, field) => ENEMIES[enemy.enemyKey]?.[field] ?? 1;
@@ -63,18 +63,47 @@ export function applyVictory(game, { level, enemies, final = false }) {
   return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
 }
 
-// Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
+// Tire au hasard des éléments de `list` (chance `chance` chacun), sans jamais tous les
+// prendre : au plus `max`.
+function pickLosses(list, chance, max) {
+  const lost = list.filter(() => random() < chance);
+  while (lost.length > max) lost.splice(Math.floor(random() * lost.length), 1);
+  return lost;
+}
+
+/**
+ * Défaite : perte d'une part de l'or et d'une partie du sac (jamais tout) ; à partir de
+ * Guerre (`defeatWornLossChance`), aussi d'une partie de l'équipement porté (au plus la
+ * moitié des pièces de chaque héros). Les héros reviennent avec la moitié de leurs PV.
+ * Retourne { message, lost: { gold, bag: [objets], worn: [{ hero: nom, slot, item }] } }.
+ */
 export function applyDefeat(game) {
-  const loss = Math.round(game.gold * REWARDS.defeatGoldLossPct);
-  game.gold -= loss;
-  const lost = game.bag.filter(() => random() < LOOT.defeatBagLossChance);
-  game.bag = game.bag.filter((item) => !lost.includes(item));
+  const rules = lootRules(difficultyOf(game));
+  const gold = Math.round(game.gold * REWARDS.defeatGoldLossPct);
+  game.gold -= gold;
+  const bag = pickLosses(game.bag, rules.defeatBagLossChance, Math.max(0, game.bag.length - 1));
+  game.bag = game.bag.filter((item) => !bag.includes(item));
+  const worn = [];
+  for (const hero of game.party) {
+    const slots = SLOT_ORDER.filter((slot) => hero.equipment[slot]);
+    for (const slot of pickLosses(slots, rules.defeatWornLossChance ?? 0, Math.floor(slots.length / 2))) {
+      worn.push({ hero: hero.name, slot, item: hero.equipment[slot] });
+      delete hero.equipment[slot];
+    }
+  }
   for (const hero of game.party) {
     restoreFully(hero);
     hero.hp = Math.round(getStats(hero).pv * REWARDS.defeatHpPct);
   }
-  const lostText = lost.length ? ` et ${lost.length} objet${lost.length > 1 ? 's' : ''} du sac` : '';
-  return { message: `Votre équipe est vaincue et regagne le village de justesse, ayant perdu ${loss} pièces d'or${lostText}.` };
+  const parts = [`${gold} pièces d'or`];
+  if (bag.length) parts.push(`${bag.length} objet${bag.length > 1 ? 's' : ''} du sac`);
+  if (worn.length) parts.push(`${worn.length} pièce${worn.length > 1 ? 's' : ''} d'équipement portée${worn.length > 1 ? 's' : ''}`);
+  const last = parts.pop();
+  const text = parts.length ? `${parts.join(', ')} et ${last}` : last;
+  return {
+    message: `Votre équipe est vaincue et regagne le village de justesse, ayant perdu ${text}.`,
+    lost: { gold, bag, worn },
+  };
 }
 
 // Auberge : soin complet de toute l'équipe, héros tombés compris.

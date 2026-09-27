@@ -63,7 +63,7 @@ export function itemIcon(item) {
 const CONSUMABLE_ICONS = {
   potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
   selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
-  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
+  outilsDeDesamorcage: 125, remede: 240, tente: 93,
 };
 export function consumableIcon(key) {
   return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
@@ -140,6 +140,6 @@ export function talentNodeIcon(node, skills = []) {
 }
 
 // Difficultés.
-export const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750 };
+export const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750, cauchemar: 751, insanie: 752 };
 // Positions en combat.
 export const POSITION_ICONS = { melee: 726, ranged: 1482 };

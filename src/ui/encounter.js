@@ -5,7 +5,7 @@
 import { state } from '../state.js';
 import { TIMING } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } from '../game/dungeon.js';
+import { floorCombat, winFight, loseExpedition, subzoneOf } from '../game/dungeon.js';
 import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
@@ -73,13 +73,12 @@ function finish() {
   const cb = state.combat;
   state.combat = null;
   state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
-  if (cb.result === 'escape') {
-    escapeExpedition(state, cb);
-    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
-    return;
-  }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state, cb).message);
+    const exp = state.expedition;
+    const where = `${DUNGEONS[exp.dungeonKey].name} · ${subzoneOf(exp.dungeonKey, exp.floor).name}, étage ${exp.floor}`;
+    const r = loseExpedition(state, cb);
+    state.defeat = { where, message: r.message, lost: r.lost };
+    goTo('defeat');
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;

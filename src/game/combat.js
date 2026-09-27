@@ -3,8 +3,7 @@
 //
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
-// le combat est terminé et cb.result vaut 'victory', 'defeat' ou 'escape'
-// (Corde d'évasion : l'équipe quitte le donjon).
+// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant. Les effets sur la durée (poison, régénération…)
@@ -256,7 +255,7 @@ export function hasActionLeft(cb, hero) {
  *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
- *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
+ *        | { type: 'item', item: cléConsommable, target: indexAllié }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 export function heroAct(cb, action) {
@@ -304,15 +303,10 @@ export function heroAct(cb, action) {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
     const cost = actionCost(hero, 'item');
-    if (def.effect.escape) {
-      cb.result = 'escape';
-      log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
-    } else {
-      const target = cb.party[action.target];
-      const result = target ? applyConsumable(action.item, target) : null;
-      if (result === null) return false;
-      log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
-    }
+    const target = cb.party[action.target];
+    const result = target ? applyConsumable(action.item, target) : null;
+    if (result === null) return false;
+    log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
     // Payé après l'effet : un Élixir rend de l'Énergie sur la ressource déjà dépensée.
     hero.res = Math.max(0, hero.res - cost);
     cb.consumables[action.item]--;

@@ -149,7 +149,6 @@ function waiting(acting) {
   const result = state.combat.result;
   const text = result === 'victory' ? '🏆 Victoire !'
     : result === 'defeat' ? "💀 L'équipe est vaincue..."
-    : result === 'escape' ? "🪢 L'équipe s'échappe !"
     : acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
   return `<p class="bs-wait">${text}</p>`;
 }
@@ -225,7 +224,7 @@ function helpFor(hero, el) {
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
     case 'actSkills': return `<b>${iconHtml(COMMAND_ICONS.skills, 16)} Compétences</b><br>Les sorts et techniques appris par le héros.`;
-    case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, corde d'évasion…${takesTurn}`;
+    case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, plume de phénix…${takesTurn}`;
     case 'actDefend': return `<b>${iconHtml(COMMAND_ICONS.defend, 16)} Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
     case 'actMove': return `<b>${iconHtml(COMMAND_ICONS.move, 16)} ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
     case 'actEnd': return isMultiAction(hero) ? `<b>${iconHtml(COMMAND_ICONS.end, 16)} Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>${iconHtml(COMMAND_ICONS.end, 16)} Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;

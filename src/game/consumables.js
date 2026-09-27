@@ -27,7 +27,7 @@ export function usableIn(key, place) {
   return CONSUMABLES[key].use.includes(place);
 }
 
-// Sans cible individuelle (toute l'équipe, ou effet global comme la Corde).
+// Sans cible individuelle (toute l'équipe, ou effet global).
 export function isUntargeted(key) {
   return ['party', 'none'].includes(CONSUMABLES[key].target);
 }
@@ -99,19 +99,14 @@ export function usedThisTier(game, key) {
 
 /**
  * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
- * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
- * Retourne { ok, message, escaped } ; ok = false si l'utilisation est impossible.
+ * targetIndex : index du héros visé (ignoré pour la Tente).
+ * Retourne { ok, message } ; ok = false si l'utilisation est impossible.
  */
 export function useOnMap(game, key, targetIndex) {
   const def = CONSUMABLES[key];
   if (!def || !game.expedition || !usableIn(key, 'map') || countOf(game.consumables, key) <= 0) return { ok: false };
   let message;
-  let escaped = false;
-  if (def.effect.escape) {
-    game.expedition = null; // équivalent de escapeExpedition (game/dungeon.js), sans dépendance circulaire
-    escaped = true;
-    message = `${def.name} : l'équipe regagne le village sans encombre.`;
-  } else if (def.effect.restorePartyPct) {
+  if (def.effect.restorePartyPct) {
     if (!game.party.some((h) => h.alive)) return { ok: false };
     if (def.effect.oncePerTier) {
       const tier = tierIndex(game.expedition);
@@ -127,5 +122,5 @@ export function useOnMap(game, key, targetIndex) {
     message = `${def.name} sur ${target.name} : ${result}.`;
   }
   game.consumables[key]--;
-  return { ok: true, message, escaped };
+  return { ok: true, message };
 }

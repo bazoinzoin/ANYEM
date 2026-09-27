@@ -96,3 +96,11 @@ test("Forge divine : l'objet divin absorbe le pouvoir d'un légendaire du sac, q
   paladin.equipment.anneau1 = null;
   assert.ok(equip(warrior, game.bag, divine, 'anneau1'), "un Guerrier peut porter un divin au pouvoir de Voleur");
 });
+
+test('améliorer un objet divin coûte 10 / 10 / 10 / 20 / 30 matéria à chaque niveau', () => {
+  for (const plus of [0, 4]) {
+    const divine = generateItem({ level: 40, rarity: 'divin' });
+    divine.plus = plus;
+    assert.deepEqual(upgradeCost(divine).materia, { commun: 10, peuCommun: 10, rare: 10, epique: 20, legendaire: 30 });
+  }
+});

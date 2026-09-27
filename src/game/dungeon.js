@@ -17,7 +17,7 @@
 
 import { rollEvent } from './events.js';
 import { generateFloorMap, reveal, moveMobs, mobAt, isFloor } from './floorMap.js';
-import { difficultyOf, enemyPower } from './difficulty.js';
+import { difficultyOf, enemyPower, difficultyLevel } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
@@ -60,6 +60,11 @@ export function floorLevel(key, floor) {
   const { minLevel, maxLevel } = subzoneOf(key, floor);
   const step = (floor - 1) % FLOORS_PER_SUBZONE;
   return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
+}
+
+// Niveau des ennemis d'un étage pour la difficulté de la partie.
+export function expeditionLevel(game, key, floor) {
+  return difficultyLevel(difficultyOf(game), floorLevel(key, floor));
 }
 
 // Composition d'une rencontre de l'étage : { enemies: [clés], boss, final }.
@@ -136,7 +141,7 @@ export function floorCombat(game) {
   const mob = engagedMob(game);
   return {
     enemies: mob.enemies,
-    level: floorLevel(dungeonKey, floor),
+    level: expeditionLevel(game, dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
     title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${mob.boss ? ' — BOSS' : ''}`,
   };
@@ -174,7 +179,7 @@ export function stepParty(game, dx, dy) {
   const marker = map.events.find((e) => e.x === x && e.y === y);
   if (marker) {
     map.events = map.events.filter((e) => e !== marker);
-    event = rollEvent(floorLevel(exp.dungeonKey, exp.floor));
+    event = rollEvent(expeditionLevel(game, exp.dungeonKey, exp.floor));
     exp.event = event;
   }
   const catcher = event ? null : moveMobs(map);
@@ -248,12 +253,6 @@ export function continueExpedition(game) {
   exp.bossChoice = false;
   exp.canLeave = false;
   return true;
-}
-
-// Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-export function escapeExpedition(game, combat = null) {
-  if (combat) recordKills(game, combat.enemies);
-  game.expedition = null;
 }
 
 export function leaveExpedition(game) {

@@ -11,7 +11,7 @@ import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
-import { staticLayer, themeOf, TILE } from './mapThemes.js';
+import { staticLayer, themeOf, TILE, sheet } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
 import { heroSprite } from './heroSprite.js';
@@ -194,6 +194,38 @@ function frame(now) {
   requestFrame();
 }
 
+// Trappe ouverte sur une échelle (pack Green Dungeon, dungeon_obj), mise en valeur : halo
+// doré qui pulse, étincelles qui montent et flèche qui rebondit au-dessus.
+const HATCH = [0, 32, 16, 16];
+function drawLadder(ctx, sx, sy, size, now) {
+  const cx = sx + size / 2;
+  const cy = sy + size / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(now / 350);
+  const glow = ctx.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * (0.9 + 0.15 * pulse));
+  glow.addColorStop(0, `rgba(255,214,120,${0.45 + 0.25 * pulse})`);
+  glow.addColorStop(1, 'rgba(255,214,120,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - size, sy - size, size * 3, size * 3);
+  const img = sheet('dungeon_obj');
+  if (img) ctx.drawImage(img, ...HATCH, sx, sy, size, size);
+  ctx.strokeStyle = `rgba(255,232,160,${0.55 + 0.45 * pulse})`;
+  ctx.lineWidth = SCALE;
+  ctx.strokeRect(sx + SCALE / 2, sy + SCALE / 2, size - SCALE, size - SCALE);
+  // Étincelles : 4 points qui montent en boucle.
+  for (let i = 0; i < 4; i++) {
+    const t = ((now / 1400) + i / 4) % 1;
+    ctx.fillStyle = `rgba(255,240,190,${1 - t})`;
+    ctx.fillRect(Math.round(sx + size * (0.2 + 0.2 * i)), Math.round(sy + size * (0.8 - t)), SCALE, SCALE);
+  }
+  // Flèche vers le bas au-dessus de la trappe.
+  const u = SCALE;
+  const ay = sy - size * 0.55 + Math.round(Math.sin(now / 250) * 2) * u;
+  ctx.fillStyle = '#1a0f2a';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u - u, ay + r * u - u, (5 - r) * 2 * u + 2 * u, 3 * u);
+  ctx.fillStyle = '#f3d58c';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u, ay + r * u, (5 - r) * 2 * u, u);
+}
+
 // Position (pixels d'écran) du coin haut-gauche de la vue : centrée sur le groupe.
 function camera(canvas, now = performance.now()) {
   const map = state.expedition.map;
@@ -243,16 +275,7 @@ function draw(canvas, now) {
       ctx.ellipse(cx, cy + size * 0.28, size * 0.46, size * 0.22, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    if (text === 'ladder') {
-      // Échelle en pixels : deux montants et quatre barreaux.
-      const u = SCALE;
-      ctx.fillStyle = '#6b4a2a';
-      ctx.fillRect(cx - 5 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillRect(cx + 3 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillStyle = '#a57a44';
-      for (let r = 0; r < 4; r++) ctx.fillRect(cx - 3 * u, cy - 5 * u + r * 3.5 * u, 6 * u, u);
-      return;
-    }
+    if (text === 'ladder') return drawLadder(ctx, sx, sy, size, now);
     ctx.font = `bold ${Math.round(size * 0.6)}px FantasyRPGtitle, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -262,7 +285,7 @@ function draw(canvas, now) {
     ctx.fillStyle = '#f3d58c';
     ctx.fillText(text, cx, cy);
   };
-  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', 'rgba(0,0,0,.45)');
+  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', null);
   for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '?', 'rgba(90,50,160,.6)', 'rgba(190,150,255,.8)');
 
   // Personnages, triés de haut en bas (les plus bas passent devant).

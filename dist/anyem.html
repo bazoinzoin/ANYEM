@@ -606,7 +606,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 /* ---- Écran Personnage (équipement et inventaire) ---- */
 .inv-screen {
   position: fixed; inset: 0; margin: 0 auto; max-width: 1280px; z-index: 5; padding: 6px 8px 8px; gap: 6px;
-  display: grid; grid-template-columns: 250px 290px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) 216px;
+  display: grid; grid-template-columns: 250px 290px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(216px, 44%);
   grid-template-areas: "top top top" "stats doll bag" "stats doll detail";
   background: radial-gradient(ellipse at top, #2a1f14 0%, #120d08 70%); color: var(--cream);
 }
@@ -656,6 +656,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .inv-detail { grid-area: detail; overflow: hidden; font-size: 14px; display: flex; flex-direction: column; }
 .detail-cols { display: flex; gap: 14px; flex: 1; min-height: 0; }
 .detail-cols > div { flex: 1; min-width: 0; position: relative; }
+.detail-cols > div:first-child { flex: 1.8; }
 .detail-cols .item-card { margin: 0; padding-top: 0; }
 .detail-icon { float: left; margin: 0 8px 4px 0; }
 .detail-vs { border-left: 1px dashed rgba(216,181,106,.4); padding-left: 10px; opacity: .85; }
@@ -664,6 +665,16 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .detail-actions .warning { color: #ff9a8a; margin: 0; }
 .inv-detail .item-stats { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; font-size: 13px; margin-top: 2px; }
+.detail-vs .item-stats { grid-template-columns: 1fr; }
+/* Fiche resserrée quand elle ne tient pas (fitDetail) */
+.inv-detail.dense { font-size: 12px; }
+.inv-detail.dense .item-card .item-name { font-size: 14px; }
+.inv-detail.dense .item-card .item-meta, .inv-detail.dense .item-stats, .inv-detail.dense .item-legendary { font-size: 12px; line-height: 1.2; }
+.inv-detail.dense .detail-vs .item-meta { display: none; }
+.inv-detail.dense .detail-actions button { padding-top: 0; padding-bottom: 0; }
+.inv-detail.denser .item-card .item-meta { display: none; }
+.inv-detail.denser .item-stats, .inv-detail.denser .item-legendary { font-size: 11px; }
+.inv-detail.denser .item-card .item-rarity { display: none; }
 
 /* ---- Talents : arbres visuels ---- */
 .tal-screen {
@@ -810,7 +821,11 @@ button.beast.unknown canvas { filter: brightness(0) opacity(.6); }
 .beast-head h3 { margin: 0; }
 .detail-panel .bestiary-stats { font-size: 13px; }
 .detail-panel h4 { margin: 4px 0 2px; }
-.lay-difficulty > .scr-body { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.lay-difficulty > .scr-body { display: flex; gap: 8px; overflow-x: auto; scrollbar-color: #b8833a #1b1a2c; overflow-y: hidden; scroll-snap-type: x proximity; padding-bottom: 6px; }
+.lay-difficulty > .scr-body > .win.difficulty { flex: 0 0 calc((100% - 24px) / 4); min-width: 230px; scroll-snap-align: start; }
+.lay-difficulty > .scr-body::-webkit-scrollbar { height: 14px; }
+.lay-difficulty > .scr-body::-webkit-scrollbar-track { background: #1b1a2c; border: 2px solid #52333f; }
+.lay-difficulty > .scr-body::-webkit-scrollbar-thumb { background: #b8833a; border: 2px solid #52333f; }
 .lay-difficulty .scr-extras .hint { font-size: 13px; }
 .lay-difficulty .win.difficulty { font-size: 13px; gap: 3px; }
 .lay-difficulty .win.difficulty.selected { box-shadow: 0 0 0 2px #f3d58c, 0 0 14px rgba(243,213,140,.4); }
@@ -966,6 +981,24 @@ button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var
   .lay-bestiary .beast-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); grid-auto-rows: 100px; gap: 4px; }
   .lay-bestiary .beast canvas { height: 72px; width: 54px; }
 }
+/* Écran de mort */
+.defeat-screen { position: fixed; inset: 0; z-index: 5; box-sizing: border-box; padding: 18px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; overflow: hidden;
+  background: radial-gradient(ellipse at center, rgba(90,10,20,.55), rgba(10,4,8,.95) 70%), #0b0508; }
+.defeat-screen h1 { margin: 0; font-family: var(--font-title, inherit); font-size: 56px; color: #e64539; text-shadow: 0 0 18px rgba(230,69,57,.6), 3px 3px 0 #1b1a2c; letter-spacing: 4px; }
+.defeat-where { margin: 0; color: #d7d3bd; }
+.defeat-party { display: flex; gap: 12px; }
+.defeat-party canvas.fallen { filter: grayscale(.85) brightness(.6); transform: rotate(-8deg); }
+.defeat-lost { width: min(900px, 100%); min-height: 0; flex: 0 1 auto; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.defeat-lost h4 { margin: 6px 0 0; color: #f3d58c; }
+.defeat-gold { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 18px; }
+.defeat-items { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex-shrink: 0; max-height: 96px; overflow: hidden; }
+.defeat-items .bag-cell { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background-image: var(--ui-slot); background-size: 100% 100%; box-shadow: inset 0 0 0 2px var(--rc); }
+.defeat-worn { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 12px; }
+.defeat-hero { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.defeat-slot { display: flex; gap: 6px; align-items: center; }
+.defeat-back { font-size: 18px; padding: 8px 28px; }
+@media (max-height: 680px) { .defeat-screen h1 { font-size: 40px; } .defeat-screen { gap: 6px; padding-top: 10px; } .defeat-party canvas { height: 64px; width: auto; } }
+.defeat-lost > .hint { font-size: 12px; margin: 4px 0 0; }
 </style>
 
 </head>
@@ -1022,58 +1055,84 @@ const ITEM = {
 
 // Butin : pour chaque ennemi vaincu, trois tirages indépendants — équipement,
 // matéria et consommable. Un ennemi peut donc tout laisser, rien, ou un mélange.
+// Les matéria sont toujours plus fréquentes et moins rares que l'équipement, boss compris.
 const LOOT = {
   dropChance: 0.4,        // chance d'un équipement par ennemi ordinaire
   bossDrops: 1,           // équipements garantis par boss (le boss final en donne un de plus)
-  bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
-  // Matéria : plus fréquentes et moins rares que l'équipement (comparer à rarityWeights).
+  bossRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
   materiaChance: 0.5,
   materiaAmount: { min: 1, max: 2 },
   materiaRarityWeights: { commun: 40, peuCommun: 32, rare: 18, epique: 8, legendaire: 2 },
   bossMateriaAmount: { min: 2, max: 4 }, // garanties pour un boss
-  bossMateriaRarityWeights: { peuCommun: 30, rare: 40, epique: 23, legendaire: 7 },
+  bossMateriaRarityWeights: { peuCommun: 20, rare: 40, epique: 28, legendaire: 12 },
   // Consommables : tirés selon leur poids `drop` (data/consumables.js).
-  consumableChance: 0.2,
-  bossConsumableChance: 0.6,
+  consumableChance: 0.3,
+  bossConsumableChance: 0.9,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
-  defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+  defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac
+  defeatWornLossChance: 0,  // … et chaque pièce portée (à partir de Guerre, voir DIFFICULTIES)
 };
 
 // Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
-// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
-// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
-// changent pas.
+// les PV et l'attaque des ennemis ; `maxLevel` : tous les ennemis au niveau maximum
+// (XP.maxLevel), quelle que soit la zone ; `loot` remplace les valeurs correspondantes
+// de LOOT (chances de butin, raretés, pertes en cas de défaite). L'or et l'XP ne
+// changent pas. La rareté Divin ne tombe que sur les boss (pas de matéria divine).
 const DIFFICULTIES = {
-  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  balade: { name: 'Balade', power: 1.15, loot: {} },
   aventure: {
-    name: 'Aventure', icon: '🗺️', power: 1.3,
+    name: 'Aventure', power: 1.5,
     loot: {
-      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.33,
       rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
-      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      bossRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
       materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
-      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 36, epique: 33, legendaire: 16 },
     },
   },
   guerre: {
-    name: 'Guerre', icon: '⚔️', power: 1.7,
+    name: 'Guerre', power: 2,
     loot: {
-      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.36,
       rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
-      bossRarityWeights: { peuCommun: 10, rare: 34, epique: 38, legendaire: 17, divin: 1 },
+      bossRarityWeights: { peuCommun: 18, rare: 38, epique: 30, legendaire: 13, divin: 1 },
       materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
-      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+      bossMateriaRarityWeights: { peuCommun: 10, rare: 32, epique: 37, legendaire: 21 },
+      defeatWornLossChance: 0.25,
     },
   },
   horreur: {
-    name: 'Horreur', icon: '💀', power: 2.2,
+    name: 'Horreur', power: 2.6, maxLevel: true,
     loot: {
-      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.4,
       rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
-      bossRarityWeights: { peuCommun: 5, rare: 25, epique: 42, legendaire: 23, divin: 5 },
+      bossRarityWeights: { peuCommun: 10, rare: 33, epique: 33, legendaire: 19, divin: 5 },
       materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
-      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+      bossMateriaRarityWeights: { peuCommun: 5, rare: 27, epique: 40, legendaire: 28 },
+      defeatWornLossChance: 0.3,
+    },
+  },
+  cauchemar: {
+    name: 'Cauchemar', power: 3.3, maxLevel: true,
+    loot: {
+      dropChance: 0.6, materiaChance: 0.7, consumableChance: 0.44,
+      rarityWeights: { commun: 12, peuCommun: 28, rare: 35, epique: 18, legendaire: 7 },
+      bossRarityWeights: { peuCommun: 5, rare: 26, epique: 35, legendaire: 25, divin: 9 },
+      materiaRarityWeights: { commun: 10, peuCommun: 24, rare: 32, epique: 22, legendaire: 12 },
+      bossMateriaRarityWeights: { rare: 22, epique: 42, legendaire: 36 },
+      defeatWornLossChance: 0.35,
+    },
+  },
+  insanie: {
+    name: 'Insanie', power: 4.2, maxLevel: true,
+    loot: {
+      dropChance: 0.65, materiaChance: 0.75, consumableChance: 0.48,
+      rarityWeights: { commun: 6, peuCommun: 22, rare: 37, epique: 24, legendaire: 11 },
+      bossRarityWeights: { rare: 18, epique: 36, legendaire: 32, divin: 14 },
+      materiaRarityWeights: { commun: 5, peuCommun: 18, rare: 32, epique: 28, legendaire: 17 },
+      bossMateriaRarityWeights: { rare: 15, epique: 40, legendaire: 45 },
+      defeatWornLossChance: 0.4,
     },
   },
 };
@@ -1143,6 +1202,8 @@ const FORGE = {
   // Coût du passage à +s (s = 1..5) : tierCost[s-1] matéria de chaque rareté,
   // de commun jusqu'à celle de l'objet.
   tierCost: [2, 4, 6, 8, 10],
+  // Objet divin : chaque amélioration coûte ces matéria (commun → légendaire).
+  divineCost: { commun: 10, peuCommun: 10, rare: 10, epique: 20, legendaire: 30 },
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
   // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),
@@ -1701,7 +1762,9 @@ function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
   const tiers = MATERIA_RARITIES.slice(0, MATERIA_RARITIES.indexOf(materiaRarity(item.rarity)) + 1);
-  const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
+  const materia = item.rarity === 'divin'
+    ? { ...FORGE.divineCost }
+    : Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
 
@@ -2025,7 +2088,6 @@ const { EFFECTS } = __modules["src/data/effects.js"];
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
 //   oncePerTier     utilisable une seule fois par palier du donjon (entre deux boss)
-//   escape          quitte le donjon et ramène l'équipe au village, sans perte
 
 
 
@@ -2097,10 +2159,6 @@ const CONSUMABLES = {
   },
 
   // ---- Utilitaires ----
-  corde: {
-    name: "Corde d'évasion", icon: '🪢', price: 300, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
-    effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
-  },
   tente: {
     name: 'Tente', icon: '⛺', price: 300, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
     effect: { restorePartyPct: 30, oncePerTier: true }, desc: "Entre deux étages : rend 30 % des PV et de la ressource à toute l'équipe (sauf les héros tombés). Une seule fois par palier de 5 étages.",
@@ -3850,7 +3908,7 @@ function usableIn(key, place) {
   return CONSUMABLES[key].use.includes(place);
 }
 
-// Sans cible individuelle (toute l'équipe, ou effet global comme la Corde).
+// Sans cible individuelle (toute l'équipe, ou effet global).
 function isUntargeted(key) {
   return ['party', 'none'].includes(CONSUMABLES[key].target);
 }
@@ -3922,19 +3980,14 @@ function usedThisTier(game, key) {
 
 /**
  * Utilise un consommable entre deux étages d'un donjon (`game.expedition` actif).
- * targetIndex : index du héros visé (ignoré pour la Tente et la Corde).
- * Retourne { ok, message, escaped } ; ok = false si l'utilisation est impossible.
+ * targetIndex : index du héros visé (ignoré pour la Tente).
+ * Retourne { ok, message } ; ok = false si l'utilisation est impossible.
  */
 function useOnMap(game, key, targetIndex) {
   const def = CONSUMABLES[key];
   if (!def || !game.expedition || !usableIn(key, 'map') || countOf(game.consumables, key) <= 0) return { ok: false };
   let message;
-  let escaped = false;
-  if (def.effect.escape) {
-    game.expedition = null; // équivalent de escapeExpedition (game/dungeon.js), sans dépendance circulaire
-    escaped = true;
-    message = `${def.name} : l'équipe regagne le village sans encombre.`;
-  } else if (def.effect.restorePartyPct) {
+  if (def.effect.restorePartyPct) {
     if (!game.party.some((h) => h.alive)) return { ok: false };
     if (def.effect.oncePerTier) {
       const tier = tierIndex(game.expedition);
@@ -3950,7 +4003,7 @@ function useOnMap(game, key, targetIndex) {
     message = `${def.name} sur ${target.name} : ${result}.`;
   }
   game.consumables[key]--;
-  return { ok: true, message, escaped };
+  return { ok: true, message };
 }
 
 return { startingConsumables, countOf, addConsumable, usableIn, isUntargeted, isValidTarget, applyConsumable, restoreParty, usedThisTier, useOnMap };
@@ -4614,7 +4667,7 @@ return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyC
 
 // ---- src/game/difficulty.js
 __modules["src/game/difficulty.js"] = (() => {
-const { DIFFICULTIES, LOOT } = __modules["src/config.js"];
+const { DIFFICULTIES, LOOT, XP } = __modules["src/config.js"];
 // Difficulté de la partie (voir DIFFICULTIES dans config.js) : puissance des
 // ennemis et règles de butin. Se change au village, jamais pendant une expédition.
 
@@ -4635,12 +4688,17 @@ function enemyPower(key) {
   return DIFFICULTIES[key]?.power ?? 1;
 }
 
+// Niveau des ennemis : celui de l'étage, ou le niveau maximum (Horreur et au-delà).
+function difficultyLevel(key, level) {
+  return DIFFICULTIES[key]?.maxLevel ? XP.maxLevel : level;
+}
+
 // Règles de butin de la difficulté (LOOT, avec ses valeurs remplacées).
 function lootRules(key) {
   return { ...LOOT, ...(DIFFICULTIES[key]?.loot ?? {}) };
 }
 
-return { difficultyOf, setDifficulty, enemyPower, lootRules };
+return { difficultyOf, setDifficulty, enemyPower, difficultyLevel, lootRules };
 })();
 
 // ---- src/game/loot.js
@@ -5492,15 +5550,15 @@ return { ENEMIES };
 
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
-const { REWARDS, LOOT, XP } = __modules["src/config.js"];
+const { REWARDS, XP } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
-const { difficultyOf } = __modules["src/game/difficulty.js"];
+const { difficultyOf, lootRules } = __modules["src/game/difficulty.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
 const { addConsumable } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { RARITIES, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITIES, MATERIA_KINDS, SLOT_ORDER } = __modules["src/data/items.js"];
 const { random } = __modules["src/game/rng.js"];
 // Conséquences d'un combat et services du village sur l'état global du jeu.
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
@@ -5567,18 +5625,47 @@ function applyVictory(game, { level, enemies, final = false }) {
   return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
 }
 
-// Défaite : perte d'or et d'une partie du sac (jamais de l'équipement porté).
+// Tire au hasard des éléments de `list` (chance `chance` chacun), sans jamais tous les
+// prendre : au plus `max`.
+function pickLosses(list, chance, max) {
+  const lost = list.filter(() => random() < chance);
+  while (lost.length > max) lost.splice(Math.floor(random() * lost.length), 1);
+  return lost;
+}
+
+/**
+ * Défaite : perte d'une part de l'or et d'une partie du sac (jamais tout) ; à partir de
+ * Guerre (`defeatWornLossChance`), aussi d'une partie de l'équipement porté (au plus la
+ * moitié des pièces de chaque héros). Les héros reviennent avec la moitié de leurs PV.
+ * Retourne { message, lost: { gold, bag: [objets], worn: [{ hero: nom, slot, item }] } }.
+ */
 function applyDefeat(game) {
-  const loss = Math.round(game.gold * REWARDS.defeatGoldLossPct);
-  game.gold -= loss;
-  const lost = game.bag.filter(() => random() < LOOT.defeatBagLossChance);
-  game.bag = game.bag.filter((item) => !lost.includes(item));
+  const rules = lootRules(difficultyOf(game));
+  const gold = Math.round(game.gold * REWARDS.defeatGoldLossPct);
+  game.gold -= gold;
+  const bag = pickLosses(game.bag, rules.defeatBagLossChance, Math.max(0, game.bag.length - 1));
+  game.bag = game.bag.filter((item) => !bag.includes(item));
+  const worn = [];
+  for (const hero of game.party) {
+    const slots = SLOT_ORDER.filter((slot) => hero.equipment[slot]);
+    for (const slot of pickLosses(slots, rules.defeatWornLossChance ?? 0, Math.floor(slots.length / 2))) {
+      worn.push({ hero: hero.name, slot, item: hero.equipment[slot] });
+      delete hero.equipment[slot];
+    }
+  }
   for (const hero of game.party) {
     restoreFully(hero);
     hero.hp = Math.round(getStats(hero).pv * REWARDS.defeatHpPct);
   }
-  const lostText = lost.length ? ` et ${lost.length} objet${lost.length > 1 ? 's' : ''} du sac` : '';
-  return { message: `Votre équipe est vaincue et regagne le village de justesse, ayant perdu ${loss} pièces d'or${lostText}.` };
+  const parts = [`${gold} pièces d'or`];
+  if (bag.length) parts.push(`${bag.length} objet${bag.length > 1 ? 's' : ''} du sac`);
+  if (worn.length) parts.push(`${worn.length} pièce${worn.length > 1 ? 's' : ''} d'équipement portée${worn.length > 1 ? 's' : ''}`);
+  const last = parts.pop();
+  const text = parts.length ? `${parts.join(', ')} et ${last}` : last;
+  return {
+    message: `Votre équipe est vaincue et regagne le village de justesse, ayant perdu ${text}.`,
+    lost: { gold, bag, worn },
+  };
 }
 
 // Auberge : soin complet de toute l'équipe, héros tombés compris.
@@ -5657,7 +5744,7 @@ return { bestiaryOf, recordEncounter, recordKills, isDiscovered, bestiaryPages, 
 __modules["src/game/dungeon.js"] = (() => {
 const { rollEvent } = __modules["src/game/events.js"];
 const { generateFloorMap, reveal, moveMobs, mobAt, isFloor } = __modules["src/game/floorMap.js"];
-const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
+const { difficultyOf, enemyPower, difficultyLevel } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
@@ -5726,6 +5813,11 @@ function floorLevel(key, floor) {
   const { minLevel, maxLevel } = subzoneOf(key, floor);
   const step = (floor - 1) % FLOORS_PER_SUBZONE;
   return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
+}
+
+// Niveau des ennemis d'un étage pour la difficulté de la partie.
+function expeditionLevel(game, key, floor) {
+  return difficultyLevel(difficultyOf(game), floorLevel(key, floor));
 }
 
 // Composition d'une rencontre de l'étage : { enemies: [clés], boss, final }.
@@ -5802,7 +5894,7 @@ function floorCombat(game) {
   const mob = engagedMob(game);
   return {
     enemies: mob.enemies,
-    level: floorLevel(dungeonKey, floor),
+    level: expeditionLevel(game, dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
     title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${mob.boss ? ' — BOSS' : ''}`,
   };
@@ -5840,7 +5932,7 @@ function stepParty(game, dx, dy) {
   const marker = map.events.find((e) => e.x === x && e.y === y);
   if (marker) {
     map.events = map.events.filter((e) => e !== marker);
-    event = rollEvent(floorLevel(exp.dungeonKey, exp.floor));
+    event = rollEvent(expeditionLevel(game, exp.dungeonKey, exp.floor));
     exp.event = event;
   }
   const catcher = event ? null : moveMobs(map);
@@ -5916,19 +6008,13 @@ function continueExpedition(game) {
   return true;
 }
 
-// Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-function escapeExpedition(game, combat = null) {
-  if (combat) recordKills(game, combat.enemies);
-  game.expedition = null;
-}
-
 function leaveExpedition(game) {
   if (!game.expedition?.canLeave) return false;
   game.expedition = null;
   return true;
 }
 
-return { progressOf, isUnlocked, tierOf, isBossFloor, subzoneOf, floorInSubzone, floorLevel, encounterFor, startFloors, fightsOnFloor, buildFloorMap, startExpedition, engagedMob, floorCombat, canExplore, stepParty, takeLadder, winFight, loseExpedition, continueExpedition, escapeExpedition, leaveExpedition };
+return { progressOf, isUnlocked, tierOf, isBossFloor, subzoneOf, floorInSubzone, floorLevel, expeditionLevel, encounterFor, startFloors, fightsOnFloor, buildFloorMap, startExpedition, engagedMob, floorCombat, canExplore, stepParty, takeLadder, winFight, loseExpedition, continueExpedition, leaveExpedition };
 })();
 
 // ---- src/ui/autotile.js
@@ -9413,7 +9499,7 @@ function itemIcon(item) {
 const CONSUMABLE_ICONS = {
   potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
   selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
-  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
+  outilsDeDesamorcage: 125, remede: 240, tente: 93,
 };
 function consumableIcon(key) {
   return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
@@ -9490,7 +9576,7 @@ function talentNodeIcon(node, skills = []) {
 }
 
 // Difficultés.
-const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750 };
+const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750, cauchemar: 751, insanie: 752 };
 // Positions en combat.
 const POSITION_ICONS = { melee: 726, ranged: 1482 };
 
@@ -10521,6 +10607,7 @@ function renderEquipment(app) {
   drawHero(app.querySelector('#dollHero'), hero);
   wire(app, hero);
   fitGrid(app);
+  fitDetail(app.querySelector('#detail'));
 }
 
 // ---- Stats ----
@@ -10634,6 +10721,15 @@ function detail(hero, item, hoverSlot = null) {
     </div><div class="detail-actions">${actions}</div>`;
 }
 
+// Fiche trop longue (beaucoup de stats, pouvoir unique, comparaison) : on resserre
+// l'affichage par étapes plutôt que de laisser le texte déborder du cadre.
+function fitDetail(panel) {
+  panel.classList.remove('dense', 'denser');
+  const over = () => panel.scrollHeight > panel.clientHeight + 1;
+  if (over()) panel.classList.add('dense');
+  if (over()) panel.classList.add('denser');
+}
+
 // Objet actuellement porté à la place où irait `item`.
 function comparedWith(hero, item, slot) {
   const target = slot ?? slotsFor(hero, item)[0];
@@ -10664,7 +10760,7 @@ function doUnequip(hero, slot) {
 // Aperçu au survol : fiche, comparaison, écart de stats, emplacements possibles.
 function preview(app, hero, item, slot = null) {
   const panel = app.querySelector('#detail');
-  if (panel) panel.innerHTML = detail(hero, item, slot);
+  if (panel) { panel.innerHTML = detail(hero, item, slot); fitDetail(panel); }
   wireDetail(app, hero);
   const inBag = item && !SLOT_ORDER.some((s) => hero.equipment[s] === item);
   const target = inBag ? slot ?? slotsFor(hero, item)[0] : null;
@@ -10751,7 +10847,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-return { openEquipment, renderEquipment };
+return { openEquipment, renderEquipment, fitDetail };
 })();
 
 // ---- src/ui/screens/forge.js
@@ -12206,8 +12302,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 //
 // Déroulement : nextTurn() renvoie le prochain combattant à agir ({side, unit}),
 // puis heroAct() ou enemyAct() résout son action. Quand nextTurn() renvoie null,
-// le combat est terminé et cb.result vaut 'victory', 'defeat' ou 'escape'
-// (Corde d'évasion : l'équipe quitte le donjon).
+// le combat est terminé et cb.result vaut 'victory' ou 'defeat'.
 //
 // Une unité étourdie passe son tour automatiquement : nextTurn() le consomme et
 // passe au combattant suivant. Les effets sur la durée (poison, régénération…)
@@ -12456,7 +12551,7 @@ function hasActionLeft(cb, hero) {
  *        | { type: 'defend' }
  *        | { type: 'attack', target: indexEnnemi }
  *        | { type: 'skill', skill: indexCompétence, target?: indexEnnemi | indexAllié }
- *        | { type: 'item', item: cléConsommable, target?: indexAllié (absent pour la Corde) }
+ *        | { type: 'item', item: cléConsommable, target: indexAllié }
  * Retourne false (sans rien modifier) si l'action est invalide.
  */
 function heroAct(cb, action) {
@@ -12504,15 +12599,10 @@ function heroAct(cb, action) {
     if (!canUseItem(cb, action.item)) return false;
     const def = CONSUMABLES[action.item];
     const cost = actionCost(hero, 'item');
-    if (def.effect.escape) {
-      cb.result = 'escape';
-      log(cb, `${hero.name} utilise ${def.name} : l'équipe s'échappe du donjon !`, true);
-    } else {
-      const target = cb.party[action.target];
-      const result = target ? applyConsumable(action.item, target) : null;
-      if (result === null) return false;
-      log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
-    }
+    const target = cb.party[action.target];
+    const result = target ? applyConsumable(action.item, target) : null;
+    if (result === null) return false;
+    log(cb, `${hero.name} utilise ${def.name} sur ${target.name} (${result}).`, true);
     // Payé après l'effet : un Élixir rend de l'Énergie sur la ressource déjà dépensée.
     hero.res = Math.max(0, hero.res - cost);
     cb.consumables[action.item]--;
@@ -13412,7 +13502,7 @@ __modules["src/ui/encounter.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { TIMING } = __modules["src/config.js"];
 const { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } = __modules["src/game/combat.js"];
-const { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } = __modules["src/game/dungeon.js"];
+const { floorCombat, winFight, loseExpedition, subzoneOf } = __modules["src/game/dungeon.js"];
 const { recordEncounter } = __modules["src/game/bestiary.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { render, showHub, goTo } = __modules["src/ui/router.js"];
@@ -13494,13 +13584,12 @@ function finish() {
   const cb = state.combat;
   state.combat = null;
   state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
-  if (cb.result === 'escape') {
-    escapeExpedition(state, cb);
-    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
-    return;
-  }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state, cb).message);
+    const exp = state.expedition;
+    const where = `${DUNGEONS[exp.dungeonKey].name} · ${subzoneOf(exp.dungeonKey, exp.floor).name}, étage ${exp.floor}`;
+    const r = loseExpedition(state, cb);
+    state.defeat = { where, message: r.message, lost: r.lost };
+    goTo('defeat');
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
@@ -13525,7 +13614,7 @@ const { visibleFrom, stepToward, idx, isFloor } = __modules["src/game/floorMap.j
 const { stepParty, takeLadder, canExplore } = __modules["src/game/dungeon.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { startFloor } = __modules["src/ui/encounter.js"];
-const { staticLayer, themeOf, TILE } = __modules["src/ui/mapThemes.js"];
+const { staticLayer, themeOf, TILE, sheet } = __modules["src/ui/mapThemes.js"];
 const { drawActor, dirBetween } = __modules["src/ui/actors.js"];
 const { holdToWalk } = __modules["src/ui/heldKeys.js"];
 const { heroSprite } = __modules["src/ui/heroSprite.js"];
@@ -13727,6 +13816,38 @@ function frame(now) {
   requestFrame();
 }
 
+// Trappe ouverte sur une échelle (pack Green Dungeon, dungeon_obj), mise en valeur : halo
+// doré qui pulse, étincelles qui montent et flèche qui rebondit au-dessus.
+const HATCH = [0, 32, 16, 16];
+function drawLadder(ctx, sx, sy, size, now) {
+  const cx = sx + size / 2;
+  const cy = sy + size / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(now / 350);
+  const glow = ctx.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * (0.9 + 0.15 * pulse));
+  glow.addColorStop(0, `rgba(255,214,120,${0.45 + 0.25 * pulse})`);
+  glow.addColorStop(1, 'rgba(255,214,120,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - size, sy - size, size * 3, size * 3);
+  const img = sheet('dungeon_obj');
+  if (img) ctx.drawImage(img, ...HATCH, sx, sy, size, size);
+  ctx.strokeStyle = `rgba(255,232,160,${0.55 + 0.45 * pulse})`;
+  ctx.lineWidth = SCALE;
+  ctx.strokeRect(sx + SCALE / 2, sy + SCALE / 2, size - SCALE, size - SCALE);
+  // Étincelles : 4 points qui montent en boucle.
+  for (let i = 0; i < 4; i++) {
+    const t = ((now / 1400) + i / 4) % 1;
+    ctx.fillStyle = `rgba(255,240,190,${1 - t})`;
+    ctx.fillRect(Math.round(sx + size * (0.2 + 0.2 * i)), Math.round(sy + size * (0.8 - t)), SCALE, SCALE);
+  }
+  // Flèche vers le bas au-dessus de la trappe.
+  const u = SCALE;
+  const ay = sy - size * 0.55 + Math.round(Math.sin(now / 250) * 2) * u;
+  ctx.fillStyle = '#1a0f2a';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u - u, ay + r * u - u, (5 - r) * 2 * u + 2 * u, 3 * u);
+  ctx.fillStyle = '#f3d58c';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u, ay + r * u, (5 - r) * 2 * u, u);
+}
+
 // Position (pixels d'écran) du coin haut-gauche de la vue : centrée sur le groupe.
 function camera(canvas, now = performance.now()) {
   const map = state.expedition.map;
@@ -13776,16 +13897,7 @@ function draw(canvas, now) {
       ctx.ellipse(cx, cy + size * 0.28, size * 0.46, size * 0.22, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    if (text === 'ladder') {
-      // Échelle en pixels : deux montants et quatre barreaux.
-      const u = SCALE;
-      ctx.fillStyle = '#6b4a2a';
-      ctx.fillRect(cx - 5 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillRect(cx + 3 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillStyle = '#a57a44';
-      for (let r = 0; r < 4; r++) ctx.fillRect(cx - 3 * u, cy - 5 * u + r * 3.5 * u, 6 * u, u);
-      return;
-    }
+    if (text === 'ladder') return drawLadder(ctx, sx, sy, size, now);
     ctx.font = `bold ${Math.round(size * 0.6)}px FantasyRPGtitle, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -13795,7 +13907,7 @@ function draw(canvas, now) {
     ctx.fillStyle = '#f3d58c';
     ctx.fillText(text, cx, cy);
   };
-  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', 'rgba(0,0,0,.45)');
+  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', null);
   for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '?', 'rgba(90,50,160,.6)', 'rgba(190,150,255,.8)');
 
   // Personnages, triés de haut en bas (les plus bas passent devant).
@@ -13910,7 +14022,7 @@ const { getClass, getStats, getSkills } = __modules["src/game/party.js"];
 const { fieldSkills, castOutOfCombat, cannotCastReason } = __modules["src/game/field.js"];
 const { healAmount } = __modules["src/game/formulas.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
-const { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } = __modules["src/game/dungeon.js"];
+const { isBossFloor, expeditionLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } = __modules["src/game/dungeon.js"];
 const { DUNGEON } = __modules["src/config.js"];
 const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } = __modules["src/game/consumables.js"];
 const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
@@ -13991,12 +14103,12 @@ function renderDungeon(app) {
       ${mapCanvas()}
       <div class="win hud-title">
         <h2>${esc(d.name)}</h2>
-        <span>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''}</span>
+        <span>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · niveau ${expeditionLevel(state, exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''}</span>
         ${floorTrack(exp.dungeonKey, exp.floor)}
         <span class="hud-gains">${iconHtml(GOLD_ICON, 16)} ${exp.gains.gold} · ${iconHtml(682, 16)} ${exp.gains.xp} XP · ${iconHtml(1447, 16)} ${exp.gains.items} · ${iconHtml(162, 16)} ${exp.gains.materia}</span>
       </div>
       <nav class="hud-menu">
-        ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente, corde…)' })}
+        ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente…)' })}
         ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
         ${hudButton('equip', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
         ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
@@ -14153,18 +14265,16 @@ function spellPanel() {
 }
 
 function useItem(key, targetIndex) {
-  const dungeonName = DUNGEONS[state.expedition.dungeonKey].name;
   const r = useOnMap(state, key, targetIndex);
   view.pendingItem = null;
-  if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
   if (r.ok || r.message) view.flash = r.message;
   goTo('dungeon');
 }
 
-// Objets utilisables pendant l'exploration (soins, plume, tente, corde).
+// Objets utilisables pendant l'exploration (soins, plume, tente).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
-  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
+  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions ou tente chez le Marchand).</p>';
   const pending = view.pendingItem;
   let targets = '';
   if (pending && isUntargeted(pending)) {
@@ -14436,7 +14546,6 @@ function waiting(acting) {
   const result = state.combat.result;
   const text = result === 'victory' ? '🏆 Victoire !'
     : result === 'defeat' ? "💀 L'équipe est vaincue..."
-    : result === 'escape' ? "🪢 L'équipe s'échappe !"
     : acting?.side === 'enemy' ? `${esc(acting.unit.name)} agit...` : 'Préparation du tour...';
   return `<p class="bs-wait">${text}</p>`;
 }
@@ -14512,7 +14621,7 @@ function helpFor(hero, el) {
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
     case 'actSkills': return `<b>${iconHtml(COMMAND_ICONS.skills, 16)} Compétences</b><br>Les sorts et techniques appris par le héros.`;
-    case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, corde d'évasion…${takesTurn}`;
+    case 'actItem': return `<b>${iconHtml(COMMAND_ICONS.items, 16)} Objets</b><br>Potions, remèdes, plume de phénix…${takesTurn}`;
     case 'actDefend': return `<b>${iconHtml(COMMAND_ICONS.defend, 16)} Défendre</b><br>Dégâts subis réduits de moitié jusqu'au prochain tour du héros.${takesTurn}`;
     case 'actMove': return `<b>${iconHtml(COMMAND_ICONS.move, 16)} ${hero.row === 'melee' ? 'Reculer (distance)' : 'Avancer (corps à corps)'}</b><br>Prend tout le tour${isMultiAction(hero) ? ", seulement avant d'avoir agi" : ''}. Au corps à corps, on est plus souvent ciblé ; l'arc ne sert qu'à distance, les autres armes qu'au corps à corps.`;
     case 'actEnd': return isMultiAction(hero) ? `<b>${iconHtml(COMMAND_ICONS.end, 16)} Finir le tour</b><br>L'${esc(res)} restante est conservée.` : `<b>${iconHtml(COMMAND_ICONS.end, 16)} Passer</b><br>${esc(hero.name)} ne fait rien ce tour-ci.`;
@@ -14914,7 +15023,7 @@ return { renderBank };
 // ---- src/ui/screens/difficulty.js
 __modules["src/ui/screens/difficulty.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { DIFFICULTIES, DIFFICULTY_ORDER } = __modules["src/config.js"];
+const { DIFFICULTIES, DIFFICULTY_ORDER, REWARDS } = __modules["src/config.js"];
 const { RARITIES, RARITY_ORDER } = __modules["src/data/items.js"];
 const { difficultyOf, setDifficulty, lootRules, enemyPower } = __modules["src/game/difficulty.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -14932,6 +15041,8 @@ const { frame, wireFrame } = __modules["src/ui/screenFrame.js"];
 
 
 
+let scroll = 0;
+
 function renderDifficulty(app) {
   const current = difficultyOf(state);
   app.innerHTML = frame({
@@ -14940,6 +15051,13 @@ function renderDifficulty(app) {
     body: DIFFICULTY_ORDER.map((k) => card(k, k === current)).join(''),
   });
   wireFrame(app);
+  // Défilement horizontal : garder la position, molette verticale → horizontale.
+  const body = app.querySelector('.scr-body');
+  body.scrollLeft = scroll;
+  body.onscroll = () => { scroll = body.scrollLeft; };
+  body.onwheel = (e) => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { body.scrollLeft += e.deltaY; e.preventDefault(); }
+  };
   app.querySelectorAll('[data-difficulty]').forEach((btn) => {
     btn.onclick = () => {
       setDifficulty(state, btn.dataset.difficulty);
@@ -14951,8 +15069,9 @@ function renderDifficulty(app) {
 const short = (label) => label.split(' ').map((w) => w[0].toUpperCase()).join('');
 const pct = (v) => `${Math.round(v * 100)} %`;
 
-function weights(w) {
-  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${w[r] ? `${w[r]} %` : '—'}</td>`).join('');
+// Pas de matéria divine : la case reste vide (pas de tiret).
+function weights(w, materia = false) {
+  return RARITY_ORDER.map((r) => `<td style="color:${RARITIES[r].color}">${materia && r === 'divin' ? '' : w[r] ? `${w[r]} %` : '—'}</td>`).join('');
 }
 
 function card(key, selected) {
@@ -14964,14 +15083,15 @@ function card(key, selected) {
         ${head}
         <tbody>
           <tr><th>Équipement</th>${weights(items)}</tr>
-          <tr><th>Matéria</th>${weights(materia)}</tr>
+          <tr><th>Matéria</th>${weights(materia, true)}</tr>
         </tbody>
       </table>`;
   const amount = ({ min, max }) => (min === max ? `${min}` : `${min} à ${max}`);
   return `
     <section class="win difficulty ${selected ? 'selected' : ''}">
       <h3>${iconHtml(DIFFICULTY_ICONS[key], 32)} ${esc(d.name)}</h3>
-      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts</p>
+      <p>Ennemis : <b>×${String(enemyPower(key)).replace('.', ',')}</b> PV et dégâts${d.maxLevel ? ', <b>tous niveau 50</b>' : ''}</p>
+      <p>Mort : ${pct(REWARDS.defeatGoldLossPct)} de l'or, une partie du sac${loot.defeatWornLossChance ? ` <b>et de l'équipement porté</b> (${pct(loot.defeatWornLossChance)} par pièce)` : ''}</p>
       <h4>Monstre normal</h4>
       <ul class="loot-lines">
         <li>Équipement : ${pct(loot.dropChance)} de chances</li>
@@ -15001,7 +15121,7 @@ const { ENEMIES } = __modules["src/data/enemies.js"];
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { enemyStats } = __modules["src/game/enemies.js"];
-const { difficultyOf, enemyPower } = __modules["src/game/difficulty.js"];
+const { difficultyOf, enemyPower, difficultyLevel } = __modules["src/game/difficulty.js"];
 const { bestiaryOf, bestiaryPages, bestiaryProgress, isDiscovered, levelRange } = __modules["src/game/bestiary.js"];
 const { isUnlocked } = __modules["src/game/dungeon.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -15083,7 +15203,10 @@ function card(key, dungeonKey, power) {
   if (!key) return '<p class="hint">Survolez une créature pour voir sa fiche.</p>';
   const def = ENEMIES[key];
   if (!isDiscovered(state, key)) return `<h3>???</h3><p class="hint">${def.boss ? 'Un boss' : 'Une créature'} encore jamais rencontré${def.boss ? '' : 'e'}.</p>`;
-  const { minLevel, maxLevel } = levelRange(dungeonKey, key);
+  const range = levelRange(dungeonKey, key);
+  const diff = difficultyOf(state);
+  const minLevel = difficultyLevel(diff, range.minLevel);
+  const maxLevel = difficultyLevel(diff, range.maxLevel);
   const lo = enemyStats(key, minLevel, power);
   const hi = enemyStats(key, maxLevel, power);
   const row = (stat, label = STATS[stat].label) => `<tr><th>${label}</th><td>${lo[stat]}</td><td>→ ${hi[stat]}</td></tr>`;
@@ -15116,6 +15239,8 @@ const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dung
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { isUnlocked, progressOf, startFloors, startExpedition } = __modules["src/game/dungeon.js"];
 const { isDiscovered } = __modules["src/game/bestiary.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { difficultyOf, difficultyLevel } = __modules["src/game/difficulty.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
 const { frame, wireFrame } = __modules["src/ui/screenFrame.js"];
@@ -15133,10 +15258,12 @@ const { portrait, drawPortraits } = __modules["src/ui/portraits.js"];
 
 
 
+
+
 function renderPortals(app) {
   app.innerHTML = frame({
     title: 'Portails', icon: 1000, layout: 'lay-portals', gold: false,
-    extras: `<span class="hint">« Où voulez-vous aller ? » Chaque zone : 3 sous-zones de ${FLOORS_PER_SUBZONE} étages, un boss au dernier. On ne rentre qu'après un boss ; mourir coûte de l'or et une partie du sac.</span>`,
+    extras: `<span class="hint">« Où voulez-vous aller ? » Chaque zone : 3 sous-zones de ${FLOORS_PER_SUBZONE} étages, un boss au dernier. On ne rentre qu'après un boss ; mourir coûte de l'or et une partie du sac (et de l'équipement porté à partir de Guerre).</span>`,
     body: DUNGEON_ORDER.map(zoneColumn).join(''),
   });
   wireFrame(app, () => goTo('hub'));
@@ -15148,6 +15275,12 @@ function renderPortals(app) {
   });
 }
 
+// Niveaux affichés : ceux de la zone, ou le niveau maximum (Horreur et au-delà).
+const levels = (lo, hi) => {
+  const diff = difficultyOf(state);
+  return DIFFICULTIES[diff].maxLevel ? `${difficultyLevel(diff, hi)} (${DIFFICULTIES[diff].name})` : `${lo} à ${hi}`;
+};
+
 function zoneColumn(key, index) {
   const d = DUNGEONS[key];
   const lastBoss = d.subzones[d.subzones.length - 1].boss;
@@ -15156,7 +15289,7 @@ function zoneColumn(key, index) {
       <section class="win portal-zone locked">
         <h3>Zone ${index + 1}</h3>
         <div class="portal-art">${portrait(`ennemi:${lastBoss}`, 5)}</div>
-        <p class="hint">Niveaux ${d.minLevel} à ${d.maxLevel}. Terminez la zone précédente pour l'ouvrir.</p>
+        <p class="hint">Niveaux ${levels(d.minLevel, d.maxLevel)}. Terminez la zone précédente pour l'ouvrir.</p>
       </section>`;
   }
   const progress = progressOf(state, key);
@@ -15165,7 +15298,7 @@ function zoneColumn(key, index) {
     <section class="win portal-zone ${progress.cleared ? 'cleared' : ''}">
       <h3>Zone ${index + 1} · ${esc(d.name)}</h3>
       <div class="portal-art ${isDiscovered(state, lastBoss) ? '' : 'unknown'}" title="${isDiscovered(state, lastBoss) ? esc(ENEMIES[lastBoss].name) : ''}">${portrait(`ennemi:${lastBoss}`, 5)}</div>
-      <p class="hint">${esc(d.desc)}<br>Niveaux ${d.minLevel} à ${d.maxLevel}${progress.cleared ? ' · zone terminée' : ''}</p>
+      <p class="hint">${esc(d.desc)}<br>Niveaux ${levels(d.minLevel, d.maxLevel)}${progress.cleared ? ' · zone terminée' : ''}</p>
       <div class="subzones">
         ${d.subzones.map((sub, i) => {
           const first = i * FLOORS_PER_SUBZONE + 1;
@@ -15173,7 +15306,7 @@ function zoneColumn(key, index) {
           const open = starts.includes(first);
           return `
             <button class="subzone-btn ${beaten ? 'beaten' : ''}" ${open ? `data-dungeon="${key}" data-floor="${first}"` : 'disabled'}>
-              <b>${i + 1}. ${esc(sub.name)}</b><small>niv. ${sub.minLevel}-${sub.maxLevel}${beaten ? ' · boss vaincu' : open ? '' : ' · fermé'}</small>
+              <b>${i + 1}. ${esc(sub.name)}</b><small>niv. ${levels(sub.minLevel, sub.maxLevel).replace(' à ', '-')}${beaten ? ' · boss vaincu' : open ? '' : ' · fermé'}</small>
             </button>`;
         }).join('')}
       </div>
@@ -15181,6 +15314,77 @@ function zoneColumn(key, index) {
 }
 
 return { renderPortals };
+})();
+
+// ---- src/ui/screens/defeat.js
+__modules["src/ui/screens/defeat.js"] = (() => {
+const { state } = __modules["src/state.js"];
+const { DIFFICULTIES } = __modules["src/config.js"];
+const { difficultyOf } = __modules["src/game/difficulty.js"];
+const { esc, tip } = __modules["src/ui/html.js"];
+const { itemTooltipText } = __modules["src/ui/items.js"];
+const { iconHtml, itemIcon, GOLD_ICON } = __modules["src/ui/icons.js"];
+const { RARITIES } = __modules["src/data/items.js"];
+const { heroPortrait, drawPortraits } = __modules["src/ui/portraits.js"];
+const { showHub } = __modules["src/ui/router.js"];
+// Écran de mort : après une défaite en expédition, bilan de ce qui a été perdu (or, objets
+// du sac, équipement porté à partir de Guerre) avant de revenir au village.
+// state.defeat = { where, message, lost: { gold, bag, worn: [{ hero, slot, item }] } }.
+
+
+
+
+
+
+
+
+
+
+
+const MAX_ICONS = 36;
+
+// Case d'objet avec sa fiche au survol.
+const cell = (item) => `<span ${tip(itemTooltipText(item), 'bag-cell')} style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}</span>`;
+
+function renderDefeat(app) {
+  const d = state.defeat;
+  if (!d) return showHub();
+  const { gold, bag, worn } = d.lost;
+  const byHero = state.party.map((hero) => ({ hero, items: worn.filter((w) => w.hero === hero.name) }));
+  const wornRule = DIFFICULTIES[difficultyOf(state)].loot.defeatWornLossChance
+    ? ''
+    : '<p class="hint">Dans cette difficulté, l\'équipement porté ne se perd pas (à partir de Guerre, si).</p>';
+  app.innerHTML = `
+    <div class="defeat-screen">
+      <h1>Défaite</h1>
+      <p class="defeat-where">${esc(d.where)}</p>
+      <div class="defeat-party">${state.party.map((h) => heroPortrait(h, 3, 'fallen')).join('')}</div>
+      <section class="win defeat-lost">
+        <h3>Ce qui a été perdu</h3>
+        <p class="defeat-gold">${iconHtml(GOLD_ICON, 32)} <b>${gold.toLocaleString('fr-FR')}</b> pièces d'or</p>
+        <h4>Sac (${bag.length} objet${bag.length > 1 ? 's' : ''})</h4>
+        <div class="defeat-items">${bag.slice(0, MAX_ICONS).map(cell).join('')}${bag.length > MAX_ICONS ? `<span class="hint">+ ${bag.length - MAX_ICONS} autres</span>` : ''}${bag.length ? '' : '<span class="hint">Rien.</span>'}</div>
+        <h4>Équipement porté (${worn.length} pièce${worn.length > 1 ? 's' : ''})</h4>
+        ${wornRule}
+        <div class="defeat-worn">
+          ${byHero.map(({ hero, items }) => `
+            <div class="defeat-hero"><b>${esc(hero.name)}</b>
+              <div class="defeat-items">${items.map((w) => cell(w.item)).join('') || '<span class="hint">rien de perdu</span>'}</div>
+            </div>`).join('')}
+        </div>
+        <p class="hint">La banque, les matéria et les consommables sont intacts. La progression reste au dernier boss vaincu ; les héros reviennent avec la moitié de leurs PV.</p>
+      </section>
+      <button id="defeatBack" class="defeat-back">Revenir au village</button>
+    </div>`;
+  drawPortraits(app);
+  app.querySelector('#defeatBack').onclick = () => {
+    const message = d.message;
+    state.defeat = null;
+    showHub(message);
+  };
+}
+
+return { renderDefeat };
 })();
 
 // ---- src/main.js
@@ -15204,7 +15408,9 @@ const { renderDifficulty } = __modules["src/ui/screens/difficulty.js"];
 const { renderRunes } = __modules["src/ui/screens/runes.js"];
 const { renderBestiary } = __modules["src/ui/screens/bestiary.js"];
 const { renderPortals } = __modules["src/ui/screens/portals.js"];
+const { renderDefeat } = __modules["src/ui/screens/defeat.js"];
 // Point d'entrée : enregistre les écrans et lance le premier rendu.
+
 
 
 
@@ -15244,6 +15450,7 @@ registerScreens({
   runes: renderRunes,
   bestiary: renderBestiary,
   portals: renderPortals,
+  defeat: renderDefeat,
 });
 
 applySkin();

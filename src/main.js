@@ -19,6 +19,7 @@ import { renderDifficulty } from './ui/screens/difficulty.js';
 import { renderRunes } from './ui/screens/runes.js';
 import { renderBestiary } from './ui/screens/bestiary.js';
 import { renderPortals } from './ui/screens/portals.js';
+import { renderDefeat } from './ui/screens/defeat.js';
 
 registerScreens({
   title: renderTitle,
@@ -38,6 +39,7 @@ registerScreens({
   runes: renderRunes,
   bestiary: renderBestiary,
   portals: renderPortals,
+  defeat: renderDefeat,
 });
 
 applySkin();
