@@ -10,7 +10,7 @@ import { getClass, getStats, getSkills } from '../../game/party.js';
 import { fieldSkills, castOutOfCombat, cannotCastReason } from '../../game/field.js';
 import { healAmount } from '../../game/formulas.js';
 import { statusesOf } from '../../game/statuses.js';
-import { isBossFloor, floorLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } from '../../game/dungeon.js';
+import { isBossFloor, expeditionLevel, subzoneOf, floorInSubzone, leaveExpedition, progressOf, continueExpedition } from '../../game/dungeon.js';
 import { DUNGEON } from '../../config.js';
 import { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier } from '../../game/consumables.js';
 import {
@@ -60,12 +60,12 @@ export function renderDungeon(app) {
       ${mapCanvas()}
       <div class="win hud-title">
         <h2>${esc(d.name)}</h2>
-        <span>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · niveau ${floorLevel(exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''}</span>
+        <span>${esc(subzoneOf(exp.dungeonKey, exp.floor).name)} · niveau ${expeditionLevel(state, exp.dungeonKey, exp.floor)} · ${exp.map.mobs.length} groupe${exp.map.mobs.length > 1 ? 's' : ''}</span>
         ${floorTrack(exp.dungeonKey, exp.floor)}
         <span class="hud-gains">${iconHtml(GOLD_ICON, 16)} ${exp.gains.gold} · ${iconHtml(682, 16)} ${exp.gains.xp} XP · ${iconHtml(1447, 16)} ${exp.gains.items} · ${iconHtml(162, 16)} ${exp.gains.materia}</span>
       </div>
       <nav class="hud-menu">
-        ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente, corde…)' })}
+        ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente…)' })}
         ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
         ${hudButton('equip', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
         ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
@@ -222,18 +222,16 @@ function spellPanel() {
 }
 
 function useItem(key, targetIndex) {
-  const dungeonName = DUNGEONS[state.expedition.dungeonKey].name;
   const r = useOnMap(state, key, targetIndex);
   view.pendingItem = null;
-  if (r.escaped) return showHub(`${r.message} (${dungeonName} : vous pourrez repartir depuis le dernier boss vaincu.)`);
   if (r.ok || r.message) view.flash = r.message;
   goTo('dungeon');
 }
 
-// Objets utilisables pendant l'exploration (soins, plume, tente, corde).
+// Objets utilisables pendant l'exploration (soins, plume, tente).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
-  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions, tente ou corde chez le Marchand).</p>';
+  if (!keys.length) return '<p class="hint">Aucun objet utilisable ici (achète potions ou tente chez le Marchand).</p>';
   const pending = view.pendingItem;
   let targets = '';
   if (pending && isUntargeted(pending)) {

@@ -49,6 +49,8 @@ function hitFactors(attacker, opts, defender, crit) {
   const factors = [];
   if (opts.power !== 1) factors.push({ label: 'compétence', value: opts.power });
   if (crit) factors.push({ label: 'critique', value: critMultiplier(attacker) });
+  // Légendaire « Cœur sacrifié » : dégâts infligés augmentés.
+  if (attacker.dmgDealtPct) factors.push({ label: 'Cœur sacrifié', value: 1 + attacker.dmgDealtPct / 100 });
   // Talents : bonus aux compétences de zone.
   if (opts.aoe && attacker.aoePct) factors.push({ label: 'zone', value: 1 + attacker.aoePct / 100 });
   if (defender) {
@@ -99,7 +101,7 @@ export function healAmount(stats, power, phys = false) {
 // Dégâts par tour d'un effet sur la durée (poison, saignement, brûlure…) :
 // puissance du lanceur (magique si la compétence l'est) × power, + bonus des talents.
 export function dotTick(stats, power, magic) {
-  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100)));
+  return Math.max(1, Math.round(powerOf(stats, magic) * power * (1 + (stats.dotPct ?? 0) / 100) * (1 + (stats.dmgDealtPct ?? 0) / 100)));
 }
 
 // Soins par tour (Régénération) : puissance magique × power.

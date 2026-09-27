@@ -9,7 +9,7 @@ import { lootRules } from '../src/game/difficulty.js';
 import { rollLoot } from '../src/game/loot.js';
 import { createEnemies } from '../src/game/enemies.js';
 import { equip } from '../src/game/equipment.js';
-import { learnStarters } from './helpers.js';
+import { learnStarters, learnPath } from './helpers.js';
 import { RARITIES, MATERIA_RARITIES, LEGENDARIES } from '../src/data/items.js';
 import { DIFFICULTY_ORDER } from '../src/config.js';
 
@@ -68,20 +68,23 @@ test('Divin : pas de matéria divine ; décraft et amélioration en matéria lé
 test("Forge divine : l'objet divin absorbe le pouvoir d'un légendaire du sac, qui est détruit", () => {
   const game = { party: learnStarters(createParty(['P', 'G', 'Pr', 'M'], ['paladin', 'guerrier', 'pretre', 'mage'])), bag: [] };
   const [paladin, warrior] = game.party;
+  learnPath(paladin, 'lumiere', { upTo: 2 });
   const divine = generateItem({ rarity: 'divin', slotType: 'anneau', level: 10 });
-  const leg = generateItem({ legendary: 'masseDeLAurore', level: 10 });
-  const other = generateItem({ legendary: 'crocSanglant', level: 10 });
+  const leg = generateItem({ legendary: 'demainDesLAube', level: 10 });
+  const other = generateItem({ legendary: 'fleursDuMal', level: 10 });
   game.bag.push(divine, leg, other);
 
   assert.ok(absorbProblem(game, leg, other), 'seul un divin absorbe');
   assert.ok(absorbProblem(game, divine, generateItem({ rarity: 'epique' })), 'il faut un légendaire');
   assert.equal(absorbLegendary(game, divine, leg), null);
-  assert.equal(divine.absorbed.key, 'masseDeLAurore');
-  assert.equal(divine.absorbed.name, LEGENDARIES.masseDeLAurore.name);
+  assert.equal(divine.absorbed.key, 'demainDesLAube');
+  assert.equal(divine.absorbed.name, LEGENDARIES.demainDesLAube.name);
+  assert.equal(divine.name, LEGENDARIES.demainDesLAube.name, 'le divin prend le nom du légendaire…');
+  assert.equal(divine.rarity, 'divin', '… mais reste divin, avec ses stats');
   assert.ok(!game.bag.includes(leg));
 
   // Le pouvoir agit sur le héros qui porte l'objet divin, comme un légendaire.
-  const skillId = LEGENDARIES.masseDeLAurore.passive.skill;
+  const skillId = LEGENDARIES.demainDesLAube.power.skillMod.skill;
   const before = getSkills(paladin).find((s) => s.id === skillId);
   assert.ok(before);
   assert.ok(equip(paladin, game.bag, divine, 'anneau1'));
@@ -89,10 +92,19 @@ test("Forge divine : l'objet divin absorbe le pouvoir d'un légendaire du sac, q
 
   // L'objet divin n'est pas réservé à une classe ; un nouveau pouvoir remplace l'ancien.
   assert.ok(equip(warrior, game.bag, generateItem({ rarity: 'divin', slotType: 'anneau' }), 'anneau1') === false, 'pas dans le sac');
-  assert.equal(absorbLegendary(game, divine, other).key, 'masseDeLAurore');
-  assert.equal(divine.absorbed.key, 'crocSanglant');
+  assert.equal(absorbLegendary(game, divine, other).key, 'demainDesLAube');
+  assert.equal(divine.absorbed.key, 'fleursDuMal');
+  assert.equal(divine.name, 'Les Fleurs du Mal');
   assert.ok(absorbProblem(game, divine, leg), 'déjà détruit');
   game.bag.push(divine);
   paladin.equipment.anneau1 = null;
   assert.ok(equip(warrior, game.bag, divine, 'anneau1'), "un Guerrier peut porter un divin au pouvoir de Voleur");
+});
+
+test('améliorer un objet divin coûte 10 / 10 / 10 / 20 / 30 matéria à chaque niveau', () => {
+  for (const plus of [0, 4]) {
+    const divine = generateItem({ level: 40, rarity: 'divin' });
+    divine.plus = plus;
+    assert.deepEqual(upgradeCost(divine).materia, { commun: 10, peuCommun: 10, rare: 10, epique: 20, legendaire: 30 });
+  }
 });

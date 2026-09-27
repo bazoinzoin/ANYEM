@@ -87,11 +87,11 @@ test('la victoire range matéria et consommables ; au-delà du maximum, le conso
 
 test("n'importe quel légendaire peut tomber, quelle que soit l'équipe", () => {
   const seen = new Set();
-  for (let i = 0; i < 60; i++) {
-    setRandomSource(() => (i + 0.5) / 60);
-    seen.add(generateItem({ rarity: 'legendaire' }).legendary.classKey);
+  for (let i = 0; i < 120; i++) {
+    setRandomSource(() => (i + 0.5) / 120);
+    seen.add(generateItem({ rarity: 'legendaire' }).legendary.classKey ?? 'commun');
   }
-  assert.deepEqual([...seen].sort(), ['chasseur', 'guerrier', 'mage', 'paladin', 'pretre', 'voleur']);
+  assert.deepEqual([...seen].sort(), ['chasseur', 'commun', 'guerrier', 'mage', 'paladin', 'pretre', 'voleur']);
 });
 
 test("armure, arme, bijou et bouclier ont autant de chances de tomber", () => {

@@ -41,62 +41,93 @@ export const ITEM = {
 
 // Butin : pour chaque ennemi vaincu, trois tirages indépendants — équipement,
 // matéria et consommable. Un ennemi peut donc tout laisser, rien, ou un mélange.
+// Les matéria sont toujours plus fréquentes et moins rares que l'équipement, boss compris.
 export const LOOT = {
   dropChance: 0.4,        // chance d'un équipement par ennemi ordinaire
   bossDrops: 1,           // équipements garantis par boss (le boss final en donne un de plus)
-  bossRarityWeights: { peuCommun: 20, rare: 40, epique: 30, legendaire: 10 },
-  // Matéria : plus fréquentes et moins rares que l'équipement (comparer à rarityWeights).
+  bossRarityWeights: { peuCommun: 35, rare: 40, epique: 20, legendaire: 5 },
   materiaChance: 0.5,
   materiaAmount: { min: 1, max: 2 },
   materiaRarityWeights: { commun: 40, peuCommun: 32, rare: 18, epique: 8, legendaire: 2 },
   bossMateriaAmount: { min: 2, max: 4 }, // garanties pour un boss
-  bossMateriaRarityWeights: { peuCommun: 30, rare: 40, epique: 23, legendaire: 7 },
+  bossMateriaRarityWeights: { peuCommun: 20, rare: 40, epique: 28, legendaire: 12 },
   // Consommables : tirés selon leur poids `drop` (data/consumables.js).
-  consumableChance: 0.2,
-  bossConsumableChance: 0.6,
+  consumableChance: 0.3,
+  bossConsumableChance: 0.9,
   rarityWeights: { commun: 50, peuCommun: 30, rare: 14, epique: 5, legendaire: 1 },
   categoryWeights: { armor: 25, weapon: 25, jewel: 25, shield: 25 }, // autant de chances pour chaque catégorie, quelle que soit la difficulté
-  defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac (jamais l'équipement porté)
+  defeatBagLossChance: 0.5, // défaite : chance de perdre chaque objet du sac
+  defeatWornLossChance: 0,  // … et chaque pièce portée (à partir de Guerre, voir DIFFICULTIES)
 };
 
 // Difficulté (choisie au village, jamais pendant une expédition). `power` multiplie
-// les PV et l'attaque des ennemis ; `loot` remplace les valeurs correspondantes de
-// LOOT (chances de butin et raretés). Balade = réglage de base. L'or et l'XP ne
-// changent pas.
+// les PV et l'attaque des ennemis ; `maxLevel` : tous les ennemis au niveau maximum
+// (XP.maxLevel), quelle que soit la zone ; `loot` remplace les valeurs correspondantes
+// de LOOT (chances de butin, raretés, pertes en cas de défaite). L'or et l'XP ne
+// changent pas. La rareté Divin ne tombe que sur les boss (pas de matéria divine).
 export const DIFFICULTIES = {
-  balade: { name: 'Balade', icon: '🌿', power: 1, loot: {} },
+  balade: { name: 'Balade', power: 1.15, loot: {} },
   aventure: {
-    name: 'Aventure', icon: '🗺️', power: 1.3,
+    name: 'Aventure', power: 1.5,
     loot: {
-      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.22,
+      dropChance: 0.45, materiaChance: 0.55, consumableChance: 0.33,
       rarityWeights: { commun: 40, peuCommun: 32, rare: 19, epique: 7, legendaire: 2 },
-      bossRarityWeights: { peuCommun: 15, rare: 38, epique: 34, legendaire: 13 },
+      bossRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
       materiaRarityWeights: { commun: 32, peuCommun: 32, rare: 22, epique: 11, legendaire: 3 },
-      bossMateriaRarityWeights: { peuCommun: 25, rare: 40, epique: 26, legendaire: 9 },
+      bossMateriaRarityWeights: { peuCommun: 15, rare: 36, epique: 33, legendaire: 16 },
     },
   },
   guerre: {
-    name: 'Guerre', icon: '⚔️', power: 1.7,
+    name: 'Guerre', power: 2,
     loot: {
-      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.25,
+      dropChance: 0.5, materiaChance: 0.6, consumableChance: 0.36,
       rarityWeights: { commun: 30, peuCommun: 33, rare: 24, epique: 10, legendaire: 3 },
-      bossRarityWeights: { peuCommun: 10, rare: 34, epique: 38, legendaire: 17, divin: 1 },
+      bossRarityWeights: { peuCommun: 18, rare: 38, epique: 30, legendaire: 13, divin: 1 },
       materiaRarityWeights: { commun: 24, peuCommun: 31, rare: 26, epique: 14, legendaire: 5 },
-      bossMateriaRarityWeights: { peuCommun: 20, rare: 38, epique: 30, legendaire: 12 },
+      bossMateriaRarityWeights: { peuCommun: 10, rare: 32, epique: 37, legendaire: 21 },
+      defeatWornLossChance: 0.25,
     },
   },
   horreur: {
-    name: 'Horreur', icon: '💀', power: 2.2,
+    name: 'Horreur', power: 2.6, maxLevel: true,
     loot: {
-      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.28,
+      dropChance: 0.55, materiaChance: 0.65, consumableChance: 0.4,
       rarityWeights: { commun: 20, peuCommun: 32, rare: 30, epique: 13, legendaire: 5 },
-      bossRarityWeights: { peuCommun: 5, rare: 25, epique: 42, legendaire: 23, divin: 5 },
+      bossRarityWeights: { peuCommun: 10, rare: 33, epique: 33, legendaire: 19, divin: 5 },
       materiaRarityWeights: { commun: 16, peuCommun: 28, rare: 30, epique: 18, legendaire: 8 },
-      bossMateriaRarityWeights: { peuCommun: 15, rare: 35, epique: 33, legendaire: 17 },
+      bossMateriaRarityWeights: { peuCommun: 5, rare: 27, epique: 40, legendaire: 28 },
+      defeatWornLossChance: 0.3,
+    },
+  },
+  cauchemar: {
+    name: 'Cauchemar', power: 3.3, maxLevel: true,
+    loot: {
+      dropChance: 0.6, materiaChance: 0.7, consumableChance: 0.44,
+      rarityWeights: { commun: 12, peuCommun: 28, rare: 35, epique: 18, legendaire: 7 },
+      bossRarityWeights: { peuCommun: 5, rare: 26, epique: 35, legendaire: 25, divin: 9 },
+      materiaRarityWeights: { commun: 10, peuCommun: 24, rare: 32, epique: 22, legendaire: 12 },
+      bossMateriaRarityWeights: { rare: 22, epique: 42, legendaire: 36 },
+      defeatWornLossChance: 0.35,
+    },
+  },
+  insanie: {
+    name: 'Insanie', power: 4.2, maxLevel: true,
+    loot: {
+      dropChance: 0.65, materiaChance: 0.75, consumableChance: 0.48,
+      rarityWeights: { commun: 6, peuCommun: 22, rare: 37, epique: 24, legendaire: 11 },
+      bossRarityWeights: { rare: 18, epique: 36, legendaire: 32, divin: 14 },
+      materiaRarityWeights: { commun: 5, peuCommun: 18, rare: 32, epique: 28, legendaire: 17 },
+      bossMateriaRarityWeights: { rare: 15, epique: 40, legendaire: 45 },
+      defeatWornLossChance: 0.4,
     },
   },
 };
 export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES);
+
+// Médailles (game/medals.js) : battre le dernier boss d'une zone dans une difficulté à
+// partir de `from` donne la médaille de cette zone pour cette difficulté. Toute
+// difficulté ajoutée après `from` ajoute une médaille (la dernière est la plus grande).
+export const MEDALS = { from: 'horreur' };
 
 // Donjons : régénération quand on choisit de continuer après un boss, nombre
 // d'ennemis par étage ordinaire (selon la sous-zone : 0 = étages 1-5…), nombre
@@ -145,12 +176,10 @@ export const XP = {
 };
 
 // Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
-// maximum, de quoi compléter une seule orientation) ; le palier t (0 à 9) d'une
-// branche demande t × tierPoints points déjà investis dans cette branche.
+// maximum : une orientation complète coûte 45 points, voir data/talents.js).
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
 export const TALENT_RULES = {
   pointsPerLevel: 1,
-  tierPoints: 5,
   resetCostPerLevel: 10,
 };
 
@@ -162,6 +191,8 @@ export const FORGE = {
   // Coût du passage à +s (s = 1..5) : tierCost[s-1] matéria de chaque rareté,
   // de commun jusqu'à celle de l'objet.
   tierCost: [2, 4, 6, 8, 10],
+  // Objet divin : chaque amélioration coûte ces matéria (commun → légendaire).
+  divineCost: { commun: 10, peuCommun: 10, rare: 10, epique: 20, legendaire: 30 },
   goldBase: 10,           // or : (goldBase + goldPerLevel × niveau de l'objet) × s
   goldPerLevel: 5,
   // Fabrication : craftBase matéria de la rareté voulue (dans la sorte de la catégorie),

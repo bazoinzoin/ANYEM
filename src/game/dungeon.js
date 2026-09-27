@@ -1,6 +1,7 @@
 // Donjons à étages (DESIGN_DOC §5-6) : progression, points de passage, expéditions.
 //
-// game.dungeons[clé] = { checkpoint, cleared }
+// game.dungeons[clé] = { checkpoint, cleared, medals? }
+//   medals : difficultés dans lesquelles le dernier boss a été vaincu (voir game/medals.js)
 //   checkpoint : dernier étage de boss vaincu (0 = aucun) ; une expédition peut
 //                repartir de l'étage qui suit n'importe quel boss déjà vaincu.
 // game.expedition = { dungeonKey, floor, map, engaged, canLeave, bossChoice, event, gains } | null
@@ -15,13 +16,14 @@
 //                et continuer (continueExpedition, qui régénère l'équipe à 40 %)
 //   gains    : cumul de l'expédition { gold, xp, items, materia }
 
-import { rollEvent } from './events.js';
+import { rollEvent, rollEventKey } from './events.js';
 import { generateFloorMap, reveal, moveMobs, mobAt, isFloor } from './floorMap.js';
-import { difficultyOf, enemyPower } from './difficulty.js';
+import { difficultyOf, enemyPower, difficultyLevel } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
 import { applyVictory, applyDefeat } from './progression.js';
 import { recordKills } from './bestiary.js';
+import { awardMedal } from './medals.js';
 import { restoreParty } from './consumables.js';
 import { pick, random } from './rng.js';
 
@@ -60,6 +62,11 @@ export function floorLevel(key, floor) {
   const { minLevel, maxLevel } = subzoneOf(key, floor);
   const step = (floor - 1) % FLOORS_PER_SUBZONE;
   return minLevel + Math.round((step * (maxLevel - minLevel)) / (FLOORS_PER_SUBZONE - 1));
+}
+
+// Niveau des ennemis d'un étage pour la difficulté de la partie.
+export function expeditionLevel(game, key, floor) {
+  return difficultyLevel(difficultyOf(game), floorLevel(key, floor));
 }
 
 // Composition d'une rencontre de l'étage : { enemies: [clés], boss, final }.
@@ -106,7 +113,11 @@ export function buildFloorMap(key, floor) {
   for (let n = fightsOnFloor(key, floor); n > 0; n--) groups.push({ enemies: ordinaryEncounter(key, floor) });
   if (isBossFloor(key, floor)) groups.push({ enemies: encounterFor(key, floor).enemies, boss: true });
   const events = isBossFloor(key, floor) ? 0 : DUNGEON.mapEventChances.filter((c) => random() < c).length;
-  return generateFloorMap({ groups, events });
+  const map = generateFloorMap({ groups, events });
+  // Chaque événement est connu dès la génération : il est dessiné sur la carte (coffre,
+  // autel, personnage…).
+  for (const e of map.events) e.key = rollEventKey();
+  return map;
 }
 
 // Arrivée à un étage : nouvelle carte.
@@ -136,7 +147,7 @@ export function floorCombat(game) {
   const mob = engagedMob(game);
   return {
     enemies: mob.enemies,
-    level: floorLevel(dungeonKey, floor),
+    level: expeditionLevel(game, dungeonKey, floor),
     power: enemyPower(difficultyOf(game)),
     title: `${d.name} · ${subzoneOf(dungeonKey, floor).name} — étage ${floorInSubzone(floor)}/${FLOORS_PER_SUBZONE}${mob.boss ? ' — BOSS' : ''}`,
   };
@@ -174,7 +185,7 @@ export function stepParty(game, dx, dy) {
   const marker = map.events.find((e) => e.x === x && e.y === y);
   if (marker) {
     map.events = map.events.filter((e) => e !== marker);
-    event = rollEvent(floorLevel(exp.dungeonKey, exp.floor));
+    event = rollEvent(expeditionLevel(game, exp.dungeonKey, exp.floor), marker.key);
     exp.event = event;
   }
   const catcher = event ? null : moveMobs(map);
@@ -195,7 +206,8 @@ export function takeLadder(game) {
  * Combat gagné contre le groupe engagé : récompenses, le groupe disparaît de la carte.
  * Contre un boss, l'étage est franchi : point de passage, étage suivant (choix
  * rentrer / continuer), ou fin de la zone si c'était le dernier boss.
- * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked }.
+ * Retourne le résultat d'applyVictory, plus { boss, cleared, unlocked, medal } (medal :
+ * difficulté de la médaille gagnée à l'instant, ou null).
  */
 export function winFight(game, combat) {
   const exp = game.expedition;
@@ -213,12 +225,14 @@ export function winFight(game, combat) {
   exp.engaged = null;
   let cleared = false;
   let unlocked = null;
+  let medal = null;
   if (boss) {
     const progress = progressOf(game, key);
     progress.checkpoint = Math.max(progress.checkpoint, exp.floor);
     if (final) {
       cleared = true;
       progress.cleared = true;
+      medal = awardMedal(game, key, difficultyOf(game));
       unlocked = DUNGEON_ORDER[DUNGEON_ORDER.indexOf(key) + 1] ?? null;
       game.expedition = null;
     } else {
@@ -227,7 +241,7 @@ export function winFight(game, combat) {
       exp.bossChoice = true;
     }
   }
-  return { ...result, boss, cleared, unlocked };
+  return { ...result, boss, cleared, unlocked, medal };
 }
 
 // Défaite : pertes habituelles (or, une partie du sac) et fin de l'expédition.
@@ -248,12 +262,6 @@ export function continueExpedition(game) {
   exp.bossChoice = false;
   exp.canLeave = false;
   return true;
-}
-
-// Fuite par la Corde d'évasion : fin de l'expédition sans perte.
-export function escapeExpedition(game, combat = null) {
-  if (combat) recordKills(game, combat.enemies);
-  game.expedition = null;
 }
 
 export function leaveExpedition(game) {

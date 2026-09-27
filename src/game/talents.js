@@ -1,5 +1,7 @@
 // Arbres de compétences : points, paliers, apprentissage, réinitialisation,
 // et effets cumulés des talents appris (lus par getStats / getSkills).
+// Gros paliers obligatoires, petits paliers = un bonus au choix parmi trois
+// (voir data/talents.js) ; un palier s'ouvre quand les précédents sont complets.
 //
 // hero.talents : { idDuNœud: rang }
 
@@ -38,8 +40,37 @@ export function pointsInBranch(hero, branch) {
   return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
 }
 
-export function tierRequirement(tier) {
-  return tier * TALENT_RULES.tierPoints;
+// Rangs d'un palier une fois complet (le rang maximum de ses nœuds : un petit palier
+// ne se prend qu'une fois, sur un seul de ses trois bonus).
+export function tierMax(branch, tier) {
+  return Math.max(0, ...branch.nodes.filter((n) => n.tier === tier).map((n) => n.ranks));
+}
+
+export function tiersOf(branch) {
+  return [...new Set(branch.nodes.map((n) => n.tier))].sort((a, b) => a - b);
+}
+
+// Points à avoir investis dans la branche pour ouvrir le palier : tous les paliers
+// précédents complets.
+export function tierRequirement(branch, tier) {
+  return tiersOf(branch).filter((t) => t < tier).reduce((sum, t) => sum + tierMax(branch, t), 0);
+}
+
+export function tierPoints(hero, branch, tier) {
+  return branch.nodes.filter((n) => n.tier === tier).reduce((sum, n) => sum + rankOf(hero, n.id), 0);
+}
+
+export function tierComplete(hero, branch, tier) {
+  return tierPoints(hero, branch, tier) >= tierMax(branch, tier);
+}
+
+export function tierOpen(hero, branch, tier) {
+  return tiersOf(branch).filter((t) => t < tier).every((t) => tierComplete(hero, branch, t));
+}
+
+// Petit palier : le bonus déjà choisi parmi les trois (ou null).
+export function chosenInTier(hero, branch, tier) {
+  return branch.nodes.find((n) => n.tier === tier && n.kind === 'minor' && rankOf(hero, n.id) > 0) ?? null;
 }
 
 // Raison pour laquelle le nœud ne peut pas être appris maintenant, ou null.
@@ -48,8 +79,13 @@ export function cannotLearnReason(hero, nodeId) {
   if (!found) return 'Talent inconnu';
   const { branch, node } = found;
   if (rankOf(hero, nodeId) >= node.ranks) return 'Rang maximum atteint';
-  const need = tierRequirement(node.tier);
-  if (pointsInBranch(hero, branch) < need) return `Demande ${need} points investis dans ${branch.name}`;
+  const chosen = node.kind === 'minor' ? chosenInTier(hero, branch, node.tier) : null;
+  if (chosen && chosen !== node) return `Choix déjà fait : ${chosen.name} (réinitialiser pour changer)`;
+  const missing = tiersOf(branch).find((t) => t < node.tier && !tierComplete(hero, branch, t));
+  if (missing !== undefined) {
+    const gate = branch.nodes.filter((n) => n.tier === missing);
+    return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (un bonus au choix, ${tierMax(branch, missing)} rangs)`;
+  }
   if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
   return null;
 }

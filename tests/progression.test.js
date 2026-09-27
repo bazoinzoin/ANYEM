@@ -89,3 +89,27 @@ test("défaite : une partie du sac est perdue, jamais l'équipement porté", () 
   assert.equal(game.bag.length, 2);
   game.party.forEach((h, i) => assert.deepEqual(h.equipment, worn[i]));
 });
+
+test('défaite en Guerre : une partie (jamais tout) de l\'équipement porté est perdue ; rien en Aventure', async () => {
+  const { applyDefeat } = await import('../src/game/progression.js');
+  const { setRandomSource } = await import('../src/game/rng.js');
+  const { createParty } = await import('../src/game/party.js');
+  const { generateItem } = await import('../src/game/items.js');
+  const make = (difficulty) => {
+    const party = createParty();
+    for (const hero of party) {
+      hero.equipment = { casque: generateItem({ level: 1, slotType: 'casque', armorType: 'legere', rarity: 'commun' }), bottes: generateItem({ level: 1, slotType: 'bottes', armorType: 'legere', rarity: 'commun' }) };
+    }
+    return { party, bag: [generateItem({ level: 1 }), generateItem({ level: 1 })], gold: 100, difficulty };
+  };
+  setRandomSource(() => 0.01); // tout serait perdu sans plafond
+  const war = make('guerre');
+  const r = applyDefeat(war);
+  assert.equal(r.lost.gold, 20);
+  assert.equal(r.lost.bag.length, 1, 'le sac n\'est jamais vidé entièrement');
+  assert.equal(r.lost.worn.length, 4, 'au plus la moitié des pièces de chaque héros');
+  for (const hero of war.party) assert.equal(Object.keys(hero.equipment).length, 1);
+  const adv = make('aventure');
+  assert.equal(applyDefeat(adv).lost.worn.length, 0);
+  setRandomSource(Math.random);
+});

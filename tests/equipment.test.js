@@ -1,5 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { learnPath } from './helpers.js';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
@@ -43,9 +44,11 @@ test('ambidextrie : le voleur peut tenir une dague dans chaque main, pas le guer
 
 test("un légendaire d'une autre classe est refusé", () => {
   const [guerrier, voleur] = party();
-  const croc = generateItem({ legendary: 'crocSanglant' });
+  const croc = generateItem({ legendary: 'fleursDuMal' });
   assert.ok(cannotEquipReason(guerrier, croc));
   assert.equal(cannotEquipReason(voleur, croc), null);
+  const commun = generateItem({ legendary: 'coeurSacrifie' });
+  assert.equal(cannotEquipReason(guerrier, commun), null, 'un légendaire commun va à toutes les classes');
 });
 
 test("équiper remplace l'objet en place, qui retourne au sac, et met à jour les stats", () => {
@@ -109,28 +112,56 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
 test('un légendaire porté modifie la compétence visée (talent compris)', () => {
   const [, voleur] = party();
   voleur.level = 50;
-  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
-  const croc = generateItem({ legendary: 'crocSanglant' });
+  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'toxines', 'toxines', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
+  const croc = generateItem({ legendary: 'fleursDuMal' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
   assert.equal(lame0.effects[0].turns, 4);
   equip(voleur, [croc], croc, 'mainDroite');
   const lame = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
   assert.equal(lame.effects[0].turns, 6);
   assert.equal(lame.boosted, true);
+  // Un pouvoir qui renforce un passif ne fait rien sans ce passif.
+  const arsenic = generateItem({ legendary: 'arsenicDEmma' });
+  equip(voleur, [arsenic], arsenic, 'anneau1');
+  assert.ok(!getSkills(voleur).find((s) => s.id === 'lame-empoisonnee').effects.some((e) => e.id === 'ralenti'), 'sans Venin virulent');
+  learnPath(voleur, 'empoisonneur', { upTo: 4 });
+  assert.ok(getSkills(voleur).find((s) => s.id === 'lame-empoisonnee').effects.some((e) => e.id === 'ralenti'), 'avec Venin virulent');
 });
 
-test('chaque légendaire vise une compétence de sa classe (sort de départ ou de talent) ; il y en a un par orientation', () => {
+test('trois légendaires par orientation, chacun renforçant un gros palier ; des légendaires communs à toutes les classes', () => {
+  const allSkills = (classKey) => TALENTS[classKey].flatMap((b) => b.nodes).flatMap(nodeSkills);
   for (const [key, leg] of Object.entries(LEGENDARIES)) {
-    const skills = TALENTS[leg.classKey].flatMap((b) => b.nodes).flatMap(nodeSkills);
-    assert.ok(skills.some((s) => s.id === leg.passive.skill), `${key} vise une compétence inconnue`);
     const item = generateItem({ legendary: key });
+    assert.equal(item.primary, leg.primary, `${key} : toujours la même stat principale`);
+    if (!leg.classKey) {
+      assert.ok(leg.power.passive || leg.power.pct || leg.power.startEffects, `${key} : pouvoir commun`);
+      continue;
+    }
+    const branch = TALENTS[leg.classKey].find((b) => b.key === leg.branch);
+    assert.ok(branch, `${key} : orientation inconnue`);
+    const big = branch.nodes.filter((n) => n.kind !== 'minor' && n.tier > 0);
+    const bigSkills = big.flatMap(nodeSkills).map((s) => s.id);
+    for (const mod of [].concat(leg.power.skillMod ?? [])) {
+      assert.ok(allSkills(leg.classKey).some((s) => s.id === mod.skill), `${key} vise une compétence inconnue`);
+    }
+    // Il renforce une compétence d'un gros palier, ou le passif d'un gros palier (requires).
+    const targetsBig = leg.power.requires ? big.some((n) => n.id === leg.power.requires)
+      : [].concat(leg.power.skillMod).every((m) => bigSkills.includes(m.skill));
+    assert.ok(targetsBig, `${key} : doit renforcer un gros palier de ${branch.name}`);
     const [hero] = createParty([], [leg.classKey]);
     assert.equal(cannotEquipReason(hero, item), null, `${key} doit être équipable par sa classe`);
   }
   for (const [classKey, branches] of Object.entries(TALENTS)) {
-    const count = Object.values(LEGENDARIES).filter((l) => l.classKey === classKey).length;
-    assert.equal(count, branches.length, `${classKey} : un légendaire par orientation`);
+    for (const b of branches) {
+      const count = Object.values(LEGENDARIES).filter((l) => l.classKey === classKey && l.branch === b.key).length;
+      assert.equal(count, 3, `${b.key} : trois légendaires`);
+    }
   }
+  const common = Object.keys(LEGENDARIES).filter((k) => !LEGENDARIES[k].classKey);
+  for (const k of ['plumeLegere', 'fratricide', 'coeurSacrifie']) assert.ok(common.includes(k), k);
+  assert.deepEqual([LEGENDARIES.plumeLegere.slotType, LEGENDARIES.plumeLegere.armorType, LEGENDARIES.plumeLegere.primary], ['bottes', 'legere', 'intelligence']);
+  assert.deepEqual([LEGENDARIES.fratricide.weaponType, LEGENDARIES.fratricide.primary], ['dague', 'agilite']);
+  assert.deepEqual([LEGENDARIES.coeurSacrifie.slotType, LEGENDARIES.coeurSacrifie.primary], ['collier', 'force']);
 });
 
 test('Paladin : armes au corps à corps, bouclier, toutes les armures ; Chasseur : arc, armures moyenne et légère', () => {

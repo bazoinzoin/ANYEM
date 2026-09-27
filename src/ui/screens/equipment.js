@@ -76,6 +76,7 @@ export function renderEquipment(app) {
   drawHero(app.querySelector('#dollHero'), hero);
   wire(app, hero);
   fitGrid(app);
+  fitDetail(app.querySelector('#detail'));
 }
 
 // ---- Stats ----
@@ -189,6 +190,15 @@ function detail(hero, item, hoverSlot = null) {
     </div><div class="detail-actions">${actions}</div>`;
 }
 
+// Fiche trop longue (beaucoup de stats, pouvoir unique, comparaison) : on resserre
+// l'affichage par étapes plutôt que de laisser le texte déborder du cadre.
+export function fitDetail(panel) {
+  panel.classList.remove('dense', 'denser');
+  const over = () => panel.scrollHeight > panel.clientHeight + 1;
+  if (over()) panel.classList.add('dense');
+  if (over()) panel.classList.add('denser');
+}
+
 // Objet actuellement porté à la place où irait `item`.
 function comparedWith(hero, item, slot) {
   const target = slot ?? slotsFor(hero, item)[0];
@@ -219,7 +229,7 @@ function doUnequip(hero, slot) {
 // Aperçu au survol : fiche, comparaison, écart de stats, emplacements possibles.
 function preview(app, hero, item, slot = null) {
   const panel = app.querySelector('#detail');
-  if (panel) panel.innerHTML = detail(hero, item, slot);
+  if (panel) { panel.innerHTML = detail(hero, item, slot); fitDetail(panel); }
   wireDetail(app, hero);
   const inBag = item && !SLOT_ORDER.some((s) => hero.equipment[s] === item);
   const target = inBag ? slot ?? slotsFor(hero, item)[0] : null;

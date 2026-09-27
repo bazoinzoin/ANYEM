@@ -14,7 +14,6 @@
 //   revivePct       relève un allié tombé avec ce % de ses PV
 //   restorePartyPct rend ce % des PV et de la ressource à chaque héros en vie
 //   oncePerTier     utilisable une seule fois par palier du donjon (entre deux boss)
-//   escape          quitte le donjon et ramène l'équipe au village, sans perte
 
 import { EFFECTS } from './effects.js';
 
@@ -86,10 +85,6 @@ export const CONSUMABLES = {
   },
 
   // ---- Utilitaires ----
-  corde: {
-    name: "Corde d'évasion", icon: '🪢', price: 300, drop: 1, category: 'utilitaire', use: ['combat', 'map'], target: 'none',
-    effect: { escape: true }, desc: "Ramène l'équipe au village, même au milieu d'un donjon ou d'un combat, sans rien perdre. La progression reste au dernier boss vaincu.",
-  },
   tente: {
     name: 'Tente', icon: '⛺', price: 300, drop: 2, category: 'utilitaire', use: ['map'], target: 'party',
     effect: { restorePartyPct: 30, oncePerTier: true }, desc: "Entre deux étages : rend 30 % des PV et de la ressource à toute l'équipe (sauf les héros tombés). Une seule fois par palier de 5 étages.",

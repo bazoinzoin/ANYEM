@@ -11,10 +11,11 @@ import { visibleFrom, stepToward, idx, isFloor } from '../game/floorMap.js';
 import { stepParty, takeLadder, canExplore } from '../game/dungeon.js';
 import { goTo } from './router.js';
 import { startFloor } from './encounter.js';
-import { staticLayer, themeOf, TILE } from './mapThemes.js';
+import { staticLayer, themeOf, TILE, sheet } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
-import { heroSprite } from './heroSprite.js';
+import { heroSprite, lookSprite } from './heroSprite.js';
+import { EVENTS } from '../data/events.js';
 import { enemySprite, mobScale, mobTier } from './mobSprites.js';
 import { clampView, fitCanvas } from './viewport.js';
 
@@ -53,7 +54,7 @@ export function mapControls() {
       <button data-step="1,0" aria-label="Droite">▶</button>
       <button data-step="0,1" aria-label="Bas">▼</button>
     </div>
-    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Cercle violet = événement.</p>
+    <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements.</p>
     ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }
 
@@ -194,6 +195,90 @@ function frame(now) {
   requestFrame();
 }
 
+// Trappe ouverte sur une échelle (pack Green Dungeon, dungeon_obj), mise en valeur : halo
+// doré qui pulse, étincelles qui montent et flèche qui rebondit au-dessus.
+const HATCH = [0, 32, 16, 16];
+function drawLadder(ctx, sx, sy, size, now) {
+  const cx = sx + size / 2;
+  const cy = sy + size / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(now / 350);
+  const glow = ctx.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * (0.9 + 0.15 * pulse));
+  glow.addColorStop(0, `rgba(255,214,120,${0.45 + 0.25 * pulse})`);
+  glow.addColorStop(1, 'rgba(255,214,120,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - size, sy - size, size * 3, size * 3);
+  const img = sheet('dungeon_obj');
+  if (img) ctx.drawImage(img, ...HATCH, sx, sy, size, size);
+  ctx.strokeStyle = `rgba(255,232,160,${0.55 + 0.45 * pulse})`;
+  ctx.lineWidth = SCALE;
+  ctx.strokeRect(sx + SCALE / 2, sy + SCALE / 2, size - SCALE, size - SCALE);
+  // Étincelles : 4 points qui montent en boucle.
+  for (let i = 0; i < 4; i++) {
+    const t = ((now / 1400) + i / 4) % 1;
+    ctx.fillStyle = `rgba(255,240,190,${1 - t})`;
+    ctx.fillRect(Math.round(sx + size * (0.2 + 0.2 * i)), Math.round(sy + size * (0.8 - t)), SCALE, SCALE);
+  }
+  // Flèche vers le bas au-dessus de la trappe.
+  const u = SCALE;
+  const ay = sy - size * 0.55 + Math.round(Math.sin(now / 250) * 2) * u;
+  ctx.fillStyle = '#1a0f2a';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u - u, ay + r * u - u, (5 - r) * 2 * u + 2 * u, 3 * u);
+  ctx.fillStyle = '#f3d58c';
+  for (let r = 0; r < 5; r++) ctx.fillRect(cx - (5 - r) * u, ay + r * u, (5 - r) * 2 * u, u);
+}
+
+// Événements de la carte (data/events.js, `look`) : un objet (coffre, autel, source,
+// dépouille) ou un personnage, mis en valeur par un halo qui pulse et un « ! » qui flotte.
+const eventSprites = new Map();
+function eventLook(e) {
+  return EVENTS[e.key]?.look ?? null;
+}
+function drawEventGround(ctx, e, sx, sy, size, now) {
+  const look = eventLook(e);
+  const cx = sx + size / 2;
+  const cy = sy + size * 0.8;
+  const pulse = 0.5 + 0.5 * Math.sin(now / 400 + e.x);
+  const color = look?.hero ? '120,190,255' : '255,210,110';
+  const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, size * (0.75 + 0.1 * pulse));
+  glow.addColorStop(0, `rgba(${color},${0.35 + 0.25 * pulse})`);
+  glow.addColorStop(1, `rgba(${color},0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, size * 0.8, size * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawObject(ctx, obj, sx, sy, size) {
+  const [name, x, y, w, h] = obj;
+  const img = sheet(name);
+  if (!img) return;
+  // Posé sur la case : centré, pieds en bas de la case.
+  const dw = w * SCALE;
+  const dh = h * SCALE;
+  ctx.drawImage(img, x, y, w, h, Math.round(sx + (size - dw) / 2), Math.round(sy + size - dh), dw, dh);
+}
+function drawEventMarker(ctx, e, sx, sy, size, now) {
+  const look = eventLook(e);
+  if (!look) return;
+  if (look.object) drawObject(ctx, look.object, sx, sy, size);
+  if (look.hero) {
+    if (!eventSprites.has(e.key)) eventSprites.set(e.key, lookSprite(look.hero));
+    if (look.extra) drawObject(ctx, look.extra, sx + size * 0.55, sy + size * 0.1, size);
+    const hurt = look.pose === 'hit';
+    drawActor(ctx, { sx, sy, size, scale: SCALE, dir: 'down', now: now + e.x * 97, sprite: eventSprites.get(e.key), anim: hurt ? 'hit' : null, animT: 0.5, shadow: true });
+  }
+  // « ! » qui flotte au-dessus.
+  const u = SCALE;
+  const bob = Math.round(Math.sin(now / 300 + e.y) * 2) * u;
+  const x = Math.round(sx + size / 2 - u);
+  const y = Math.round(sy - size * (look.hero ? 0.55 : 0.2)) + bob;
+  ctx.fillStyle = '#1a0f2a';
+  ctx.fillRect(x - u, y - u, 4 * u, 8 * u);
+  ctx.fillRect(x - u, y + 8 * u, 4 * u, 4 * u);
+  ctx.fillStyle = look.hero ? '#8ec5ff' : '#f3d58c';
+  ctx.fillRect(x, y, 2 * u, 6 * u);
+  ctx.fillRect(x, y + 9 * u, 2 * u, 2 * u);
+}
+
 // Position (pixels d'écran) du coin haut-gauche de la vue : centrée sur le groupe.
 function camera(canvas, now = performance.now()) {
   const map = state.expedition.map;
@@ -243,16 +328,7 @@ function draw(canvas, now) {
       ctx.ellipse(cx, cy + size * 0.28, size * 0.46, size * 0.22, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    if (text === 'ladder') {
-      // Échelle en pixels : deux montants et quatre barreaux.
-      const u = SCALE;
-      ctx.fillStyle = '#6b4a2a';
-      ctx.fillRect(cx - 5 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillRect(cx + 3 * u, cy - 7 * u, 2 * u, 14 * u);
-      ctx.fillStyle = '#a57a44';
-      for (let r = 0; r < 4; r++) ctx.fillRect(cx - 3 * u, cy - 5 * u + r * 3.5 * u, 6 * u, u);
-      return;
-    }
+    if (text === 'ladder') return drawLadder(ctx, sx, sy, size, now);
     ctx.font = `bold ${Math.round(size * 0.6)}px FantasyRPGtitle, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -262,11 +338,17 @@ function draw(canvas, now) {
     ctx.fillStyle = '#f3d58c';
     ctx.fillText(text, cx, cy);
   };
-  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', 'rgba(0,0,0,.45)');
-  for (const e of map.events) if (map.seen[idx(map, e.x, e.y)]) glyph(e.x, e.y, '?', 'rgba(90,50,160,.6)', 'rgba(190,150,255,.8)');
+  if (map.ladder && map.seen[idx(map, map.ladder.x, map.ladder.y)]) glyph(map.ladder.x, map.ladder.y, 'ladder', null);
+  const eventActors = [];
+  for (const e of map.events) {
+    if (!map.seen[idx(map, e.x, e.y)]) continue;
+    const [sx, sy] = at(e.x, e.y);
+    drawEventGround(ctx, e, sx, sy, size, now);
+    eventActors.push({ y: e.y, draw: () => drawEventMarker(ctx, e, sx, sy, size, now) });
+  }
 
   // Personnages, triés de haut en bas (les plus bas passent devant).
-  const actors = [];
+  const actors = [...eventActors];
   for (const mob of map.mobs) {
     if (!visible.has(idx(map, mob.x, mob.y)) && mob.id !== anim.highlight) continue;
     const t = anim.mobs.get(mob.id) ?? tween(mob, mob, 0);

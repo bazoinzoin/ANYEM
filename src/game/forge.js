@@ -49,7 +49,9 @@ export function upgradeCost(item) {
   const plus = (item.plus ?? 0) + 1;
   if (plus > FORGE.maxPlus) return null;
   const tiers = MATERIA_RARITIES.slice(0, MATERIA_RARITIES.indexOf(materiaRarity(item.rarity)) + 1);
-  const materia = Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
+  const materia = item.rarity === 'divin'
+    ? { ...FORGE.divineCost }
+    : Object.fromEntries(tiers.map((tier) => [tier, FORGE.tierCost[plus - 1]]));
   return { plus, gold: (FORGE.goldBase + FORGE.goldPerLevel * item.level) * plus, kind: materiaKind(item), materia };
 }
 
@@ -194,6 +196,8 @@ export function absorbLegendary(game, divine, legendary) {
   if (absorbProblem(game, divine, legendary)) return false;
   const previous = divine.absorbed ?? null;
   divine.absorbed = { ...legendary.legendary, name: legendary.name };
+  // L'objet divin prend aussi le nom du légendaire (il garde ses propres stats).
+  divine.name = legendary.name;
   game.bag.splice(game.bag.indexOf(legendary), 1);
   return previous;
 }

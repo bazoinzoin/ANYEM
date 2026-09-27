@@ -99,19 +99,6 @@ test("un héros confus peut frapper un allié à la place de son tour", () => {
   assert.ok(cb.log.some((l) => /confus, frappe/.test(l.text)));
 });
 
-test("Corde d'évasion en combat : l'équipe s'échappe, le combat se termine", () => {
-  const party = createParty();
-  const cb = createCombat({ party, enemies: ['gobelin'], level: 1, consumables: { corde: 1 } });
-  let t = nextTurn(cb);
-  while (t.side !== 'hero') { enemyAct(cb); t = nextTurn(cb); }
-  assert.equal(canUseItem(cb, 'corde'), true);
-  assert.equal(targetsFor(cb, { type: 'item', item: 'corde' }), null, 'pas de cible à choisir');
-  assert.ok(heroAct(cb, { type: 'item', item: 'corde' }));
-  assert.equal(cb.result, 'escape');
-  assert.equal(nextTurn(cb), null);
-  assert.equal(cb.consumables.corde, 0);
-});
-
 test('la Tente ne s\'utilise pas en combat', () => {
   const cb = createCombat({ party: createParty(), enemies: ['gobelin'], level: 1, consumables: { tente: 1 } });
   assert.equal(canUseItem(cb, 'tente'), false);
@@ -142,8 +129,8 @@ test('entre deux étages : la Tente rend 30 % aux héros en vie, une seule fois 
   assert.ok(useOnMap(game, 'tente').ok);
 });
 
-test("entre deux étages : la Corde termine l'expédition ; potions, plume et remèdes utilisables", () => {
-  const game = inDungeon({ corde: 1, potion: 1, plumeDePhenix: 1, antidote: 1 });
+test("entre deux étages : potions, plume et remèdes utilisables", () => {
+  const game = inDungeon({ potion: 1, plumeDePhenix: 1, antidote: 1 });
   const [g, v] = game.party;
   g.hp = 10;
   assert.ok(useOnMap(game, 'potion', 0).ok);
@@ -156,8 +143,6 @@ test("entre deux étages : la Corde termine l'expédition ; potions, plume et re
   addStatus(g, poison);
   assert.ok(useOnMap(game, 'antidote', 0).ok);
   assert.deepEqual(g.statuses, []);
-  const r = useOnMap(game, 'corde');
-  assert.ok(r.ok && r.escaped);
-  assert.equal(game.expedition, null);
+  game.expedition = null;
   assert.equal(useOnMap(game, 'potion', 0).ok, false, "hors d'un donjon");
 });

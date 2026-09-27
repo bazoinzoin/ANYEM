@@ -104,11 +104,11 @@ test("ce qui est à la banque ne se perd pas lors d'une défaite ; pas de banque
   game.bag.push(safe);
   depositItem(game, safe.id);
   moveGold(game, 100);
-  game.bag.push(generateItem({ level: 1 }));
+  game.bag.push(generateItem({ level: 1 }), generateItem({ level: 1 }));
   applyDefeat(game);
   assert.deepEqual(bankOf(game).items, [safe]);
   assert.equal(bankOf(game).gold, 100);
-  assert.equal(game.bag.length, 0);
+  assert.equal(game.bag.length, 1, 'jamais tout le sac');
   game.expedition = { dungeonKey: 'foretMaudite', floor: 1 };
   assert.equal(moveGold(game, -10), false);
   assert.equal(withdrawItem(game, safe.id), false);

@@ -3,15 +3,17 @@
 // l'expédition (game/dungeon.js).
 
 import { state } from '../state.js';
-import { TIMING } from '../config.js';
+import { TIMING, DIFFICULTIES } from '../config.js';
 import { createCombat, nextTurn, heroAct, enemyAct, checkOutcome, log } from '../game/combat.js';
-import { floorCombat, winFight, loseExpedition, escapeExpedition, subzoneOf } from '../game/dungeon.js';
+import { floorCombat, winFight, loseExpedition, subzoneOf } from '../game/dungeon.js';
 import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 import { getSkills } from '../game/party.js';
 import { snapshotBattle, diffBattle, heroGesture, enemyGesture } from './battleDiff.js';
 import { playAction } from './battleStage.js';
+import { later } from './pauseClock.js';
+import { enemyDelayFactor } from './saves.js';
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
 export const lastFloor = { message: null, loot: [], summary: null };
@@ -52,41 +54,57 @@ function advance() {
 
   // Tour ennemi : jamais instantané, l'unité active est mise en évidence.
   log(cb, `${turn.unit.name} se prépare à agir...`);
+  enemyTurn(cb, turn);
+}
+
+// Action de l'ennemi dont c'est le tour, après un temps de réflexion visible.
+function enemyTurn(cb, turn) {
   render();
-  setTimeout(() => {
+  later(() => {
     const beforeAct = snapshotBattle(cb);
     enemyAct(cb);
     playAction(cb, turn.unit, beforeAct, enemyGesture(turn.unit, diffBattle(cb, beforeAct)));
     render();
     if (checkOutcome(cb)) return endAfterAnimation();
-    setTimeout(advance, TIMING.enemyAfterMs);
-  }, TIMING.enemyThinkMs);
+    later(advance, TIMING.enemyAfterMs * enemyDelayFactor());
+  }, TIMING.enemyThinkMs * enemyDelayFactor());
+}
+
+// Reprend un combat chargé depuis une sauvegarde : au tour d'un héros, on attend son
+// ordre ; au tour d'un ennemi, il agit ; sinon on passe au combattant suivant.
+export function resumeCombat() {
+  const cb = state.combat;
+  state.screen = 'combat';
+  if (cb.result) return endAfterAnimation();
+  if (cb.acting?.side === 'hero') return render();
+  if (cb.acting?.side === 'enemy') return enemyTurn(cb, cb.acting);
+  advance();
 }
 
 // Laisse voir le dernier coup (et la chute) avant de quitter l'écran de combat.
 function endAfterAnimation() {
   render();
-  setTimeout(finish, TIMING.outcomeMs);
+  later(finish, TIMING.outcomeMs);
 }
 
 function finish() {
   const cb = state.combat;
   state.combat = null;
   state.lastCombat = { title: cb.title, log: cb.log }; // journal consultable après le combat
-  if (cb.result === 'escape') {
-    escapeExpedition(state, cb);
-    showHub("Grâce à la Corde d'évasion, l'équipe regagne le village sans rien perdre. Vous pourrez repartir depuis le dernier boss vaincu.");
-    return;
-  }
   if (cb.result !== 'victory') {
-    showHub(loseExpedition(state, cb).message);
+    const exp = state.expedition;
+    const where = `${DUNGEONS[exp.dungeonKey].name} · ${subzoneOf(exp.dungeonKey, exp.floor).name}, étage ${exp.floor}`;
+    const r = loseExpedition(state, cb);
+    state.defeat = { where, message: r.message, lost: r.lost };
+    goTo('defeat');
     return;
   }
   const dungeonKey = state.expedition.dungeonKey;
   const r = winFight(state, cb);
   if (r.cleared) {
     const next = r.unlocked ? ` ${DUNGEONS[r.unlocked].name} est désormais accessible !` : '';
-    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}`, r.loot);
+    const medal = r.medal ? ` Vous gagnez la médaille ${DIFFICULTIES[r.medal].name} de la zone (visible aux portails) !` : '';
+    showHub(`${DUNGEONS[dungeonKey].name} est vaincue ! ${r.message}${next}${medal}`, r.loot);
     return;
   }
   const nextZone = r.boss ? subzoneOf(dungeonKey, state.expedition.floor) : null;

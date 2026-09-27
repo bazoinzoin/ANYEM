@@ -50,6 +50,8 @@
 //   comboGain   points de combo gagnés par le lanceur (compétence « générateur »)
 //   finisher    dépense tous les points de combo (au moins 1) : `power` et la
 //               valeur des effets (power) sont donnés PAR point de combo
+//   fullAt      finisher à pleine puissance (celle de 5 points) dès ce nombre de points
+//               (Empoisonneur : 3), voir comboFactor dans game/combo.js
 
 export const CLASSES = {
   guerrier: {
@@ -73,7 +75,7 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
     starterSkills: [
-      { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, desc: 'Coup lourd sur un ennemi' },
+      { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.7, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
     ],
   },
@@ -99,9 +101,9 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     starterSkills: [
-      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.6, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
-      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, plus fort à chaque point de combo' },
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
+      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
+      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
   pretre: {
@@ -127,7 +129,7 @@ export const CLASSES = {
     starterSkills: [
       { id: 'soin-majeur', name: 'Soin Majeur', cost: 35, kind: 'heal', target: 'ally', power: 1.1, desc: 'Soigne fortement un allié' },
       { id: 'eclat-de-lumiere', name: 'Éclat de Lumière', cost: 20, kind: 'damage', target: 'enemy', power: 0.65, magic: true, desc: 'Dégâts de lumière' },
-      { id: 'trait-d-ombre', name: "Trait d'ombre", cost: 20, kind: 'damage', target: 'enemy', power: 0.7, magic: true, desc: "Dégâts d'ombre" },
+      { id: 'trait-d-ombre', name: "Trait d'ombre", cost: 20, kind: 'damage', target: 'enemy', power: 1.0, magic: true, desc: "Dégâts d'ombre" },
     ],
   },
   mage: {
@@ -152,8 +154,8 @@ export const CLASSES = {
     ],
     starterSkills: [
       { id: 'boule-de-feu', name: 'Boule de Feu', cost: 30, kind: 'damage', target: 'enemy', power: 2.1, magic: true, desc: 'Dégâts de feu' },
-      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.65, magic: true, desc: 'Dégâts de foudre' },
-      { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.5, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
+      { id: 'eclair', name: 'Éclair', cost: 25, kind: 'damage', target: 'enemy', power: 1.45, magic: true, desc: 'Dégâts de foudre' },
+      { id: 'trait-de-givre', name: 'Trait de givre', cost: 25, kind: 'damage', target: 'enemy', power: 1.7, magic: true, effects: [{ id: 'ralenti', turns: 1 }], desc: 'Dégâts de glace, ralentit la cible 1 tour' },
     ],
   },
   chasseur: {
@@ -177,8 +179,8 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     starterSkills: [
-      { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.35, desc: 'Flèche soigneusement ajustée' },
-      { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.55, desc: 'Petite flèche décochée en un éclair' },
+      { id: 'tir-vise', name: 'Tir visé', cost: 45, kind: 'damage', target: 'enemy', power: 1.6, desc: 'Flèche soigneusement ajustée' },
+      { id: 'tir-rapide', name: 'Tir rapide', cost: 20, kind: 'damage', target: 'enemy', power: 0.6, desc: 'Petite flèche décochée en un éclair' },
     ],
   },
   paladin: {

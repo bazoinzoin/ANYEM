@@ -18,6 +18,11 @@ import { rand, pick, random } from './rng.js';
 
 let nextId = 1;
 
+// Après un chargement : les identifiants déjà pris (jusqu'à `maxId`) ne resservent pas.
+export function reserveItemIds(maxId) {
+  nextId = Math.max(nextId, maxId + 1);
+}
+
 export function budget(level) {
   return ITEM.budgetBase + ITEM.budgetPerLevel * level;
 }
@@ -182,6 +187,6 @@ export function generateItem(opts = {}) {
 
   const item = { id: `it${nextId++}`, name, level, rarity, plus: 0, ...base, primary, stats, mandatory, bonus };
   for (const k of ['weaponType', 'armorType']) if (item[k] === undefined) delete item[k];
-  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey, passive: legendary.passive, desc: legendary.desc };
+  if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey ?? null, branch: legendary.branch ?? null, power: legendary.power, desc: legendary.desc };
   return item;
 }

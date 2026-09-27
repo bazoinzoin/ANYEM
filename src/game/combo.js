@@ -39,14 +39,25 @@ export function gainCombo(hero, amount) {
   return hero.combo - before;
 }
 
+// Points de combo d'un finisher à pleine puissance (comboMax du Voleur).
+export const FULL_COMBO = 5;
+
+// Multiplicateur d'un finisher pour `points` points de combo. Un finisher `fullAt: n`
+// (Empoisonneur) atteint sa pleine puissance (celle de FULL_COMBO points) dès n points.
+export function comboFactor(skill, points) {
+  if (!skill.fullAt) return points;
+  return +((Math.min(points, skill.fullAt) * FULL_COMBO) / skill.fullAt).toFixed(3);
+}
+
 /**
  * Compétence telle qu'elle sera lancée avec `points` points de combo : un finisher
- * voit sa puissance et la valeur de ses effets multipliées par `points` (champ
+ * voit sa puissance et la valeur de ses effets multipliées par comboFactor (champ
  * comboPoints ajouté). Les autres compétences sont renvoyées telles quelles.
  */
 export function atCombo(skill, points) {
   if (!skill.finisher) return skill;
-  const scale = (v) => (v === undefined ? v : +(v * points).toFixed(3));
+  const factor = comboFactor(skill, points);
+  const scale = (v) => (v === undefined ? v : +(v * factor).toFixed(3));
   return {
     ...skill,
     power: scale(skill.power),

@@ -11,7 +11,7 @@ import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
 import { generateItem, itemStats } from './items.js';
-import { talentEffects } from './talents.js';
+import { talentEffects, rankOf } from './talents.js';
 import { sanitizeLook } from './appearance.js';
 
 export function getClass(hero) {
@@ -20,6 +20,17 @@ export function getClass(hero) {
 
 function wornItems(hero) {
   return SLOT_ORDER.map((slot) => [slot, hero.equipment[slot]]).filter(([, item]) => item);
+}
+
+// Pouvoirs des légendaires portés (ou absorbés par un objet divin) qui s'appliquent :
+// un pouvoir `requires` ne fait rien sans le talent qu'il renforce. Les objets
+// d'avant la refonte (`passive` = modificateur de compétence) restent lisibles.
+export function legendaryPowers(hero) {
+  return wornItems(hero)
+    .map(([, item]) => item.legendary ?? item.absorbed)
+    .filter(Boolean)
+    .map((leg) => leg.power ?? (leg.passive ? { skillMod: leg.passive } : null))
+    .filter((power) => power && (!power.requires || rankOf(hero, power.requires) > 0));
 }
 
 // Coefficient de vitesse d'attaque des armes tenues (moyenne en ambidextrie, 1 sans arme).
@@ -40,6 +51,12 @@ export function weaponSpeedOf(hero) {
 export function getStats(hero) {
   const cls = getClass(hero);
   const fx = talentEffects(hero);
+  // Les pouvoirs des légendaires s'ajoutent comme des talents.
+  for (const power of legendaryPowers(hero)) {
+    for (const group of ['flat', 'pct', 'passive']) {
+      for (const [k, v] of Object.entries(power[group] ?? {})) fx[group][k] = (fx[group][k] ?? 0) + v;
+    }
+  }
   const total = { ...zeroStats(), ...cls.base };
   for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
   for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
@@ -107,7 +124,7 @@ function applySkillMod(skill, mod) {
 // divin) et des talents.
 export function getSkills(hero) {
   const fx = talentEffects(hero);
-  const mods = [...wornItems(hero).map(([, item]) => (item.legendary ?? item.absorbed)?.passive).filter(Boolean), ...fx.skillMods];
+  const mods = [...legendaryPowers(hero).flatMap((p) => [].concat(p.skillMod ?? [])), ...fx.skillMods];
   const unique = fx.skills.filter((skill, i) => fx.skills.findIndex((s) => s.id === skill.id) === i);
   return unique.map((skill) =>
     mods.filter((m) => m.skill === skill.id).reduce(applySkillMod, skill));
