@@ -1,8 +1,12 @@
 // Menu principal : nom du jeu sur une scène animée (clairière de nuit, feu de camp, les
 // six classes autour), menu façon JRPG (flèches + Entrée, ou souris) : Nouvelle partie,
-// Charger et Options (à venir), Quitter, Debug (partie de test, voir game/debug.js).
+// Charger (emplacements de sauvegarde, ui/screens/slots.js), Options, Quitter, Debug (partie de
+// test, voir game/debug.js).
 
-import { state } from '../../state.js';
+import { state, resetGame } from '../../state.js';
+import { openSlots } from './slots.js';
+import { openOptions } from '../pause.js';
+import { isPaused } from '../pauseClock.js';
 import { CLASS_ORDER } from '../../config.js';
 import { setupDebugGame } from '../../game/debug.js';
 import { goTo, showHub } from '../router.js';
@@ -13,9 +17,9 @@ import { lookSprite } from '../heroSprite.js';
 import { esc } from '../html.js';
 
 const MENU = [
-  { id: 'new', label: 'Nouvelle partie' },
-  { id: 'load', label: 'Charger', soon: 'Les sauvegardes arrivent bientôt.' },
-  { id: 'options', label: 'Options', soon: 'Les options arrivent bientôt.' },
+  { id: 'new', label: 'Nouvelle partie', hint: 'Choisir un emplacement de sauvegarde, puis créer son équipe.' },
+  { id: 'load', label: 'Charger', hint: 'Reprendre une aventure sauvegardée (4 emplacements).' },
+  { id: 'options', label: 'Options', hint: 'Vitesse des tours ennemis…' },
   { id: 'quit', label: 'Quitter' },
   { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer' },
 ];
@@ -80,8 +84,11 @@ function choose(app, i) {
     return;
   }
   message = null;
-  if (item.id === 'new') goTo('create');
+  if (item.id === 'new') openSlots('new');
+  if (item.id === 'load') openSlots('load');
+  if (item.id === 'options') openOptions();
   if (item.id === 'debug') {
+    resetGame();
     setupDebugGame(state);
     showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les deux autres classes attendent à l\'auberge.');
   }
@@ -98,7 +105,7 @@ function choose(app, i) {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('keydown', (ev) => {
-    if (state.screen !== 'title' || quitting) return;
+    if (state.screen !== 'title' || quitting || isPaused()) return;
     const app = document.getElementById('app');
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();

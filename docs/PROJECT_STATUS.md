@@ -104,6 +104,12 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - Événements : Sorcière (50 % objet peu commun ou mieux / 50 % deux héros perdent 30 % de leurs PV), Autel oublié (offrande payante : soin / piller : or + matéria ou malédiction), Coffre abandonné (or + consommable ou piège), Voyageur blessé (une potion contre une matéria rare et de l'or), Source mystérieuse (soin ou poison), Joueur de dés (pari), **Marchand ambulant** (3 équipements peu communs à légendaires à 2 × le prix de revente au lieu de 4 ×, consommables à 75 % du prix).
 - Format extensible : coût (or selon le niveau, consommable) et effets (or, objet de rareté minimale, matéria, consommable, soin, blessures).
 
+## Sauvegardes et menu Échap
+
+- **4 emplacements** (stockage du navigateur, `ui/saves.js`). « Nouvelle partie » demande d'abord un emplacement (écraser une aventure demande confirmation) : l'aventure s'y sauvegarde toujours, dès la création de l'équipe, sans toucher aux autres. « Charger » liste les emplacements (équipe en portraits, lieu, difficulté, or, zones terminées, date) ; on peut aussi effacer une aventure.
+- **Menu Échap** sur tous les écrans de jeu (`ui/pause.js`) : Reprendre, Sauvegarder (n'importe quand, même en plein combat ou en expédition : on reprend exactement au même endroit), Options (vitesse des tours ennemis : lents, normaux, rapides — jamais instantanés), Quitter (retour au menu principal, avec ou sans sauvegarde). Le jeu est figé pendant la pause. En combat, Échap annule d'abord un choix en cours. La partie Debug n'a pas d'emplacement : « Sauvegarder » propose d'en choisir un.
+- Format (`game/save.js`) : version, date, résumé, et l'état de la partie encodé en graphe (les objets partagés, comme les héros dans le combat, le restent au chargement). Les identifiants d'objets reprennent après le plus grand chargé.
+
 ## Difficulté (choix d'implémentation)
 
 - Rareté **Divin** (rouge) : 5 secondaires, fourchette au-dessus du légendaire. Uniquement sur les boss : 0 % en Balade et Aventure, 1 % en Guerre, 5 % en Horreur, 9 % en Cauchemar, 14 % en Insanie (`bossRarityWeights`). Pas de matéria divine (`MATERIA_RARITIES`, aucune case dans les tableaux de l'écran Difficulté) : un divin se décrafte en matéria légendaires ; chaque amélioration d'un divin coûte 10 / 10 / 10 / 20 / 30 matéria (commun → légendaire, `FORGE.divineCost`).

@@ -18,6 +18,11 @@ import { rand, pick, random } from './rng.js';
 
 let nextId = 1;
 
+// Après un chargement : les identifiants déjà pris (jusqu'à `maxId`) ne resservent pas.
+export function reserveItemIds(maxId) {
+  nextId = Math.max(nextId, maxId + 1);
+}
+
 export function budget(level) {
   return ITEM.budgetBase + ITEM.budgetPerLevel * level;
 }

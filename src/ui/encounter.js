@@ -12,6 +12,8 @@ import { render, showHub, goTo } from './router.js';
 import { getSkills } from '../game/party.js';
 import { snapshotBattle, diffBattle, heroGesture, enemyGesture } from './battleDiff.js';
 import { playAction } from './battleStage.js';
+import { later } from './pauseClock.js';
+import { enemyDelayFactor } from './saves.js';
 
 // Résultat du dernier étage, affiché sur l'écran d'expédition.
 export const lastFloor = { message: null, loot: [], summary: null };
@@ -52,21 +54,37 @@ function advance() {
 
   // Tour ennemi : jamais instantané, l'unité active est mise en évidence.
   log(cb, `${turn.unit.name} se prépare à agir...`);
+  enemyTurn(cb, turn);
+}
+
+// Action de l'ennemi dont c'est le tour, après un temps de réflexion visible.
+function enemyTurn(cb, turn) {
   render();
-  setTimeout(() => {
+  later(() => {
     const beforeAct = snapshotBattle(cb);
     enemyAct(cb);
     playAction(cb, turn.unit, beforeAct, enemyGesture(turn.unit, diffBattle(cb, beforeAct)));
     render();
     if (checkOutcome(cb)) return endAfterAnimation();
-    setTimeout(advance, TIMING.enemyAfterMs);
-  }, TIMING.enemyThinkMs);
+    later(advance, TIMING.enemyAfterMs * enemyDelayFactor());
+  }, TIMING.enemyThinkMs * enemyDelayFactor());
+}
+
+// Reprend un combat chargé depuis une sauvegarde : au tour d'un héros, on attend son
+// ordre ; au tour d'un ennemi, il agit ; sinon on passe au combattant suivant.
+export function resumeCombat() {
+  const cb = state.combat;
+  state.screen = 'combat';
+  if (cb.result) return endAfterAnimation();
+  if (cb.acting?.side === 'hero') return render();
+  if (cb.acting?.side === 'enemy') return enemyTurn(cb, cb.acting);
+  advance();
 }
 
 // Laisse voir le dernier coup (et la chute) avant de quitter l'écran de combat.
 function endAfterAnimation() {
   render();
-  setTimeout(finish, TIMING.outcomeMs);
+  later(finish, TIMING.outcomeMs);
 }
 
 function finish() {

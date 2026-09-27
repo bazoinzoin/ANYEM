@@ -17,6 +17,7 @@ import { esc } from '../html.js';
 import { statsList } from '../heroStats.js';
 import { skillEffectLabel } from '../format.js';
 import { goTo } from '../router.js';
+import { saveGame } from '../saves.js';
 import { iconHtml, itemIcon, branchIcon, skillIconIndex, CLASS_ICONS } from '../icons.js';
 import { frame, wireFrame, itemDetail } from '../screenFrame.js';
 import { portrait, drawPortraits } from '../portraits.js';
@@ -87,6 +88,7 @@ export function renderCreate(app) {
     readNames(app);
     draft.details = null;
     state.party = createParty(draft.names, draft.classes, draft.looks);
+    saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };
 }
