@@ -148,9 +148,13 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-branch h3 small { margin-left: auto; color: #f3d58c; font-weight: 400; }
 .tal-progress { margin: 4px 0 6px; height: 7px; }
 .tal-tiers { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
-.tal-tier { display: flex; align-items: center; justify-content: center; gap: 14px; position: relative; flex: 1; }
-.tal-tier + .tal-tier::before { content: ''; position: absolute; top: -2px; left: 50%; width: 2px; height: 6px; background: rgba(216,181,106,.5); }
-.tal-req { position: absolute; left: 2px; font-size: 11px; color: var(--dim); }
+.tal-row { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; position: relative; }
+.tal-row + .tal-row::before { content: ''; position: absolute; top: -3px; left: 29px; width: 2px; height: 8px; background: rgba(216,181,106,.5); }
+.tal-tier { display: flex; align-items: center; justify-content: center; gap: 10px; position: relative; }
+.tal-tier.big { flex: 0 0 60px; }
+.tal-tier.pick { flex: 1; min-width: 0; padding: 3px 0 3px 22px; border-radius: 8px; }
+.tal-tier.pick::before { content: ''; position: absolute; left: -8px; top: 50%; width: 14px; height: 2px; background: rgba(142,197,255,.35); }
+.tal-req { position: absolute; left: 3px; font-size: 11px; color: var(--dim); }
 .tal-tier.locked .tal-req { color: #8a7a66; }
 .tal-node {
   position: relative; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
@@ -178,14 +182,16 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-flash { color: #8ef08a; }
 .tal-maxed { color: #f3d58c; }
 .tal-detail .warning { color: #ff9a8a; }
-/* 11 paliers : nœuds plus petits sur les écrans bas */
-@media (max-height: 700px) {
+/* 8 rangées : nœuds plus petits sur les écrans bas ou étroits */
+@media (max-height: 700px), (max-width: 1100px) {
   .tal-node { width: 36px; height: 36px; }
   .tal-node .ic { transform: scale(.85); }
   .tal-node.signature { width: 40px; height: 40px; }
   .tal-branch h3 { font-size: 15px; }
   .tal-progress { margin: 2px 0 2px; }
-  .tal-tier { gap: 10px; }
+  .tal-tier { gap: 6px; }
+  .tal-tier.big { flex-basis: 46px; }
+  .tal-row + .tal-row::before { left: 22px; }
   .tal-node sup { font-size: 9px; line-height: 11px; }
 }
 @media (max-width: 900px) { .tal-screen { grid-template-columns: repeat(var(--branches), minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) 170px; } .tal-detail { grid-column: 1 / -1; } }

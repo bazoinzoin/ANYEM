@@ -14,6 +14,7 @@ import { statsOf } from '../src/game/units.js';
 import { estimateSkill, estimateHit, effectValue, BASIC_ATTACK } from '../src/game/formulas.js';
 import { atCombo, actionCost } from '../src/game/combo.js';
 import { EFFECTS } from '../src/data/effects.js';
+import { CHOICE_PICKS } from '../src/data/talents.js';
 import { setRandomSource } from '../src/game/rng.js';
 
 // Orientation → [stat principale, armure, armes].
@@ -50,8 +51,7 @@ function makeHero(key, level) {
   const branch = branchesOf(hero).find((b) => b.key === key);
   for (const t of tiersOf(branch)) {
     const nodes = branch.nodes.filter((n) => n.tier === t);
-    const node = [...nodes].sort((a, b) => weight(b) - weight(a))[0];
-    while (learn(hero, node.id));
+    for (const node of [...nodes].sort((a, b) => weight(b) - weight(a)).slice(0, CHOICE_PICKS)) while (learn(hero, node.id));
   }
   return hero;
 }

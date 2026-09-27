@@ -396,7 +396,7 @@ export function drawFloorAuto(ctx, img, at, x, y, same, fill = null) {
   }
 }
 
-function drawWallAuto(ctx, img, at, x, y, same) {
+export function drawWallAuto(ctx, img, at, x, y, same) {
   for (let q = 0; q < 4; q++) {
     const [qx, qy] = mvWallQuarter(same, q);
     ctx.drawImage(img, at[0] * TILE + qx * 8, at[1] * TILE + qy * 8, 8, 8, x * TILE + (q % 2) * 8, y * TILE + (q >> 1) * 8, 8, 8);

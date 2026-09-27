@@ -9,6 +9,7 @@ import { DUNGEONS } from '../data/dungeons.js';
 import { DIFFICULTIES } from '../config.js';
 import { reserveItemIds } from './items.js';
 import { difficultyOf } from './difficulty.js';
+import { sanitizeTalents } from './talents.js';
 
 export const SAVE_VERSION = 1;
 export const SAVE_SLOTS = 4;
@@ -102,6 +103,9 @@ export function applySave(game, save) {
   game.hubMessage = null;
   game.hubLoot = [];
   game.defeat = null;
+  // Arbres de talents modifiés depuis la sauvegarde : points rendus aux héros concernés.
+  const reset = [...game.party, ...(game.reserve ?? [])].filter((h) => sanitizeTalents(h)).map((h) => h.name);
+  if (reset.length) game.hubMessage = `Les arbres de talents ont changé : les points de ${reset.join(', ')} ont été rendus (à redépenser chez le Maître des compétences).`;
   // Les nouveaux objets ne doivent pas reprendre un identifiant déjà utilisé.
   reserveItemIds(maxItemId(data));
   return true;

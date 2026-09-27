@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { VILLAGE, VILLAGE_SERVICES } from '../src/data/village.js';
-import { INTERIORS } from '../src/data/interiors.js';
+import { readFileSync } from 'node:fs';
+
+import { INTERIORS, ROOM_TOP } from '../src/data/interiors.js';
 import {
   sceneOf, canWalk, villageStep, talkTarget, spotsNextTo, npcAt, rollResidents, doorstep, entryOf, npcsIn,
 } from '../src/game/village.js';
@@ -105,4 +107,43 @@ test('village : on ne traverse ni les bâtiments ni les habitants ; parler à un
   const g = villageStep({ x: exit.x, y: exit.y - 1 }, 0, 1, scene);
   assert.equal(g.moved, true);
   assert.equal(g.exit, true);
+});
+
+// Taille d'une planche (en-tête PNG).
+function pngSize(name) {
+  const buf = readFileSync(new URL(`../assets/raven/${name}.png`, import.meta.url));
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
+test('intérieurs : meubles entiers (tuiles pleines de leur planche), dans la pièce, sans chevauchement', () => {
+  for (const [id, room] of Object.entries(INTERIORS)) {
+    assert.ok(room.exit > 0 && room.exit < room.w - 1, `${id} : porte dans le mur du bas`);
+    assert.ok(pngSize(room.floor[0]), `${id} : sol`);
+    const taken = new Map();
+    for (const f of room.furniture) {
+      const [sheet, px, py, pw, ph] = f.img;
+      const size = pngSize(sheet);
+      const where = `${id} : ${sheet} (${px}, ${py})`;
+      assert.ok(px >= 0 && py >= 0 && px + pw <= size.w && py + ph <= size.h, `${where} hors de la planche`);
+      if (sheet !== 'craft_obj') assert.ok([px, py, pw, ph].every((v) => v % 16 === 0), `${where} : pas en tuiles entières`);
+      const cols = pw / 16;
+      const rows = ph / 16;
+      assert.ok(f.x >= 1 && f.x + cols <= room.w - 1, `${where} : dépasse sur les côtés`);
+      if (f.layer === 'wall') {
+        assert.ok(f.bottom <= ROOM_TOP - 1 && f.bottom - rows + 1 >= 1, `${where} : hors de la façade`);
+        continue;
+      }
+      assert.ok(f.bottom >= ROOM_TOP && f.bottom <= room.h - 2, `${where} : pas posé au sol`);
+      if (f.layer || f.block === 'none') continue;
+      const top = f.block === 'base' ? f.bottom : Math.max(ROOM_TOP, f.bottom - rows + 1);
+      for (let y = top; y <= f.bottom; y++) {
+        for (let x = f.x; x < f.x + cols; x++) {
+          assert.ok(!taken.has(`${x},${y}`), `${where} chevauche ${taken.get(`${x},${y}`)}`);
+          taken.set(`${x},${y}`, where);
+        }
+      }
+    }
+    const entry = entryOf(id);
+    assert.ok(!taken.has(`${entry.x},${entry.y}`), `${id} : entrée encombrée`);
+  }
 });
