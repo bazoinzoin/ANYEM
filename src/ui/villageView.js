@@ -1,13 +1,13 @@
 // Village à parcourir (écran du village) : le groupe se promène, chaque service est un
 // habitant ; lui parler (Espace / Entrée / E face à lui, ou clic dessus) ouvre son écran.
-// Carte : data/village.js ; règles de marche : game/village.js. Graphismes : pack Fan-tasy.
+// Carte : data/village.js ; règles de marche : game/village.js. Graphismes : packs Raven
+// Fantasy (assets/raven/).
 
 import { state } from '../state.js';
-import { VILLAGE, VILLAGE_SERVICES } from '../data/village.js';
-import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk } from '../game/village.js';
+import { VILLAGE, VILLAGE_ART, VILLAGE_SERVICES } from '../data/village.js';
+import { villageGrid, villageStep, talkTarget, spotsNextTo, npcAt, canWalk, sizeOf } from '../game/village.js';
 import { stepToward } from '../game/floorMap.js';
-import { rmQuarter } from './autotile.js';
-import { chipImage } from './mapThemes.js';
+import { sheet, drawFloorAuto } from './mapThemes.js';
 import { drawActor, dirBetween } from './actors.js';
 import { holdToWalk } from './heldKeys.js';
 import { CLASS_SPRITES, NPC_SPRITES } from './spriteCatalog.js';
@@ -18,26 +18,6 @@ const VIEW_W = 21;
 const VIEW_H = 13;
 const STEP_MS = 180; // durée d'un pas, aussi le rythme de marche
 const WALK_MS = STEP_MS;
-// Chipsets RPG Maker 2003 du village (voir data/village.js).
-const CHIPS = { village: 'rm2k3/chip_village', town: 'rm2k3/chip_town', dungeon: 'rm2k3/chip_dungeon' };
-const GRASS = [1, 10];          // herbe (chip_village)
-const PAVING = [9, 8];          // autotile de pavés (chip_village)
-const TREES = [[22, 8, 2, 2], [20, 8, 1, 2]]; // arbres (chip_village)
-// Toits (chip_town) : tuiles de la rangée du haut et du reste, en alternance par colonne.
-const ROOFS = {
-  red: { top: [[14, 3], [15, 3]], body: [[14, 4], [15, 4]] },
-  teal: { top: [[16, 3]], body: [[16, 4]] },
-  green: { top: [[14, 5], [15, 5]], body: [[14, 11], [15, 11]] },
-  brown: { top: [[12, 3], [13, 3]], body: [[12, 4], [13, 4]] },
-};
-// Murs (chip_town) : lignes haut, milieu, bas ; colonnes gauche, milieu, droite.
-const WALLS = {
-  plaster: [[[12, 0], [13, 0], [14, 0]], [[12, 1], [13, 1], [14, 1]], [[12, 2], [13, 2], [14, 2]]],
-  stone: [[[15, 0], [16, 0], [17, 0]], [[15, 1], [16, 1], [17, 1]], [[15, 2], [16, 2], [17, 2]]],
-  brick: [[[14, 9], [15, 9], [16, 9]], [[14, 9], [15, 9], [16, 9]], [[14, 9], [15, 9], [16, 9]]],
-};
-const DOOR = [21, 6, 1, 2];     // porte (chip_town)
-const WINDOW = [25, 2];         // fenêtre (chip_town)
 
 // Position du groupe au village (conservée entre deux menus) : state.village = { x, y, dir }.
 function pos() {
@@ -252,66 +232,34 @@ function hash(x, y, salt = 0) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// Sol : herbe et rues pavées (autotile RPG Maker). Dessiné une fois.
+// Image d'une planche Raven Fantasy ([planche, x, y, l, h]) dessinée à l'échelle, coin
+// haut-gauche en (sx, sy) pixels d'écran ; rien tant que la planche charge.
+function blit(ctx, [name, x, y, w, h], sx, sy) {
+  const img = sheet(name);
+  if (img) ctx.drawImage(img, x, y, w, h, Math.round(sx), Math.round(sy), w * SCALE, h * SCALE);
+}
+
+// Sol : herbe et chemins de terre (autotile). Dessiné une fois.
 function ground() {
   if (groundLayer) return groundLayer;
-  const chip = chipImage(CHIPS.village);
-  if (!chip) return null;
+  const { grass, path } = VILLAGE_ART;
+  const grassImg = sheet(grass.sheet);
+  const pathImg = sheet(path.sheet);
+  if (!grassImg || !pathImg) return null;
   const grid = villageGrid();
   const canvas = document.createElement('canvas');
   canvas.width = VILLAGE.w * TILE;
   canvas.height = VILLAGE.h * TILE;
   const ctx = canvas.getContext('2d');
-  const paved = (x, y) => x >= 0 && y >= 0 && x < grid.w && y < grid.h && !!grid.path[y * grid.w + x];
+  const onPath = (x, y) => x >= 0 && y >= 0 && x < grid.w && y < grid.h && !!grid.path[y * grid.w + x];
   for (let y = 0; y < grid.h; y++) {
     for (let x = 0; x < grid.w; x++) {
-      if (!paved(x, y)) {
-        ctx.drawImage(chip, GRASS[0] * TILE, GRASS[1] * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
-        continue;
-      }
-      for (let q = 0; q < 4; q++) {
-        const [col, row] = rmQuarter((dx, dy) => paved(x + dx, y + dy), q);
-        const qx = (q % 2) * 8;
-        const qy = (q >> 1) * 8;
-        ctx.drawImage(chip, (PAVING[0] + col) * TILE + qx, (PAVING[1] + row) * TILE + qy, 8, 8, x * TILE + qx, y * TILE + qy, 8, 8);
-      }
+      const [c, r] = grass.tiles[Math.floor(hash(x, y, 1) * grass.tiles.length)];
+      ctx.drawImage(grassImg, c * TILE, r * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
+      if (onPath(x, y)) drawFloorAuto(ctx, pathImg, path.auto, x, y, (dx, dy) => onPath(x + dx, y + dy));
     }
   }
   groundLayer = canvas;
-  return canvas;
-}
-
-// Maison construite tuile par tuile (toit, murs, fenêtres, porte, enseigne), mise en cache.
-const houses = new Map();
-function house(b) {
-  if (houses.has(b.id)) return houses.get(b.id);
-  const town = chipImage(CHIPS.town);
-  const signChip = b.sign ? chipImage(CHIPS[b.sign.chip]) : null;
-  if (!town || (b.sign && !signChip)) return null;
-  const rows = b.roofRows + b.wallRows;
-  const canvas = document.createElement('canvas');
-  canvas.width = b.cols * TILE;
-  canvas.height = rows * TILE;
-  const ctx = canvas.getContext('2d');
-  const put = (chip, [c, r], x, y, w = 1, h = 1) => ctx.drawImage(chip, c * TILE, r * TILE, w * TILE, h * TILE, x * TILE, y * TILE, w * TILE, h * TILE);
-  const roof = ROOFS[b.roof];
-  for (let y = 0; y < b.roofRows; y++) {
-    const set = y === 0 ? roof.top : roof.body;
-    for (let x = 0; x < b.cols; x++) put(town, set[x % set.length], x, y);
-  }
-  const wall = WALLS[b.wall];
-  const wallRows = b.wallRows === 2 ? [wall[1], wall[2]] : [wall[0], ...Array(b.wallRows - 2).fill(wall[1]), wall[2]];
-  wallRows.forEach((row, i) => {
-    for (let x = 0; x < b.cols; x++) put(town, row[x === 0 ? 0 : x === b.cols - 1 ? 2 : 1], x, b.roofRows + i);
-  });
-  // Ombre du toit sur le haut des murs.
-  ctx.fillStyle = 'rgba(0,0,0,.25)';
-  ctx.fillRect(0, b.roofRows * TILE, b.cols * TILE, 3);
-  const windowRow = b.roofRows + (b.wallRows >= 3 ? 1 : 0);
-  for (const dx of b.windows ?? []) put(town, WINDOW, dx, windowRow);
-  put(town, DOOR, b.door, rows - 2, DOOR[2], DOOR[3]);
-  if (b.sign) put(signChip, b.sign.tile, b.sign.dx, b.roofRows);
-  houses.set(b.id, canvas);
   return canvas;
 }
 
@@ -320,32 +268,34 @@ function draw(canvas, now) {
   ctx.imageSmoothingEnabled = false;
   const size = TILE * SCALE;
   const cam = camera(canvas, now);
-  ctx.fillStyle = '#3b6d2a';
+  ctx.fillStyle = '#4f7a4a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const layer = ground();
   if (layer) ctx.drawImage(layer, cam.x / SCALE, cam.y / SCALE, canvas.width / SCALE, canvas.height / SCALE, 0, 0, canvas.width, canvas.height);
 
   // Tout ce qui a de la hauteur est trié par la ligne de ses pieds (les plus bas devant).
   const items = [];
-  // Objet du chipset `chip` (rect en tuiles), coin bas-gauche en (x, bottom).
-  const object = (chipKey, [c, r, w, h], x, bottom) => {
-    const chip = chipImage(CHIPS[chipKey]);
-    if (!chip) return;
-    const sx = x * size - cam.x;
-    const sy = (bottom - h + 1) * size - cam.y;
-    items.push({ y: bottom, draw: () => ctx.drawImage(chip, c * TILE, r * TILE, w * TILE, h * TILE, sx, sy, w * size, h * size) });
+  // Objet posé : image centrée dans ses cases, bas de l'image au bas de la ligne `bottom`.
+  const placed = (image, x, bottom, y = bottom) => {
+    const { cols } = sizeOf({ img: image });
+    const sx = x * size + ((cols * TILE - image[3]) / 2) * SCALE - cam.x;
+    const sy = (bottom + 1) * size - image[4] * SCALE - cam.y;
+    items.push({ y, draw: () => blit(ctx, image, sx, sy) });
   };
   for (const b of VILLAGE.buildings) {
-    const img = house(b);
-    if (!img) continue;
     const sx = b.x * size - cam.x;
-    const sy = (b.bottom + 1) * size - img.height * SCALE - cam.y;
-    items.push({ y: b.bottom, draw: () => ctx.drawImage(img, sx, sy, img.width * SCALE, img.height * SCALE) });
+    const sy = (b.bottom + 1) * size - b.img[4] * SCALE - cam.y;
+    items.push({ y: b.bottom, draw: () => {
+      blit(ctx, b.img, sx, sy);
+      for (const d of b.decor ?? []) blit(ctx, d.img, sx + d.dx * SCALE, sy + d.dy * SCALE);
+    } });
   }
-  for (const o of VILLAGE.props) object(o.chip, o.rect, o.x, o.bottom);
-  for (const [x, y] of VILLAGE.trees) {
-    const tree = TREES[Math.floor(hash(x, y, 3) * TREES.length)];
-    object('village', tree, x - Math.floor((tree[2] - 1) / 2), y);
+  for (const o of VILLAGE.props) placed(o.img, o.x, o.bottom);
+  for (const [x, y, v] of VILLAGE.trees) {
+    const tree = VILLAGE_ART.trees[v % VILLAGE_ART.trees.length];
+    const sx = (x + 0.5) * size - (tree[3] / 2) * SCALE - cam.x;
+    const sy = (y + 1) * size - tree[4] * SCALE - cam.y;
+    items.push({ y, draw: () => blit(ctx, tree, sx, sy) });
   }
   const p = pos();
   const hp = currentPos(now);

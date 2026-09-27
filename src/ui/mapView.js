@@ -221,7 +221,7 @@ function draw(canvas, now) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Décor (sol, arbres, rochers), dessiné une fois par étage puis recopié.
-  const layer = staticLayer(map, exp.dungeonKey);
+  const layer = staticLayer(map, exp.dungeonKey, exp.floor);
   ctx.drawImage(layer, cam.x / SCALE, cam.y / SCALE, canvas.width / SCALE, canvas.height / SCALE, 0, 0, canvas.width, canvas.height);
 
   const x0 = Math.floor(cam.x / size);
@@ -288,7 +288,7 @@ function draw(canvas, now) {
       }
     }
   }
-  if (themeOf(exp.dungeonKey)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
+  if (themeOf(exp.dungeonKey, exp.floor)?.weather === 'snow') drawSnow(ctx, canvas, now, cam);
 }
 
 function drawMob(ctx, mob, p, dir, at, size, now) {
