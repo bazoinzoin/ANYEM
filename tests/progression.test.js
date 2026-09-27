@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createParty, getStats } from '../src/game/party.js';
-import { applyVictory, applyDefeat, restAtInn } from '../src/game/progression.js';
+import { applyVictory, applyDefeat, restAtInn, lootLevel } from '../src/game/progression.js';
 import { createEnemies } from '../src/game/enemies.js';
 import { generateItem } from '../src/game/items.js';
 import { setRandomSource } from '../src/game/rng.js';
@@ -68,13 +68,27 @@ test("défaite : perte d'or, retour à mi-vie", () => {
   });
 });
 
-test('victoire : le butin arrive dans le sac, au niveau du donjon', () => {
+test('victoire : le butin arrive dans le sac, au niveau du donjon (joueur plus haut)', () => {
   setRandomSource(() => 0.1); // sous la chance de butin : chaque ennemi laisse un objet
   const game = newGame();
+  game.party.forEach((h) => { h.level = 12; });
   const { loot } = applyVictory(game, { level: 7, enemies: goblins(2, 7) });
   assert.equal(loot.length, 2);
   assert.deepEqual(game.bag, loot);
   loot.forEach((item) => assert.equal(item.level, 7));
+  setRandomSource(null);
+});
+
+test('niveau du butin : zone au-dessus du joueur = niveau du joueur ; zone en dessous = niveau de la zone', () => {
+  const game = newGame();
+  game.party.forEach((h, i) => { h.level = 10 + i; }); // joueur : le héros le plus haut (13)
+  assert.equal(lootLevel(game, 30), 13);
+  assert.equal(lootLevel(game, 5), 5);
+  assert.equal(lootLevel(game, 13), 13);
+  setRandomSource(() => 0.1);
+  const { loot } = applyVictory(game, { level: 30, enemies: goblins(2, 30) });
+  assert.ok(loot.length);
+  loot.forEach((item) => assert.equal(item.level, 13));
   setRandomSource(null);
 });
 

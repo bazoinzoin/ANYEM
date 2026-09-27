@@ -242,8 +242,9 @@ test('élites : ennemis renforcés, seulement là où la sous-zone en prévoit',
   assert.ok(encounterFor('foretMaudite', 12).enemies.every((k) => !ENEMIES[k].elite));
 });
 
-test("butin : le niveau des objets est celui des ennemis vaincus", () => {
+test("butin : le niveau des objets est celui des ennemis vaincus (joueur d'un niveau suffisant)", () => {
   const game = newGame();
+  game.party.forEach((h) => { h.level = 20; });
   progressOf(game, 'foretMaudite').checkpoint = 10;
   startExpedition(game, 'foretMaudite', 11);
   setRandomSource(() => 0.01);

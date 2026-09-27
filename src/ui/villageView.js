@@ -16,6 +16,7 @@ import { holdToWalk } from './heldKeys.js';
 import { NPC_SPRITES } from './spriteCatalog.js';
 import { heroSprite } from './heroSprite.js';
 import { clampView, fitCanvas } from './viewport.js';
+import { helpButton } from './hud.js';
 import { image, isReady } from './sprites.js';
 
 const TILE = 16;
@@ -73,6 +74,7 @@ export function villageControls() {
       <button data-vstep="1,0" aria-label="Droite">▶</button>
       <button data-vstep="0,1" aria-label="Bas">▼</button>
     </div>
+    ${helpButton()}
     <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails.</p>
     <button id="talkBtn" class="btn-primary">Parler</button>`;
 }

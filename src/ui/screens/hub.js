@@ -13,7 +13,7 @@ import { goTo } from '../router.js';
 import { itemChip } from '../items.js';
 import { lastCombatLog } from '../combatLog.js';
 import { iconHtml, GOLD_ICON, DIFFICULTY_ICONS } from '../icons.js';
-import { partyHud, hudButton, toast, wireToast } from '../hud.js';
+import { partyHud, hudButton, toast, wireToast, wireHud } from '../hud.js';
 import { drawPortraits } from '../portraits.js';
 import { villageCanvas, villageControls, bindVillage } from '../villageView.js';
 import { openEquipment } from './equipment.js';
@@ -46,7 +46,7 @@ export function renderHub(app) {
         <span>Plus haut niveau atteint : ${state.dungeonLvl}</span>
       </div>
       <nav class="hud-menu">
-        ${hudButton('equipBtn', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
+        ${hudButton('equipBtn', 1920, 'Personnage', { title: 'Afficher l\'équipe ; cliquez sur un héros pour ouvrir son menu Personnage (équipement et sac)' })}
         ${hudButton('talentsBtn', 96, 'Talents', { badge: points })}
         ${hudButton('statsBtn', 610, 'Stats')}
         ${hudButton('strategyBtn', 648, 'Stratégie')}
@@ -59,11 +59,10 @@ export function renderHub(app) {
   wireToast(app);
   drawPortraits(app);
   bindVillage(app, openService);
-  app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => openStats();
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
-  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openStats(Number(b.dataset.hudHero)); });
+  wireHud(app, { partyButton: '#equipBtn', openHero: (i) => openEquipment(i) });
 }
 
 // Écran ouvert en parlant à un habitant du village (voir data/village.js).

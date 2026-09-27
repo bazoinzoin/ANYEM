@@ -942,11 +942,18 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-hero-info .meter { height: 6px; }
 .meter.xp .fill { background: linear-gradient(#f3d58c, #b98a2c); }
 .hud-debuffs { display: flex; gap: 1px; }
-.hud-controls { right: 8px; bottom: 8px; width: 300px; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 12px; }
-.hud-controls .map-help { font-size: 11px; line-height: 1.25; }
-.hud-controls > button { grid-column: 1 / -1; }
+.hud-controls { right: 8px; bottom: 8px; width: 170px; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 12px; }
+.hud-controls .map-help { font-size: 11px; line-height: 1.25; display: none; }
+/* Aide repliée derrière « ? » ; dépliée, elle s'affiche au-dessus des contrôles. */
+.hud-controls.help { width: 300px; }
+.hud-controls.help .map-help { display: block; grid-column: 1 / -1; grid-row: 1; margin: 0; }
+.hud-controls > button.hud-help { grid-column: 2; grid-row: auto; width: 34px; height: 30px; padding: 0; justify-self: end; align-self: start; font-size: 16px; }
+.hud-controls > button.hud-help.selected { border-image-source: var(--ui-btn-gold); color: #4a2a08; text-shadow: none; }
+/* Encadrés de l'équipe : affichés sur demande (bouton Personnage). */
+.hud-party.hidden { display: none; }
+.hud-controls > button:not(.hud-help) { grid-column: 1 / -1; }
 .hud-controls .dpad { grid-row: span 1; }
-@media (max-width: 1100px) { button.hud-hero { width: 150px; } .hud-party { max-width: calc(100% - 250px); flex-wrap: wrap; } .hud-controls { width: 230px; } .hud-controls .map-help { display: none; } }
+@media (max-width: 1100px) { button.hud-hero { width: 150px; } .hud-party { max-width: calc(100% - 250px); flex-wrap: wrap; } .hud-controls.help { width: 230px; } }
 .hud-controls .dpad { grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 30px); gap: 2px; }
 .dpad [data-vstep="0,-1"] { grid-column: 2; grid-row: 1; }
 .dpad [data-vstep="-1,0"] { grid-column: 1; grid-row: 2; }
@@ -973,7 +980,7 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-modal #eventSkip { align-self: flex-start; }
 .map-scr, .map-scr * { box-sizing: border-box; }
 button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var(--ui-box) 10 fill / 20px stretch; background: none; }
-.hud-controls > button { width: 100%; }
+.hud-controls > button:not(.hud-help) { width: 100%; }
 .hud-controls .map-help { min-width: 0; overflow: hidden; }
 .hud-toast { top: 80px; }
 @media (min-width: 1200px) { .hud-toast { top: 8px; width: min(520px, calc(100vw - 720px)); } }
@@ -6772,6 +6779,14 @@ function materiaText(materia) {
   return materia.map((m) => `${m.amount} × ${MATERIA_KINDS[m.kind].label} ${RARITIES[m.rarity].label.toLowerCase()}`).join(', ');
 }
 
+// Niveau du butin : celui de la zone, sans dépasser le niveau du joueur (le héros le plus
+// haut de l'équipe). Zone au-dessus du joueur : butin à son niveau ; zone en dessous :
+// butin au niveau de la zone.
+function lootLevel(game, zoneLevel) {
+  const player = Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
+  return Math.min(zoneLevel, player);
+}
+
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
  * (équipement dans le sac, matéria, consommables — voir loot.js),
@@ -6783,7 +6798,7 @@ function materiaText(materia) {
 function applyVictory(game, { level, enemies, final = false }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
-  const { items: loot, materia, consumables: found } = rollLoot(level, enemies, { final, difficulty: difficultyOf(game) });
+  const { items: loot, materia, consumables: found } = rollLoot(lootLevel(game, level), enemies, { final, difficulty: difficultyOf(game) });
   const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
   game.gold += gold;
   game.bag.push(...loot);
@@ -6854,7 +6869,7 @@ function restAtInn(game) {
   return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
 }
 
-return { xpReward, goldReward, applyVictory, applyDefeat, restAtInn };
+return { xpReward, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
 })();
 
 // ---- src/game/bestiary.js
@@ -9443,6 +9458,335 @@ function fitCanvas(canvas) {
 return { clampView, fitCanvas };
 })();
 
+// ---- src/ui/html.js
+__modules["src/ui/html.js"] = (() => {
+
+// Petits utilitaires de rendu HTML.
+
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
+}
+
+// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
+function tip(text, extraClass = '') {
+  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
+}
+
+function bar(value, max, color) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
+}
+
+function range({ lo, hi }) {
+  return lo === hi ? `${lo}` : `${lo}-${hi}`;
+}
+
+return { esc, tip, bar, range };
+})();
+
+// ---- src/ui/icons.js
+__modules["src/ui/icons.js"] = (() => {
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
+// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
+// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
+// teinte des armes et des armures quand la planche en propose plusieurs.
+
+
+
+const COLS = 16;
+
+// Planche des équipements (assets/icons/equipment.png) : une ligne par pièce, une colonne
+// par rareté (commun → divin). Ses icônes ont des numéros à partir de EQUIP_BASE.
+const EQUIP_BASE = 100000;
+const EQUIP_COLS = 6;
+
+// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
+function iconHtml(index, size = 32, extra = '', title = '') {
+  if (index >= EQUIP_BASE) {
+    const i = index - EQUIP_BASE;
+    extra = `eq ${extra}`;
+    return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${(i % EQUIP_COLS) * size}px -${Math.floor(i / EQUIP_COLS) * size}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
+  }
+  const x = (index % COLS) * size;
+  const y = Math.floor(index / COLS) * size;
+  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
+}
+
+// Rareté → variante (0 = commune … 5 = divine).
+const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
+
+// Équipement : planche dédiée (une icône par pièce et par rareté). Lignes : casque, plastron,
+// épaulières, gants, bottes (léger, moyen, lourd chacun), puis les armes, les bijoux et le
+// bouclier.
+const ARMOR_ROWS = { casque: 0, plastron: 3, epaulieres: 6, gants: 9, bottes: 12 };
+const ARMOR_WEIGHT = { legere: 0, moyenne: 1, lourde: 2 };
+const WEAPON_ROWS = { dague: 15, epee: 16, hache: 17, masse: 18, epee2m: 19, hache2m: 20, masse2m: 21, baton: 22, arc: 23 };
+const JEWEL_ROWS = { anneau: 24, collier: 25, bouclier: 26 };
+
+function itemIcon(item) {
+  const tier = TIER[item.rarity] ?? 0;
+  const row = item.slotType === 'arme' ? WEAPON_ROWS[item.weaponType] ?? WEAPON_ROWS.epee
+    : JEWEL_ROWS[item.slotType] ?? (ARMOR_ROWS[item.slotType] ?? ARMOR_ROWS.plastron) + (ARMOR_WEIGHT[item.armorType] ?? 2);
+  return EQUIP_BASE + row * EQUIP_COLS + tier;
+}
+
+// Consommables.
+const CONSUMABLE_ICONS = {
+  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
+  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
+  outilsDeDesamorcage: 125, remede: 240, tente: 93,
+};
+function consumableIcon(key) {
+  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
+}
+
+// Matéria : une gemme par catégorie d'équipement.
+const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
+const GOLD_ICON = 130;
+
+// Effets (buffs / debuffs).
+const EFFECT_ICONS = {
+  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
+  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
+  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
+};
+function effectIcon(key) {
+  return EFFECT_ICONS[key] ?? 1000;
+}
+
+// Compétences : d'après leur nom (élément), puis leur nature.
+const SKILL_RULES = [
+  [/feu|flamme|brasier|immolation|météore/i, 992],
+  [/glace|givre|blizzard|gel/i, 1008],
+  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
+  [/poison|peste|nauséabond|empoisonn/i, 674],
+  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
+  [/résurrection|sacrifice/i, 669],
+  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
+  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
+  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
+  [/piège|terrain/i, 127],
+  [/tir|salve|flèche/i, 2169],
+  [/tourbillon|déluge|carnage/i, 724],
+  [/cri|provocation/i, 662],
+  [/exécution|éviscération|marque|fatal/i, 745],
+];
+function skillIconIndex(skill) {
+  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
+  if (skill.kind === 'heal') return 1057;
+  if (skill.kind === 'revive') return 669;
+  if (skill.magic) return 1000;
+  return 726;
+}
+
+// Orientations de talents et classes.
+const BRANCH_ICONS = {
+  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
+  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
+  Templier: 1810, 'Lumière': 1055,
+};
+function branchIcon(branch) {
+  return BRANCH_ICONS[branch.name] ?? 1000;
+}
+const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
+
+// Commandes de combat.
+const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
+
+// Nœuds de talents : compétence → son icône ; bonus et passifs → icône de la stat ou de
+// l'effet renforcé.
+const TALENT_STAT_ICONS = {
+  pv: 610, def: 612, defMag: 613, blocage: 663, physPower: 608, magPower: 609, critDmg: 671, critChance: 670,
+  esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
+  lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
+  dotPct: 674, vsDebuffedPct: 616, healPct: 1057, aoePct: 724, trapPct: 127,
+};
+function talentNodeIcon(node, skills = []) {
+  if (skills.length) return skillIconIndex(skills[0]);
+  for (const group of [node.passive, node.pct, node.flat]) {
+    const key = group && Object.keys(group).find((k) => TALENT_STAT_ICONS[k]);
+    if (key) return TALENT_STAT_ICONS[key];
+  }
+  return node.skillMod ? 1000 : 682;
+}
+
+// Difficultés.
+const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750, cauchemar: 751, insanie: 752 };
+// Positions en combat.
+const POSITION_ICONS = { melee: 726, ranged: 1482 };
+
+return { EQUIP_BASE, iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS, talentNodeIcon, DIFFICULTY_ICONS, POSITION_ICONS };
+})();
+
+// ---- src/ui/portraits.js
+__modules["src/ui/portraits.js"] = (() => {
+const { CLASS_LOOKS } = __modules["src/data/appearance.js"];
+const { lookOf, lookKey } = __modules["src/game/appearance.js"];
+const { LOOK_PARTS } = __modules["src/data/appearance.js"];
+const { lookSprite } = __modules["src/ui/heroSprite.js"];
+const { enemySprite, spriteBounds } = __modules["src/ui/mobSprites.js"];
+// Portraits de personnages dans les menus : <canvas data-portrait="…"> dessinés de face
+// par drawPortraits (redessinés tant que les planches se chargent). Références :
+// « classe:guerrier » (apparence de départ de la classe), « look:… » (apparence d'un
+// héros, voir heroPortrait) ou « ennemi:gobelin ».
+
+
+
+
+
+
+
+function spriteOf(ref) {
+  const [kind, key] = ref.split(/:(.*)/s);
+  if (kind === 'classe') return lookSprite(CLASS_LOOKS[key]);
+  if (kind === 'look') {
+    const values = key.split('|');
+    return lookSprite(Object.fromEntries(Object.keys(LOOK_PARTS).map((part, i) => [part, values[i]])));
+  }
+  return enemySprite(key);
+}
+
+// Canvas d'un portrait ; `scale` = agrandissement d'une zone de 24 × 32 px.
+function portrait(ref, scale = 2, extra = '') {
+  return `<canvas class="portrait ${extra}" data-portrait="${ref}" width="${24 * scale}" height="${32 * scale}"></canvas>`;
+}
+
+function heroPortrait(hero, scale = 2, extra = '') {
+  return portrait(`look:${lookKey(lookOf(hero))}`, scale, extra);
+}
+
+// Dessine la première image d'attente de face : héros cadré sur la tête et le corps,
+// monstre agrandi d'un facteur entier pour remplir le cadre.
+function drawOne(canvas) {
+  const sprite = spriteOf(canvas.dataset.portrait);
+  if (!sprite) return true;
+  const sheet = sprite.sheet('idle');
+  if (!sheet || (sheet instanceof HTMLImageElement && !(sheet.complete && sheet.naturalWidth))) return false;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const col = sprite.cols('idle')[0];
+  if (sprite.kind === 'hero') {
+    ctx.drawImage(sheet, col * 48 + 12, 2, 24, 32, 0, 0, canvas.width, canvas.height);
+    return true;
+  }
+  const b = spriteBounds(sprite, sheet);
+  if (!b) return false;
+  const k = Math.max(1, Math.floor(Math.min(canvas.width / b.w, canvas.height / b.h)));
+  const w = b.w * k;
+  const h = b.h * k;
+  ctx.drawImage(sheet, col * sprite.frameW + b.x, b.y, b.w, b.h, Math.round((canvas.width - w) / 2), canvas.height - h, w, h);
+  return true;
+}
+
+function drawPortraits(root, tries = 30) {
+  let pending = false;
+  root.querySelectorAll('canvas[data-portrait]').forEach((canvas) => {
+    if (!drawOne(canvas)) pending = true;
+  });
+  if (pending && tries > 0) setTimeout(() => drawPortraits(root, tries - 1), 100);
+}
+
+return { portrait, heroPortrait, drawPortraits };
+})();
+
+// ---- src/ui/hud.js
+__modules["src/ui/hud.js"] = (() => {
+const { STATS } = __modules["src/data/stats.js"];
+const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { statusesOf } = __modules["src/game/statuses.js"];
+const { pointsAvailable } = __modules["src/game/talents.js"];
+const { esc } = __modules["src/ui/html.js"];
+const { iconHtml, effectIcon } = __modules["src/ui/icons.js"];
+const { heroPortrait } = __modules["src/ui/portraits.js"];
+// Interface posée sur les cartes plein écran (village, expédition) : équipe en bas à
+// gauche (affichée seulement sur demande, bouton Personnage), fenêtre de message fermable
+// en haut, raccourcis en icônes, aide aux déplacements repliée derrière un « ? ».
+
+
+
+
+
+
+
+
+
+const pct = (v, max) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
+const meter = (kind, v, max) => `<span class="meter ${kind}"><span class="fill" style="width:${pct(v, max)}%"></span></span>`;
+
+// Encadrés de l'équipe et aide : repliés par défaut pour ne pas cacher la carte ; leur état
+// est retenu d'un écran à l'autre.
+const shown = { party: false, help: false };
+
+// Équipe : portrait, niveau, PV, ressource (ou XP) et effets négatifs persistants.
+// Un clic sur un héros appelle data-hud-hero (menu Personnage du héros).
+function partyHud(party, { resource = false } = {}) {
+  return `<div class="hud-party ${shown.party ? '' : 'hidden'}">${party.map((hero, i) => {
+    const cls = getClass(hero);
+    const stats = getStats(hero);
+    const points = pointsAvailable(hero);
+    const debuffs = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
+    return `
+      <button class="hud-hero ${hero.alive ? '' : 'dead'}" data-hud-hero="${i}" style="--c:${cls.color}" title="${esc(`${hero.name} — ${cls.name} niveau ${hero.level} · ${STATS[cls.mainStat].label}`)}">
+        ${heroPortrait(hero, 2)}
+        <span class="hud-hero-info">
+          <b>${esc(hero.name)} ${points ? `<span class="badge">${points}</span>` : ''}</b>
+          <small>niv. ${hero.level}${hero.alive ? '' : ' · tombé'}</small>
+          ${meter(`hp ${hero.hp < stats.pv * 0.3 ? 'low' : ''}`, hero.hp, stats.pv)}
+          ${resource ? meter('res', hero.res, stats.resMax) : meter('xp', hero.xp, xpToNext(hero.level))}
+          <small>PV ${hero.hp}/${stats.pv}${resource ? ` · ${esc(cls.resource.name)} ${hero.res}/${stats.resMax}` : ''}</small>
+          ${debuffs.length ? `<span class="hud-debuffs">${debuffs.map((st) => iconHtml(effectIcon(st.key), 16, '', esc(`${st.name} : reste jusqu'à un remède, une purification ou le retour au village`))).join('')}</span>` : ''}
+        </span>
+      </button>`;
+  }).join('')}</div>`;
+}
+
+// Bouton « ? » : affiche ou replie l'aide aux déplacements (.map-help du bloc de contrôles).
+function helpButton() {
+  return '<button id="hudHelp" class="hud-help" title="Aide : se déplacer, parler, événements">?</button>';
+}
+
+// Branche le HUD : `partyButton` (sélecteur du bouton Personnage) montre ou cache les
+// encadrés de l'équipe ; un clic sur un encadré appelle openHero(index) ; « ? » l'aide.
+function wireHud(app, { partyButton, openHero }) {
+  const button = app.querySelector(partyButton);
+  const party = app.querySelector('.hud-party');
+  const controls = app.querySelector('.hud-controls');
+  const help = app.querySelector('#hudHelp');
+  const sync = () => {
+    party?.classList.toggle('hidden', !shown.party);
+    button?.classList.toggle('selected', shown.party);
+    controls?.classList.toggle('help', shown.help);
+    help?.classList.toggle('selected', shown.help);
+  };
+  if (button) button.onclick = () => { shown.party = !shown.party; sync(); };
+  if (help) help.onclick = () => { shown.help = !shown.help; sync(); };
+  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openHero(Number(b.dataset.hudHero)); });
+  sync();
+}
+
+// Raccourci en icône (barre du haut à droite).
+function hudButton(id, icon, label, { badge = 0, disabled = false, title = '' } = {}) {
+  return `<button id="${id}" class="hud-btn" ${disabled ? 'disabled' : ''} title="${esc(title || label)}">${iconHtml(icon, 32)}<span>${esc(label)}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
+}
+
+// Fenêtre de message (retour d'expédition, butin, victoire…), fermée par #toastClose.
+function toast(html) {
+  return html ? `<div class="win hud-toast"><button id="toastClose" class="hud-close" title="Fermer">✕</button>${html}</div>` : '';
+}
+
+function wireToast(app) {
+  const close = app.querySelector('#toastClose');
+  if (close) close.onclick = () => close.parentElement.remove();
+}
+
+return { partyHud, helpButton, wireHud, hudButton, toast, wireToast };
+})();
+
 // ---- src/ui/villageView.js
 __modules["src/ui/villageView.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -9455,12 +9799,14 @@ const { holdToWalk } = __modules["src/ui/heldKeys.js"];
 const { NPC_SPRITES } = __modules["src/ui/spriteCatalog.js"];
 const { heroSprite } = __modules["src/ui/heroSprite.js"];
 const { clampView, fitCanvas } = __modules["src/ui/viewport.js"];
+const { helpButton } = __modules["src/ui/hud.js"];
 const { image, isReady } = __modules["src/ui/sprites.js"];
 // Village à parcourir (écran du village) : le groupe se promène, chaque service est un
 // habitant ; lui parler (Espace / Entrée / E face à lui, ou clic dessus) ouvre son écran.
 // On entre dans une maison en montant dans sa porte ; on en sort par la porte du bas.
 // Carte : data/village.js, intérieurs : data/interiors.js ; règles de marche : game/village.js.
 // Graphismes : packs Raven Fantasy (assets/raven/).
+
 
 
 
@@ -9529,6 +9875,7 @@ function villageControls() {
       <button data-vstep="1,0" aria-label="Droite">▶</button>
       <button data-vstep="0,1" aria-label="Bas">▼</button>
     </div>
+    ${helpButton()}
     <p class="hint map-help">Flèches / ZQSD, clic ou croix pour marcher ; <b>Espace</b> face à un habitant (ou clic sur lui) pour lui parler. Montez dans une porte pour entrer dans une maison. Le garde, près de la porte du village, ouvre les portails.</p>
     <button id="talkBtn" class="btn-primary">Parler</button>`;
 }
@@ -10070,170 +10417,6 @@ function applySkin() {
 return { SLOT_ART, assetUrl, applySkin };
 })();
 
-// ---- src/ui/html.js
-__modules["src/ui/html.js"] = (() => {
-
-// Petits utilitaires de rendu HTML.
-
-const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
-// À utiliser pour tout texte dynamique inséré dans un template (noms saisis, etc.).
-function esc(value) {
-  return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
-}
-
-// Attributs d'une infobulle : <button ${tip('...')}> ou avec classes additionnelles.
-function tip(text, extraClass = '') {
-  return `class="tooltip ${extraClass}" data-tip="${esc(text)}"`;
-}
-
-function bar(value, max, color) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return `<div class="barwrap"><div class="bar" style="width:${pct}%; background:${color}"></div></div>`;
-}
-
-function range({ lo, hi }) {
-  return lo === hi ? `${lo}` : `${lo}-${hi}`;
-}
-
-return { esc, tip, bar, range };
-})();
-
-// ---- src/ui/icons.js
-__modules["src/ui/icons.js"] = (() => {
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
-// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
-// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
-// teinte des armes et des armures quand la planche en propose plusieurs.
-
-
-
-const COLS = 16;
-
-// Planche des équipements (assets/icons/equipment.png) : une ligne par pièce, une colonne
-// par rareté (commun → divin). Ses icônes ont des numéros à partir de EQUIP_BASE.
-const EQUIP_BASE = 100000;
-const EQUIP_COLS = 6;
-
-// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
-function iconHtml(index, size = 32, extra = '', title = '') {
-  if (index >= EQUIP_BASE) {
-    const i = index - EQUIP_BASE;
-    extra = `eq ${extra}`;
-    return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${(i % EQUIP_COLS) * size}px -${Math.floor(i / EQUIP_COLS) * size}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
-  }
-  const x = (index % COLS) * size;
-  const y = Math.floor(index / COLS) * size;
-  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
-}
-
-// Rareté → variante (0 = commune … 5 = divine).
-const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
-
-// Équipement : planche dédiée (une icône par pièce et par rareté). Lignes : casque, plastron,
-// épaulières, gants, bottes (léger, moyen, lourd chacun), puis les armes, les bijoux et le
-// bouclier.
-const ARMOR_ROWS = { casque: 0, plastron: 3, epaulieres: 6, gants: 9, bottes: 12 };
-const ARMOR_WEIGHT = { legere: 0, moyenne: 1, lourde: 2 };
-const WEAPON_ROWS = { dague: 15, epee: 16, hache: 17, masse: 18, epee2m: 19, hache2m: 20, masse2m: 21, baton: 22, arc: 23 };
-const JEWEL_ROWS = { anneau: 24, collier: 25, bouclier: 26 };
-
-function itemIcon(item) {
-  const tier = TIER[item.rarity] ?? 0;
-  const row = item.slotType === 'arme' ? WEAPON_ROWS[item.weaponType] ?? WEAPON_ROWS.epee
-    : JEWEL_ROWS[item.slotType] ?? (ARMOR_ROWS[item.slotType] ?? ARMOR_ROWS.plastron) + (ARMOR_WEIGHT[item.armorType] ?? 2);
-  return EQUIP_BASE + row * EQUIP_COLS + tier;
-}
-
-// Consommables.
-const CONSUMABLE_ICONS = {
-  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
-  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
-  outilsDeDesamorcage: 125, remede: 240, tente: 93,
-};
-function consumableIcon(key) {
-  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
-}
-
-// Matéria : une gemme par catégorie d'équipement.
-const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
-const GOLD_ICON = 130;
-
-// Effets (buffs / debuffs).
-const EFFECT_ICONS = {
-  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
-  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
-  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
-};
-function effectIcon(key) {
-  return EFFECT_ICONS[key] ?? 1000;
-}
-
-// Compétences : d'après leur nom (élément), puis leur nature.
-const SKILL_RULES = [
-  [/feu|flamme|brasier|immolation|météore/i, 992],
-  [/glace|givre|blizzard|gel/i, 1008],
-  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
-  [/poison|peste|nauséabond|empoisonn/i, 674],
-  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
-  [/résurrection|sacrifice/i, 669],
-  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
-  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
-  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
-  [/piège|terrain/i, 127],
-  [/tir|salve|flèche/i, 2169],
-  [/tourbillon|déluge|carnage/i, 724],
-  [/cri|provocation/i, 662],
-  [/exécution|éviscération|marque|fatal/i, 745],
-];
-function skillIconIndex(skill) {
-  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
-  if (skill.kind === 'heal') return 1057;
-  if (skill.kind === 'revive') return 669;
-  if (skill.magic) return 1000;
-  return 726;
-}
-
-// Orientations de talents et classes.
-const BRANCH_ICONS = {
-  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
-  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
-  Templier: 1810, 'Lumière': 1055,
-};
-function branchIcon(branch) {
-  return BRANCH_ICONS[branch.name] ?? 1000;
-}
-const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
-
-// Commandes de combat.
-const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
-
-// Nœuds de talents : compétence → son icône ; bonus et passifs → icône de la stat ou de
-// l'effet renforcé.
-const TALENT_STAT_ICONS = {
-  pv: 610, def: 612, defMag: 613, blocage: 663, physPower: 608, magPower: 609, critDmg: 671, critChance: 670,
-  esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
-  lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
-  dotPct: 674, vsDebuffedPct: 616, healPct: 1057, aoePct: 724, trapPct: 127,
-};
-function talentNodeIcon(node, skills = []) {
-  if (skills.length) return skillIconIndex(skills[0]);
-  for (const group of [node.passive, node.pct, node.flat]) {
-    const key = group && Object.keys(group).find((k) => TALENT_STAT_ICONS[k]);
-    if (key) return TALENT_STAT_ICONS[key];
-  }
-  return node.skillMod ? 1000 : 682;
-}
-
-// Difficultés.
-const DIFFICULTY_ICONS = { balade: 658, aventure: 1447, guerre: 720, horreur: 750, cauchemar: 751, insanie: 752 };
-// Positions en combat.
-const POSITION_ICONS = { melee: 726, ranged: 1482 };
-
-return { EQUIP_BASE, iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS, talentNodeIcon, DIFFICULTY_ICONS, POSITION_ICONS };
-})();
-
 // ---- src/ui/items.js
 __modules["src/ui/items.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
@@ -10641,78 +10824,6 @@ function wireHeroTabs(app, onPick) {
 }
 
 return { frame, wireFrame, flashLine, gridState, resetGrid, itemGrid, wireGrid, fitGrids, consumableCell, materiaGrid, itemDetail, wornItems, wornRows, heroTabs, wireHeroTabs };
-})();
-
-// ---- src/ui/portraits.js
-__modules["src/ui/portraits.js"] = (() => {
-const { CLASS_LOOKS } = __modules["src/data/appearance.js"];
-const { lookOf, lookKey } = __modules["src/game/appearance.js"];
-const { LOOK_PARTS } = __modules["src/data/appearance.js"];
-const { lookSprite } = __modules["src/ui/heroSprite.js"];
-const { enemySprite, spriteBounds } = __modules["src/ui/mobSprites.js"];
-// Portraits de personnages dans les menus : <canvas data-portrait="…"> dessinés de face
-// par drawPortraits (redessinés tant que les planches se chargent). Références :
-// « classe:guerrier » (apparence de départ de la classe), « look:… » (apparence d'un
-// héros, voir heroPortrait) ou « ennemi:gobelin ».
-
-
-
-
-
-
-
-function spriteOf(ref) {
-  const [kind, key] = ref.split(/:(.*)/s);
-  if (kind === 'classe') return lookSprite(CLASS_LOOKS[key]);
-  if (kind === 'look') {
-    const values = key.split('|');
-    return lookSprite(Object.fromEntries(Object.keys(LOOK_PARTS).map((part, i) => [part, values[i]])));
-  }
-  return enemySprite(key);
-}
-
-// Canvas d'un portrait ; `scale` = agrandissement d'une zone de 24 × 32 px.
-function portrait(ref, scale = 2, extra = '') {
-  return `<canvas class="portrait ${extra}" data-portrait="${ref}" width="${24 * scale}" height="${32 * scale}"></canvas>`;
-}
-
-function heroPortrait(hero, scale = 2, extra = '') {
-  return portrait(`look:${lookKey(lookOf(hero))}`, scale, extra);
-}
-
-// Dessine la première image d'attente de face : héros cadré sur la tête et le corps,
-// monstre agrandi d'un facteur entier pour remplir le cadre.
-function drawOne(canvas) {
-  const sprite = spriteOf(canvas.dataset.portrait);
-  if (!sprite) return true;
-  const sheet = sprite.sheet('idle');
-  if (!sheet || (sheet instanceof HTMLImageElement && !(sheet.complete && sheet.naturalWidth))) return false;
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const col = sprite.cols('idle')[0];
-  if (sprite.kind === 'hero') {
-    ctx.drawImage(sheet, col * 48 + 12, 2, 24, 32, 0, 0, canvas.width, canvas.height);
-    return true;
-  }
-  const b = spriteBounds(sprite, sheet);
-  if (!b) return false;
-  const k = Math.max(1, Math.floor(Math.min(canvas.width / b.w, canvas.height / b.h)));
-  const w = b.w * k;
-  const h = b.h * k;
-  ctx.drawImage(sheet, col * sprite.frameW + b.x, b.y, b.w, b.h, Math.round((canvas.width - w) / 2), canvas.height - h, w, h);
-  return true;
-}
-
-function drawPortraits(root, tries = 30) {
-  let pending = false;
-  root.querySelectorAll('canvas[data-portrait]').forEach((canvas) => {
-    if (!drawOne(canvas)) pending = true;
-  });
-  if (pending && tries > 0) setTimeout(() => drawPortraits(root, tries - 1), 100);
-}
-
-return { portrait, heroPortrait, drawPortraits };
 })();
 
 // ---- src/game/save.js
@@ -13844,70 +13955,6 @@ function victorySummary(r) {
 return { logLines, lastCombatLog, victorySummary };
 })();
 
-// ---- src/ui/hud.js
-__modules["src/ui/hud.js"] = (() => {
-const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
-const { statusesOf } = __modules["src/game/statuses.js"];
-const { pointsAvailable } = __modules["src/game/talents.js"];
-const { esc } = __modules["src/ui/html.js"];
-const { iconHtml, effectIcon } = __modules["src/ui/icons.js"];
-const { heroPortrait } = __modules["src/ui/portraits.js"];
-// Interface posée sur les cartes plein écran (village, expédition) : équipe en bas à
-// gauche, fenêtre de message fermable en haut, raccourcis en icônes.
-
-
-
-
-
-
-
-
-
-const pct = (v, max) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
-const meter = (kind, v, max) => `<span class="meter ${kind}"><span class="fill" style="width:${pct(v, max)}%"></span></span>`;
-
-// Équipe : portrait, niveau, PV, ressource (ou XP) et effets négatifs persistants.
-// Un clic sur un héros appelle data-hud-hero (fiche du héros).
-function partyHud(party, { resource = false } = {}) {
-  return `<div class="hud-party">${party.map((hero, i) => {
-    const cls = getClass(hero);
-    const stats = getStats(hero);
-    const points = pointsAvailable(hero);
-    const debuffs = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
-    return `
-      <button class="hud-hero ${hero.alive ? '' : 'dead'}" data-hud-hero="${i}" style="--c:${cls.color}" title="${esc(`${hero.name} — ${cls.name} niveau ${hero.level} · ${STATS[cls.mainStat].label}`)}">
-        ${heroPortrait(hero, 2)}
-        <span class="hud-hero-info">
-          <b>${esc(hero.name)} ${points ? `<span class="badge">${points}</span>` : ''}</b>
-          <small>niv. ${hero.level}${hero.alive ? '' : ' · tombé'}</small>
-          ${meter(`hp ${hero.hp < stats.pv * 0.3 ? 'low' : ''}`, hero.hp, stats.pv)}
-          ${resource ? meter('res', hero.res, stats.resMax) : meter('xp', hero.xp, xpToNext(hero.level))}
-          <small>PV ${hero.hp}/${stats.pv}${resource ? ` · ${esc(cls.resource.name)} ${hero.res}/${stats.resMax}` : ''}</small>
-          ${debuffs.length ? `<span class="hud-debuffs">${debuffs.map((st) => iconHtml(effectIcon(st.key), 16, '', esc(`${st.name} : reste jusqu'à un remède, une purification ou le retour au village`))).join('')}</span>` : ''}
-        </span>
-      </button>`;
-  }).join('')}</div>`;
-}
-
-// Raccourci en icône (barre du haut à droite).
-function hudButton(id, icon, label, { badge = 0, disabled = false, title = '' } = {}) {
-  return `<button id="${id}" class="hud-btn" ${disabled ? 'disabled' : ''} title="${esc(title || label)}">${iconHtml(icon, 32)}<span>${esc(label)}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
-}
-
-// Fenêtre de message (retour d'expédition, butin, victoire…), fermée par #toastClose.
-function toast(html) {
-  return html ? `<div class="win hud-toast"><button id="toastClose" class="hud-close" title="Fermer">✕</button>${html}</div>` : '';
-}
-
-function wireToast(app) {
-  const close = app.querySelector('#toastClose');
-  if (close) close.onclick = () => close.parentElement.remove();
-}
-
-return { partyHud, hudButton, toast, wireToast };
-})();
-
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -15461,7 +15508,7 @@ const { goTo } = __modules["src/ui/router.js"];
 const { itemChip } = __modules["src/ui/items.js"];
 const { lastCombatLog } = __modules["src/ui/combatLog.js"];
 const { iconHtml, GOLD_ICON, DIFFICULTY_ICONS } = __modules["src/ui/icons.js"];
-const { partyHud, hudButton, toast, wireToast } = __modules["src/ui/hud.js"];
+const { partyHud, hudButton, toast, wireToast, wireHud } = __modules["src/ui/hud.js"];
 const { drawPortraits } = __modules["src/ui/portraits.js"];
 const { villageCanvas, villageControls, bindVillage } = __modules["src/ui/villageView.js"];
 const { openEquipment } = __modules["src/ui/screens/equipment.js"];
@@ -15519,7 +15566,7 @@ function renderHub(app) {
         <span>Plus haut niveau atteint : ${state.dungeonLvl}</span>
       </div>
       <nav class="hud-menu">
-        ${hudButton('equipBtn', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
+        ${hudButton('equipBtn', 1920, 'Personnage', { title: 'Afficher l\'équipe ; cliquez sur un héros pour ouvrir son menu Personnage (équipement et sac)' })}
         ${hudButton('talentsBtn', 96, 'Talents', { badge: points })}
         ${hudButton('statsBtn', 610, 'Stats')}
         ${hudButton('strategyBtn', 648, 'Stratégie')}
@@ -15532,11 +15579,10 @@ function renderHub(app) {
   wireToast(app);
   drawPortraits(app);
   bindVillage(app, openService);
-  app.querySelector('#equipBtn').onclick = () => openEquipment();
   app.querySelector('#talentsBtn').onclick = () => openTalents(Math.max(0, state.party.findIndex((h) => pointsAvailable(h) > 0)));
   app.querySelector('#statsBtn').onclick = () => openStats();
   app.querySelector('#strategyBtn').onclick = () => goTo('strategy');
-  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openStats(Number(b.dataset.hudHero)); });
+  wireHud(app, { partyButton: '#equipBtn', openHero: (i) => openEquipment(i) });
 }
 
 // Écran ouvert en parlant à un habitant du village (voir data/village.js).
@@ -15655,6 +15701,7 @@ const { heroSprite, lookSprite } = __modules["src/ui/heroSprite.js"];
 const { EVENTS } = __modules["src/data/events.js"];
 const { enemySprite, mobScale, mobTier } = __modules["src/ui/mobSprites.js"];
 const { clampView, fitCanvas } = __modules["src/ui/viewport.js"];
+const { helpButton } = __modules["src/ui/hud.js"];
 // Carte de l'étage (écran d'expédition) : rendu sur canvas avec une caméra qui suit le
 // groupe, déplacement animé (héros qui marche case à case), au clavier (flèches, ZQSD,
 // WASD), à la souris ou au doigt (clic sur une case : le groupe y marche pas à pas),
@@ -15662,6 +15709,7 @@ const { clampView, fitCanvas } = __modules["src/ui/viewport.js"];
 // Décors : thèmes par sous-zone (ui/mapThemes.js) ; monstres et héros : sprites
 // (ui/spriteCatalog.js) ; échelle et événements : marqueurs dessinés.
 // Le canvas occupe tout l'écran d'expédition (fitCanvas), l'interface est posée dessus.
+
 
 
 
@@ -15711,6 +15759,7 @@ function mapControls() {
       <button data-step="1,0" aria-label="Droite">▶</button>
       <button data-step="0,1" aria-label="Bas">▼</button>
     </div>
+    ${helpButton()}
     <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements.</p>
     ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }
@@ -16135,7 +16184,7 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 const { openStats } = __modules["src/ui/screens/stats.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 const { iconHtml, itemIcon, consumableIcon, skillIconIndex, CLASS_ICONS, GOLD_ICON } = __modules["src/ui/icons.js"];
-const { partyHud, hudButton, toast, wireToast } = __modules["src/ui/hud.js"];
+const { partyHud, hudButton, toast, wireToast, wireHud } = __modules["src/ui/hud.js"];
 const { drawPortraits } = __modules["src/ui/portraits.js"];
 // Expédition, plein écran : carte de l'étage (ui/mapView.js) avec l'interface posée
 // dessus (ui/hud.js) : état de l'équipe,
@@ -16204,7 +16253,7 @@ function renderDungeon(app) {
       <nav class="hud-menu">
         ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente…)' })}
         ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
-        ${hudButton('equip', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
+        ${hudButton('equip', 1920, 'Personnage', { title: 'Afficher l\'équipe ; cliquez sur un héros pour ouvrir son menu Personnage (équipement et sac)' })}
         ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
         ${hudButton('stats', 610, 'Stats')}
         ${exp.bossChoice ? '' : hudButton('leave', 93, 'Rentrer', { disabled: !exp.canLeave, title: exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac." })}
@@ -16220,7 +16269,7 @@ function renderDungeon(app) {
   drawPortraits(app);
   app.querySelector('#itemsBtn').classList.toggle('selected', view.panel === 'items');
   app.querySelector('#spellsBtn').classList.toggle('selected', view.panel === 'spells');
-  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openStats(Number(b.dataset.hudHero)); });
+  wireHud(app, { partyButton: '#equip', openHero: (i) => openEquipment(i) });
 
   app.querySelectorAll('[data-event-choice]').forEach((btn) => {
     btn.onclick = () => {
@@ -16302,7 +16351,6 @@ function renderDungeon(app) {
       showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   });
-  app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
   app.querySelector('#stats').onclick = () => openStats();
 }
