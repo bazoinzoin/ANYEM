@@ -82,8 +82,8 @@ export const ENEMIES = {
     ],
   },
   reineSylvestre: {
-    name: 'Reine sylvestre', icon: '🧚', boss: true, xpMult: 8, goldMult: 6, magic: true, ranged: true,
-    pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
+    name: 'Reine sylvestre', icon: '🧚', elite: true, xpMult: 1.5, goldMult: 1.5, magic: true, ranged: true,
+    pv: { base: 128, perLevel: 14.0 }, atq: { base: 11, perLevel: 2.0 },
     def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
     abilities: [
       { chance: 0.3, skill: { name: "Tempête d'épines", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [bleed(0.2)] } },
@@ -186,8 +186,8 @@ export const ENEMIES = {
     abilities: [{ chance: 0.3, skill: { name: 'Poing de lave', kind: 'damage', target: 'hero', power: 1.4, effects: [burn(0.3), stun] } }],
   },
   verGeant: {
-    name: 'Ver des profondeurs', icon: '👑', riposte: 15, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 220, perLevel: 28 }, atq: { base: 13, perLevel: 2.6 },
+    name: 'Ver des profondeurs', icon: '👑', riposte: 15, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 88, perLevel: 11.2 }, atq: { base: 10, perLevel: 2.1 },
     def: { base: 6, perLevel: 1.4 }, defMag: { base: 4, perLevel: 1.1 }, vit: { min: 8, max: 10 },
     abilities: [
       { chance: 0.3, skill: { name: 'Appel des profondeurs', kind: 'support', target: 'allAllies', effects: [{ id: 'puissance', turns: 3 }, { id: 'protection', turns: 2 }] } },
@@ -242,8 +242,8 @@ export const ENEMIES = {
     abilities: [{ chance: 0.3, skill: { name: 'Charge glaciale', kind: 'damage', target: 'hero', power: 1.5, effects: [stun] } }],
   },
   sorciereDesNeiges: {
-    name: 'Sorcière des neiges', icon: '🪶', boss: true, xpMult: 5, goldMult: 4, ranged: true,
-    pv: { base: 220, perLevel: 27 }, atq: { base: 14, perLevel: 2.7 },
+    name: 'Sorcière des neiges', icon: '🪶', elite: true, xpMult: 1.5, goldMult: 1.5, ranged: true,
+    pv: { base: 88, perLevel: 10.8 }, atq: { base: 11, perLevel: 2.2 },
     def: { base: 5, perLevel: 1.2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 12, max: 15 },
     abilities: [
       { chance: 0.3, skill: { name: 'Blizzard', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [slow(2)] } },
@@ -252,8 +252,8 @@ export const ENEMIES = {
     ],
   },
   geantDuGivre: {
-    name: 'Géant du givre', icon: '🧊', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 280, perLevel: 32 }, atq: { base: 15, perLevel: 2.8 },
+    name: 'Géant du givre', icon: '🧊', riposte: 20, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 112, perLevel: 12.8 }, atq: { base: 12, perLevel: 2.2 },
     def: { base: 10, perLevel: 2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 5, max: 7 },
     abilities: [
       { chance: 0.3, skill: { name: 'Séisme glacé', kind: 'damage', target: 'allHeroes', power: 0.7, effects: [slow(2)] } },
@@ -302,8 +302,8 @@ export const ENEMIES = {
     abilities: [{ chance: 0.3, skill: { name: 'Piétinement', kind: 'damage', target: 'allHeroes', power: 0.6, effects: [stun] } }],
   },
   gardienDeLaPorte: {
-    name: 'Gardien de la Porte', icon: '🚪', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
-    pv: { base: 290, perLevel: 33 }, atq: { base: 15, perLevel: 2.8 },
+    name: 'Gardien de la Porte', icon: '🚪', riposte: 20, elite: true, xpMult: 1.5, goldMult: 1.5,
+    pv: { base: 116, perLevel: 13.2 }, atq: { base: 12, perLevel: 2.2 },
     def: { base: 12, perLevel: 2.2 }, defMag: { base: 8, perLevel: 1.6 }, vit: { min: 6, max: 8 },
     abilities: [
       { chance: 0.3, skill: { name: 'Sceau infernal', kind: 'support', target: 'self', effects: [{ id: 'bouclier', turns: 2, power: 2.2 }] } },
@@ -311,8 +311,8 @@ export const ENEMIES = {
     ],
   },
   angeDechu: {
-    name: 'Ange déchu', icon: '🦇', boss: true, xpMult: 5, goldMult: 4, magic: true, ranged: true,
-    pv: { base: 250, perLevel: 30 }, atq: { base: 16, perLevel: 2.9 },
+    name: 'Ange déchu', icon: '🦇', elite: true, xpMult: 1.5, goldMult: 1.5, magic: true, ranged: true,
+    pv: { base: 100, perLevel: 12.0 }, atq: { base: 13, perLevel: 2.3 },
     def: { base: 5, perLevel: 1.2 }, defMag: { base: 10, perLevel: 1.8 }, vit: { min: 11, max: 14 },
     abilities: [
       { chance: 0.25, skill: { name: "Ailes d'ombre", kind: 'damage', target: 'allHeroes', power: 0.7, magic: true, effects: [dark(0.3)] } },
@@ -530,6 +530,66 @@ export const ENEMIES = {
     abilities: [
       { chance: 0.3, skill: { name: 'Orbe du néant', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [dark(0.3)] } },
       { chance: 0.2, skill: { name: 'Vœu funeste', kind: 'support', target: 'hero', effects: [{ id: 'affaibli', turns: 3 }] } },
+    ],
+  },
+  // Boss d'Akari21 (One Dollar Monsters) ; les boss qu'ils remplacent deviennent des élites.
+  wendigo: {
+    name: 'Wendigo', icon: '👹', riposte: 15, boss: true, xpMult: 8, goldMult: 6,
+    pv: { base: 320, perLevel: 35 }, atq: { base: 14, perLevel: 2.5 },
+    def: { base: 5, perLevel: 1 }, defMag: { base: 6, perLevel: 1.5 }, vit: { min: 9, max: 11 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Griffes maudites', kind: 'damage', target: 'hero', power: 1.6, effects: [bleed(0.3)] } },
+      { chance: 0.2, skill: { name: 'Cri du Wendigo', kind: 'support', target: 'allHeroes', effects: [{ id: 'terreur', turns: 2 }] } },
+      { chance: 0.2, skill: { name: 'Faim dévorante', kind: 'heal', target: 'self', power: 1.5 } },
+    ],
+  },
+  minotaure: {
+    name: 'Minotaure', icon: '👹', riposte: 20, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 220, perLevel: 28 }, atq: { base: 13, perLevel: 2.6 },
+    def: { base: 6, perLevel: 1.4 }, defMag: { base: 4, perLevel: 1.1 }, vit: { min: 8, max: 10 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Charge des cornes', kind: 'damage', target: 'hero', power: 1.8, effects: [stun] } },
+      { chance: 0.25, skill: { name: 'Piétinement', kind: 'damage', target: 'allHeroes', power: 0.6, effects: [slow(2)] } },
+    ],
+  },
+  wendigoDesNeiges: {
+    name: 'Wendigo des neiges', icon: '👹', riposte: 15, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 220, perLevel: 27 }, atq: { base: 14, perLevel: 2.7 },
+    def: { base: 5, perLevel: 1.2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 12, max: 15 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Souffle du blizzard', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [slow(2)] } },
+      { chance: 0.25, skill: { name: 'Griffes de givre', kind: 'damage', target: 'hero', power: 1.6, effects: [bleed(0.3)] } },
+      { chance: 0.15, skill: { name: 'Faim éternelle', kind: 'heal', target: 'self', power: 1.6 } },
+    ],
+  },
+  demonDeGivre: {
+    name: 'Démon de givre', icon: '👹', magic: true, ranged: true, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 280, perLevel: 32 }, atq: { base: 15, perLevel: 2.8 },
+    def: { base: 10, perLevel: 2 }, defMag: { base: 5, perLevel: 1.2 }, vit: { min: 5, max: 7 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Orbe de glace', kind: 'damage', target: 'hero', power: 1.5, magic: true, effects: [slow(2)] } },
+      { chance: 0.25, skill: { name: 'Tempête de givre', kind: 'damage', target: 'allHeroes', power: 0.65, magic: true, effects: [slow(2)] } },
+      { chance: 0.15, skill: { name: 'Ailes glacées', kind: 'support', target: 'self', effects: [{ id: 'protection', turns: 2 }] } },
+    ],
+  },
+  demonAile: {
+    name: 'Démon ailé', icon: '👹', magic: true, ranged: true, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 290, perLevel: 33 }, atq: { base: 15, perLevel: 2.8 },
+    def: { base: 12, perLevel: 2.2 }, defMag: { base: 8, perLevel: 1.6 }, vit: { min: 6, max: 8 },
+    abilities: [
+      { chance: 0.3, skill: { name: 'Boule de feu infernale', kind: 'damage', target: 'hero', power: 1.7, magic: true, effects: [burn(0.35)] } },
+      { chance: 0.25, skill: { name: 'Pluie de flammes', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [burn(0.3)] } },
+      { chance: 0.15, skill: { name: 'Rage démoniaque', kind: 'support', target: 'self', effects: [{ id: 'puissance', turns: 3 }] } },
+    ],
+  },
+  gorgone: {
+    name: 'Reine gorgone', icon: '👹', magic: true, ranged: true, boss: true, xpMult: 5, goldMult: 4,
+    pv: { base: 250, perLevel: 30 }, atq: { base: 16, perLevel: 2.9 },
+    def: { base: 5, perLevel: 1.2 }, defMag: { base: 10, perLevel: 1.8 }, vit: { min: 11, max: 14 },
+    abilities: [
+      { chance: 0.2, skill: { name: 'Regard pétrifiant', kind: 'support', target: 'hero', effects: [stun, { id: 'affaibli', turns: 2 }] } },
+      { chance: 0.3, skill: { name: 'Morsure des serpents', kind: 'damage', target: 'allHeroes', power: 0.6, magic: true, effects: [poison(0.35)] } },
+      { chance: 0.2, skill: { name: 'Mue', kind: 'heal', target: 'self', power: 1.6 } },
     ],
   },
 };

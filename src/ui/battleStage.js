@@ -22,6 +22,7 @@ const W = 640;             // taille du canvas (pixels ; affiché agrandi, net)
 const H = 360;
 const SCALE = 3;           // zoom des héros et des monstres ordinaires (élites ×1,5, boss ×2)
 const MAX_BODY = 190;      // hauteur maximale d'un corps à l'écran (grands dragons)
+const BOSS_BODY = 240;     // … et d'un boss : ils dominent la scène
 const TOP = 150;           // ligne des pieds du premier et du dernier personnage d'un camp
 const BOTTOM = 326;
 const LUNGE = 56;          // longueur du bond d'une attaque (px)
@@ -147,10 +148,12 @@ function slotOf(unit) {
   const spread = (top, bottom) => (n === 1 ? (top + bottom) / 2 : top + ((bottom - top) * i) / (n - 1));
   if (big(unit)) {
     const back = smalls.length ? 110 : 190;
-    return { x: W - back - (unit.boss ? 10 : 0) - (i % 2) * 30, y: spread(TOP + 60, BOTTOM - 10) };
+    return { x: W - back - (unit.boss ? 20 : 0) - (i % 2) * 40, y: unit.boss && n === 1 ? BOTTOM - 20 : spread(TOP + 60, BOTTOM - 10) };
   }
-  const front = bigs.length ? 270 : 236;
-  return { x: W - (unit.row === 'melee' ? front : front - 70) - (i % 2) * 28, y: spread(TOP, BOTTOM) };
+  // Devant un grand monstre, la rangée avance d'autant qu'il est large.
+  const bigHalf = Math.max(0, ...bigs.map((u) => looksOf(u).width / 2));
+  const front = bigs.length ? Math.max(270, 150 + bigHalf + 60) : 236;
+  return { x: W - (unit.row === 'melee' ? front : front - 60) - (i % 2) * 28, y: spread(TOP, BOTTOM) };
 }
 
 function visOf(unit) {
@@ -229,10 +232,10 @@ function drawBackground(ctx) {
 
 // Sprite, agrandissement et hauteur du corps à l'écran d'une unité.
 function looksOf(unit) {
-  if (sideOf(unit) === 'hero') return { sprite: heroSprite(unit), scale: SCALE, body: 19 * SCALE };
+  if (sideOf(unit) === 'hero') return { sprite: heroSprite(unit), scale: SCALE, body: 19 * SCALE, width: 16 * SCALE };
   const sprite = enemySprite(unit.enemyKey);
-  const scale = mobScale(unit.enemyKey, SCALE, MAX_BODY);
-  return { sprite, scale, body: (sprite?.body[3] ?? 20) * scale };
+  const scale = mobScale(unit.enemyKey, SCALE, unit.boss ? BOSS_BODY : MAX_BODY);
+  return { sprite, scale, body: (sprite?.body[3] ?? 20) * scale, width: (sprite?.body[2] ?? 16) * scale };
 }
 
 // Progression (0 à 1) d'un effet en cours, ou null.
@@ -268,7 +271,7 @@ function drawUnit(ctx, unit, v, y, now) {
     }
     if (f.type === 'cast') {
       dy -= 4 * Math.sin(Math.PI * Math.min(1, k * 1.6));
-      anim = hero ? 'cast' : 'attack';
+      anim = hero ? 'cast' : sprite?.hasCast ? 'cast' : 'attack';
       animT = k;
     }
     if (f.type === 'hit') {
@@ -294,6 +297,7 @@ function drawUnit(ctx, unit, v, y, now) {
 
   // Ombre (héros ; les monstres ont la leur), anneau de cible, halo de l'unité active.
   const rx = Math.max(16, Math.min(60, body * 0.45));
+  if (unit.boss && unit.alive) drawBossAura(ctx, x, y, body, now);
   if (hero && (unit.alive || dying !== null)) {
     ctx.fillStyle = 'rgba(0,0,0,.35)';
     ctx.beginPath();
@@ -349,6 +353,27 @@ function drawUnit(ctx, unit, v, y, now) {
     ctx.fill();
     ctx.stroke();
   }
+}
+
+// Aura d'un boss : halo sombre et pulsant derrière lui, braises qui montent.
+function drawBossAura(ctx, x, y, body, now) {
+  const pulse = 0.5 + 0.5 * Math.sin(now / 380);
+  const r = body * (0.62 + pulse * 0.06);
+  const cy = y - body * 0.45;
+  const g = ctx.createRadialGradient(x, cy, r * 0.1, x, cy, r);
+  g.addColorStop(0, `rgba(200,40,60,${0.28 + pulse * 0.12})`);
+  g.addColorStop(0.6, 'rgba(90,10,60,.16)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, cy - r, r * 2, r * 2);
+  ctx.fillStyle = 'rgba(255,120,80,.7)';
+  for (let i = 0; i < 8; i++) {
+    const k = ((now / 1800) + i / 8) % 1;
+    const px = x + Math.sin(i * 2.4 + now / 900) * body * 0.4;
+    ctx.globalAlpha = 1 - k;
+    ctx.fillRect(Math.round(px), Math.round(y - k * body * 1.1), 2, 2);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Image du personnage prête à poser (pieds en bas, 4 px de marge), avec l'éclair blanc

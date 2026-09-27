@@ -33,7 +33,7 @@ export const DUNGEONS = {
     subzones: [
       { name: 'La Lisière', minLevel: 1, maxLevel: 3, pool: ['gobelin', 'loup', 'slime'], boss: 'chefGobelin' },
       { name: 'Les Sous-bois', minLevel: 4, maxLevel: 6, pool: ['gobelin', 'loup', 'serpentAile', 'lapinSoldat', 'orque'], elites: ['loupAlpha', 'fauveEclipse'], boss: 'ogre' },
-      { name: 'Le Cœur de la forêt', minLevel: 7, maxLevel: 10, pool: ['lutin', 'satyre', 'chienVioloneux', 'escargotAncien', 'serpentAile'], elites: ['oursHibou', 'dragonFeerique'], boss: 'reineSylvestre' },
+      { name: 'Le Cœur de la forêt', minLevel: 7, maxLevel: 10, pool: ['lutin', 'satyre', 'chienVioloneux', 'escargotAncien', 'serpentAile'], elites: ['oursHibou', 'dragonFeerique', 'reineSylvestre'], boss: 'wendigo' },
     ],
   }),
   catacombes: zone({
@@ -51,8 +51,8 @@ export const DUNGEONS = {
     icon: '🌋',
     desc: 'Sous la montagne, les galeries des kobolds plongent vers un lac de lave.',
     subzones: [
-      { name: 'Les Galeries', minLevel: 21, maxLevel: 23, pool: ['kobold', 'salamandre', 'chienDesEnfers'], boss: 'verGeant' },
-      { name: 'Les Forges noyées', minLevel: 24, maxLevel: 27, pool: ['kobold', 'salamandre', 'diablotin', 'gog'], elites: ['golemMagma', 'fouisseur', 'blemmye'], boss: 'efrit' },
+      { name: 'Les Galeries', minLevel: 21, maxLevel: 23, pool: ['kobold', 'salamandre', 'chienDesEnfers'], boss: 'minotaure' },
+      { name: 'Les Forges noyées', minLevel: 24, maxLevel: 27, pool: ['kobold', 'salamandre', 'diablotin', 'gog'], elites: ['golemMagma', 'fouisseur', 'blemmye', 'verGeant'], boss: 'efrit' },
       { name: 'Le Lac de lave', minLevel: 28, maxLevel: 30, pool: ['salamandre', 'diablotin', 'gog', 'chienDesEnfers'], elites: ['golemMagma', 'cyclopeDesForges'], boss: 'dragonRouge' },
     ],
   }),
@@ -61,9 +61,9 @@ export const DUNGEONS = {
     icon: '🏔️',
     desc: 'Un blizzard éternel souffle sur les sommets où dort un dragon.',
     subzones: [
-      { name: 'Les Contreforts', minLevel: 31, maxLevel: 33, pool: ['loupDeGivre', 'bonnetRouge', 'salamandreGivre'], boss: 'sorciereDesNeiges' },
-      { name: 'Le Col des tempêtes', minLevel: 34, maxLevel: 37, pool: ['loupDeGivre', 'griffon', 'kappa', 'ronin', 'elementaireDeGlace'], elites: ['yeti', 'samourai'], boss: 'geantDuGivre' },
-      { name: 'Le Nid du dragon', minLevel: 38, maxLevel: 40, pool: ['elementaireDeGlace', 'griffon', 'dragonnet', 'ronin'], elites: ['yeti', 'oni', 'tengu'], boss: 'dragonDeGlace' },
+      { name: 'Les Contreforts', minLevel: 31, maxLevel: 33, pool: ['loupDeGivre', 'bonnetRouge', 'salamandreGivre'], boss: 'wendigoDesNeiges' },
+      { name: 'Le Col des tempêtes', minLevel: 34, maxLevel: 37, pool: ['loupDeGivre', 'griffon', 'kappa', 'ronin', 'elementaireDeGlace'], elites: ['yeti', 'samourai', 'sorciereDesNeiges'], boss: 'demonDeGivre' },
+      { name: 'Le Nid du dragon', minLevel: 38, maxLevel: 40, pool: ['elementaireDeGlace', 'griffon', 'dragonnet', 'ronin'], elites: ['yeti', 'oni', 'tengu', 'geantDuGivre'], boss: 'dragonDeGlace' },
     ],
   }),
   abimeInfernal: zone({
@@ -71,9 +71,9 @@ export const DUNGEONS = {
     icon: '🔥',
     desc: "Au fond du monde, une porte s'ouvre sur le royaume des démons.",
     subzones: [
-      { name: 'La Porte', minLevel: 41, maxLevel: 43, pool: ['demon', 'chevalierInfernal', 'chienDesEnfers'], boss: 'gardienDeLaPorte' },
-      { name: 'Le Palais des tourments', minLevel: 44, maxLevel: 47, pool: ['demon', 'succube', 'chevalierInfernal', 'sorcierNoir'], elites: ['behemoth', 'djinnNoir'], boss: 'angeDechu' },
-      { name: "Le Trône de l'Abîme", minLevel: 48, maxLevel: 50, pool: ['succube', 'chevalierInfernal', 'demon', 'sorcierNoir'], elites: ['behemoth', 'djinnNoir'], boss: 'seigneurDeLAbime' },
+      { name: 'La Porte', minLevel: 41, maxLevel: 43, pool: ['demon', 'chevalierInfernal', 'chienDesEnfers'], elites: ['gardienDeLaPorte'], boss: 'demonAile' },
+      { name: 'Le Palais des tourments', minLevel: 44, maxLevel: 47, pool: ['demon', 'succube', 'chevalierInfernal', 'sorcierNoir'], elites: ['behemoth', 'djinnNoir'], boss: 'gorgone' },
+      { name: "Le Trône de l'Abîme", minLevel: 48, maxLevel: 50, pool: ['succube', 'chevalierInfernal', 'demon', 'sorcierNoir'], elites: ['behemoth', 'djinnNoir', 'angeDechu'], boss: 'seigneurDeLAbime' },
     ],
   }),
 };

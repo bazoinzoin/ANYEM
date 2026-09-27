@@ -82,6 +82,13 @@ export const ENEMY_LOOKS = {
   djinnNoir: { sheet: 'Djinn', tint: t(150, 1, 0.65) },
   angeDechu: { sheet: 'Planetar', tint: t(120, 0.5, 0.55) },
   seigneurDeLAbime: { sheet: 'AncientBlackDragon' },
+  // Boss d'Akari21
+  wendigo: { sheet: 'Wendigo' },
+  minotaure: { sheet: 'Minotaur' },
+  wendigoDesNeiges: { sheet: 'SnowWendigo' },
+  demonDeGivre: { sheet: 'FlyingDemonBlue' },
+  demonAile: { sheet: 'FlyingDemonRed' },
+  gorgone: { sheet: 'Gorgon' },
 };
 
 // Taille d'un ennemi selon son rang : 'boss', 'elite' ou 'normal'.
@@ -116,6 +123,7 @@ export function sheetSprite(sheet, tint = null, key = sheet) {
     frameH: meta.h,
     footOffset: meta.h - (by + bh),
     body: meta.body,
+    hasCast: !!meta.cast, // seconde attaque (capacités), sinon l'attaque sert aussi aux sorts
     rows: { down: 0, left: 1, right: 2, up: 3 },
     sheet: (anim) => {
       const src = `mobs/${sheet}_${meta[anim] ? anim : 'idle'}`;

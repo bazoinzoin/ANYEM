@@ -2,6 +2,7 @@
 // taille d'une image (w × h), nombre d'images par animation (planches assets/mobs/<nom>_<anim>.png,
 // lignes = directions bas, gauche, droite, haut) et boîte du corps dans la 1re image d'attente
 // ([x, y, largeur, hauteur], ombre comprise : le bas de la boîte = les pieds).
+// Planches ajoutées à la main plus bas : boss d'Akari21.
 export const MOB_SHEETS = {
   Goblin: { w: 48, h: 48, idle: 4, walk: 4, attack: 5, hit: 2, die: 1, body: [16, 19, 16, 13] },
   Hellhound: { w: 48, h: 48, idle: 4, walk: 4, attack: 5, hit: 2, die: 1, body: [19, 17, 10, 15] },
@@ -58,4 +59,11 @@ export const MOB_SHEETS = {
   Planetar: { w: 64, h: 64, idle: 4, walk: 4, attack: 5, hit: 2, die: 8, body: [17, 18, 30, 30] },
   AncientBlackDragon: { w: 144, h: 144, idle: 4, walk: 4, attack: 6, hit: 2, die: 9, body: [49, 49, 46, 47] },
   Orc: { w: 48, h: 56, idle: 4, walk: 4, attack: 5, hit: 2, die: 1, body: [16, 13, 16, 19] },
+  // Boss d'Akari21 (One Dollar Monsters) : `cast` = seconde attaque, jouée pour leurs capacités.
+  Minotaur: { w: 80, h: 80, idle: 4, walk: 8, attack: 6, cast: 6, hit: 2, die: 6, body: [23, 19, 31, 43] },
+  FlyingDemonRed: { w: 80, h: 80, idle: 4, walk: 4, attack: 5, cast: 6, hit: 2, die: 6, body: [14, 19, 51, 49] },
+  FlyingDemonBlue: { w: 80, h: 80, idle: 4, walk: 4, attack: 5, cast: 6, hit: 2, die: 6, body: [14, 19, 51, 49] },
+  Gorgon: { w: 64, h: 64, idle: 4, walk: 4, attack: 6, cast: 7, hit: 2, die: 6, body: [19, 11, 26, 37] },
+  Wendigo: { w: 100, h: 100, idle: 4, walk: 4, attack: 7, cast: 12, hit: 2, die: 8, body: [29, 25, 43, 51] },
+  SnowWendigo: { w: 100, h: 100, idle: 4, walk: 4, attack: 7, cast: 12, hit: 2, die: 8, body: [29, 25, 43, 51] },
 };

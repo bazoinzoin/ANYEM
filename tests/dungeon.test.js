@@ -69,7 +69,7 @@ test('un boss tous les 5 étages, dans l\'ordre, avec des acolytes selon le pali
   const e10 = encounterFor('foretMaudite', 10);
   assert.equal(e10.enemies[0], 'ogre');
   assert.equal(e10.enemies.length, 2);
-  assert.equal(encounterFor('foretMaudite', 15).enemies[0], 'reineSylvestre');
+  assert.equal(encounterFor('foretMaudite', 15).enemies[0], 'wendigo');
   assert.equal(encounterFor('foretMaudite', 15).final, true);
   assert.equal(encounterFor('foretMaudite', 10).final, false);
   assert.equal(encounterFor('foretMaudite', 3).enemies.length, 2);
