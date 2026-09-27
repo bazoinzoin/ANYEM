@@ -65,6 +65,13 @@ Contenu dans `src/data/talents.js`, règles dans `src/game/talents.js`, réglage
 - **Passer le tour** : disponible pour toutes les classes (les autres n'ont qu'une action par tour, et leurs actions de base sont gratuites).
 - Équilibrage (simulation) : le Voleur est le meilleur DPS mono-cible (~1,3 × le Mage en dégâts directs), difficulté globale des donjons proche de la version précédente.
 
+## Interface pixel art (habillage, Personnage, Talents)
+
+- **Habillage** (`ui/skin.js`, `css/skin.css`) : cadres, boutons, emplacements et polices du pack d'interface de Franuka (cadres bleu nuit recolorés, infobulles sur parchemin, police pixel pour les grands titres) ; icônes Raven Fantasy (`ui/icons.js` : arme par type avec teinte selon la rareté, armure par pièce, type et rareté, bijoux, boucliers, consommables, matéria, effets, compétences d'après leur élément, orientations, classes).
+- **Écran Personnage** (`ui/screens/equipment.js`, bouton Équipement) : plein écran sans défilement ; stats (écart au survol d'un objet), héros et 10 emplacements à silhouette, sac en grille d'icônes (onglets Tout / Équipable / Armes / Armures / Bijoux / Objets / Matéria, pages ajustées à l'écran, `ui/bagView.js`), fiche et comparaison ; glisser-déposer, double-clic ou clic puis emplacement.
+- **Talents** (`ui/screens/talents.js`) : une colonne par orientation, 10 paliers de nœuds-icônes (verrouillé, disponible, appris, maîtrisé ; rang affiché), fenêtre de détail avec « Apprendre » ; double-clic pour apprendre.
+- Création de personnage (apparence) : le pack « Character Base » fourni est la démo gratuite (3 morphologies × 3 teintes de peau, sans cheveux ni vêtements) : pas encore exploitable ; à reprendre avec la version complète ou un générateur de personnages en couches.
+
 ## Scène de combat (sprites)
 
 - **Écran de combat plein écran, sans défilement** (`ui/screens/combat.js`) : en haut le titre et les 2 dernières lignes du journal (📜 ouvre le journal complet) ; au centre la scène, ajustée à la place disponible (`fitStage`) ; en bas trois fenêtres façon JRPG : **équipe** (PV, ressource, combo, effets en icônes ; clic = fiche de stats), **commandes** (Attaquer, Compétences, Objets, Défendre, Avancer/Reculer, Fin du tour ; touches 1-6, Échap pour revenir ; sous-menus avec icône, estimation et coût), **infos** (effet de la commande survolée, puis choix de la cible avec l'estimation sur chacune, ou confirmation). Noms et effets des monstres affichés sur la scène. Version téléphone : équipe sur deux colonnes, commandes et infos côte à côte. Icônes provisoires en emoji (`skillIcon`, `ui/format.js`), à remplacer par de vraies icônes.

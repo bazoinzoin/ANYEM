@@ -121,3 +121,20 @@ export const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 149
 
 // Commandes de combat.
 export const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
+
+// Nœuds de talents : compétence → son icône ; bonus et passifs → icône de la stat ou de
+// l'effet renforcé.
+const TALENT_STAT_ICONS = {
+  pv: 610, def: 612, defMag: 613, blocage: 663, physPower: 608, magPower: 609, critDmg: 671, critChance: 670,
+  esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
+  lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
+  dotPct: 674, vsDebuffedPct: 616, healPct: 1057, aoePct: 724, trapPct: 127,
+};
+export function talentNodeIcon(node, skills = []) {
+  if (skills.length) return skillIconIndex(skills[0]);
+  for (const group of [node.passive, node.pct, node.flat]) {
+    const key = group && Object.keys(group).find((k) => TALENT_STAT_ICONS[k]);
+    if (key) return TALENT_STAT_ICONS[key];
+  }
+  return node.skillMod ? 1000 : 682;
+}

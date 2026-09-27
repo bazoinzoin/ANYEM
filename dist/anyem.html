@@ -664,6 +664,49 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .detail-actions .warning { color: #ff9a8a; margin: 0; }
 .inv-detail .item-stats { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; font-size: 13px; margin-top: 2px; }
+
+/* ---- Talents : arbres visuels ---- */
+.tal-screen {
+  position: fixed; inset: 0; margin: 0 auto; max-width: 1280px; z-index: 5; padding: 6px 8px 8px; gap: 6px;
+  display: grid; grid-template-columns: repeat(var(--branches), minmax(0, 1fr)) 310px; grid-template-rows: auto minmax(0, 1fr);
+  background: radial-gradient(ellipse at top, #2a1f14 0%, #120d08 70%); color: var(--cream);
+}
+.tal-screen > .inv-top { grid-area: auto; grid-column: 1 / -1; grid-row: 1; }
+.tal-points { display: flex; align-items: center; gap: 4px; color: var(--dim); font-weight: 600; white-space: nowrap; }
+.tal-points.has { color: #f3d58c; }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #e64539; color: #fff; font-size: 11px; text-align: center; }
+.tal-branch { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.tal-branch h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 17px; }
+.tal-branch h3 small { margin-left: auto; color: #f3d58c; font-weight: 400; }
+.tal-progress { margin: 4px 0 6px; height: 7px; }
+.tal-tiers { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
+.tal-tier { display: flex; align-items: center; justify-content: center; gap: 14px; position: relative; flex: 1; }
+.tal-tier + .tal-tier::before { content: ''; position: absolute; top: -2px; left: 50%; width: 2px; height: 6px; background: rgba(216,181,106,.5); }
+.tal-req { position: absolute; left: 2px; font-size: 11px; color: var(--dim); }
+.tal-tier.locked .tal-req { color: #8a7a66; }
+.tal-node {
+  position: relative; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 0; border-image: none; background: var(--ui-slot) center / 100% 100% no-repeat; image-rendering: pixelated;
+}
+.tal-node:hover:not(:disabled) { background: var(--ui-slot) center / 100% 100% no-repeat; filter: brightness(1.25); }
+.tal-node.skill, .tal-node.signature { border-radius: 50%; }
+.tal-node.signature { width: 52px; height: 52px; box-shadow: 0 0 0 2px #f3d58c, 0 0 12px #f0953a; }
+.tal-node.locked .ic, .tal-node.closed .ic { filter: grayscale(1) brightness(.5); }
+.tal-node.open { box-shadow: 0 0 0 2px #8ec5ff, 0 0 8px #8ec5ff; }
+.tal-node.learned { box-shadow: 0 0 0 2px #8ef08a; }
+.tal-node.maxed { box-shadow: 0 0 0 2px #f3d58c, 0 0 8px #f3d58c; }
+.tal-node.selected { outline: 2px solid #fff; outline-offset: 2px; }
+.tal-node sup { position: absolute; right: -4px; bottom: -4px; font-size: 10px; font-weight: 700; color: #fff; background: #1a1f36; border: 1px solid #d8b56a; border-radius: 6px; padding: 0 3px; line-height: 13px; }
+.tal-detail { overflow-y: auto; font-size: 14px; line-height: 1.35; }
+.tal-detail h3 { margin: 0 0 6px; font-size: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tal-detail h3 small { width: 100%; color: var(--dim); font-weight: 400; font-size: 12px; }
+.tal-detail p { margin: 0 0 8px; }
+.tal-detail .xp { font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+.tal-flash { color: #8ef08a; }
+.tal-maxed { color: #f3d58c; }
+.tal-detail .warning { color: #ff9a8a; }
+@media (max-width: 900px) { .tal-screen { grid-template-columns: repeat(var(--branches), minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) 170px; } .tal-detail { grid-column: 1 / -1; } }
+.inv-hero .badge { display: inline-block; flex-direction: row; vertical-align: 1px; }
 </style>
 
 </head>
@@ -5301,7 +5344,7 @@ const ASSET_DATA = {
   "ui/slot_02_shield": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAJlJREFUOI1jZIACK/u4/wwkgmMHFzGywDTrGViTqp9h94Gu/0zImp/8fENQE7oaFmQJZhtjhidHzuI1AKZGhl0E1QBkBaQAJpJUD3MDZNhFGP4SiAEGBgaGv0gxQF0XEOMKdNuxugCXIdg0MzBgSUgwQ9BTJDbNOA3ApwEGeif4M3AzSjAyMjAwMHz9/4LkrMzNKMHIwMDAAADa0jQmTQjKigAAAABJRU5ErkJggg==',
   "ui/slot_02_weapon": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAMVJREFUOI2VkzEOwjAMRb9ppA5dO3ToGRBSNqjEEbgBB0JC4gxcgwWkiq23yMDQlSFDFRYclTYuiad4eC/fjkL41nZ/dEis5+NKiuH1ZpfK43Y/ORULG9v/9HVeAgBUzE3G9sga7fuh7fx5lQKPQVFgbO/jTuFxisUEWaNFeGg7P3/UCEvwoiBr9F84KKjz0i+LJRI8E/ACGWQJ7yRUagxP45rAs4mCUEmxRQHHjgFnghQIAM6XAwqqiADg7V7JX7mgigDgAxcPYd4lWCdFAAAAAElFTkSuQmCC',
   "ui/slot_03_empty": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAEtJREFUOI1jZICC1YEG/xlIBKHrLzAywjS7pgiSqp+B39KJgYlczTDARLbOUQNGDRgeBvBbOjEwCtVCcuP/d80kZ2VGoVpGBgYGBgAv1Q+NOwpxbgAAAABJRU5ErkJggg==',
-  "ui/slot_night": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAUElEQVR4nGNkgAIlVYv/DCSCe7dPMLLANEvLqJCqn6Hu5tv/TORqhgEmsnWOGjBqwPAwIHnvSYYEptuMjAwMDAwL/qmSnJUTmG4zMjAwMAAAjYESPdo+pPAAAAAASUVORK5CYII=',
+  "ui/slot_night": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAS0lEQVR4nGNkgAIlVYv/DCSCe7dPMDLCNMvIqpCqn8HGzoeBiVzNMMBEts5RA0YNGB4G2Nj5MLQ1REByY1XDCpKzcltDBCMDAwMDAGPwDr9L0HhHAAAAAElFTkSuQmCC',
   "ui/spellbook": 'data:image/png;base64,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',
   "ui/tab01_bottom_normal": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAOVJREFUWIVjYBgFo2AU0AjYapr9t9U0+09IHQu1LEMXm+TzlSFvCzdBvQQdQIwvCtj4sYh+JWg5UQ5gYID45t4uKaIMJBUw0cRUEgDZacBS7AtW8eOveEgyh+QQsBT7gtNymDzNHECK4YoOYtRzALGGkQMGPBGOOmDUAaMOGHUAWZURvgqH1LqAJAfALHZu+4NTzd4q0mpDkhwAs9i3BHdrZ3MP4WYYWQ5wbvsDt/jw9VOMuNT5lkCacMQ6hKhEeP/AKwbfkq8Mh6+fYsRnObLj7h94RT0HkFMdU7UKJ6ZlTA09AwIANRg/aYeD9IoAAAAASUVORK5CYII=',
   "ui/tab01_bottom_selected": 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAQJJREFUWIVjYBgFo2AU0AjYapr9t9U0+09IHQu1LEMXm+TzlSFvCzfD/3fN/xmFahnJdgAxvihg48ci+pWQNuIcwMAA8c29XVJEGUgqYMIn+f9dM0HfUwrITgOWYl+wih9/xUOSOXhDAJfFuCyHydPMAaQYruggRj0HEGsYOYDkKBh1wKgDRh0w6gBqA7IqI3wVDql1AUkOgFns3PYHp5q9VaTVhiQ5AGaxbwnu1s7mHm7aOMC57Q/c4kNHfXGqs7PeTJJDiHLA/QOvGPK2cMMtxtfI/P+u+b+d9WaG+wdeMTAwEHYEydUxPstx6aEI/H/X/N9W0+w/Ke1DcvQQNJBWegD/kVn9R1btIAAAAABJRU5ErkJggg==',
@@ -7628,6 +7671,153 @@ function skillIcon(skill) {
 return { skillEffectLabel, skillShortEstimate, consumableEstimate, skillIcon };
 })();
 
+// ---- src/ui/icons.js
+__modules["src/ui/icons.js"] = (() => {
+const { CONSUMABLES } = __modules["src/data/consumables.js"];
+// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
+// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
+// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
+// teinte des armes et des armures quand la planche en propose plusieurs.
+
+
+
+const COLS = 16;
+
+// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
+function iconHtml(index, size = 32, extra = '', title = '') {
+  const x = (index % COLS) * size;
+  const y = Math.floor(index / COLS) * size;
+  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
+}
+
+// Rareté → variante (0 = commune … 5 = divine).
+const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
+
+// Armes : ligne des armes en fer ; +160 = acier bleu, +80 = or.
+const WEAPONS = { epee: 1447, epee2m: 1455, dague: 1443, hache: 1463, hache2m: 1465, masse: 1471, masse2m: 1476, baton: 1491, arc: 1482 };
+const WEAPON_TIER = [0, 0, 160, 160, 80, 80];
+
+// Armures : une icône par rareté, pour chaque pièce et chaque type.
+const ARMOR = {
+  lourde: {
+    casque: [1904, 1905, 1907, 1908, 1910, 1908],
+    epaulieres: [1820, 1820, 1818, 1817, 1821, 1817],
+    plastron: [1920, 1921, 1923, 1924, 1926, 1924],
+    gants: [2057, 2057, 2058, 2058, 2059, 2059],
+    bottes: [1936, 1937, 1939, 1940, 1942, 1940],
+  },
+  moyenne: {
+    casque: [2014, 2014, 2015, 2015, 2015, 2015],
+    epaulieres: [2069, 2070, 2071, 2072, 2073, 2073],
+    plastron: [2018, 2024, 2025, 2027, 2028, 2028],
+    gants: [2054, 2054, 2055, 2055, 2059, 2059],
+    bottes: [2034, 2040, 2041, 2043, 2044, 2044],
+  },
+  legere: {
+    casque: [1952, 1953, 1954, 1960, 1962, 1963],
+    epaulieres: [1819, 1819, 1818, 1818, 1821, 1821],
+    plastron: [1968, 1969, 1970, 1976, 1978, 1979],
+    gants: [2055, 2055, 2054, 2054, 2059, 2059],
+    bottes: [1984, 1985, 1986, 1992, 1994, 1995],
+  },
+};
+const JEWELS = {
+  anneau: [1842, 1843, 1846, 1845, 1844, 2061],
+  collier: [2065, 2064, 1849, 1848, 1847, 2181],
+};
+const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
+
+function itemIcon(item) {
+  const tier = TIER[item.rarity] ?? 0;
+  if (item.slotType === 'arme') return (WEAPONS[item.weaponType] ?? 1447) + WEAPON_TIER[tier];
+  if (item.slotType === 'bouclier') return SHIELD[tier];
+  if (JEWELS[item.slotType]) return JEWELS[item.slotType][tier];
+  return ARMOR[item.armorType]?.[item.slotType]?.[tier] ?? 1920;
+}
+
+// Consommables.
+const CONSUMABLE_ICONS = {
+  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
+  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
+  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
+};
+function consumableIcon(key) {
+  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
+}
+
+// Matéria : une gemme par catégorie d'équipement.
+const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
+const GOLD_ICON = 130;
+
+// Effets (buffs / debuffs).
+const EFFECT_ICONS = {
+  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
+  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
+  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
+};
+function effectIcon(key) {
+  return EFFECT_ICONS[key] ?? 1000;
+}
+
+// Compétences : d'après leur nom (élément), puis leur nature.
+const SKILL_RULES = [
+  [/feu|flamme|brasier|immolation|météore/i, 992],
+  [/glace|givre|blizzard|gel/i, 1008],
+  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
+  [/poison|peste|nauséabond|empoisonn/i, 674],
+  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
+  [/résurrection|sacrifice/i, 669],
+  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
+  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
+  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
+  [/piège|terrain/i, 127],
+  [/tir|salve|flèche/i, 2169],
+  [/tourbillon|déluge|carnage/i, 724],
+  [/cri|provocation/i, 662],
+  [/exécution|éviscération|marque|fatal/i, 745],
+];
+function skillIconIndex(skill) {
+  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
+  if (skill.kind === 'heal') return 1057;
+  if (skill.kind === 'revive') return 669;
+  if (skill.magic) return 1000;
+  return 726;
+}
+
+// Orientations de talents et classes.
+const BRANCH_ICONS = {
+  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
+  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
+  Templier: 1810, 'Lumière': 1055,
+};
+function branchIcon(branch) {
+  return BRANCH_ICONS[branch.name] ?? 1000;
+}
+const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
+
+// Commandes de combat.
+const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
+
+// Nœuds de talents : compétence → son icône ; bonus et passifs → icône de la stat ou de
+// l'effet renforcé.
+const TALENT_STAT_ICONS = {
+  pv: 610, def: 612, defMag: 613, blocage: 663, physPower: 608, magPower: 609, critDmg: 671, critChance: 670,
+  esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
+  lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
+  dotPct: 674, vsDebuffedPct: 616, healPct: 1057, aoePct: 724, trapPct: 127,
+};
+function talentNodeIcon(node, skills = []) {
+  if (skills.length) return skillIconIndex(skills[0]);
+  for (const group of [node.passive, node.pct, node.flat]) {
+    const key = group && Object.keys(group).find((k) => TALENT_STAT_ICONS[k]);
+    if (key) return TALENT_STAT_ICONS[key];
+  }
+  return node.skillMod ? 1000 : 682;
+}
+
+return { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS, talentNodeIcon };
+})();
+
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
 const { state } = __modules["src/state.js"];
@@ -7638,6 +7828,7 @@ const { skillEffectLabel } = __modules["src/ui/format.js"];
 const { nodeSkills } = __modules["src/data/talents.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { TALENT_RULES, XP } = __modules["src/config.js"];
+const { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } = __modules["src/ui/icons.js"];
 // Maître des compétences : arbres de talents de chaque héros.
 
 
@@ -7649,16 +7840,19 @@ const { TALENT_RULES, XP } = __modules["src/config.js"];
 
 
 
-// État propre à l'écran : héros affiché, réinitialisation en attente de confirmation, message.
-const view = { heroIndex: 0, confirmReset: false, flash: null };
+
+// État propre à l'écran : héros affiché, nœud choisi, réinitialisation en attente, message.
+const view = { heroIndex: 0, node: null, confirmReset: false, flash: null };
 
 const KIND_LABELS = { minor: 'Bonus', skill: 'Compétence', passive: 'Passif', signature: 'Signature' };
 
 function openTalents(heroIndex = view.heroIndex) {
-  Object.assign(view, { heroIndex, confirmReset: false, flash: null });
+  Object.assign(view, { heroIndex, node: null, confirmReset: false, flash: null });
   goTo('talents');
 }
 
+// Plein écran sans défilement : une colonne par orientation, 10 paliers de nœuds-icônes,
+// et une fenêtre de détail (effet, rangs, bouton Apprendre).
 function renderTalents(app) {
   const hero = state.party[view.heroIndex];
   const cls = getClass(hero);
@@ -7666,42 +7860,41 @@ function renderTalents(app) {
   view.flash = null;
   const available = pointsAvailable(hero);
   const cost = resetCost(hero);
+  const branches = branchesOf(hero);
+  const nodeById = new Map(branches.flatMap((b) => b.nodes.map((n) => [n.id, { node: n, branch: b }])));
+  const chosen = nodeById.get(view.node) ?? null;
 
   app.innerHTML = `
-    <div class="hero"><h1>📖 Maître des compétences</h1><p>Or : ${state.gold}</p></div>
-    ${flash ? `<div class="card notice">${esc(flash)}</div>` : ''}
-    <div class="hero-tabs">
-      ${state.party.map((h, i) => `
-        <button data-hero="${i}" class="${i === view.heroIndex ? 'selected' : ''}" style="--c:${getClass(h).color}">
-          ${getClass(h).icon} ${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}
-        </button>`).join('')}
-    </div>
-    <div class="card talent-summary" style="--c:${cls.color}">
-      <div>
-        <b>${cls.icon} ${esc(hero.name)}</b> — ${cls.name} niveau ${hero.level}
-        <div class="xp"><small>XP ${hero.xp}/${xpToNext(hero.level)}</small>${bar(hero.xp, xpToNext(hero.level), 'var(--gold)')}</div>
-      </div>
-      <div class="points ${available ? 'has' : ''}">Points disponibles : <b>${available}</b> / ${pointsTotal(hero)}</div>
-      <button id="reset" class="${view.confirmReset ? 'danger' : ''}" ${pointsSpent(hero) && state.gold >= cost ? '' : 'disabled'}
-        ${tip(`Rend tous les points de talent de ${hero.name} contre ${cost} pièces d'or.`)}>
-        ${view.confirmReset ? `Confirmer : réinitialiser (${cost} or)` : `Réinitialiser (${cost} or)`}
-      </button>
-    </div>
-    <p class="hint">Chaque niveau rapporte 1 point, soit ${XP.maxLevel} points au niveau maximum (${XP.maxLevel}) : de quoi compléter une seule orientation. Un palier se débloque en investissant des points dans la même orientation : ${TALENT_RULES.tierPoints} points par palier, jusqu'à la compétence signature du palier 9 (${tierRequirement(9)} points).</p>
-    <div class="talent-branches">${branchesOf(hero).map((b) => branchCard(hero, b)).join('')}</div>
-    <div class="center"><button id="backHub">${backLabel()}</button></div>
-  `;
+    <div class="tal-screen" style="--branches:${branches.length}">
+      <header class="inv-top">
+        <div class="inv-tabs">${state.party.map((h, i) => `
+          <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}">
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+          </button>`).join('')}
+        </div>
+        <span class="tal-points ${available ? 'has' : ''}">${iconHtml(682, 32)} ${available} / ${pointsTotal(hero)} points</span>
+        <button id="reset" class="${view.confirmReset ? 'btn-primary' : ''}" ${pointsSpent(hero) && state.gold >= cost ? '' : 'disabled'}
+          title="Rend tous les points de talent de ${esc(hero.name)} contre ${cost} pièces d'or.">
+          ${view.confirmReset ? `Confirmer (${cost} or)` : `Réinitialiser · ${cost} or`}
+        </button>
+        <button id="backHub">${esc(backLabel())}</button>
+      </header>
+      ${branches.map((b) => branchColumn(hero, b)).join('')}
+      <section class="win tal-detail" id="talDetail">
+        ${flash ? `<p class="tal-flash">${esc(flash)}</p>` : ''}
+        ${chosen ? nodeDetail(hero, chosen.branch, chosen.node) : introDetail(hero, cls)}
+      </section>
+    </div>`;
 
-  app.querySelectorAll('[data-hero]').forEach((btn) => {
-    btn.onclick = () => openTalents(Number(btn.dataset.hero));
+  app.querySelectorAll('[data-hero]').forEach((btn) => { btn.onclick = () => openTalents(Number(btn.dataset.hero)); });
+  app.querySelectorAll('[data-node]').forEach((el) => {
+    const { node, branch } = nodeById.get(el.dataset.node);
+    el.onmouseenter = () => { app.querySelector('#talDetail').innerHTML = nodeDetail(hero, branch, node); wireLearn(app, hero); };
+    el.onmouseleave = () => { app.querySelector('#talDetail').innerHTML = chosen ? nodeDetail(hero, chosen.branch, chosen.node) : introDetail(hero, cls); wireLearn(app, hero); };
+    el.onclick = () => { view.node = node.id; goTo('talents'); };
+    el.ondblclick = () => doLearn(hero, node);
   });
-  app.querySelectorAll('[data-learn]').forEach((btn) => {
-    btn.onclick = () => {
-      if (learn(hero, btn.dataset.learn)) view.flash = `${hero.name} apprend ${btn.dataset.name}.`;
-      view.confirmReset = false;
-      goTo('talents');
-    };
-  });
+  wireLearn(app, hero);
   app.querySelector('#reset').onclick = () => {
     if (!view.confirmReset) view.confirmReset = true;
     else {
@@ -7711,6 +7904,68 @@ function renderTalents(app) {
     goTo('talents');
   };
   app.querySelector('#backHub').onclick = () => goBack();
+}
+
+function doLearn(hero, node) {
+  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).`;
+  view.node = node.id;
+  view.confirmReset = false;
+  goTo('talents');
+}
+
+function wireLearn(app, hero) {
+  app.querySelectorAll('[data-learn]').forEach((btn) => {
+    btn.onclick = () => doLearn(hero, branchesOf(hero).flatMap((b) => b.nodes).find((n) => n.id === btn.dataset.learn));
+  });
+}
+
+// Colonne d'une orientation : en-tête, puis les paliers 0 à 9 de haut en bas.
+function branchColumn(hero, branch) {
+  const invested = pointsInBranch(hero, branch);
+  const tiers = [...new Set(branch.nodes.map((n) => n.tier))];
+  const max = tierRequirement(tiers.at(-1));
+  return `
+    <section class="win tal-branch">
+      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} pt${invested > 1 ? 's' : ''}</small></h3>
+      <span class="meter xp tal-progress"><span class="fill" style="width:${Math.min(100, (invested / Math.max(1, max)) * 100)}%"></span></span>
+      <div class="tal-tiers">
+        ${tiers.map((tier) => {
+          const locked = invested < tierRequirement(tier);
+          return `<div class="tal-tier ${locked ? 'locked' : ''}"><span class="tal-req">${tier ? tierRequirement(tier) : '•'}</span>
+            ${branch.nodes.filter((n) => n.tier === tier).map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
+        }).join('')}
+      </div>
+    </section>`;
+}
+
+function nodeIcon(hero, branch, node) {
+  const rank = rankOf(hero, node.id);
+  const locked = pointsInBranch(hero, branch) < tierRequirement(node.tier);
+  const can = !cannotLearnReason(hero, node.id);
+  const status = rank >= node.ranks ? 'maxed' : rank > 0 ? 'learned' : locked ? 'locked' : can ? 'open' : 'closed';
+  return `<button class="tal-node ${node.kind} ${status} ${view.node === node.id ? 'selected' : ''}" data-node="${node.id}" title="${esc(node.name)}">
+    ${iconHtml(talentNodeIcon(node, nodeSkills(node)), 32)}<sup>${rank}/${node.ranks}</sup></button>`;
+}
+
+function introDetail(hero, cls) {
+  return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+    <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
+    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}) : de quoi compléter une orientation. Un palier s'ouvre avec ${TALENT_RULES.tierPoints} points investis par palier dans la même orientation, jusqu'à la signature du palier 9 (${tierRequirement(9)} points).</p>
+    <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
+}
+
+function nodeDetail(hero, branch, node) {
+  const rank = rankOf(hero, node.id);
+  const reason = cannotLearnReason(hero, node.id);
+  const skills = nodeSkills(node);
+  const body = skills.length
+    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${sk.cost} ${getClass(hero).resource.name}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
+    : `<p>${esc(node.desc)}</p>`;
+  const action = rank >= node.ranks ? '<p class="tal-maxed">Maîtrisé.</p>'
+    : reason ? `<p class="warning">${esc(reason)}</p>`
+    : `<button class="gold" data-learn="${node.id}">Apprendre${node.ranks > 1 ? ` — rang ${rank + 1}/${node.ranks}` : ''}</button>`;
+  return `<h3>${iconHtml(talentNodeIcon(node, skills), 32)} ${esc(node.name)} <small>${KIND_LABELS[node.kind]} · ${esc(branch.name)} · palier ${node.tier} · rang ${rank}/${node.ranks}</small></h3>
+    ${node.tier === 0 && skills.length ? '<p class="hint">Sort de départ.</p>' : ''}${body}${action}`;
 }
 
 // Arbres de talents d'un héros en lecture seule (aperçu à la création d'équipe).
@@ -8036,136 +8291,6 @@ function victorySummary(r) {
 }
 
 return { logLines, lastCombatLog, victorySummary };
-})();
-
-// ---- src/ui/icons.js
-__modules["src/ui/icons.js"] = (() => {
-const { CONSUMABLES } = __modules["src/data/consumables.js"];
-// Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
-// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
-// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
-// teinte des armes et des armures quand la planche en propose plusieurs.
-
-
-
-const COLS = 16;
-
-// Icône n° `index` dessinée en `size` px (multiple de 16 conseillé).
-function iconHtml(index, size = 32, extra = '', title = '') {
-  const x = (index % COLS) * size;
-  const y = Math.floor(index / COLS) * size;
-  return `<i class="ic ${extra}" style="--is:${size}px;background-position:-${x}px -${y}px"${title ? ` title="${title}"` : ''} aria-hidden="${title ? 'false' : 'true'}"></i>`;
-}
-
-// Rareté → variante (0 = commune … 5 = divine).
-const TIER = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
-
-// Armes : ligne des armes en fer ; +160 = acier bleu, +80 = or.
-const WEAPONS = { epee: 1447, epee2m: 1455, dague: 1443, hache: 1463, hache2m: 1465, masse: 1471, masse2m: 1476, baton: 1491, arc: 1482 };
-const WEAPON_TIER = [0, 0, 160, 160, 80, 80];
-
-// Armures : une icône par rareté, pour chaque pièce et chaque type.
-const ARMOR = {
-  lourde: {
-    casque: [1904, 1905, 1907, 1908, 1910, 1908],
-    epaulieres: [1820, 1820, 1818, 1817, 1821, 1817],
-    plastron: [1920, 1921, 1923, 1924, 1926, 1924],
-    gants: [2057, 2057, 2058, 2058, 2059, 2059],
-    bottes: [1936, 1937, 1939, 1940, 1942, 1940],
-  },
-  moyenne: {
-    casque: [2014, 2014, 2015, 2015, 2015, 2015],
-    epaulieres: [2069, 2070, 2071, 2072, 2073, 2073],
-    plastron: [2018, 2024, 2025, 2027, 2028, 2028],
-    gants: [2054, 2054, 2055, 2055, 2059, 2059],
-    bottes: [2034, 2040, 2041, 2043, 2044, 2044],
-  },
-  legere: {
-    casque: [1952, 1953, 1954, 1960, 1962, 1963],
-    epaulieres: [1819, 1819, 1818, 1818, 1821, 1821],
-    plastron: [1968, 1969, 1970, 1976, 1978, 1979],
-    gants: [2055, 2055, 2054, 2054, 2059, 2059],
-    bottes: [1984, 1985, 1986, 1992, 1994, 1995],
-  },
-};
-const JEWELS = {
-  anneau: [1842, 1843, 1846, 1845, 1844, 2061],
-  collier: [2065, 2064, 1849, 1848, 1847, 2181],
-};
-const SHIELD = [2112, 2113, 2115, 1810, 1811, 1812];
-
-function itemIcon(item) {
-  const tier = TIER[item.rarity] ?? 0;
-  if (item.slotType === 'arme') return (WEAPONS[item.weaponType] ?? 1447) + WEAPON_TIER[tier];
-  if (item.slotType === 'bouclier') return SHIELD[tier];
-  if (JEWELS[item.slotType]) return JEWELS[item.slotType][tier];
-  return ARMOR[item.armorType]?.[item.slotType]?.[tier] ?? 1920;
-}
-
-// Consommables.
-const CONSUMABLE_ICONS = {
-  potion: 276, grandePotion: 286, elixir: 122, plumeDePhenix: 6, antidote: 120, bandage: 110, onguent: 267,
-  selsRevigorants: 167, tisaneDeClarte: 509, tonique: 121, fortifiant: 480, potionDeCourage: 284, eauBenite: 669,
-  outilsDeDesamorcage: 125, remede: 240, corde: 127, tente: 93,
-};
-function consumableIcon(key) {
-  return CONSUMABLE_ICONS[key] ?? (CONSUMABLES[key]?.category === 'soin' ? 276 : 288);
-}
-
-// Matéria : une gemme par catégorie d'équipement.
-const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
-const GOLD_ICON = 130;
-
-// Effets (buffs / debuffs).
-const EFFECT_ICONS = {
-  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
-  intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
-  confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
-};
-function effectIcon(key) {
-  return EFFECT_ICONS[key] ?? 1000;
-}
-
-// Compétences : d'après leur nom (élément), puis leur nature.
-const SKILL_RULES = [
-  [/feu|flamme|brasier|immolation|météore/i, 992],
-  [/glace|givre|blizzard|gel/i, 1008],
-  [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
-  [/poison|peste|nauséabond|empoisonn/i, 674],
-  [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
-  [/résurrection|sacrifice/i, 669],
-  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
-  [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
-  [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
-  [/piège|terrain/i, 127],
-  [/tir|salve|flèche/i, 2169],
-  [/tourbillon|déluge|carnage/i, 724],
-  [/cri|provocation/i, 662],
-  [/exécution|éviscération|marque|fatal/i, 745],
-];
-function skillIconIndex(skill) {
-  for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
-  if (skill.kind === 'heal') return 1057;
-  if (skill.kind === 'revive') return 669;
-  if (skill.magic) return 1000;
-  return 726;
-}
-
-// Orientations de talents et classes.
-const BRANCH_ICONS = {
-  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
-  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
-  Templier: 1810, 'Lumière': 1055,
-};
-function branchIcon(branch) {
-  return BRANCH_ICONS[branch.name] ?? 1000;
-}
-const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
-
-// Commandes de combat.
-const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
-
-return { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, effectIcon, skillIconIndex, branchIcon, CLASS_ICONS, COMMAND_ICONS };
 })();
 
 // ---- src/ui/bagView.js
