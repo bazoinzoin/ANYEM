@@ -18,6 +18,7 @@ import { heroSprite, lookSprite } from './heroSprite.js';
 import { EVENTS } from '../data/events.js';
 import { enemySprite, mobScale, mobTier } from './mobSprites.js';
 import { clampView, fitCanvas } from './viewport.js';
+import { helpButton } from './hud.js';
 
 const SCALE = 3;           // pixels d'écran par pixel de sprite
 const STEP_MS = 155;       // durée d'un pas (animation), aussi le rythme de marche
@@ -54,6 +55,7 @@ export function mapControls() {
       <button data-step="1,0" aria-label="Droite">▶</button>
       <button data-step="0,1" aria-label="Bas">▼</button>
     </div>
+    ${helpButton()}
     <p class="hint map-help">Flèches / ZQSD, clic sur une case ou croix. Les monstres bougent à chaque pas ; s'ils vous voient (<b>!</b>), ils vous poursuivent. ${hasBoss ? 'Le boss garde la salle la plus éloignée.' : 'Trouvez l\'échelle pour descendre ; éviter les monstres est possible, sans XP ni butin.'} Les personnages et objets marqués d'un « ! » sont des événements.</p>
     ${map.ladder ? `<button id="ladderBtn" class="btn-primary" ${onLadder && canExplore(state) ? '' : 'disabled'}>Descendre à l'étage suivant</button>` : ''}`;
 }

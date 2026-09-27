@@ -1,5 +1,6 @@
 // Interface posée sur les cartes plein écran (village, expédition) : équipe en bas à
-// gauche, fenêtre de message fermable en haut, raccourcis en icônes.
+// gauche (affichée seulement sur demande, bouton Personnage), fenêtre de message fermable
+// en haut, raccourcis en icônes, aide aux déplacements repliée derrière un « ? ».
 
 import { STATS } from '../data/stats.js';
 import { getClass, getStats, xpToNext } from '../game/party.js';
@@ -12,10 +13,14 @@ import { heroPortrait } from './portraits.js';
 const pct = (v, max) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
 const meter = (kind, v, max) => `<span class="meter ${kind}"><span class="fill" style="width:${pct(v, max)}%"></span></span>`;
 
+// Encadrés de l'équipe et aide : repliés par défaut pour ne pas cacher la carte ; leur état
+// est retenu d'un écran à l'autre.
+const shown = { party: false, help: false };
+
 // Équipe : portrait, niveau, PV, ressource (ou XP) et effets négatifs persistants.
-// Un clic sur un héros appelle data-hud-hero (fiche du héros).
+// Un clic sur un héros appelle data-hud-hero (menu Personnage du héros).
 export function partyHud(party, { resource = false } = {}) {
-  return `<div class="hud-party">${party.map((hero, i) => {
+  return `<div class="hud-party ${shown.party ? '' : 'hidden'}">${party.map((hero, i) => {
     const cls = getClass(hero);
     const stats = getStats(hero);
     const points = pointsAvailable(hero);
@@ -33,6 +38,30 @@ export function partyHud(party, { resource = false } = {}) {
         </span>
       </button>`;
   }).join('')}</div>`;
+}
+
+// Bouton « ? » : affiche ou replie l'aide aux déplacements (.map-help du bloc de contrôles).
+export function helpButton() {
+  return '<button id="hudHelp" class="hud-help" title="Aide : se déplacer, parler, événements">?</button>';
+}
+
+// Branche le HUD : `partyButton` (sélecteur du bouton Personnage) montre ou cache les
+// encadrés de l'équipe ; un clic sur un encadré appelle openHero(index) ; « ? » l'aide.
+export function wireHud(app, { partyButton, openHero }) {
+  const button = app.querySelector(partyButton);
+  const party = app.querySelector('.hud-party');
+  const controls = app.querySelector('.hud-controls');
+  const help = app.querySelector('#hudHelp');
+  const sync = () => {
+    party?.classList.toggle('hidden', !shown.party);
+    button?.classList.toggle('selected', shown.party);
+    controls?.classList.toggle('help', shown.help);
+    help?.classList.toggle('selected', shown.help);
+  };
+  if (button) button.onclick = () => { shown.party = !shown.party; sync(); };
+  if (help) help.onclick = () => { shown.help = !shown.help; sync(); };
+  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openHero(Number(b.dataset.hudHero)); });
+  sync();
 }
 
 // Raccourci en icône (barre du haut à droite).

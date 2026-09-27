@@ -399,11 +399,18 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-hero-info .meter { height: 6px; }
 .meter.xp .fill { background: linear-gradient(#f3d58c, #b98a2c); }
 .hud-debuffs { display: flex; gap: 1px; }
-.hud-controls { right: 8px; bottom: 8px; width: 300px; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 12px; }
-.hud-controls .map-help { font-size: 11px; line-height: 1.25; }
-.hud-controls > button { grid-column: 1 / -1; }
+.hud-controls { right: 8px; bottom: 8px; width: 170px; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 12px; }
+.hud-controls .map-help { font-size: 11px; line-height: 1.25; display: none; }
+/* Aide repliée derrière « ? » ; dépliée, elle s'affiche au-dessus des contrôles. */
+.hud-controls.help { width: 300px; }
+.hud-controls.help .map-help { display: block; grid-column: 1 / -1; grid-row: 1; margin: 0; }
+.hud-controls > button.hud-help { grid-column: 2; grid-row: auto; width: 34px; height: 30px; padding: 0; justify-self: end; align-self: start; font-size: 16px; }
+.hud-controls > button.hud-help.selected { border-image-source: var(--ui-btn-gold); color: #4a2a08; text-shadow: none; }
+/* Encadrés de l'équipe : affichés sur demande (bouton Personnage). */
+.hud-party.hidden { display: none; }
+.hud-controls > button:not(.hud-help) { grid-column: 1 / -1; }
 .hud-controls .dpad { grid-row: span 1; }
-@media (max-width: 1100px) { button.hud-hero { width: 150px; } .hud-party { max-width: calc(100% - 250px); flex-wrap: wrap; } .hud-controls { width: 230px; } .hud-controls .map-help { display: none; } }
+@media (max-width: 1100px) { button.hud-hero { width: 150px; } .hud-party { max-width: calc(100% - 250px); flex-wrap: wrap; } .hud-controls.help { width: 230px; } }
 .hud-controls .dpad { grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 30px); gap: 2px; }
 .dpad [data-vstep="0,-1"] { grid-column: 2; grid-row: 1; }
 .dpad [data-vstep="-1,0"] { grid-column: 1; grid-row: 2; }
@@ -430,7 +437,7 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-modal #eventSkip { align-self: flex-start; }
 .map-scr, .map-scr * { box-sizing: border-box; }
 button.hud-hero:hover:not(:disabled), button.hud-hero:active { border-image: var(--ui-box) 10 fill / 20px stretch; background: none; }
-.hud-controls > button { width: 100%; }
+.hud-controls > button:not(.hud-help) { width: 100%; }
 .hud-controls .map-help { min-width: 0; overflow: hidden; }
 .hud-toast { top: 80px; }
 @media (min-width: 1200px) { .hud-toast { top: 8px; width: min(520px, calc(100vw - 720px)); } }

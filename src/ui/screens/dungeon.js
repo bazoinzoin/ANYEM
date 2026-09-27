@@ -31,7 +31,7 @@ import { openTalents } from './talents.js';
 import { openStats } from './stats.js';
 import { pointsAvailable } from '../../game/talents.js';
 import { iconHtml, itemIcon, consumableIcon, skillIconIndex, CLASS_ICONS, GOLD_ICON } from '../icons.js';
-import { partyHud, hudButton, toast, wireToast } from '../hud.js';
+import { partyHud, hudButton, toast, wireToast, wireHud } from '../hud.js';
 import { drawPortraits } from '../portraits.js';
 
 // État propre à l'écran : objet en cours d'utilisation (choix de la cible), dernier message.
@@ -67,7 +67,7 @@ export function renderDungeon(app) {
       <nav class="hud-menu">
         ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente…)' })}
         ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
-        ${hudButton('equip', 1920, 'Personnage', { title: `Équipement et sac (${state.bag.length} objets)` })}
+        ${hudButton('equip', 1920, 'Personnage', { title: 'Afficher l\'équipe ; cliquez sur un héros pour ouvrir son menu Personnage (équipement et sac)' })}
         ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
         ${hudButton('stats', 610, 'Stats')}
         ${exp.bossChoice ? '' : hudButton('leave', 93, 'Rentrer', { disabled: !exp.canLeave, title: exp.canLeave ? 'Rentrer au village avec tout le butin.' : "Impossible de fuir : il faut vaincre le prochain boss pour pouvoir rentrer. Mourir coûte de l'or et une partie du sac." })}
@@ -83,7 +83,7 @@ export function renderDungeon(app) {
   drawPortraits(app);
   app.querySelector('#itemsBtn').classList.toggle('selected', view.panel === 'items');
   app.querySelector('#spellsBtn').classList.toggle('selected', view.panel === 'spells');
-  app.querySelectorAll('[data-hud-hero]').forEach((b) => { b.onclick = () => openStats(Number(b.dataset.hudHero)); });
+  wireHud(app, { partyButton: '#equip', openHero: (i) => openEquipment(i) });
 
   app.querySelectorAll('[data-event-choice]').forEach((btn) => {
     btn.onclick = () => {
@@ -165,7 +165,6 @@ export function renderDungeon(app) {
       showHub(`Retour de ${d2.name} (dernière sous-zone terminée : ${subzoneOf(exp.dungeonKey, progressOf(state, exp.dungeonKey).checkpoint).name}). Bilan : ${gold} or, ${xp} XP, ${items} équipement${items > 1 ? 's' : ''}, ${materia} matéria.`);
     }
   });
-  app.querySelector('#equip').onclick = () => openEquipment();
   app.querySelector('#talents').onclick = () => openTalents();
   app.querySelector('#stats').onclick = () => openStats();
 }
