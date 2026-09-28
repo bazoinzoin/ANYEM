@@ -21,7 +21,7 @@ import { RARITIES } from '../../data/items.js';
 import { MERCHANT } from '../../config.js';
 import { esc, tip } from '../html.js';
 import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
-import { consumableEstimate } from '../format.js';
+import { consumableEstimate, skillCostLabel } from '../format.js';
 import { goTo, showHub } from '../router.js';
 import { lastFloor } from '../encounter.js';
 import { mapCanvas, mapControls, bindMap } from '../mapView.js';
@@ -30,7 +30,7 @@ import { openEquipment } from './equipment.js';
 import { openTalents } from './talents.js';
 import { openStats } from './stats.js';
 import { pointsAvailable } from '../../game/talents.js';
-import { iconHtml, itemIcon, consumableIcon, skillIconIndex, CLASS_ICONS, GOLD_ICON } from '../icons.js';
+import { iconHtml, itemIcon, consumableIcon, skillIconIndex, CLASS_ICONS, GOLD_ICON, GOLD_ICONS } from '../icons.js';
 import { partyHud, hudButton, toast, wireToast, wireHud } from '../hud.js';
 import { drawPortraits } from '../portraits.js';
 
@@ -66,7 +66,7 @@ export function renderDungeon(app) {
       </div>
       <nav class="hud-menu">
         ${hudButton('itemsBtn', 276, `Objets (${usableCount})`, { title: 'Utiliser un objet (potion, remède, tente…)' })}
-        ${hudButton('spellsBtn', 1057, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
+        ${hudButton('spellsBtn', GOLD_ICONS.soin, 'Sorts', { title: 'Lancer un soin ou une purification hors combat' })}
         ${hudButton('equip', 1920, 'Personnage', { title: 'Afficher l\'équipe ; cliquez sur un héros pour ouvrir son menu Personnage (équipement et sac)' })}
         ${hudButton('talents', 96, 'Talents', { badge: state.party.reduce((n, h) => n + pointsAvailable(h), 0) })}
         ${hudButton('stats', 610, 'Stats')}
@@ -203,7 +203,7 @@ function spellPanel() {
       const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
         .filter(Boolean).join(', ');
       const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
-      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skill.cost} ${getClass(caster).resource.name} · ${effect}${who}</button>`;
+      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skillCostLabel(getClass(caster), skill, caster)} · ${effect}${who}</button>`;
     }).join('');
     const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
     if (pending?.target === 'ally') {

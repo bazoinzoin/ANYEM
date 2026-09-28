@@ -10,17 +10,17 @@
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { getClass, getSkills, heroClassTitle } from '../../game/party.js';
+import { getClass, getSkills, heroClassTitle, usesHp, hpCost } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
-import { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove } from '../../game/combat.js';
+import { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove, effectiveSkill } from '../../game/combat.js';
 import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../game/combo.js';
 import { usesWeapon, canUseWeapon, weaponBlockedReason } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, range, resourceKind } from '../html.js';
-import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
+import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } from '../format.js';
 import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
 
 const skillIcon = (s, size = 32) => iconHtml(skillIconIndex(s), size);
@@ -73,7 +73,7 @@ function heroRow(hero, i, active) {
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
-        ${meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
       <span class="bs-status">${combo}${statusIcons(hero)}</span>
     </button>`;
@@ -129,12 +129,13 @@ function subMenu(content) {
 function skillButtons(hero) {
   const cb = state.combat;
   const stats = statsOf(hero);
-  const res = getClass(hero).resource.name;
+  const cls = getClass(hero);
   return getSkills(hero).map((base, i) => {
-    const s = atCombo(base, Math.max(1, comboOf(hero)));
+    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
+    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`) : s.cost;
     return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
-      <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost" title="${esc(res)}">${s.cost}</small></button>`;
+      <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost${usesHp(cls) ? ' hp' : ''}" title="${esc(skillCostLabel(cls, s, hero))}">${cost}</small></button>`;
   }).join('');
 }
 
@@ -193,7 +194,7 @@ function actionDesc(hero, action) {
   const stats = statsOf(hero);
   if (action.type === 'item') return CONSUMABLES[action.item].desc;
   if (action.type === 'attack') return 'Attaque simple avec l\'arme équipée.';
-  return skillEffectLabel(stats, atCombo(getSkills(hero)[action.skill], comboOf(hero)));
+  return skillEffectLabel(stats, effectiveSkill(hero, getSkills(hero)[action.skill]));
 }
 
 // Estimation affichée sur chaque cible (défense de la cible comprise).
@@ -201,7 +202,7 @@ function targetEstimate(hero, action, unit) {
   const stats = statsOf(hero);
   if (action.type === 'attack') return `~${range(estimateHit(stats, BASIC_ATTACK, statsOf(unit)))}`;
   if (action.type === 'item') return consumableEstimate(action.item, unit);
-  const skill = atCombo(getSkills(hero)[action.skill], comboOf(hero));
+  const skill = effectiveSkill(hero, getSkills(hero)[action.skill]);
   return skillShortEstimate(stats, skill, unit.alive ? statsOf(unit) : null);
 }
 
@@ -214,9 +215,9 @@ function helpFor(hero, el) {
   const crit = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} %, +${stats.critDmg} % de dégâts.`;
   if (el.dataset.skill !== undefined) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
-    const s = atCombo(base, Math.max(1, comboOf(hero)));
+    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
     const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
-    return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${s.cost} ${esc(res)}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
+    return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${esc(skillCostLabel(cls, s, hero))}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];

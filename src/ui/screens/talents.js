@@ -7,7 +7,7 @@ import {
   cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier,
 } from '../../game/talents.js';
 import { esc } from '../html.js';
-import { skillEffectLabel } from '../format.js';
+import { skillEffectLabel, skillCostLabel } from '../format.js';
 import { nodeSkills, CHOICE_PICKS } from '../../data/talents.js';
 import { goTo, goBack, backLabel } from '../router.js';
 import { XP } from '../../config.js';
@@ -142,7 +142,7 @@ function nodeDetail(hero, branch, node) {
   const reason = cannotLearnReason(hero, node.id);
   const skills = nodeSkills(node);
   const body = skills.length
-    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${sk.cost} ${getClass(hero).resource.name}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
+    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
     : `<p>${esc(node.desc)}</p>`;
   const action = rank >= node.ranks ? '<p class="tal-maxed">Maîtrisé.</p>'
     : reason ? `<p class="warning">${esc(reason)}</p>`

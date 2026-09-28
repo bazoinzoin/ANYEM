@@ -95,8 +95,20 @@
 .cmd small { margin-left: auto; color: #c9b88e; font-size: 11px; }
 .cmd small + small { margin-left: 4px; }
 .cmd .est { color: #9fe0a0; }
-.sub-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 3px; align-content: start; }
 .cmd.skill { padding: 3px 8px; font-size: 14px; }
+.sub-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 3px; align-content: start; }
+/* Beaucoup de compétences (5 et plus) : deux colonnes, pour que tout tienne sans défiler. */
+.sub-list:has(> :nth-child(5)) { grid-template-columns: 1fr 1fr; }
+/* … nom en haut, estimation dessous, coût à droite. */
+.sub-list:has(> :nth-child(5)) .cmd.skill {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 6px; align-items: center;
+  font-size: 12px; line-height: 1.05; padding: 0 6px; min-height: 0; text-align: left;
+}
+.sub-list:has(> :nth-child(5)) .cmd.skill .ico { grid-row: 1 / 3; width: auto; }
+.sub-list:has(> :nth-child(5)) .cmd.skill .ico .ic { zoom: .7; }
+.sub-list:has(> :nth-child(5)) .cmd.skill .lbl { grid-column: 2; grid-row: 1; }
+.sub-list:has(> :nth-child(5)) .cmd.skill .est { grid-column: 2; grid-row: 2; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-list:has(> :nth-child(5)) .cmd.skill .cost { grid-column: 3; grid-row: 1 / 3; margin: 0; white-space: nowrap; }
 .cmd .cost { min-width: 24px; text-align: right; color: #8ec5ff; }
 .cmd.skill .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd.back { flex: none; justify-content: center; }

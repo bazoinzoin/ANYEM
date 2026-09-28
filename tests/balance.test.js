@@ -6,13 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createParty, getStats, getSkills } from '../src/game/party.js';
-import { createCombat, nextTurn, heroAct, enemyAct, canUseSkill } from '../src/game/combat.js';
+import { createCombat, nextTurn, heroAct, enemyAct, canUseSkill, effectiveSkill } from '../src/game/combat.js';
 import { learn, branchesOf, tiersOf } from '../src/game/talents.js';
 import { generateItem } from '../src/game/items.js';
 import { equip } from '../src/game/equipment.js';
 import { statsOf } from '../src/game/units.js';
 import { estimateSkill, estimateHit, effectValue, BASIC_ATTACK } from '../src/game/formulas.js';
-import { atCombo, actionCost } from '../src/game/combo.js';
+import { actionCost } from '../src/game/combo.js';
 import { EFFECTS } from '../src/data/effects.js';
 import { CHOICE_PICKS } from '../src/data/talents.js';
 import { setRandomSource } from '../src/game/rng.js';
@@ -25,12 +25,14 @@ const GEAR = {
   feu: ['intelligence', 'legere', ['baton']], glace: ['intelligence', 'legere', ['baton']], foudre: ['intelligence', 'legere', ['baton']],
   oeilDeFaucon: ['agilite', 'moyenne', ['arc']], traqueur: ['agilite', 'moyenne', ['arc']],
   templier: ['force', 'lourde', ['masse', 'bouclier']],
+  acharne: ['force', 'moyenne', ['hache2m']], violent: ['force', 'moyenne', ['arc']],
 };
 const CLASS_OF = {
   gardien: 'guerrier', berserker: 'guerrier', assassin: 'voleur', empoisonneur: 'voleur', precheur: 'pretre', profane: 'pretre',
   feu: 'mage', glace: 'mage', foudre: 'mage', oeilDeFaucon: 'chasseur', traqueur: 'chasseur', templier: 'paladin',
+  acharne: 'scarifie', violent: 'scarifie',
 };
-const DPS = ['berserker', 'assassin', 'empoisonneur', 'profane', 'feu', 'glace', 'foudre', 'oeilDeFaucon', 'traqueur'];
+const DPS = ['berserker', 'assassin', 'empoisonneur', 'profane', 'feu', 'glace', 'foudre', 'oeilDeFaucon', 'traqueur', 'acharne', 'violent'];
 
 // Petit palier : le bonus offensif le plus utile.
 const weight = (n) => (n.pct?.physPower || n.pct?.magPower ? 3 : 0) + (n.passive?.dotPct ? 2.5 : 0) + (n.flat?.critChance ? 2 : 0)
@@ -41,6 +43,7 @@ function makeHero(key, level) {
   hero.level = level;
   hero.equipment = {};
   const [primary, armorType, weapons] = GEAR[key];
+  if (weapons.includes('arc')) hero.position = 'ranged'; // tir depuis la ligne arrière
   const bag = [];
   // Objets rares sans secondaires : les secondaires, tirées au hasard, ne doivent pas
   // décider de l'équilibrage (on compare les kits de compétences, pas la chance au butin).
@@ -61,7 +64,7 @@ function makeHero(key, level) {
 const avg = (e) => (e ? (e.lo + e.hi) / 2 : 0);
 function value(cb, hero, skill, target) {
   const st = statsOf(hero);
-  const s = skill.finisher ? atCombo(skill, hero.combo ?? 0) : skill;
+  const s = effectiveSkill(hero, skill);
   let v = s.kind === 'damage' ? avg(estimateSkill(st, s, statsOf(target))) * (s.hits ?? 1) : 0;
   for (const e of s.effects ?? []) {
     const kind = EFFECTS[e.id]?.value;

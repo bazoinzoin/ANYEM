@@ -3,7 +3,7 @@
 
 import { atCombo } from '../game/combo.js';
 import { estimateSkill, effectValue } from '../game/formulas.js';
-import { getStats, getClass } from '../game/party.js';
+import { getStats, getClass, usesHp, hpCost } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
 import { EFFECTS } from '../data/effects.js';
 import { CONSUMABLES } from '../data/consumables.js';
@@ -93,3 +93,12 @@ export function consumableEstimate(key, hero) {
   return '';
 }
 
+/**
+ * Coût d'une compétence à afficher : « 30 Mana », ou pour le Scarifié (payé en PV)
+ * « 14 PV » (héros donné) / « 6 % PV » (sans héros) ; un sacrifice coûte tout sauf 1 PV.
+ */
+export function skillCostLabel(cls, skill, hero = null) {
+  if (!usesHp(cls)) return `${skill.cost} ${cls.resource.name}`;
+  if (skill.sacrifice) return 'tous les PV sauf 1';
+  return hero ? `${hpCost(hero, skill)} PV` : `${skill.cost} % PV`;
+}

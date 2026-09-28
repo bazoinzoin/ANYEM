@@ -1,7 +1,7 @@
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
 
 import { getStats } from './party.js';
-import { statusMods, isDebuffed, absorbWithShields, statusesOf } from './statuses.js';
+import { statusMods, statusBonus, isDebuffed, absorbWithShields, statusesOf, addStatus, makeStatus } from './statuses.js';
 
 export const isHero = (unit) => 'classKey' in unit;
 export const isAlive = (unit) => unit.alive;
@@ -14,6 +14,7 @@ export const isAlive = (unit) => unit.alive;
  */
 export function statsOf(unit) {
   const s = { ...(isHero(unit) ? getStats(unit) : unit.stats) };
+  for (const [stat, v] of Object.entries(statusBonus(unit))) s[stat] = (s[stat] ?? 0) + v;
   for (const [stat, pct] of Object.entries(statusMods(unit))) {
     if (typeof s[stat] === 'number') s[stat] = Math.round(s[stat] * (1 + pct / 100));
   }
@@ -50,12 +51,42 @@ function applyDamage(unit, amount) {
   const taken = amount - absorbed;
   unit.hp = Math.max(0, unit.hp - taken);
   let fell = false;
+  let revived = null;
   if (unit.hp === 0 && unit.alive) {
-    unit.alive = false;
-    unit.statuses = [];
-    fell = true;
+    revived = tryRevive(unit);
+    if (!revived) {
+      unit.alive = false;
+      unit.statuses = [];
+      fell = true;
+    }
   }
-  return { taken, absorbed, fell };
+  return { taken, absorbed, fell, ...(revived ? { revived } : {}) };
+}
+
+/**
+ * Résurrection au moment de tomber (Scarifié) : passif `selfRevive` (% des PV, une fois par
+ * combat : `unit.selfRevived`) ou effet `revive` (Pacte de sang, consommé). Les effets négatifs
+ * disparaissent ; `reviveStun` (Violent) : le héros perd son prochain tour.
+ * Retourne { pct, source } ou null.
+ */
+function tryRevive(unit) {
+  let pct = 0;
+  let source = null;
+  const pact = statusesOf(unit).find((s) => s.revive);
+  const stats = isHero(unit) ? getStats(unit) : {};
+  if (stats.selfRevive && !unit.selfRevived) {
+    unit.selfRevived = true;
+    pct = stats.selfRevive;
+    source = 'passif';
+  } else if (pact) {
+    pct = pact.revive;
+    source = pact.name;
+  }
+  if (!pct) return null;
+  unit.statuses = statusesOf(unit).filter((s) => s.kind !== 'debuff' && s !== pact);
+  unit.hp = Math.max(1, Math.round(stats.pv ? stats.pv * pct / 100 : 1));
+  if (stats.reviveStun) addStatus(unit, makeStatus('etourdi', stats.reviveStun));
+  return { pct, source };
 }
 
 export function heal(unit, amount) {

@@ -91,7 +91,7 @@ test("n'importe quel légendaire peut tomber, quelle que soit l'équipe", () => 
     setRandomSource(() => (i + 0.5) / 120);
     seen.add(generateItem({ rarity: 'legendaire' }).legendary.classKey ?? 'commun');
   }
-  assert.deepEqual([...seen].sort(), ['chasseur', 'commun', 'guerrier', 'mage', 'paladin', 'pretre', 'voleur']);
+  assert.deepEqual([...seen].sort(), ['chasseur', 'commun', 'guerrier', 'mage', 'paladin', 'pretre', 'scarifie', 'voleur']);
 });
 
 test("armure, arme, bijou et bouclier ont autant de chances de tomber", () => {

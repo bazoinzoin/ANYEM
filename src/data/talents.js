@@ -1061,6 +1061,205 @@ export const TALENTS = {
       ],
     },
   ],
+  scarifie: [
+    {
+      key: 'acharne', name: 'Acharné', icon: '🩸',
+      desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
+      nodes: [
+        starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
+        ...choice(1, [
+          minor('sc-lame-avide', 'Lame avide', { pct: { physPower: 2.5 } }),
+          minor('sc-plaies-profondes', 'Plaies profondes', { passive: { dotPct: 3 } }),
+          minor('sc-peau-tannee', 'Peau tannée', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'lacerations', name: 'Lacérations', cost: 7, kind: 'damage', target: 'enemy', power: 0.9, hits: 2,
+          effects: [fx('saignement', 2, 0.3)],
+          desc: 'Deux entailles rapides : saignement sur 2 tours',
+        }),
+        ...choice(3, [
+          minor('sc-oeil-rouge', 'Œil rouge', { flat: { critChance: 1 } }),
+          minor('sc-gorgee', 'Gorgée', { passive: { lifestealPct: 1.5 } }),
+          minor('sc-hemophilie', 'Hémophilie', { passive: { dotPct: 3.5 } }),
+        ]),
+        passive('sang-appelle-sang', 'Le sang appelle le sang', 4, '+12 % de dégâts directs contre une cible qui subit un effet négatif (un saignement…) ; vol de vie : 4 % des dégâts directs infligés rendus en PV.', { passive: { vsDebuffedPct: 12, lifestealPct: 4 } }),
+        ...choice(5, [
+          minor('sc-fureur-froide', 'Fureur froide', { pct: { physPower: 3 } }),
+          minor('sc-contre-entaille', 'Contre-entaille', { flat: { riposte: 2 } }),
+          minor('sc-cicatrices', 'Cicatrices', { pct: { pv: 3 } }),
+        ]),
+        skill(6, {
+          id: 'hemorragie', name: 'Hémorragie', cost: 10, kind: 'damage', target: 'enemy', power: 1.5,
+          effects: [fx('saignement', 3, 0.75)],
+          desc: 'Ouvre une plaie béante : gros saignement sur 3 tours',
+        }),
+        ...choice(7, [
+          minor('sc-sang-noir', 'Sang noir', { passive: { dotPct: 4 } }),
+          minor('sc-coups-sales', 'Coups sales', { flat: { critDmg: 5 } }),
+          minor('sc-festin', 'Festin', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'moisson-rouge', name: 'Moisson rouge', cost: 12, kind: 'damage', target: 'allEnemies', power: 0.9,
+          effects: [fx('saignement', 2, 0.25)],
+          desc: 'Fauche tous les ennemis : saignement sur 2 tours pour chacun',
+        }),
+        ...choice(9, [
+          minor('sc-acharnement', 'Acharnement', { pct: { physPower: 3.5 } }),
+          minor('sc-curee', 'Curée', { passive: { executePct: 5 } }),
+          minor('sc-chair-dure', 'Chair dure', { pct: { pv: 3.5 } }),
+        ]),
+        skill(10, {
+          id: 'coup-du-boucher', name: 'Coup du boucher', cost: 9, kind: 'damage', target: 'enemy', power: 2.0, executePct: 60,
+          desc: 'Coup lourd, +60 % de dégâts contre une cible sous 30 % de PV',
+        }),
+        ...choice(11, [
+          minor('sc-veines-ouvertes', 'Veines ouvertes', { passive: { dotPct: 5 } }),
+          minor('sc-precision-cruelle', 'Précision cruelle', { flat: { critChance: 1.5 } }),
+          minor('sc-soif-inextinguible', 'Soif inextinguible', { passive: { lifestealPct: 2.5 } }),
+        ]),
+        passive('increvable', 'Increvable', 12, 'Une fois par combat, se relève aussitôt avec 30 % de ses PV quand il tombe.', { passive: { selfRevive: 30 } }),
+        ...choice(13, [
+          minor('sc-rage-froide', 'Rage froide', { pct: { physPower: 4.5 } }),
+          minor('sc-sang-maudit', 'Sang maudit', { passive: { dotPct: 5.5 } }),
+          minor('sc-cuir-de-fer', 'Cuir de fer', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'saignee-totale', name: 'Saignée totale', cost: 18, kind: 'damage', target: 'enemy', power: 1.8,
+          effects: [fx('saignement', 3, 0.7)],
+          desc: 'Coup terrible : la cible se vide de son sang (énorme saignement sur 3 tours)',
+        }),
+      ],
+    },
+    {
+      key: 'violent', name: 'Violent', icon: '💥',
+      desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
+      nodes: [
+        starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
+        ...choice(1, [
+          minor('sc-bras-tendu', 'Bras tendu', { pct: { physPower: 2.5 } }),
+          minor('sc-pointe-cruelle', 'Pointe cruelle', { flat: { critDmg: 4 } }),
+          minor('sc-sang-epais', 'Sang épais', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'fleche-de-sang', name: 'Flèche de sang', cost: 13, kind: 'damage', target: 'enemy', power: 2.1, critBonus: 15,
+          desc: 'Trait trempé dans son sang, +15 % de chance de critique',
+        }),
+        ...choice(3, [
+          minor('sc-oeil-fixe', 'Œil fixe', { flat: { critChance: 1 } }),
+          minor('sc-tension', 'Tension', { pct: { physPower: 3 } }),
+          minor('sc-sang-repris', 'Sang repris', { passive: { lifestealPct: 1.5 } }),
+        ]),
+        passive('sang-bouillonnant', 'Sang bouillonnant', 4, '+6 % de puissance physique et +15 % de dégâts critiques.', { pct: { physPower: 6 }, flat: { critDmg: 15 } }),
+        ...choice(5, [
+          minor('sc-rictus', 'Rictus', { flat: { critDmg: 5 } }),
+          minor('sc-poigne', 'Poigne', { pct: { physPower: 3 } }),
+          minor('sc-carcasse', 'Carcasse', { pct: { pv: 3 } }),
+        ]),
+        skill(6, {
+          id: 'salve-ecarlate', name: 'Salve écarlate', cost: 15, kind: 'damage', target: 'allEnemies', power: 1.1,
+          desc: 'Pluie de traits sanglants sur tous les ennemis',
+        }),
+        ...choice(7, [
+          minor('sc-demesure', 'Démesure', { pct: { physPower: 3.5 } }),
+          minor('sc-oeil-du-boucher', 'Œil du boucher', { flat: { critChance: 1.5 } }),
+          minor('sc-sang-lourd', 'Sang lourd', { pct: { pv: 3.5 } }),
+        ]),
+        skill(8, {
+          id: 'transpercement', name: 'Transpercement', cost: 17, kind: 'damage', target: 'enemy', power: 3.0,
+          desc: 'Tir dévastateur qui transperce la cible',
+        }),
+        ...choice(9, [
+          minor('sc-fracas', 'Fracas', { flat: { critDmg: 6 } }),
+          minor('sc-coup-de-grace', 'Coup de grâce', { passive: { executePct: 5 } }),
+          minor('sc-reins-solides', 'Reins solides', { pct: { pv: 4 } }),
+        ]),
+        passive('prix-du-sang', 'Prix du sang', 10, 'Vol de vie : 6 % des dégâts directs infligés rendus en PV ; +15 % de dégâts contre une cible sous 30 % de PV.', { passive: { lifestealPct: 6, executePct: 15 } }),
+        ...choice(11, [
+          minor('sc-ruine', 'Ruine', { pct: { physPower: 4 } }),
+          minor('sc-cruaute-froide', 'Cruauté froide', { flat: { critChance: 2 } }),
+          minor('sc-sang-repris-2', 'Sang bu', { passive: { lifestealPct: 2.5 } }),
+        ]),
+        passive('revenant', 'Revenant', 12, 'Une fois par combat, se relève avec 30 % de ses PV quand il tombe, mais perd son tour suivant.', { passive: { selfRevive: 30, reviveStun: 1 } }),
+        ...choice(13, [
+          minor('sc-carnage-froid', 'Carnage froid', { pct: { physPower: 4.5 } }),
+          minor('sc-demolition', 'Démolition', { flat: { critDmg: 6.5 } }),
+          minor('sc-coeur-dur', 'Cœur dur', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'dernier-souffle', name: 'Dernier souffle', cost: 0, kind: 'damage', target: 'enemy', power: 1.5, sacrifice: 8, oncePerCombat: true,
+          desc: 'Une fois par combat : tombe à 1 PV et frappe d\'autant plus fort qu\'il a sacrifié de PV (puissance 1,5 + 8 × la part des PV max sacrifiés)',
+        }),
+      ],
+    },
+    {
+      key: 'liensDuSang', name: 'Liens du sang', icon: '❤️',
+      desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
+      nodes: [
+        starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
+        ...choice(1, [
+          minor('sc-sang-clair', 'Sang clair', { pct: { magPower: 2.5 } }),
+          minor('sc-don-de-soi', 'Don de soi', { passive: { healPct: 3 } }),
+          minor('sc-veines-larges', 'Veines larges', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'pluie-de-sang', name: 'Pluie de sang', cost: 12, kind: 'heal', target: 'allAllies', power: 0.5,
+          desc: 'Soigne toute l\'équipe',
+        }),
+        ...choice(3, [
+          minor('sc-offrande', 'Offrande', { passive: { healPct: 3.5 } }),
+          minor('sc-clarte-rouge', 'Clarté rouge', { pct: { magPower: 3 } }),
+          minor('sc-sang-riche', 'Sang riche', { pct: { pv: 3 } }),
+        ]),
+        passive('sang-tenace', 'Sang tenace', 4, 'Une fois par combat, se relève aussitôt avec 30 % de ses PV quand il tombe.', { passive: { selfRevive: 30 } }),
+        ...choice(5, [
+          minor('sc-coeur-ouvert', 'Cœur ouvert', { passive: { healPct: 4 } }),
+          minor('sc-flux', 'Flux', { pct: { magPower: 3.5 } }),
+          minor('sc-sang-neuf', 'Sang neuf', { pct: { pv: 3.5 } }),
+        ]),
+        skill(6, {
+          id: 'lien-vital', name: 'Lien vital', cost: 9, kind: 'support', target: 'ally',
+          effects: [fx('regeneration', 3, 0.35), fx('sang-partage', 3)],
+          desc: 'Relie un allié à ses veines : Régénération et Sang partagé (vol de vie) pendant 3 tours',
+        }),
+        ...choice(7, [
+          minor('sc-transfuseur', 'Transfuseur', { passive: { healPct: 4.5 } }),
+          minor('sc-fievre', 'Fièvre', { pct: { magPower: 4 } }),
+          minor('sc-endurance', 'Endurance', { pct: { pv: 4 } }),
+        ]),
+        skill(8, {
+          id: 'fievre-rouge', name: 'Fièvre rouge', cost: 8, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
+          effects: [fx('saignement', 2, 0.3)],
+          desc: 'Fait bouillir le sang d\'un ennemi (dégâts magiques) : saignement sur 2 tours',
+        }),
+        ...choice(9, [
+          minor('sc-sang-lumineux', 'Sang lumineux', { passive: { healPct: 5 } }),
+          minor('sc-intuition', 'Intuition', { pct: { magPower: 4.5 } }),
+          minor('sc-veines-dures', 'Veines dures', { pct: { pv: 4.5 } }),
+        ]),
+        skill(10, {
+          id: 'pacte-de-sang', name: 'Pacte de sang', cost: 20, kind: 'support', target: 'ally', oncePerCombat: true,
+          effects: [fx('pacte-de-sang', 1)],
+          desc: 'Une fois par combat : jusqu\'à la fin du combat, l\'allié se relèvera aussitôt avec 35 % de ses PV s\'il tombe',
+        }),
+        ...choice(11, [
+          minor('sc-vaisseaux', 'Vaisseaux', { passive: { healPct: 5.5 } }),
+          minor('sc-sang-savant', 'Sang savant', { pct: { magPower: 5 } }),
+          minor('sc-coeur-solide', 'Cœur solide', { pct: { pv: 5 } }),
+        ]),
+        passive('sang-genereux', 'Sang généreux', 12, '+15 % de soins et +5 % de PV.', { passive: { healPct: 15 }, pct: { pv: 5 } }),
+        ...choice(13, [
+          minor('sc-communion', 'Communion', { passive: { healPct: 6 } }),
+          minor('sc-sang-sacre', 'Sang sacré', { pct: { magPower: 5.5 } }),
+          minor('sc-coeur-de-pierre', 'Cœur de pierre', { pct: { pv: 5.5 } }),
+        ]),
+        signature({
+          id: 'communion-sanglante', name: 'Communion sanglante', cost: 25, kind: 'heal', target: 'allAllies', power: 1.3,
+          effects: [fx('sang-partage', 3)],
+          desc: 'Soigne fortement toute l\'équipe, qui gagne Sang partagé (vol de vie) pendant 3 tours',
+        }),
+      ],
+    },
+  ],
 };
 
 // Compétences accordées par un nœud (champ `skill` ou `skills`).

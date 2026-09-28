@@ -20,6 +20,11 @@
 //   stacks  cumulable : chaque nouvelle dose s'ajoute (dégâts par tour additionnés, durée
 //           ramenée à la plus longue), jusqu'à `stacks` doses ; sinon la nouvelle application
 //           remplace l'ancienne
+//   bonus   { stat: valeur } ajoutée telle quelle aux stats de combat (ex. lifestealPct : un
+//           allié sans vol de vie en gagne)
+//   revive  l'unité qui tombe se relève aussitôt avec `revive` % de ses PV, une fois
+//           (l'effet disparaît alors)
+//   lasting dure jusqu'à la fin du combat (`turns` ignoré, jamais décompté)
 //   stun    la cible perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt   les ennemis doivent attaquer cette unité
 //   confuse l'unité peut frapper ses propres alliés
@@ -54,6 +59,9 @@ export const EFFECTS = {
   brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
   tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
   ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },
+  // Scarifié (Liens du sang) : le sang donné rend ses coups voraces, ou le relève.
+  'sang-partage': { name: 'Sang partagé', icon: '🩸', kind: 'buff', bonus: { lifestealPct: 25 }, desc: 'Vol de vie : 25 % des dégâts directs infligés sont rendus en PV.' },
+  'pacte-de-sang': { name: 'Pacte de sang', icon: '🩸', kind: 'buff', revive: 35, lasting: true, desc: 'Jusqu\'à la fin du combat : s\'il tombe, se relève aussitôt avec 35 % de ses PV (une fois).' },
   etourdi: { name: 'Étourdi', icon: '💫', kind: 'debuff', stun: true, desc: 'Perd son prochain tour.' },
   confus: { name: 'Confus', icon: '🌀', kind: 'debuff', confuse: true, desc: 'Une chance sur deux de frapper un allié au lieu d\'agir.' },
   affaibli: { name: 'Affaibli', icon: '💧', kind: 'debuff', mods: { physPower: -20, magPower: -20 }, desc: '−20 % de puissance physique et magique.' },

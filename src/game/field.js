@@ -3,7 +3,7 @@
 // boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
 // se sur-préparer avant une rencontre.
 
-import { getSkills } from './party.js';
+import { getSkills, canPaySkill, paySkill, usesHp, getClass } from './party.js';
 import { statsOf, heal } from './units.js';
 import { healAmount } from './formulas.js';
 import { statusesOf } from './statuses.js';
@@ -33,7 +33,7 @@ export function cannotCastReason(game, casterIndex, skill) {
   if (!game.expedition) return 'Uniquement pendant une expédition.';
   if (!caster?.alive) return 'Ce héros est tombé.';
   if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
-  if (caster.res < skill.cost) return 'Pas assez de ressource.';
+  if (!canPaySkill(caster, skill)) return usesHp(getClass(caster)) ? 'Pas assez de PV (le dernier ne se sacrifie pas).' : 'Pas assez de ressource.';
   return null;
 }
 
@@ -50,7 +50,7 @@ export function castOutOfCombat(game, casterIndex, skillIndex, targetIndex) {
     return { ok: false, message: '' };
   }
   const targets = group ? game.party.filter((h) => h.alive) : [game.party[skill.target === 'self' ? casterIndex : targetIndex]];
-  caster.res -= skill.cost;
+  const paid = paySkill(caster, skill);
   const stats = statsOf(caster);
   const parts = targets.map((t) => {
     const bits = [];
@@ -62,5 +62,5 @@ export function castOutOfCombat(game, casterIndex, skillIndex, targetIndex) {
     }
     return `${t.name} : ${bits.join(', ')}`;
   });
-  return { ok: true, message: `${caster.name} lance ${skill.name} (${parts.join(' ; ')}).` };
+  return { ok: true, message: `${caster.name} lance ${skill.name}${paid ? ` en sacrifiant ${paid} PV` : ''} (${parts.join(' ; ')}).` };
 }

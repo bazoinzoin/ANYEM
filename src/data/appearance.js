@@ -156,6 +156,10 @@ export const TOPS = {
     label: 'Pourpoint de barde', body: 'swashbuckler',
     map: { '#2b2b45': '#56307e', '#3a3f5e': '#8a52c4', '#e64539': '#ffc933', '#ad2f45': '#e0a63a', '#9c2a70': '#b8833a' },
   },
+  scarifie: {
+    label: 'Cuir scarifié', body: 'beastmaster',
+    map: { '#8f4d57': '#52333f', '#bd6a62': '#7d3833', '#63ab3f': '#ad2f45', '#3b7d4f': '#7d3833' },
+  },
   duelliste: {
     label: 'Tenue de duelliste', body: 'swashbuckler',
     map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#e64539': '#4a6fc4', '#ad2f45': '#2f437a', '#9c2a70': '#2f437a' },
@@ -184,6 +188,7 @@ export const CLASS_LOOKS = {
   mage: { hair: 'chignon', hairColor: 'roux', eyes: 'verts', skin: 'claire', top: 'mage', bottom: 'azur' },
   chasseur: { hair: 'queue', hairColor: 'chatain', eyes: 'verts', skin: 'halee', top: 'druide', bottom: 'cuir' },
   paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'templier', bottom: 'jambieres' },
+  scarifie: { hair: 'longs', hairColor: 'noir', eyes: 'rouges', skin: 'pale', top: 'scarifie', bottom: 'garance' },
 };
 
 // Champs d'une apparence → catalogue de ses choix (ordre de l'écran de création).
