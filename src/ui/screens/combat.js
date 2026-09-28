@@ -19,6 +19,7 @@ import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../gam
 import { usesWeapon, weaponBlockedReason, skillWeaponProblem } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
+import { EFFECTS } from '../../data/effects.js';
 import { esc, range, resourceKind } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } from '../format.js';
 import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
@@ -78,7 +79,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${souls}${statusIcons(hero)}</span>
+      <span class="bs-status">${combo}${souls}<span class="bs-effects">${statusIcons(hero)}</span></span>
     </button>`;
 }
 
@@ -88,17 +89,55 @@ function meter(value, max, kind, label = 'PV') {
   return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
 }
 
+// Fiche détaillée d'un effet (bulle au survol) : nom, description, valeur, durée, lanceur.
+function effectTip(unit, s) {
+  const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
+  if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
+  if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
+  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
+  lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
+  if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
+  if (s.kind === 'debuff' && state.combat?.party.includes(unit)) lines.push('Reste après le combat, jusqu\'à un remède, une purification ou le retour au village.');
+  return lines.join('\n');
+}
+
 function statusIcons(unit) {
   if (!unit.alive) return '<span class="ko">K.O.</span>';
   const icons = [];
-  if (unit.guard) icons.push(`<span class="st buff" title="En garde : dégâts réduits de moitié">${iconHtml(COMMAND_ICONS.defend, 16)}</span>`);
+  if (unit.guard) icons.push(`<span class="st buff" data-fx-tip="${esc('En garde\nDégâts subis réduits de moitié jusqu\'à son prochain tour.')}">${iconHtml(COMMAND_ICONS.defend, 20)}</span>`);
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
-    const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    icons.push(`<span class="st ${s.kind}" data-fx-tip="${esc(effectTip(unit, s))}">${iconHtml(effectIcon(s.key), 20)}${s.stun || s.lasting ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
+}
+
+// Bulle des effets (survol, curseur de la manette) : posée au-dessus de l'icône.
+function wireEffectTips(app) {
+  let bubble = document.getElementById('fxTip');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.id = 'fxTip';
+    bubble.className = 'fx-tip';
+    document.body.append(bubble);
+  }
+  bubble.hidden = true;
+  app.querySelectorAll('[data-fx-tip]').forEach((el) => {
+    const show = () => {
+      const [title, ...rest] = el.dataset.fxTip.split('\n');
+      bubble.innerHTML = `<b class="${el.classList.contains('debuff') ? 'debuff' : 'buff'}">${esc(title)}</b>${rest.map((l) => `<span>${esc(l)}</span>`).join('')}`;
+      bubble.hidden = false;
+      const r = el.getBoundingClientRect();
+      const b = bubble.getBoundingClientRect();
+      bubble.style.left = `${Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))}px`;
+      bubble.style.top = `${Math.max(6, r.top - b.height - 8)}px`;
+    };
+    el.addEventListener('mouseenter', show);
+    el.addEventListener('focus', show);
+    el.addEventListener('mouseleave', () => { bubble.hidden = true; });
+    el.addEventListener('blur', () => { bubble.hidden = true; });
+  });
 }
 
 // ---- Commandes ----
@@ -315,6 +354,7 @@ function back() {
 }
 
 function wire(app, hero) {
+  wireEffectTips(app);
   app.querySelectorAll('[data-overlay]').forEach((b) => { b.onclick = () => { ui.overlay = b.dataset.overlay; rerender(); }; });
   app.querySelector('#closeOverlay')?.addEventListener('click', () => { ui.overlay = null; rerender(); });
   app.querySelectorAll('[data-hero]').forEach((b) => {

@@ -2,7 +2,7 @@
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
 
-import { REWARDS, XP } from '../config.js';
+import { REWARDS, XP, EFFICIENCY } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { getStats, restoreFully, gainXp } from './party.js';
 import { rollLoot } from './loot.js';
@@ -18,6 +18,29 @@ const mult = (enemy, field) => ENEMIES[enemy.enemyKey]?.[field] ?? 1;
 // XP d'une victoire (pour chaque héros) : par ennemi, (base + par niveau) × multiplicateur (boss).
 export function xpReward(level, enemies) {
   return enemies.reduce((sum, e) => sum + Math.round((XP.xpBase + XP.xpPerLevel * level) * mult(e, 'xpMult')), 0);
+}
+
+// Valeur apportée par un héros pendant le combat (hero.fight, suivi par game/combat.js).
+export function fightValue(fight) {
+  if (!fight) return 0;
+  return Object.entries(EFFICIENCY.weights).reduce((sum, [k, w]) => sum + (fight[k] ?? 0) * w, 0);
+}
+
+/**
+ * Coefficient d'efficacité de chaque héros de l'équipe (même ordre), entre EFFICIENCY.min et
+ * max : participation (tours joués) et valeur apportée, rapportées au meilleur de l'équipe.
+ * Sans suivi de combat (hero.fight absent) : 1.
+ */
+export function combatEfficiency(party) {
+  const fights = party.map((h) => h.fight ?? null);
+  if (fights.every((f) => !f)) return party.map(() => 1);
+  const bestTurns = Math.max(1, ...fights.map((f) => f?.turns ?? 0));
+  const bestValue = Math.max(1, ...fights.map(fightValue));
+  const { min, max, turnsShare } = EFFICIENCY;
+  return fights.map((f) => {
+    const score = turnsShare * ((f?.turns ?? 0) / bestTurns) + (1 - turnsShare) * (fightValue(f) / bestValue);
+    return +(min + (max - min) * score).toFixed(2);
+  });
 }
 
 export function goldReward(level, enemies) {
@@ -41,16 +64,18 @@ export function lootLevel(game, zoneLevel) {
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
  * (équipement dans le sac, matéria, consommables — voir loot.js),
- * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * XP pour chaque héros (tombés compris) multipliée par son coefficient d'efficacité au combat
+ * (`efficiency`, même ordre que l'équipe ; 1 par défaut). Aucun soin : PV et ressources
  * restent tels qu'à la fin du combat.
  * Un consommable trouvé alors qu'on en porte déjà le maximum est perdu.
- * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps }.
+ * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps, xpByHero }.
  */
-export function applyVictory(game, { level, enemies, final = false }) {
+export function applyVictory(game, { level, enemies, final = false, efficiency = null }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
   const { items: loot, materia, consumables: found } = rollLoot(lootLevel(game, level), enemies, { final, difficulty: difficultyOf(game) });
-  const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
+  const xpByHero = game.party.map((hero, i) => ({ hero, coef: efficiency?.[i] ?? 1, xp: Math.round(xp * (efficiency?.[i] ?? 1)) }));
+  const levelUps = xpByHero.filter(({ hero, xp: gained }) => gainXp(hero, gained) > 0).map(({ hero }) => hero);
   game.gold += gold;
   game.bag.push(...loot);
   game.materia ??= emptyMateria();
@@ -68,7 +93,11 @@ export function applyVictory(game, { level, enemies, final = false }) {
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
+  const varies = xpByHero.some((e) => e.coef !== 1);
+  const xpText = varies
+    ? `XP selon l'efficacité : ${xpByHero.map((e) => `${e.hero.name} ${e.xp} (×${String(e.coef).replace('.', ',')})`).join(', ')}`
+    : `${xp} XP`;
+  return { message: `Victoire ! ${gold} pièces d'or ; ${xpText}.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps, xpByHero };
 }
 
 // Tire au hasard des éléments de `list` (chance `chance` chacun), sans jamais tous les

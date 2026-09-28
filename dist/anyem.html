@@ -195,12 +195,12 @@ button.full { width: 100%; margin-top: 12px; }
 .bs-commands, .bs-info { overflow: hidden; }
 .cmd { min-width: 0; overflow: hidden; }
 .bs-stage canvas { display: block; box-sizing: border-box; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
-.bs-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; height: 212px; }
+.bs-bottom { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; height: 212px; }
 
 /* Équipe */
 .bs-party { display: flex; flex-direction: column; gap: 3px; padding: 5px; }
 .bs-hero {
-  flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 6px;
+  flex: 1; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 1.2fr); align-items: center; gap: 8px;
   background: rgba(0,0,0,.18); border: 1px solid transparent; border-left: 3px solid var(--c); border-radius: 4px;
   padding: 2px 6px; text-align: left; color: inherit; font-size: 14px; min-height: 0;
 }
@@ -220,9 +220,21 @@ button.full { width: 100%; margin-top: 12px; }
 .meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
 .meter.res.souls .fill { background: linear-gradient(#d9f2ee, #6fa8a0); } /* âmes du Macabre : pâles, spectrales */
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
-.bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
-.bs-status .st { position: relative; cursor: help; }
-.bs-status .st sub { font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
+.bs-status { display: flex; gap: 3px; align-items: center; font-size: 14px; min-width: 0; }
+/* Effets en cours, à droite des barres : icônes lisibles, sur deux lignes au besoin ; fiche au survol. */
+.bs-effects { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; min-width: 0; }
+.bs-status .st { position: relative; cursor: help; border-radius: 3px; padding: 1px; }
+.bs-status .st.buff { box-shadow: inset 0 0 0 1px rgba(126,224,126,.55); }
+.bs-status .st.debuff { box-shadow: inset 0 0 0 1px rgba(230,110,100,.7); }
+.bs-status .st:hover, .bs-status .st.pad-focus { background: rgba(255,255,255,.14); }
+.bs-status .st sub { position: absolute; right: 0; bottom: -1px; font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.fx-tip { position: fixed; z-index: 3000; max-width: 280px; padding: 7px 10px; pointer-events: none;
+  background: #1b1622; border: 2px solid #d8b56a; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  color: #ece6d8; font-size: 13px; line-height: 1.35; display: flex; flex-direction: column; gap: 2px; }
+.fx-tip[hidden] { display: none; }
+.fx-tip b { font-family: var(--font-title); font-size: 15px; }
+.fx-tip b.buff { color: #9fe08f; }
+.fx-tip b.debuff { color: #ff9a8a; }
 .bs-status .ko { font-size: 11px; color: #ff9a8a; font-weight: 600; }
 .bs-combo { color: #f3d58c; font-size: 11px; letter-spacing: 1px; margin-right: 3px; }
 .bs-combo.bs-souls { color: #bfe8e2; text-shadow: 0 0 4px rgba(150, 230, 220, .7); } /* âmes du Macabre */
@@ -1507,6 +1519,18 @@ const XP = {
   maxLevel: 50,
 };
 
+// Efficacité au combat (game/progression.js, combatEfficiency) : l'XP d'une victoire est
+// multipliée, pour chaque héros, par un coefficient entre min et max. Moitié participation
+// (tours où il a agi), moitié valeur apportée (dégâts, soins, boucliers, dégâts encaissés,
+// pondérés par `weights`), chaque part rapportée au meilleur de l'équipe. Un soigneur qui agit
+// à chaque tour ne descend donc jamais sous ×1, même quand il y a peu à soigner.
+const EFFICIENCY = {
+  min: 0.8,
+  max: 1.2,
+  turnsShare: 0.5,
+  weights: { dealt: 1, healed: 1.5, shielded: 1, taken: 0.5 },
+};
+
 // Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
 // maximum : une orientation complète coûte 45 points, voir data/talents.js).
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
@@ -1589,7 +1613,7 @@ const TIMING = {
   outcomeMs: 1200, // dernier coup, puis fin du combat
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, EFFICIENCY, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -8208,7 +8232,7 @@ return { ENEMIES };
 
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
-const { REWARDS, XP } = __modules["src/config.js"];
+const { REWARDS, XP, EFFICIENCY } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
@@ -8240,6 +8264,29 @@ function xpReward(level, enemies) {
   return enemies.reduce((sum, e) => sum + Math.round((XP.xpBase + XP.xpPerLevel * level) * mult(e, 'xpMult')), 0);
 }
 
+// Valeur apportée par un héros pendant le combat (hero.fight, suivi par game/combat.js).
+function fightValue(fight) {
+  if (!fight) return 0;
+  return Object.entries(EFFICIENCY.weights).reduce((sum, [k, w]) => sum + (fight[k] ?? 0) * w, 0);
+}
+
+/**
+ * Coefficient d'efficacité de chaque héros de l'équipe (même ordre), entre EFFICIENCY.min et
+ * max : participation (tours joués) et valeur apportée, rapportées au meilleur de l'équipe.
+ * Sans suivi de combat (hero.fight absent) : 1.
+ */
+function combatEfficiency(party) {
+  const fights = party.map((h) => h.fight ?? null);
+  if (fights.every((f) => !f)) return party.map(() => 1);
+  const bestTurns = Math.max(1, ...fights.map((f) => f?.turns ?? 0));
+  const bestValue = Math.max(1, ...fights.map(fightValue));
+  const { min, max, turnsShare } = EFFICIENCY;
+  return fights.map((f) => {
+    const score = turnsShare * ((f?.turns ?? 0) / bestTurns) + (1 - turnsShare) * (fightValue(f) / bestValue);
+    return +(min + (max - min) * score).toFixed(2);
+  });
+}
+
 function goldReward(level, enemies) {
   const best = Math.max(1, ...enemies.map((e) => mult(e, 'goldMult')));
   return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
@@ -8261,16 +8308,18 @@ function lootLevel(game, zoneLevel) {
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
  * (équipement dans le sac, matéria, consommables — voir loot.js),
- * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * XP pour chaque héros (tombés compris) multipliée par son coefficient d'efficacité au combat
+ * (`efficiency`, même ordre que l'équipe ; 1 par défaut). Aucun soin : PV et ressources
  * restent tels qu'à la fin du combat.
  * Un consommable trouvé alors qu'on en porte déjà le maximum est perdu.
- * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps }.
+ * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps, xpByHero }.
  */
-function applyVictory(game, { level, enemies, final = false }) {
+function applyVictory(game, { level, enemies, final = false, efficiency = null }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
   const { items: loot, materia, consumables: found } = rollLoot(lootLevel(game, level), enemies, { final, difficulty: difficultyOf(game) });
-  const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
+  const xpByHero = game.party.map((hero, i) => ({ hero, coef: efficiency?.[i] ?? 1, xp: Math.round(xp * (efficiency?.[i] ?? 1)) }));
+  const levelUps = xpByHero.filter(({ hero, xp: gained }) => gainXp(hero, gained) > 0).map(({ hero }) => hero);
   game.gold += gold;
   game.bag.push(...loot);
   game.materia ??= emptyMateria();
@@ -8288,7 +8337,11 @@ function applyVictory(game, { level, enemies, final = false }) {
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
+  const varies = xpByHero.some((e) => e.coef !== 1);
+  const xpText = varies
+    ? `XP selon l'efficacité : ${xpByHero.map((e) => `${e.hero.name} ${e.xp} (×${String(e.coef).replace('.', ',')})`).join(', ')}`
+    : `${xp} XP`;
+  return { message: `Victoire ! ${gold} pièces d'or ; ${xpText}.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps, xpByHero };
 }
 
 // Tire au hasard des éléments de `list` (chance `chance` chacun), sans jamais tous les
@@ -8340,7 +8393,7 @@ function restAtInn(game) {
   return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
 }
 
-return { xpReward, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
+return { xpReward, fightValue, combatEfficiency, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
 })();
 
 // ---- src/game/bestiary.js
@@ -8462,7 +8515,7 @@ const { generateFloorMap, reveal, moveMobs, mobAt, isFloor } = __modules["src/ga
 const { difficultyOf, enemyPower, difficultyLevel } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
-const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { applyVictory, applyDefeat, combatEfficiency } = __modules["src/game/progression.js"];
 const { recordKills } = __modules["src/game/bestiary.js"];
 const { awardMedal } = __modules["src/game/medals.js"];
 const { restoreParty } = __modules["src/game/consumables.js"];
@@ -8685,7 +8738,7 @@ function winFight(game, combat) {
   const boss = !!mob?.boss;
   const final = boss && exp.floor === DUNGEONS[key].floors;
   recordKills(game, combat.enemies);
-  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
+  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final, efficiency: combatEfficiency(combat.party) });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
@@ -13273,6 +13326,8 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
+    // Efficacité au combat (XP, voir combatEfficiency dans game/progression.js).
+    hero.fight = { dealt: 0, healed: 0, shielded: 0, taken: 0, turns: 0 };
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
@@ -13292,6 +13347,11 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     }
   }
   return cb;
+}
+
+// Crédite une part d'efficacité à un héros (dégâts infligés, soins, boucliers, dégâts encaissés).
+function credit(unit, field, amount) {
+  if (unit && amount > 0 && unit.fight && isHero(unit)) unit.fight[field] += amount;
 }
 
 // Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
@@ -13353,6 +13413,7 @@ function triggerTraps(cb, unit) {
   for (const trap of statusesOf(unit).filter((s) => s.trap)) {
     unit.statuses = statusesOf(unit).filter((s) => s !== trap);
     const { taken, fell } = hurt(cb, unit, trap.trap);
+    credit(trap.source, 'dealt', taken);
     log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
     if (fell) {
       logFall(cb, unit);
@@ -13383,11 +13444,13 @@ function endUnitTurn(cb, unit) {
       if (!unit.alive) break;
       if (tick.dot) {
         const { taken, fell } = hurt(cb, unit, tick.dot);
+        if (tick.status.source !== unit) credit(tick.status.source, 'dealt', taken);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
       if (tick.hot) {
         const healed = heal(unit, tick.hot);
+        credit(tick.status.source, 'healed', healed);
         log(cb, `${unit.name} est soigné par ${tick.status.name} (+${healed} PV).`, true);
       }
     }
@@ -13614,6 +13677,7 @@ function heroAct(cb, action) {
     return false;
   }
 
+  if (!hero.actedThisTurn && hero.fight) hero.fight.turns++;
   hero.actedThisTurn = true;
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
@@ -13686,6 +13750,8 @@ function strike(cb, attacker, target, opts) {
     notes.push(`en garde → ${dmg}`);
   }
   const r = hurt(cb, target, dmg);
+  credit(attacker, 'dealt', r.taken);
+  credit(target, 'taken', r.taken + r.absorbed);
   if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
   if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
   if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
@@ -13721,6 +13787,7 @@ function riposte(cb, attacker, defender) {
   if (random() >= chance(stats, 'riposte')) return;
   const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
   const { taken, fell } = hurt(cb, attacker, amount);
+  credit(defender, 'dealt', taken);
   log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
   if (fell) logFall(cb, attacker);
 }
@@ -13730,6 +13797,7 @@ function lifesteal(cb, hero, dealt) {
   const pct = statsOf(hero).lifestealPct;
   if (!pct || !dealt || !hero.alive) return;
   const healed = heal(hero, Math.round(dealt * pct / 100));
+  credit(hero, 'healed', healed);
   if (healed) log(cb, `${hero.name} vole ${healed} PV.`);
 }
 
@@ -13801,6 +13869,7 @@ function useSkill(cb, caster, skill, targets) {
         const burst = detonateStatus(target, skill.detonate);
         if (burst) {
           const { taken, fell } = hurt(cb, target, burst);
+          credit(caster, 'dealt', taken);
           dealt += taken;
           parts.push(`${target.name} : ${EFFECTS[skill.detonate].name} foudroyant, -${taken} PV`);
           if (fell) logFall(cb, target);
@@ -13808,6 +13877,7 @@ function useSkill(cb, caster, skill, targets) {
       }
     } else if (skill.kind === 'heal') {
       const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
+      credit(caster, 'healed', healed);
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -13824,15 +13894,19 @@ function useSkill(cb, caster, skill, targets) {
     }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
-      if (status.redirect) {
-        if (target === caster) continue; // on ne s'intercède pas pour soi-même
-        status.source = caster;
-      }
+      if (status.redirect && target === caster) continue; // on ne s'intercède pas pour soi-même
+      status.source = caster; // Intercession, et crédit des dégâts ou soins sur la durée
       applyStatus(cb, target, status);
+      credit(caster, 'shielded', status.shield ?? 0);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) {
+    const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+    status.source = caster;
+    applyStatus(cb, caster, status);
+    credit(caster, 'shielded', status.shield ?? 0);
+  }
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
@@ -19331,6 +19405,7 @@ const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src
 const { usesWeapon, weaponBlockedReason, skillWeaponProblem } = __modules["src/game/position.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { esc, range, resourceKind } = __modules["src/ui/html.js"];
 const { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } = __modules["src/ui/format.js"];
 const { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } = __modules["src/ui/icons.js"];
@@ -19346,6 +19421,7 @@ const { attachStage, setStagePick, setStageFocus, fitStage } = __modules["src/ui
 // compétence de zone, de groupe ou personnelle demande une confirmation.
 // Un héros à Énergie enchaîne plusieurs actions puis finit son tour ; tout héros peut
 // passer son tour. Raccourcis : 1-6 pour les commandes, Échap pour revenir.
+
 
 
 
@@ -19418,7 +19494,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${souls}${statusIcons(hero)}</span>
+      <span class="bs-status">${combo}${souls}<span class="bs-effects">${statusIcons(hero)}</span></span>
     </button>`;
 }
 
@@ -19428,17 +19504,55 @@ function meter(value, max, kind, label = 'PV') {
   return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
 }
 
+// Fiche détaillée d'un effet (bulle au survol) : nom, description, valeur, durée, lanceur.
+function effectTip(unit, s) {
+  const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
+  if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
+  if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
+  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
+  lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
+  if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
+  if (s.kind === 'debuff' && state.combat?.party.includes(unit)) lines.push('Reste après le combat, jusqu\'à un remède, une purification ou le retour au village.');
+  return lines.join('\n');
+}
+
 function statusIcons(unit) {
   if (!unit.alive) return '<span class="ko">K.O.</span>';
   const icons = [];
-  if (unit.guard) icons.push(`<span class="st buff" title="En garde : dégâts réduits de moitié">${iconHtml(COMMAND_ICONS.defend, 16)}</span>`);
+  if (unit.guard) icons.push(`<span class="st buff" data-fx-tip="${esc('En garde\nDégâts subis réduits de moitié jusqu\'à son prochain tour.')}">${iconHtml(COMMAND_ICONS.defend, 20)}</span>`);
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
-    const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    icons.push(`<span class="st ${s.kind}" data-fx-tip="${esc(effectTip(unit, s))}">${iconHtml(effectIcon(s.key), 20)}${s.stun || s.lasting ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
+}
+
+// Bulle des effets (survol, curseur de la manette) : posée au-dessus de l'icône.
+function wireEffectTips(app) {
+  let bubble = document.getElementById('fxTip');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.id = 'fxTip';
+    bubble.className = 'fx-tip';
+    document.body.append(bubble);
+  }
+  bubble.hidden = true;
+  app.querySelectorAll('[data-fx-tip]').forEach((el) => {
+    const show = () => {
+      const [title, ...rest] = el.dataset.fxTip.split('\n');
+      bubble.innerHTML = `<b class="${el.classList.contains('debuff') ? 'debuff' : 'buff'}">${esc(title)}</b>${rest.map((l) => `<span>${esc(l)}</span>`).join('')}`;
+      bubble.hidden = false;
+      const r = el.getBoundingClientRect();
+      const b = bubble.getBoundingClientRect();
+      bubble.style.left = `${Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))}px`;
+      bubble.style.top = `${Math.max(6, r.top - b.height - 8)}px`;
+    };
+    el.addEventListener('mouseenter', show);
+    el.addEventListener('focus', show);
+    el.addEventListener('mouseleave', () => { bubble.hidden = true; });
+    el.addEventListener('blur', () => { bubble.hidden = true; });
+  });
 }
 
 // ---- Commandes ----
@@ -19655,6 +19769,7 @@ function back() {
 }
 
 function wire(app, hero) {
+  wireEffectTips(app);
   app.querySelectorAll('[data-overlay]').forEach((b) => { b.onclick = () => { ui.overlay = b.dataset.overlay; rerender(); }; });
   app.querySelector('#closeOverlay')?.addEventListener('click', () => { ui.overlay = null; rerender(); });
   app.querySelectorAll('[data-hero]').forEach((b) => {
