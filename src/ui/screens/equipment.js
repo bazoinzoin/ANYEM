@@ -128,6 +128,16 @@ function drawHero(canvas, hero) {
 
 // ---- Sac ----
 
+// Matéria du sac, toujours visibles sous la grille : total par sorte, détail par rareté au survol
+// (et dans l'onglet Matéria).
+function materiaChips() {
+  return `<span class="inv-materia">${Object.keys(MATERIA_KINDS).map((kind) => {
+    const total = MATERIA_RARITIES.reduce((n, r) => n + state.materia[kind][r], 0);
+    const detail = MATERIA_RARITIES.map((r) => `${RARITIES[r].label} : ${state.materia[kind][r]}`).join('\n');
+    return `<button class="mat-chip" data-tab-link="materia" title="${esc(`${MATERIA_KINDS[kind].label}\n${detail}`)}">${iconHtml(MATERIA_ICONS[kind], 16)} ${total.toLocaleString('fr-FR')}</button>`;
+  }).join('')}</span>`;
+}
+
 function bagContent(hero) {
   if (view.tab === 'consumables') {
     const owned = CONSUMABLE_ORDER.filter((k) => state.consumables[k] > 0);
@@ -136,8 +146,14 @@ function bagContent(hero) {
       || '<p class="hint">Aucun consommable.</p>';
   }
   if (view.tab === 'materia') {
-    return Object.keys(MATERIA_KINDS).flatMap((kind) => MATERIA_RARITIES.map((r) => `
-      <div class="bag-cell ${state.materia[kind][r] ? '' : 'empty'}" style="--rc:${RARITIES[r].color}" title="${esc(`${MATERIA_KINDS[kind].label} ${RARITIES[r].label.toLowerCase()}`)}">${iconHtml(MATERIA_ICONS[kind], 32)}<sup>${state.materia[kind][r]}</sup></div>`)).join('');
+    // Tableau : une ligne par sorte (arme, armure, bijou), une colonne par rareté.
+    return `<div class="materia-table">
+      <span></span>${MATERIA_RARITIES.map((r) => `<span class="mt-head" style="color:${RARITIES[r].color}">${esc(RARITIES[r].label)}</span>`).join('')}
+      ${Object.keys(MATERIA_KINDS).map((kind) => `
+        <span class="mt-kind">${iconHtml(MATERIA_ICONS[kind], 16)} ${esc(MATERIA_KINDS[kind].label.replace('Matéria ', ''))}</span>
+        ${MATERIA_RARITIES.map((r) => `<div class="bag-cell ${state.materia[kind][r] ? '' : 'empty'}" style="--rc:${RARITIES[r].color}" title="${esc(`${MATERIA_KINDS[kind].label} ${RARITIES[r].label.toLowerCase()}`)}">${iconHtml(MATERIA_ICONS[kind], 32)}<sup>${state.materia[kind][r]}</sup></div>`).join('')}`).join('')}
+    </div>
+    <p class="hint mt-note">Les matéria servent à la Forge : améliorer, fabriquer, forge divine.</p>`;
   }
   const { items, page, pages } = paginate(bagItems(state.bag, view.tab, hero), view.page, view.perPage);
   view.page = page;
@@ -148,7 +164,7 @@ function bagContent(hero) {
   });
   for (let i = items.length; i < view.perPage; i++) cells.push('<div class="bag-cell empty"></div>');
   return `${cells.join('')}
-    <div class="bag-pager"><button id="pgPrev" ${page ? '' : 'disabled'}>◂</button><span>Page ${page + 1} / ${pages} · ${state.bag.length} objets</span><button id="pgNext" ${page < pages - 1 ? '' : 'disabled'}>▸</button></div>`;
+    <div class="bag-pager"><button id="pgPrev" ${page ? '' : 'disabled'}>◂</button><span>Page ${page + 1} / ${pages} · ${state.bag.length} objets</span><button id="pgNext" ${page < pages - 1 ? '' : 'disabled'}>▸</button>${materiaChips()}</div>`;
 }
 
 // Nombre de cases par page : ce qui tient dans la grille (mesuré après affichage).
@@ -252,6 +268,7 @@ function wire(app, hero) {
   app.querySelectorAll('[data-hero]').forEach((b) => { b.onclick = () => openEquipment(Number(b.dataset.hero)); });
   app.querySelector('#backHub').onclick = () => goBack();
   app.querySelector('#toTalents').onclick = () => openTalents(view.heroIndex);
+  app.querySelectorAll('[data-tab-link]').forEach((b) => { b.onclick = () => { view.tab = b.dataset.tabLink; view.page = 0; rerender(); }; });
   app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => { view.tab = b.dataset.tab; view.page = 0; rerender(); }; });
   app.querySelector('#pgPrev')?.addEventListener('click', () => { view.page--; rerender(); });
   app.querySelector('#pgNext')?.addEventListener('click', () => { view.page++; rerender(); });
