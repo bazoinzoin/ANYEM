@@ -5,7 +5,7 @@
 // orientations) et tous les légendaires en icônes.
 
 import { state } from '../../state.js';
-import { PARTY_ORDER, CLASS_ORDER, XP } from '../../config.js';
+import { PARTY_ORDER, CLASS_ORDER, XP, SOULS } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES } from '../../data/items.js';
@@ -25,6 +25,7 @@ import { LOOK_PARTS, BODIES, TOPS } from '../../data/appearance.js';
 import { defaultLook, cycleLook, randomLook, lookKey } from '../../game/appearance.js';
 import { lookSprite } from '../heroSprite.js';
 import { drawActor } from '../actors.js';
+import { branchGear, branchGearLine } from '../gearGuide.js';
 
 // Choix en cours (classes et noms), conservés quand on change une classe.
 // Détails ouverts : { tab: 'classes' | 'legendaries', classKey } ou null.
@@ -121,10 +122,16 @@ function heroColumn(key, i) {
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
-      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${STATS[cls.mainStat].label}${['paladin', 'scarifie'].includes(key) ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
+      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${esc(classStats(key))} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(`${b.name} : ${branchGearLine(key, b)}`))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
       <div class="look-actions"><button data-random="${i}">Au hasard</button><button data-reset="${i}">Tenue de la classe</button></div>
     </section>`;
+}
+
+// Stats conseillées des orientations de la classe : « Force ou Intelligence ».
+function classStats(key) {
+  const labels = [...new Set(TALENTS[key].map((b) => branchGear(key, b).stat))];
+  return labels.join(' ou ');
 }
 
 // Une ligne « Coupe ◀ Courts ▶ » avec un échantillon de couleur pour les teintes.
@@ -184,7 +191,9 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.hp
+  const resourceText = r.souls
+    ? `Âmes : il absorbe l'âme de chaque ennemi qui meurt (${r.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe. Ses coups de base sont gratuits, les plus forts dépensent des âmes. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
+    : r.hp
     ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
     : r.multiAction
     ? `${r.name} : ${r.max} au maximum, pleine au début de chaque combat, +${r.regen} par tour. Chaque action en coûte (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}) : plusieurs actions par tour.`
@@ -209,6 +218,7 @@ function classesTab() {
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
+              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}${branchGear(key, b).limited ? ' (imposé quand c\'est l\'orientation principale)' : ''}</small><br>
               ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>

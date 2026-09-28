@@ -102,6 +102,13 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 @keyframes slot-glow { from { filter: brightness(1); } to { filter: brightness(1.3); } }
 .eq-slot sup, .bag-cell sup { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
 .inv-help { font-size: 12px; text-align: center; margin: 0; }
+/* Guide d'équipement par orientation (ui/gearGuide.js) : écran Personnage et création. */
+.gear-guide { font-size: 12px; line-height: 1.3; max-width: 100%; margin: 0; }
+.gear-guide p { margin: 0 0 3px; }
+.gear-guide ul { margin: 0; padding: 0; list-style: none; }
+.gear-guide li { padding: 1px 4px; color: var(--dim); border-left: 2px solid transparent; }
+.gear-guide li.current { color: var(--cream); border-left-color: var(--gold); background: rgba(201, 168, 118, .08); }
+.gear-guide .hint { margin: 3px 0 0; font-size: 11px; }
 .inv-bag { grid-area: bag; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .inv-bag.over { filter: brightness(1.2); }
 .bag-tabs { display: flex; flex-wrap: wrap; gap: 4px; }

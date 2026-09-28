@@ -218,6 +218,7 @@ button.full { width: 100%; margin-top: 12px; }
 .meter.res .fill, .meter.res.mana .fill { background: linear-gradient(#8ec5ff, #3a6fc0); }
 .meter.res.energy .fill { background: linear-gradient(#ffe76a, #c9a21a); }
 .meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
+.meter.res.souls .fill { background: linear-gradient(#d9f2ee, #6fa8a0); } /* âmes du Macabre : pâles, spectrales */
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
 .bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
 .bs-status .st { position: relative; cursor: help; }
@@ -666,6 +667,13 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 @keyframes slot-glow { from { filter: brightness(1); } to { filter: brightness(1.3); } }
 .eq-slot sup, .bag-cell sup { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
 .inv-help { font-size: 12px; text-align: center; margin: 0; }
+/* Guide d'équipement par orientation (ui/gearGuide.js) : écran Personnage et création. */
+.gear-guide { font-size: 12px; line-height: 1.3; max-width: 100%; margin: 0; }
+.gear-guide p { margin: 0 0 3px; }
+.gear-guide ul { margin: 0; padding: 0; list-style: none; }
+.gear-guide li { padding: 1px 4px; color: var(--dim); border-left: 2px solid transparent; }
+.gear-guide li.current { color: var(--cream); border-left-color: var(--gold); background: rgba(201, 168, 118, .08); }
+.gear-guide .hint { margin: 3px 0 0; font-size: 11px; }
 .inv-bag { grid-area: bag; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .inv-bag.over { filter: brightness(1.2); }
 .bag-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -10617,7 +10625,7 @@ function tip(text, extraClass = '') {
 }
 
 // Classe CSS d'une ressource, pour la couleur de sa barre : mana (bleu), energy (jaune), rage (rouge).
-const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage' };
+const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage', 'Âmes': 'souls' };
 function resourceKind(name) {
   return RESOURCE_KINDS[name] ?? 'mana';
 }
@@ -10712,6 +10720,18 @@ function effectIcon(key) {
 
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
+  // Macabre : crânes, os, spectres.
+  [/déchaînement/i, 863],
+  [/outre-tombe|décharné/i, 861],
+  [/hécatombe|citadelle des damnés/i, 1297],
+  [/fracas d'os|carapace d'ossements/i, 849],
+  [/sépulcrale/i, 862],
+  [/écrasement/i, 1478],
+  [/mur des morts|nuée spectrale/i, 1053],
+  [/trait funeste/i, 1051],
+  [/explosion d'âme/i, 1052],
+  [/requiem/i, 1296],
+  [/malédiction/i, 750],
   // Scarifié : sang, plaies, sacrifice (icônes rouges).
   [/pacte/i, 1180],
   [/dernier souffle/i, 1230],
@@ -10747,11 +10767,12 @@ const BRANCH_ICONS = {
   Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
   'Acharné': 1227, Violent: 1225, 'Liens du sang': 1092,
+  'Soldat décharné': 672, "Mur d'os": 849, 'Nécromancien': 1052,
 };
 function branchIcon(branch) {
   return BRANCH_ICONS[branch.name] ?? 1000;
 }
-const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182 };
+const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182, macabre: 862 };
 
 // Commandes de combat.
 const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
@@ -10763,6 +10784,7 @@ const TALENT_STAT_ICONS = {
   esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
   lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
   dotPct: 674, vsDebuffedPct: 616, healPct: GOLD_ICONS.soin, selfRevive: 1180, aoePct: 724, trapPct: 127,
+  soulPhys: 608, soulMag: 609, soulDef: 612, soulCrit: 670, soulBlock: 663, soulLifesteal: 676, soulHeal: 862, soulWard: 862,
 };
 function talentNodeIcon(node, skills = []) {
   if (skills.length) return skillIconIndex(skills[0]);
@@ -15460,6 +15482,10 @@ function consumableEstimate(key, hero) {
  * « 14 PV » (héros donné) / « 6 % PV » (sans héros) ; un sacrifice coûte tout sauf 1 PV.
  */
 function skillCostLabel(cls, skill, hero = null) {
+  if (cls.resource.souls) {
+    if (skill.allSouls) return skill.soulsSpent ? `toutes les âmes (${skill.soulsSpent})` : 'toutes les âmes';
+    return skill.cost ? `${skill.cost} âme${skill.cost > 1 ? 's' : ''}` : 'gratuit';
+  }
   if (!usesHp(cls)) return `${skill.cost} ${cls.resource.name}`;
   if (skill.sacrifice) return 'tous les PV sauf 1';
   return hero ? `${hpCost(hero, skill)} PV` : `${skill.cost} % PV`;
@@ -15468,10 +15494,106 @@ function skillCostLabel(cls, skill, hero = null) {
 return { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel };
 })();
 
+// ---- src/ui/gearGuide.js
+__modules["src/ui/gearGuide.js"] = (() => {
+const { CLASSES } = __modules["src/data/classes.js"];
+const { TALENTS } = __modules["src/data/talents.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { ARMOR_TYPES, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { mainBranch } = __modules["src/game/talents.js"];
+const { esc } = __modules["src/ui/html.js"];
+// Guide d'équipement : ce que porte chaque orientation (stat conseillée, armure, armes), pour
+// les écrans Personnage et Création. Les limites viennent de la classe (`gear`) et, quand elle
+// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation principale).
+
+
+
+
+
+
+
+
+// « épée, hache ou masse (une ou deux mains) », « bâton »…
+function weaponsText(weapons) {
+  const bases = [];
+  for (const w of weapons) {
+    const base = w.replace(/2m$/, '');
+    let entry = bases.find((b) => b.base === base);
+    if (!entry) bases.push(entry = { base, one: false, two: false });
+    if (w.endsWith('2m')) entry.two = true;
+    else entry.one = true;
+  }
+  const name = (b) => (WEAPON_TYPES[b.base] ?? WEAPON_TYPES[`${b.base}2m`]).name.toLowerCase().replace(/ à deux mains$/, '');
+  const groups = [
+    [bases.filter((b) => b.one && b.two), ' (une ou deux mains)'],
+    [bases.filter((b) => b.one && !b.two), ''],
+    [bases.filter((b) => !b.one && b.two), ' à deux mains'],
+  ].filter(([list]) => list.length);
+  return groups.map(([list, suffix]) => orList(list.map(name)) + suffix).join(' ; ');
+}
+
+function orList(words) {
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} ou ${words[words.length - 1]}` : words[0] ?? '';
+}
+
+/**
+ * Équipement d'une orientation : { stat, armor, weapons, offHand, limited } (textes) ;
+ * limited = l'orientation restreint l'équipement de la classe quand elle est principale.
+ */
+function branchGear(classKey, branch) {
+  const cls = CLASSES[classKey];
+  const g = branch.gear ?? {};
+  const keep = (list, only) => (only ? list.filter((x) => only.includes(x)) : list);
+  const armor = keep(cls.gear.armor, g.armor);
+  const weapons = keep(cls.gear.weapons, g.weapons);
+  const off = keep(cls.gear.offHand, g.offHand);
+  const offWeapons = off.filter((x) => x !== 'bouclier');
+  return {
+    stat: STATS[g.stat ?? cls.mainStat].label,
+    armor: orList(armor.map((a) => ARMOR_TYPES[a].label.replace('Armure ', 'armure '))),
+    weapons: weaponsText(weapons),
+    offHand: [off.includes('bouclier') ? 'bouclier' : '', offWeapons.length ? `une 2e arme (${weaponsText(offWeapons)})` : ''].filter(Boolean).join(' ou '),
+    limited: !!(g.armor || g.weapons || g.offHand),
+  };
+}
+
+// Une ligne : « Gardien — Force · armure lourde · épée, hache… + bouclier ».
+function branchGearLine(classKey, branch) {
+  const g = branchGear(classKey, branch);
+  return `${g.stat} · ${g.armor} · ${g.weapons}${g.offHand ? ` + ${g.offHand}` : ''}`;
+}
+
+// Stat conseillée du héros : celle de son orientation principale (sinon celle de la classe).
+function preferredStat(hero) {
+  return mainBranch(hero)?.gear?.stat ?? CLASSES[hero.classKey].mainStat;
+}
+
+/**
+ * Bloc de l'écran Personnage : orientation principale, ce qu'elle permet de porter et la stat
+ * à chercher sur les objets ; les autres orientations en dessous, en petit.
+ */
+function gearGuideHtml(hero) {
+  const branches = TALENTS[hero.classKey] ?? [];
+  const main = mainBranch(hero);
+  const anyLimit = branches.some((b) => branchGear(hero.classKey, b).limited);
+  const head = main
+    ? `<b>${esc(main.name)}</b> (orientation principale) : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
+    : `Pas encore d'orientation principale${anyLimit ? ' : tout l\'équipement de la classe est permis' : ''}.`;
+  return `
+    <div class="gear-guide">
+      <p>${head}</p>
+      <ul>${branches.map((b) => `<li class="${b === main ? 'current' : ''}"><b>${esc(b.name)}</b> — ${esc(branchGearLine(hero.classKey, b))}</li>`).join('')}</ul>
+      ${anyLimit ? '<p class="hint">L\'orientation principale (la plus investie en talents) décide des armes et de l\'armure.</p>' : ''}
+    </div>`;
+}
+
+return { weaponsText, branchGear, branchGearLine, preferredStat, gearGuideHtml };
+})();
+
 // ---- src/ui/screens/create.js
 __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { PARTY_ORDER, CLASS_ORDER, XP } = __modules["src/config.js"];
+const { PARTY_ORDER, CLASS_ORDER, XP, SOULS } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES } = __modules["src/data/items.js"];
@@ -15491,11 +15613,13 @@ const { LOOK_PARTS, BODIES, TOPS } = __modules["src/data/appearance.js"];
 const { defaultLook, cycleLook, randomLook, lookKey } = __modules["src/game/appearance.js"];
 const { lookSprite } = __modules["src/ui/heroSprite.js"];
 const { drawActor } = __modules["src/ui/actors.js"];
+const { branchGear, branchGearLine } = __modules["src/ui/gearGuide.js"];
 // Création de l'équipe, plein écran : quatre colonnes (une par héros) avec l'aperçu animé
 // du personnage, son nom, sa classe et son apparence (coupe, couleur des cheveux, yeux,
 // peau, haut et bas du corps : data/appearance.js). « Classes et légendaires » ouvre une
 // fenêtre à deux onglets : le détail d'une classe (stats, sorts et équipement de départ,
 // orientations) et tous les légendaires en icônes.
+
 
 
 
@@ -15614,10 +15738,16 @@ function heroColumn(key, i) {
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
-      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${STATS[cls.mainStat].label}${['paladin', 'scarifie'].includes(key) ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
+      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${esc(classStats(key))} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(`${b.name} : ${branchGearLine(key, b)}`))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
       <div class="look-actions"><button data-random="${i}">Au hasard</button><button data-reset="${i}">Tenue de la classe</button></div>
     </section>`;
+}
+
+// Stats conseillées des orientations de la classe : « Force ou Intelligence ».
+function classStats(key) {
+  const labels = [...new Set(TALENTS[key].map((b) => branchGear(key, b).stat))];
+  return labels.join(' ou ');
 }
 
 // Une ligne « Coupe ◀ Courts ▶ » avec un échantillon de couleur pour les teintes.
@@ -15677,7 +15807,9 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.hp
+  const resourceText = r.souls
+    ? `Âmes : il absorbe l'âme de chaque ennemi qui meurt (${r.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe. Ses coups de base sont gratuits, les plus forts dépensent des âmes. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
+    : r.hp
     ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
     : r.multiAction
     ? `${r.name} : ${r.max} au maximum, pleine au début de chaque combat, +${r.regen} par tour. Chaque action en coûte (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}) : plusieurs actions par tour.`
@@ -15702,6 +15834,7 @@ function classesTab() {
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
+              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}${branchGear(key, b).limited ? ' (imposé quand c\'est l\'orientation principale)' : ''}</small><br>
               ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>
@@ -16010,6 +16143,7 @@ const { BAG_TABS, bagItems, paginate } = __modules["src/ui/bagView.js"];
 const { drawActor } = __modules["src/ui/actors.js"];
 const { heroSprite } = __modules["src/ui/heroSprite.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { gearGuideHtml, preferredStat } = __modules["src/ui/gearGuide.js"];
 // Écran Personnage (équipement et inventaire), plein écran et sans défilement :
 // à gauche les statistiques du héros (écart en vert / rouge quand on survole un objet),
 // au centre le héros et ses emplacements, à droite le sac en grille d'icônes (onglets,
@@ -16017,6 +16151,7 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 // Équiper : glisser un objet du sac sur un emplacement (les emplacements possibles
 // s'allument), double-clic, ou clic sur l'objet puis sur l'emplacement. Retirer : glisser
 // l'objet équipé vers le sac, ou double-clic.
+
 
 
 
@@ -16077,7 +16212,8 @@ function renderEquipment(app) {
           ${DOLL.map(([slot, col, row]) => slotCell(hero, slot, col, row)).join('')}
           <canvas id="dollHero" width="96" height="124" style="grid-column:2; grid-row:1 / span 5"></canvas>
         </div>
-        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic). Glissez-le vers le sac pour le retirer.</p>
+        ${gearGuideHtml(hero)}
+        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic) ; vers le sac pour le retirer.</p>
       </section>
       <section class="win inv-bag" id="bagDrop">
         <nav class="bag-tabs">${BAG_TABS.map((t) => `<button class="bag-tab ${t.id === view.tab ? 'current' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}</nav>
@@ -16100,7 +16236,7 @@ function statGrid(hero, preview) {
   const cls = getClass(hero);
   const rows = [
     ['physPower', 'Puiss. physique', ''], ['magPower', 'Puiss. magique', ''],
-    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === cls.mainStat ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
+    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === preferredStat(hero) ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
   ];
   return rows.map(([k, label, suffix]) => {
     const d = after ? after[k] - now[k] : 0;
@@ -18557,8 +18693,9 @@ function skillButtons(hero) {
   const stats = statsOf(hero);
   const cls = getClass(hero);
   return getSkills(hero).map((base, i) => {
-    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`) : s.cost;
+    const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
+    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`)
+      : cls.resource.souls ? (s.cost ? `${s.cost} âme${s.cost > 1 ? 's' : ''}` : 'gratuit') : s.cost;
     return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
       <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost${usesHp(cls) ? ' hp' : ''}" title="${esc(skillCostLabel(cls, s, hero))}">${cost}</small></button>`;
@@ -18641,7 +18778,7 @@ function helpFor(hero, el) {
   const crit = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} %, +${stats.critDmg} % de dégâts.`;
   if (el.dataset.skill !== undefined) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
-    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
+    const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
     const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
     return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${esc(skillCostLabel(cls, s, hero))}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
@@ -19621,9 +19758,12 @@ const MANUAL = {
   distance: { terms: ['à distance'], desc: "Position de combat en retrait : moins souvent ciblé ; l'arc ne sert qu'à distance." },
   boss: { terms: ['boss'], desc: "Gardien du dernier étage de chaque sous-zone : bien plus fort, bien meilleur butin. Le vaincre ouvre un point de départ." },
   elite: { terms: ['élite', 'élites'], desc: 'Monstre renforcé (plus gros, 1,5 × plus d\'XP et d\'or).' },
+  ame: { terms: ['âme', 'âmes', 'Âme', 'Âmes'], desc: "Ressource du Macabre : il absorbe l'âme de chaque ennemi qui meurt (3 au plus), la garde d'un combat à l'autre et la perd au repos ou s'il tombe. Chaque âme le renforce ou se dépense dans ses compétences, mais provoque un contrecoup." },
+  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
-  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 45 points.' },
+  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 36 points. Chacune conseille une stat principale à chercher sur les objets.' },
+  orientationPrincipale: { terms: ['orientation principale'], desc: "L'orientation qui a le plus de points de talent. Pour l'Impassible et le Macabre, elle décide des armes et de l'armure permises ; à égalité, tout l'équipement de la classe est permis." },
   grosPalier: { terms: ['gros palier', 'gros paliers'], desc: 'Palier obligatoire : sort de départ, nouvelle compétence, passif important ou signature.' },
   petitPalier: { terms: ['petit palier', 'petits paliers'], desc: 'Trois bonus de stats au choix : on n\'en prend qu\'un, à tous ses rangs.' },
   signature: { terms: ['signature'], desc: "Compétence ultime d'une orientation, au dernier palier." },

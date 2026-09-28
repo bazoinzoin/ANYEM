@@ -98,6 +98,10 @@ export function consumableEstimate(key, hero) {
  * « 14 PV » (héros donné) / « 6 % PV » (sans héros) ; un sacrifice coûte tout sauf 1 PV.
  */
 export function skillCostLabel(cls, skill, hero = null) {
+  if (cls.resource.souls) {
+    if (skill.allSouls) return skill.soulsSpent ? `toutes les âmes (${skill.soulsSpent})` : 'toutes les âmes';
+    return skill.cost ? `${skill.cost} âme${skill.cost > 1 ? 's' : ''}` : 'gratuit';
+  }
   if (!usesHp(cls)) return `${skill.cost} ${cls.resource.name}`;
   if (skill.sacrifice) return 'tous les PV sauf 1';
   return hero ? `${hpCost(hero, skill)} PV` : `${skill.cost} % PV`;

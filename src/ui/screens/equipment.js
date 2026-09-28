@@ -22,6 +22,7 @@ import { BAG_TABS, bagItems, paginate } from '../bagView.js';
 import { drawActor } from '../actors.js';
 import { heroSprite } from '../heroSprite.js';
 import { openTalents } from './talents.js';
+import { gearGuideHtml, preferredStat } from '../gearGuide.js';
 
 // État propre à l'écran : héros affiché, onglet et page du sac, objet choisi
 // ({ from: 'bag', id } | { from: 'slot', slot }), taille d'une page de la grille.
@@ -65,7 +66,8 @@ export function renderEquipment(app) {
           ${DOLL.map(([slot, col, row]) => slotCell(hero, slot, col, row)).join('')}
           <canvas id="dollHero" width="96" height="124" style="grid-column:2; grid-row:1 / span 5"></canvas>
         </div>
-        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic). Glissez-le vers le sac pour le retirer.</p>
+        ${gearGuideHtml(hero)}
+        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic) ; vers le sac pour le retirer.</p>
       </section>
       <section class="win inv-bag" id="bagDrop">
         <nav class="bag-tabs">${BAG_TABS.map((t) => `<button class="bag-tab ${t.id === view.tab ? 'current' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}</nav>
@@ -88,7 +90,7 @@ function statGrid(hero, preview) {
   const cls = getClass(hero);
   const rows = [
     ['physPower', 'Puiss. physique', ''], ['magPower', 'Puiss. magique', ''],
-    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === cls.mainStat ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
+    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === preferredStat(hero) ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
   ];
   return rows.map(([k, label, suffix]) => {
     const d = after ? after[k] - now[k] : 0;
