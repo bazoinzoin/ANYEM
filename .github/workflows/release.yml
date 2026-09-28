@@ -1,0 +1,58 @@
+# Version officielle d'Anyem : à chaque étiquette vX.Y.Z poussée sur GitHub, fabrique le jeu
+# Windows (Electron, sur une machine Windows) et publie une page de téléchargement (Release)
+# avec Anyem-X.Y.Z.exe, le zip et anyem.html, et la section de CHANGELOG.md de la version.
+# Lancé à la main (onglet Actions, « Run workflow »), il fabrique seulement le .exe à tester
+# (téléchargeable dans les artefacts de l'exécution), sans rien publier.
+name: Version Windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: npm test
+      - name: Version cohérente avec l'étiquette
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "package.json ($VERSION) ≠ étiquette ($GITHUB_REF_NAME)"; exit 1; }
+          node tools/changelog.mjs "$VERSION" > release-notes.md
+      - name: Préparer la version Windows
+        run: npm run desktop
+      - name: Fabriquer le .exe
+        working-directory: desktop
+        run: |
+          npm install --no-audit --no-fund
+          npm run dist
+      - name: Artefacts (.exe à tester)
+        uses: actions/upload-artifact@v4
+        with:
+          name: anyem-windows
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.zip
+            dist/anyem.html
+      - name: Publier la version
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Anyem ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: |
+            desktop/release/*.exe
+            desktop/release/*.zip
+            dist/anyem.html
+            dist/anyem.ico

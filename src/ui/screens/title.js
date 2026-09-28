@@ -15,6 +15,7 @@ import { drawActor } from '../actors.js';
 import { CLASS_LOOKS } from '../../data/appearance.js';
 import { lookSprite } from '../heroSprite.js';
 import { esc } from '../html.js';
+import { VERSION } from '../../version.js';
 
 const MENU = [
   { id: 'new', label: 'Nouvelle partie', hint: 'Choisir un emplacement de sauvegarde, puis créer son équipe.' },
@@ -45,6 +46,7 @@ export function renderTitle(app) {
     <div class="title-screen">
       <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas></div>
       <div class="title-vignette" aria-hidden="true"></div>
+      <span class="title-version" title="Version du jeu (voir CHANGELOG.md)">v${VERSION}</span>
       <div class="title-logo">
         <span class="title-orn top" aria-hidden="true"><i></i><b></b><i></i></span>
         <h1>Anyem</h1>

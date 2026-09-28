@@ -570,3 +570,4 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 .title-screen .title-item { font-size: 21px; }
 .title-screen .title-hint { font-size: 13px; }
 @media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
+.title-version { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: .08em; color: rgba(243,213,140,.75); text-shadow: 0 2px 0 #1a0d04; pointer-events: none; }

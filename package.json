@@ -1,13 +1,14 @@
 {
   "name": "anyem",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Anyem — RPG tour par tour roguelite (navigateur, JavaScript vanilla)",
+  "description": "Anyem — RPG tour par tour roguelite (JavaScript vanilla, version Windows via Electron)",
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
     "build": "node tools/build.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "desktop": "node tools/desktop.mjs"
   },
   "engines": {
     "node": ">=20"

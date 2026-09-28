@@ -1114,6 +1114,7 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 .title-screen .title-item { font-size: 21px; }
 .title-screen .title-hint { font-size: 13px; }
 @media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
+.title-version { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: .08em; color: rgba(243,213,140,.75); text-shadow: 0 2px 0 #1a0d04; pointer-events: none; }
 </style>
 
 </head>
@@ -13246,6 +13247,16 @@ function setupDebugGame(game, names = [], classes = PARTY_ORDER) {
 return { itemBases, maxedHero, setupDebugGame };
 })();
 
+// ---- src/version.js
+__modules["src/version.js"] = (() => {
+
+// Version du jeu (affichée sur l'écran titre). Doit être égale à celle de package.json et
+// avoir sa section dans CHANGELOG.md (un test le vérifie). Voir docs/RELEASES.md.
+const VERSION = '1.0.0';
+
+return { VERSION };
+})();
+
 // ---- src/ui/screens/title.js
 __modules["src/ui/screens/title.js"] = (() => {
 const { state, resetGame } = __modules["src/state.js"];
@@ -13260,10 +13271,12 @@ const { drawActor } = __modules["src/ui/actors.js"];
 const { CLASS_LOOKS } = __modules["src/data/appearance.js"];
 const { lookSprite } = __modules["src/ui/heroSprite.js"];
 const { esc } = __modules["src/ui/html.js"];
+const { VERSION } = __modules["src/version.js"];
 // Menu principal, plein écran : nom du jeu orné sur une scène animée (clairière de nuit, feu
 // de camp avec étincelles, les six classes autour, lucioles), menu façon JRPG (flèches + Entrée, ou souris) : Nouvelle partie,
 // Charger (emplacements de sauvegarde, ui/screens/slots.js), Options, Quitter, Debug (partie de
 // test, voir game/debug.js).
+
 
 
 
@@ -13307,6 +13320,7 @@ function renderTitle(app) {
     <div class="title-screen">
       <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas></div>
       <div class="title-vignette" aria-hidden="true"></div>
+      <span class="title-version" title="Version du jeu (voir CHANGELOG.md)">v${VERSION}</span>
       <div class="title-logo">
         <span class="title-orn top" aria-hidden="true"><i></i><b></b><i></i></span>
         <h1>Anyem</h1>
