@@ -39,6 +39,14 @@ jobs:
           fi
           node tools/changelog.mjs "$VERSION" > release-notes.md
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          # Versions 0.x : bêta, publiées comme pré-versions.
+          if [[ "$VERSION" == 0.* ]]; then
+            echo "beta=true" >> "$GITHUB_OUTPUT"
+            echo "title=Anyem v$VERSION (bêta)" >> "$GITHUB_OUTPUT"
+          else
+            echo "beta=false" >> "$GITHUB_OUTPUT"
+            echo "title=Anyem v$VERSION" >> "$GITHUB_OUTPUT"
+          fi
       - name: Préparer la version Windows
         run: npm run desktop
       - name: Fabriquer le .exe
@@ -60,7 +68,8 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: Anyem ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.title }}
+          prerelease: ${{ steps.version.outputs.beta == 'true' }}
           body_path: release-notes.md
           files: |
             desktop/release/*.exe

@@ -46,7 +46,7 @@ export function renderTitle(app) {
     <div class="title-screen">
       <div class="title-scene"><canvas id="titleScene" width="${W}" height="${H}"></canvas></div>
       <div class="title-vignette" aria-hidden="true"></div>
-      <span class="title-version" title="Version du jeu (voir CHANGELOG.md)">v${VERSION}</span>
+      <span class="title-version" title="Version du jeu (voir CHANGELOG.md)">v${VERSION}${VERSION.startsWith('0.') ? ' bêta' : ''}</span>
       <div class="title-logo">
         <span class="title-orn top" aria-hidden="true"><i></i><b></b><i></i></span>
         <h1>Anyem</h1>

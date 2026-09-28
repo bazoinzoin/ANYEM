@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
-import { generateItem, rollRarity, itemStats, itemStatLines } from '../src/game/items.js';
+import { generateItem, rollRarity, itemStats, itemStatLines, possibleSecondaries } from '../src/game/items.js';
 import { RARITIES, SECONDARY_STATS, LEGENDARIES, WEAPON_TYPES, ARMOR_PIECES, SLOTS } from '../src/data/items.js';
 
 beforeEach(() => setRandomSource(null));
@@ -174,4 +174,17 @@ test('chaque stat secondaire indique sa fourchette possible (niveau, rareté, am
   const boosted = itemStatLines(item).filter((l) => l.secondary)[0];
   assert.ok(boosted.range.hi >= before && boosted.range.lo <= boosted.value && boosted.value <= boosted.range.hi);
   assert.ok(itemStatLines(item).filter((l) => !l.secondary).every((l) => !l.range), 'pas de fourchette sur les stats fixes');
+});
+
+test('secondaires possibles : toutes celles qu\'un objet peut recevoir, avec leur fourchette', () => {
+  const item = generateItem({ level: 50, legendary: 'durandal' });
+  const list = possibleSecondaries(item);
+  const byStat = Object.fromEntries(list.map((l) => [l.stat, l]));
+  assert.ok(list.length > RARITIES.legendaire.secondaries);
+  assert.ok(!('atq' in byStat) && !(item.primary in byStat), 'jamais une stat déjà portée');
+  for (const [stat, value] of Object.entries(item.bonus)) {
+    assert.ok(byStat[stat], `${stat} fait partie des possibles`);
+    assert.ok(value >= byStat[stat].lo && value <= byStat[stat].hi, `${stat} dans sa fourchette`);
+  }
+  assert.deepEqual(possibleSecondaries(generateItem({ level: 50, rarity: 'commun' })), []);
 });

@@ -12,6 +12,12 @@ automatiquement par GitHub à partir de `dist/anyem.html`. Chaque version est ar
   `.exe`, le zip, `anyem.html` et l'icône. Les anciennes versions restent téléchargeables.
 
 Numérotation : `X` grande refonte, `Y` nouvelle version jouable (nouveautés), `Z` corrections.
+Tant que `X` vaut 0, le jeu est en **bêta** : la page GitHub est une « pré-version » intitulée
+« Anyem vX.Y.Z (bêta) », et l'écran titre affiche « bêta ». La première version finale sera 1.0.0.
+Les versions 0.0.x du journal sont les étapes d'avant le jeu Windows (sans page de téléchargement).
+
+Retirer une version publiée par erreur : onglet Actions → « Retirer une version » → « Run
+workflow » avec son étiquette (ex. `v1.0.0`) ; supprime la page et l'étiquette (irréversible).
 
 ## Publier une version
 
