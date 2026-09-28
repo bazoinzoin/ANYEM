@@ -315,15 +315,15 @@ export const TALENTS = {
         ]),
         skill(2, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 2,
-          effects: [fx('poison', 4, 0.45)],
-          desc: 'Empoisonne la cible pendant 4 tours et donne 2 points de combo',
+          effects: [fx('poison', 6, 0.28)],
+          desc: 'Une dose de poison sur 6 tours (cumulable) et 2 points de combo',
         }),
         ...choice(3, [
           minor('anatomie', 'Anatomie', { flat: { critChance: 1 } }),
           minor('toxicite', 'Toxicité', { passive: { dotPct: 3.5 } }),
           minor('sang-froid', 'Sang-froid', { pct: { pv: 2.5 } }),
         ]),
-        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +60 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 60, addEffects: [fx('affaibli', 4)] } }),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +40 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 40, addEffects: [fx('affaibli', 4)] } }),
         ...choice(5, [
           minor('distillation', 'Distillation', { passive: { dotPct: 5 } }),
           minor('patience', 'Patience', { passive: { resRegen: 3 } }),
@@ -331,8 +331,8 @@ export const TALENTS = {
         ]),
         skill(6, {
           id: 'poison-paralysant', name: 'Poison paralysant', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, comboGain: 1,
-          effects: [fx('poison', 3, 0.3), fx('ralenti', 3)],
-          desc: 'Entaille enduite de venin : poison sur 3 tours, cible Ralentie 3 tours, 1 point de combo',
+          effects: [fx('poison', 5, 0.099), fx('ralenti', 3)],
+          desc: 'Entaille enduite de venin : une dose de poison sur 5 tours, cible Ralentie 3 tours, 1 point de combo',
         }),
         ...choice(7, [
           minor('venin-epais', 'Venin épais', { passive: { dotPct: 5 } }),
@@ -341,8 +341,8 @@ export const TALENTS = {
         ]),
         skill(8, {
           id: 'gaz-nauseabond', name: 'Gaz nauséabond', cost: 40, kind: 'support', target: 'allEnemies', comboGain: 1,
-          effects: [fx('poison', 3, 0.25), fx('affaibli', 3)],
-          desc: 'Empoisonne et affaiblit tous les ennemis pendant 3 tours, donne 1 point de combo',
+          effects: [fx('poison', 5, 0.083), fx('affaibli', 3)],
+          desc: 'Une dose de poison sur 5 tours à tous les ennemis, affaiblis 3 tours ; 1 point de combo',
         }),
         ...choice(9, [
           minor('pestilence', 'Pestilence', { passive: { dotPct: 4 } }),
@@ -351,15 +351,18 @@ export const TALENTS = {
         ]),
         skill(10, {
           id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
-          effects: [fx('poison', 4, 0.14)],
-          desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.05)],
+          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance dès 3 points de combo',
         }),
         ...choice(11, [
           minor('alchimie-noire', 'Alchimie noire', { passive: { dotPct: 6.5 } }),
           minor('main-sure', 'Main sûre', { flat: { critChance: 1.5 } }),
           minor('recuperation', 'Récupération', { passive: { resRegen: 3 } }),
         ]),
-        passive('maitre-des-toxines', 'Maître des toxines', 12, '+20 % de dégâts sur la durée et +8 % de dégâts contre une cible qui subit un effet négatif.', { passive: { dotPct: 20, vsDebuffedPct: 8 } }),
+        skill(12, {
+          id: 'poison-foudroyant', name: 'Poison foudroyant', cost: 55, kind: 'damage', target: 'enemy', power: 0.4, detonate: 'poison',
+          desc: 'Fait agir d\'un coup tout le poison de la cible : elle subit sur-le-champ les dégâts de toutes ses doses pour les tours restants, et le poison disparaît',
+        }),
         ...choice(13, [
           minor('venin-concentre', 'Venin concentré', { passive: { dotPct: 4.5 } }),
           minor('dose-mortelle', 'Dose mortelle', { passive: { finisherRefund: 2 } }),
@@ -367,8 +370,8 @@ export const TALENTS = {
         ]),
         signature({
           id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
-          effects: [fx('poison', 5, 0.35), fx('terreur', 3)],
-          desc: 'Finisher : poison foudroyant sur 5 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.07), fx('terreur', 3)],
+          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
         }),
       ],
     },
@@ -877,7 +880,7 @@ export const TALENTS = {
         ]),
         skill(6, {
           id: 'fleche-empoisonnee', name: 'Flèche empoisonnée', cost: 30, kind: 'damage', target: 'enemy', power: 0.8,
-          effects: [fx('poison', 4, 0.4)],
+          effects: [fx('poison', 6, 0.27)],
           desc: 'Flèche trempée dans le venin : poison sur 4 tours',
         }),
         ...choice(7, [

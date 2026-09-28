@@ -69,17 +69,17 @@ test('le soin touche le bon allié quand un allié précédent est tombé', () =
   assert.equal(cb.party[guerrier].hp, 0);
 });
 
-test('Lacération (finisher) fait saigner la cible à chaque fin de round, selon les points de combo (pleine puissance dès 3)', () => {
+test('Entaille venimeuse (finisher) empoisonne la cible à chaque fin de round, selon les points de combo (pleine puissance dès 3)', () => {
   const { cb } = newCombat();
   const turn = playUntilHero(cb, voleur);
   turn.unit.combo = 2;
   assert.ok(heroAct(cb, { type: 'skill', skill: 2, target: 0 }));
   assert.equal(turn.unit.combo, 0, 'le finisher dépense tous les points');
   const target = cb.enemies[0];
-  const bleed = target.statuses.find((s) => s.key === 'saignement');
-  assert.equal(bleed.turns, 4);
-  // Lacération est à pleine puissance dès 3 points : 2 points = 2 × 5/3 fois la puissance par point.
-  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.333)));
+  const bleed = target.statuses.find((s) => s.key === 'poison');
+  assert.equal(bleed.turns, 6);
+  // Pleine puissance dès 3 points : 2 points = 2 × 5/3 fois la puissance par point (0,07).
+  assert.equal(bleed.dot, Math.max(1, Math.round(getStats(turn.unit).physPower * 0.233)));
   heroAct(cb, { type: 'endTurn' });
   const hpAfterHit = target.hp;
   // Termine le round en cours (héros en défense, ennemis ciblant les héros).
@@ -91,7 +91,7 @@ test('Lacération (finisher) fait saigner la cible à chaque fin de round, selon
   }
   nextTurn(cb);
   assert.equal(target.hp, hpAfterHit - bleed.dot);
-  assert.equal(target.statuses.find((s) => s.key === 'saignement').turns, 3);
+  assert.equal(target.statuses.find((s) => s.key === 'poison').turns, 5);
 });
 
 test('la garde se lève au tour suivant du héros', () => {

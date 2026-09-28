@@ -2460,6 +2460,11 @@ __modules["src/data/effects.js"] = (() => {
 //             'hot'    soins à chaque fin de tour (puissance magique)
 //             'shield' points de bouclier, absorbés avant les PV
 //             'trap'   dégâts du piège quand il se déclenche
+//   turns   [min, max] : durée permise pour cet effet, quelle que soit la source (un test le
+//           vérifie) ; c'est ce qui distingue le poison (long, faible) du saignement (court, fort)
+//   stacks  cumulable : chaque nouvelle dose s'ajoute (dégâts par tour additionnés, durée
+//           ramenée à la plus longue), jusqu'à `stacks` doses ; sinon la nouvelle application
+//           remplace l'ancienne
 //   stun    la cible perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt   les ennemis doivent attaquer cette unité
 //   confuse l'unité peut frapper ses propres alliés
@@ -2481,8 +2486,16 @@ const EFFECTS = {
   intercession: { name: 'Intercession', icon: '🤝', kind: 'buff', redirect: 50, desc: 'La moitié des dégâts subis est encaissée par le protecteur.' },
 
   // ---- Debuffs ----
-  poison: { name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', desc: 'Dégâts de poison à chaque fin de tour.' },
-  saignement: { name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', desc: 'Dégâts de saignement à chaque fin de tour.' },
+  // Poison : long (5 tours et plus) et faible, mais cumulable (3 doses au plus).
+  poison: {
+    name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', turns: [5, 8], stacks: 3,
+    desc: 'Dégâts de poison à chaque fin de tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
+  },
+  // Saignement : court (2 ou 3 tours) et fort ; une nouvelle entaille remplace l'ancienne.
+  saignement: {
+    name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', turns: [2, 3],
+    desc: 'Dégâts de saignement à chaque fin de tour : courte durée, gros dégâts, ne se cumule pas.',
+  },
   brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
   tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
   ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },
@@ -2730,7 +2743,7 @@ const CLASSES = {
     starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, à pleine puissance dès 3 points de combo' },
+      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
   pretre: {
@@ -3211,15 +3224,15 @@ const TALENTS = {
         ]),
         skill(2, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 2,
-          effects: [fx('poison', 4, 0.45)],
-          desc: 'Empoisonne la cible pendant 4 tours et donne 2 points de combo',
+          effects: [fx('poison', 6, 0.28)],
+          desc: 'Une dose de poison sur 6 tours (cumulable) et 2 points de combo',
         }),
         ...choice(3, [
           minor('anatomie', 'Anatomie', { flat: { critChance: 1 } }),
           minor('toxicite', 'Toxicité', { passive: { dotPct: 3.5 } }),
           minor('sang-froid', 'Sang-froid', { pct: { pv: 2.5 } }),
         ]),
-        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +60 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 60, addEffects: [fx('affaibli', 4)] } }),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +40 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 40, addEffects: [fx('affaibli', 4)] } }),
         ...choice(5, [
           minor('distillation', 'Distillation', { passive: { dotPct: 5 } }),
           minor('patience', 'Patience', { passive: { resRegen: 3 } }),
@@ -3227,8 +3240,8 @@ const TALENTS = {
         ]),
         skill(6, {
           id: 'poison-paralysant', name: 'Poison paralysant', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, comboGain: 1,
-          effects: [fx('poison', 3, 0.3), fx('ralenti', 3)],
-          desc: 'Entaille enduite de venin : poison sur 3 tours, cible Ralentie 3 tours, 1 point de combo',
+          effects: [fx('poison', 5, 0.099), fx('ralenti', 3)],
+          desc: 'Entaille enduite de venin : une dose de poison sur 5 tours, cible Ralentie 3 tours, 1 point de combo',
         }),
         ...choice(7, [
           minor('venin-epais', 'Venin épais', { passive: { dotPct: 5 } }),
@@ -3237,8 +3250,8 @@ const TALENTS = {
         ]),
         skill(8, {
           id: 'gaz-nauseabond', name: 'Gaz nauséabond', cost: 40, kind: 'support', target: 'allEnemies', comboGain: 1,
-          effects: [fx('poison', 3, 0.25), fx('affaibli', 3)],
-          desc: 'Empoisonne et affaiblit tous les ennemis pendant 3 tours, donne 1 point de combo',
+          effects: [fx('poison', 5, 0.083), fx('affaibli', 3)],
+          desc: 'Une dose de poison sur 5 tours à tous les ennemis, affaiblis 3 tours ; 1 point de combo',
         }),
         ...choice(9, [
           minor('pestilence', 'Pestilence', { passive: { dotPct: 4 } }),
@@ -3247,15 +3260,18 @@ const TALENTS = {
         ]),
         skill(10, {
           id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
-          effects: [fx('poison', 4, 0.14)],
-          desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.05)],
+          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance dès 3 points de combo',
         }),
         ...choice(11, [
           minor('alchimie-noire', 'Alchimie noire', { passive: { dotPct: 6.5 } }),
           minor('main-sure', 'Main sûre', { flat: { critChance: 1.5 } }),
           minor('recuperation', 'Récupération', { passive: { resRegen: 3 } }),
         ]),
-        passive('maitre-des-toxines', 'Maître des toxines', 12, '+20 % de dégâts sur la durée et +8 % de dégâts contre une cible qui subit un effet négatif.', { passive: { dotPct: 20, vsDebuffedPct: 8 } }),
+        skill(12, {
+          id: 'poison-foudroyant', name: 'Poison foudroyant', cost: 55, kind: 'damage', target: 'enemy', power: 0.4, detonate: 'poison',
+          desc: 'Fait agir d\'un coup tout le poison de la cible : elle subit sur-le-champ les dégâts de toutes ses doses pour les tours restants, et le poison disparaît',
+        }),
         ...choice(13, [
           minor('venin-concentre', 'Venin concentré', { passive: { dotPct: 4.5 } }),
           minor('dose-mortelle', 'Dose mortelle', { passive: { finisherRefund: 2 } }),
@@ -3263,8 +3279,8 @@ const TALENTS = {
         ]),
         signature({
           id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
-          effects: [fx('poison', 5, 0.35), fx('terreur', 3)],
-          desc: 'Finisher : poison foudroyant sur 5 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.07), fx('terreur', 3)],
+          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
         }),
       ],
     },
@@ -3773,7 +3789,7 @@ const TALENTS = {
         ]),
         skill(6, {
           id: 'fleche-empoisonnee', name: 'Flèche empoisonnée', cost: 30, kind: 'damage', target: 'enemy', power: 0.8,
-          effects: [fx('poison', 4, 0.4)],
+          effects: [fx('poison', 6, 0.27)],
           desc: 'Flèche trempée dans le venin : poison sur 4 tours',
         }),
         ...choice(7, [
@@ -4667,6 +4683,7 @@ function makeStatus(id, turns, value) {
   for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
   if (def.redirect) status.redirect = def.redirect;
   if (def.value) status[def.value] = value;
+  if (def.stacks) status.doses = [value]; // effet cumulable (poison) : une entrée par dose
   return status;
 }
 
@@ -4679,7 +4696,27 @@ function addStatus(unit, status) {
   const list = statusesOf(unit);
   const i = list.findIndex((s) => s.key === status.key);
   if (i === -1) list.push({ ...status });
+  else if (EFFECTS[status.key]?.stacks && list[i].doses && status.doses) list[i] = stackDoses(list[i], status);
   else list[i] = { ...status };
+}
+
+// Effet cumulable (poison) : la nouvelle dose s'ajoute ; au-delà du maximum, on garde les
+// plus fortes. Dégâts par tour = somme des doses ; durée = la plus longue des deux.
+function stackDoses(current, added) {
+  const max = EFFECTS[added.key].stacks;
+  const doses = [...current.doses, ...added.doses].sort((a, b) => b - a).slice(0, max);
+  return { ...added, doses, dot: doses.reduce((sum, d) => sum + d, 0), turns: Math.max(current.turns, added.turns), fresh: current.fresh && added.fresh };
+}
+
+/**
+ * Fait agir d'un coup tout un effet de dégâts sur la durée (ex. le poison) : retire l'effet
+ * et retourne les dégâts qu'il aurait encore infligés (dégâts par tour × tours restants).
+ */
+function detonateStatus(unit, key) {
+  const status = statusesOf(unit).find((s) => s.key === key && s.dot);
+  if (!status) return 0;
+  unit.statuses = statusesOf(unit).filter((s) => s !== status);
+  return status.dot * status.turns;
 }
 
 function hasStatus(unit, flag) {
@@ -4738,7 +4775,7 @@ function clearStatuses(unit) {
   unit.statuses = [];
 }
 
-return { makeStatus, statusesOf, addStatus, hasStatus, isDebuffed, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
+return { makeStatus, statusesOf, addStatus, detonateStatus, hasStatus, isDebuffed, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
 })();
 
 // ---- src/game/units.js
@@ -6342,8 +6379,10 @@ __modules["src/data/enemies.js"] = (() => {
 //              `selfEffects`, effets du catalogue data/effects.js.
 
 // Raccourcis vers les effets du catalogue (data/effects.js).
-const bleed = (power, turns = 3) => ({ id: 'saignement', turns, power });
-const poison = (power, turns = 3) => ({ id: 'poison', turns, power });
+// Saignement : court et fort (2 tours, dégâts par tour ×1,5) ; poison : long et faible
+// (5 tours, dégâts par tour ×0,5, cumulable). `power` = valeur de référence sur 3 tours.
+const bleed = (power, turns = 2) => ({ id: 'saignement', turns, power: +(power * 1.5).toFixed(3) });
+const poison = (power, turns = 5) => ({ id: 'poison', turns, power: +(power * 0.5).toFixed(3) });
 const slow = (turns = 2) => ({ id: 'ralenti', turns });
 const confus = (turns = 2) => ({ id: 'confus', turns });
 const stun = { id: 'etourdi', turns: 1 };
@@ -11647,7 +11686,7 @@ const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __mod
 const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } = __modules["src/game/position.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
-const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } = __modules["src/game/statuses.js"];
+const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } = __modules["src/game/statuses.js"];
 const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
@@ -12179,6 +12218,16 @@ function useSkill(cb, caster, skill, targets) {
         if (r.fell) logFall(cb, target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
+      // Compétence « detonate » (Poison foudroyant) : tout l'effet agit d'un coup.
+      if (skill.detonate && target.alive) {
+        const burst = detonateStatus(target, skill.detonate);
+        if (burst) {
+          const { taken, fell } = hurt(cb, target, burst);
+          dealt += taken;
+          parts.push(`${target.name} : ${EFFECTS[skill.detonate].name} foudroyant, -${taken} PV`);
+          if (fell) logFall(cb, target);
+        }
+      }
     } else if (skill.kind === 'heal') {
       const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
       parts.push(`${target.name} : +${healed} PV`);
@@ -17259,7 +17308,8 @@ function statusIcons(unit) {
   for (const s of statusesOf(unit)) {
     const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
     const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
+    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
 }

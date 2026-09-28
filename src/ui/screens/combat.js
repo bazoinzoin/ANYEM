@@ -92,7 +92,8 @@ function statusIcons(unit) {
   for (const s of statusesOf(unit)) {
     const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
     const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
+    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
 }

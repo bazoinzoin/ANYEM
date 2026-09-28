@@ -115,10 +115,10 @@ test('un légendaire porté modifie la compétence visée (talent compris)', () 
   for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
   const croc = generateItem({ legendary: 'fleursDuMal' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
-  assert.equal(lame0.effects[0].turns, 4);
+  assert.equal(lame0.effects[0].turns, 6);
   equip(voleur, [croc], croc, 'mainDroite');
   const lame = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
-  assert.equal(lame.effects[0].turns, 6);
+  assert.equal(lame.effects[0].turns, 8);
   assert.equal(lame.boosted, true);
   // Un pouvoir qui renforce un passif ne fait rien sans ce passif.
   const arsenic = generateItem({ legendary: 'arsenicDEmma' });

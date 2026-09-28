@@ -109,7 +109,7 @@ export const CLASSES = {
     starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, à pleine puissance dès 3 points de combo' },
+      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
   pretre: {

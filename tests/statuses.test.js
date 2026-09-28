@@ -7,6 +7,11 @@ import { learnPath } from './helpers.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
 import { statsOf, damage } from '../src/game/units.js';
 import { addStatus, tickStatuses, makeStatus } from '../src/game/statuses.js';
+import { CLASSES } from '../src/data/classes.js';
+import { TALENTS } from '../src/data/talents.js';
+import { ENEMIES } from '../src/data/enemies.js';
+import { LEGENDARIES } from '../src/data/items.js';
+import { EFFECTS } from '../src/data/effects.js';
 import { estimateHit, BASIC_ATTACK } from '../src/game/formulas.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
@@ -120,8 +125,8 @@ test('Empoisonneur : Opportuniste renforce contre une cible affaiblie ; Fiole de
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'fiole-de-peste') }));
   for (const e of cb.enemies.filter((x) => x.alive)) {
     const poison = e.statuses.find((s) => s.key === 'poison');
-    // 3 points = la puissance de 5 points (0,14 par point).
-    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.7 * (1 + a.dotPct / 100))));
+    // 3 points = la puissance de 5 points (0,05 par point).
+    assert.equal(poison.dot, Math.max(1, Math.round(a.physPower * 0.25 * (1 + a.dotPct / 100))));
   }
 });
 
@@ -269,4 +274,60 @@ test("un buff posé sur soi pendant son tour n'est pas décompté à la fin de c
   const { cb, hero } = setup(0, 'gardien', 2);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'provocation') }));
   assert.equal(hero.statuses.find((s) => s.key === 'provocation').turns, 2);
+});
+
+test('poison : doses cumulables (3 au plus, les plus fortes) ; saignement : remplacé', () => {
+  const unit = { statuses: [] };
+  addStatus(unit, makeStatus('poison', 6, 10));
+  addStatus(unit, makeStatus('poison', 5, 4));
+  let p = unit.statuses.find((s) => s.key === 'poison');
+  assert.equal(p.dot, 14);
+  assert.equal(p.turns, 6, 'durée : la plus longue');
+  addStatus(unit, makeStatus('poison', 5, 7));
+  addStatus(unit, makeStatus('poison', 5, 2));
+  p = unit.statuses.find((s) => s.key === 'poison');
+  assert.deepEqual(p.doses, [10, 7, 4], '3 doses au plus, les plus fortes');
+  assert.equal(p.dot, 21);
+  addStatus(unit, makeStatus('saignement', 2, 20));
+  addStatus(unit, makeStatus('saignement', 3, 12));
+  const bleeds = unit.statuses.filter((s) => s.key === 'saignement');
+  assert.equal(bleeds.length, 1);
+  assert.equal(bleeds[0].dot, 12, 'une nouvelle entaille remplace la précédente');
+});
+
+test('Poison foudroyant : la cible subit tout de suite les dégâts restants de son poison', () => {
+  const { cb, hero } = setup(1, 'empoisonneur', 12);
+  const target = cb.enemies[0];
+  target.hp = target.stats.pv = 1e6;
+  addStatus(target, makeStatus('poison', 5, 30));
+  addStatus(target, makeStatus('poison', 6, 20));
+  const before = target.hp;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'poison-foudroyant'), target: 0 }));
+  assert.ok(!target.statuses.some((s) => s.key === 'poison'), 'le poison a disparu');
+  assert.ok(before - target.hp >= 50 * 6, `au moins ${50 * 6} dégâts (${before - target.hp})`);
+});
+
+test("durées : le poison dure longtemps, le saignement peu, d'où qu'ils viennent (compétences, talents, légendaires, monstres)", () => {
+  const sources = [];
+  for (const cls of Object.values(CLASSES)) for (const s of cls.starterSkills) sources.push([s.name, s.effects]);
+  for (const branches of Object.values(TALENTS)) {
+    for (const b of branches) {
+      for (const n of b.nodes) {
+        if (n.skill) sources.push([n.skill.name, n.skill.effects]);
+        for (const mod of [n.skillMod ?? []].flat()) sources.push([n.name, mod.addEffects]);
+      }
+    }
+  }
+  for (const e of Object.values(ENEMIES)) for (const a of e.abilities ?? []) sources.push([a.skill.name, a.skill.effects]);
+  for (const leg of Object.values(LEGENDARIES)) for (const mod of [leg.power.skillMod ?? []].flat()) sources.push([leg.name, mod.addEffects]);
+  let checked = 0;
+  for (const [name, effects] of sources) {
+    for (const e of effects ?? []) {
+      const range = EFFECTS[e.id].turns;
+      if (!range) continue;
+      checked++;
+      assert.ok(e.turns >= range[0] && e.turns <= range[1], `${name} : ${e.id} sur ${e.turns} tours (permis : ${range[0]} à ${range[1]})`);
+    }
+  }
+  assert.ok(checked > 10);
 });

@@ -67,7 +67,15 @@ function value(cb, hero, skill, target) {
     const kind = EFFECTS[e.id]?.value;
     if (kind !== 'dot' && kind !== 'trap') continue;
     const has = target.statuses.find((x) => x.key === e.id);
-    v += (effectValue(st, s, e) ?? 0) * (kind === 'dot' ? e.turns : 1) * (has ? Math.max(0, e.turns - has.turns) / e.turns : 1);
+    // Effet cumulable (poison) : une dose de plus compte en entier tant qu'il reste de la place.
+    const stacking = has && EFFECTS[e.id].stacks && (has.doses?.length ?? 1) < EFFECTS[e.id].stacks;
+    v += (effectValue(st, s, e) ?? 0) * (kind === 'dot' ? e.turns : 1) * (has && !stacking ? Math.max(0, e.turns - has.turns) / e.turns : 1);
+  }
+  // Poison foudroyant : les dégâts arrivent plus tôt ; intéressant quand toutes les doses sont
+  // posées (on peut en reposer ensuite).
+  if (s.detonate) {
+    const has = target.statuses.find((x) => x.key === s.detonate);
+    if (has && (has.doses?.length ?? 1) >= (EFFECTS[s.detonate].stacks ?? 1)) v += has.dot * has.turns * 0.5;
   }
   return v;
 }
