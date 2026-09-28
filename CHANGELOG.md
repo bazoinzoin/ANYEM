@@ -8,6 +8,18 @@ versions sont publiées comme « pré-versions ») ; 1.0.0 sera la première ver
 versions 0.0.x sont les étapes de développement d'avant le jeu Windows (une par fusion dans `main`).
 Marche à suivre pour publier une version : `docs/RELEASES.md`.
 
+## [0.2.0] - 2026-09-28
+
+Deuxième bêta.
+
+- Nouvelle classe : **Le Scarifié / La Scarifiée**. Sans ressource, il paie chaque compétence de ses PV (jamais le dernier). Trois orientations : **Acharné** (corps à corps, saignements), **Violent** (arc, tirs dévastateurs, « Dernier souffle » : tomber à 1 PV pour une frappe énorme) et **Liens du sang** (soins à l'Intelligence, vol de vie donné aux alliés, Pacte de sang). Il peut se relever une fois par combat. Neuf nouveaux légendaires.
+- Classes renommées : L'Impassible, Le Dissimulé, Le Dévot, L'Élémentaliste, Le Vénateur, Le Lumineux ; forme féminine au choix à la création et au recrutement (La Dissimulée, La Vénatrice…).
+- Poison et saignement distincts : le poison dure longtemps, fait peu de dégâts et se cumule (3 doses) ; le saignement est court et fort. L'Empoisonneur ne fait plus que du poison et gagne **Poison foudroyant** (toutes les doses agissent d'un coup).
+- Nouvelle stat secondaire **Mana** sur l'équipement (utile aux seules classes à Mana) ; détail du maximum au survol de la ligne Mana.
+- Onglet Légendaires : exemplaire de niveau 50 et toutes les stats secondaires possibles avec leur fourchette. « Taux critique » devient « Coup critique ».
+- Équilibrage : Berserker, Gardien et Empoisonneur retouchés.
+- Interface : soins des autres classes en icônes dorées (le rouge est réservé au Scarifié) ; liste des compétences sur deux colonnes quand il y en a beaucoup ; bulles des stats lisibles.
+
 ## [0.1.0] - 2026-09-28
 
 Première bêta jouable.
