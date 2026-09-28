@@ -13,3 +13,7 @@
 ## Police Almendra
 
 `assets/fonts/Almendra-Regular.ttf` et `Almendra-Bold.ttf` : « Almendra » d'Ana Sanfelippo, sous licence SIL Open Font License 1.1 (https://openfontlicense.org), obtenue via Google Fonts. Police des titres, boutons et noms du jeu.
+
+## Projectiles et impacts (effets des sorts)
+
+`assets/fx/` : projectiles et animations d'impact des packs « Fantasy RPG Heroes » et « Fantasy RPG Monster » de Franuka (dossiers « Projectiles & Breakables » et « EXTRAS/Projectiles »), mêmes conditions que les autres planches Franuka (crédit à l'auteur).

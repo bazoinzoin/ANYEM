@@ -665,6 +665,7 @@ export function enemyAct(cb) {
   if (!cb.acting || cb.acting.side !== 'enemy') return;
   const enemy = cb.acting.unit;
   const others = cb.enemies.filter((e) => e.alive && e !== enemy);
+  cb.lastSkill = null;
   if (hasStatus(enemy, 'confuse') && others.length && random() < COMBAT.confuseChance) {
     const victim = pick(others);
     const r = strike(cb, enemy, victim, ENEMY_ATTACK);
@@ -676,6 +677,7 @@ export function enemyAct(cb) {
   }
 
   const ability = pickAbility(enemy);
+  cb.lastSkill = ability; // pour l'affichage (effet visuel de la capacité)
   if (ability) {
     const targets = abilityTargets(cb, enemy, ability);
     useSkill(cb, enemy, ability, targets);
