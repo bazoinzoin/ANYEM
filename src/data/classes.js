@@ -27,6 +27,8 @@
 //   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
 //               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
+// starterSpares équipement commun rangé dans le sac à la création (classe dont l'orientation
+//             impose ses armes : de quoi s'équiper quelle que soit la première choisie)
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
 // starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
@@ -245,6 +247,43 @@ export const CLASSES = {
       { id: 'entaille-rituelle', name: 'Entaille rituelle', cost: 6, kind: 'damage', target: 'enemy', power: 1.6, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Coup qui ouvre une plaie : saignement sur 3 tours' },
       { id: 'decharge-sanglante', name: 'Décharge sanglante', cost: 10, kind: 'damage', target: 'enemy', power: 1.6, desc: 'Frappe de toute la force de son sang versé (dégâts physiques, Force)' },
       { id: 'transfusion', name: 'Transfusion', cost: 8, kind: 'heal', target: 'ally', power: 1.0, effects: [{ id: 'sang-partage', turns: 2 }], desc: 'Donne de son sang pour soigner un allié (Intelligence), qui gagne Sang partagé (vol de vie) 2 tours' },
+    ],
+  },
+  macabre: {
+    name: 'Macabre', nameF: 'Macabre', plural: 'Macabres',
+    title: 'Le Macabre', titleF: 'La Macabre',
+    icon: '💀',
+    color: 'var(--macabre)',
+    position: 'melee',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Il absorbe l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
+    base: { pv: 125, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 2, riposte: 3 },
+    growth: { pv: 12, force: 1, intelligence: 1 },
+    // Ressource = âmes absorbées (voir game/souls.js) : `cost` = âmes dépensées (0 = gratuit).
+    resource: { name: 'Âmes', souls: true, max: 3, start: 0, regen: 0 },
+    // L'orientation principale restreint armes et armure (data/talents.js, `gear`).
+    gear: {
+      weapons: ['hache', 'masse', 'hache2m', 'masse2m', 'baton'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'moyenne', 'legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    // Équipement des autres orientations, rangé dans le sac à la création (voir starterSpares).
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'masse', primary: 'force' },
+      { slotType: 'bouclier', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+      { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
+    ],
+    starterSkills: [
+      { id: 'coup-decharne', name: 'Coup décharné', cost: 0, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme (gratuit)' },
+      { id: 'fracas-d-os', name: "Fracas d'os", cost: 0, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours (gratuit)" },
+      { id: 'trait-funeste', name: 'Trait funeste', cost: 0, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques, gratuit)" },
     ],
   },
 };

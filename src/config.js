@@ -6,7 +6,7 @@ export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stoc
 
 // Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
 // (4 héros, classes au choix, doublons permis).
-export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
+export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie', 'macabre'];
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
 // Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre

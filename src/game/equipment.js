@@ -8,26 +8,51 @@ import { isTwoHanded } from './items.js';
 import { getClass, clampToStats } from './party.js';
 import { mainBranch } from './talents.js';
 
-// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
-// l'emplacement), ou null s'il le peut.
 /**
- * Types d'armure permis : ceux de la classe, restreints par l'orientation principale si elle
- * en fixe (Impassible : Gardien = lourde, Berserker = moyenne ; à égalité de points, les deux).
+ * Équipement permis : celui de la classe, restreint par l'orientation principale si elle en
+ * fixe (`gear` de data/talents.js : Impassible Gardien = armure lourde, Berserker = moyenne ;
+ * Macabre : armes et armure de chaque orientation). À égalité de points, rien n'est restreint.
+ * Retourne { armor, weapons, offHand }.
  */
-export function allowedArmor(hero) {
+export function allowedGear(hero) {
   const cls = getClass(hero);
-  const branch = mainBranch(hero);
-  return branch?.armor ? cls.gear.armor.filter((a) => branch.armor.includes(a)) : cls.gear.armor;
+  const g = mainBranch(hero)?.gear ?? {};
+  const keep = (list, only) => (only ? list.filter((x) => only.includes(x)) : list);
+  return {
+    armor: keep(cls.gear.armor, g.armor),
+    weapons: keep(cls.gear.weapons, g.weapons),
+    offHand: keep(cls.gear.offHand, g.offHand),
+  };
 }
 
+export function allowedArmor(hero) {
+  return allowedGear(hero).armor;
+}
+
+// Liste lisible : « hache à deux mains ou masse à deux mains ».
+function orList(labels) {
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} ou ${labels[labels.length - 1]}` : labels[0] ?? 'rien';
+}
+
+// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
+// l'emplacement), ou null s'il le peut.
 export function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
   if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
-  if (item.armorType && !allowedArmor(hero).includes(item.armorType)) return `Orientation ${mainBranch(hero).name} : ${ARMOR_TYPES[allowedArmor(hero)[0]].label.toLowerCase()} seulement`;
   if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
     return `Les ${cls.plural} ne manient pas ce type d'arme`;
+  }
+  // Restrictions de l'orientation principale.
+  const gear = allowedGear(hero);
+  const branch = mainBranch(hero)?.name;
+  if (item.armorType && !gear.armor.includes(item.armorType)) {
+    return `Orientation ${branch} : ${orList(gear.armor.map((a) => ARMOR_TYPES[a].label.toLowerCase()))} seulement`;
+  }
+  if (item.slotType === 'bouclier' && !gear.offHand.includes('bouclier')) return `Orientation ${branch} : pas de bouclier`;
+  if (item.slotType === 'arme' && !gear.weapons.includes(item.weaponType) && !gear.offHand.includes(item.weaponType)) {
+    return `Orientation ${branch} : ${orList(gear.weapons.map((w) => WEAPON_TYPES[w].name.toLowerCase()))} seulement`;
   }
   return null;
 }
@@ -35,7 +60,7 @@ export function cannotEquipReason(hero, item) {
 // Emplacements où le héros peut placer cet objet (vide si aucun).
 export function slotsFor(hero, item) {
   if (cannotEquipReason(hero, item)) return [];
-  const gear = getClass(hero).gear;
+  const gear = allowedGear(hero);
   return SLOT_ORDER.filter((slot) => {
     if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
     if (item.slotType !== 'arme') return true;
@@ -88,6 +113,25 @@ export function returnForbiddenGear(hero, bag) {
   }
   return removed;
 }
+
+/**
+ * Remplit les emplacements vides avec ce que le sac a de mieux parmi ce que le héros peut
+ * porter (niveau d'objet, puis stat conseillée de l'orientation principale). Sert après un
+ * changement d'orientation principale. Retourne les objets équipés.
+ */
+export function refillGear(hero, bag) {
+  const stat = mainBranch(hero)?.gear?.stat;
+  const score = (it) => (it.level ?? 1) * 10 + (it.primary === stat ? 5 : 0) + (RARITY_RANK[it.rarity] ?? 0);
+  const equipped = [];
+  for (const slot of SLOT_ORDER) {
+    if (hero.equipment[slot]) continue;
+    if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) continue;
+    const best = bag.filter((it) => slotsFor(hero, it).includes(slot)).sort((a, b) => score(b) - score(a))[0];
+    if (best && equip(hero, bag, best, slot)) equipped.push(best);
+  }
+  return equipped;
+}
+const RARITY_RANK = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
 
 export function unequip(hero, bag, slot) {
   const item = hero.equipment[slot];

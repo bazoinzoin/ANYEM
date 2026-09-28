@@ -14,7 +14,7 @@
 :root {
   --bg: #161009; --panel: #241b12; --panel2: #2e2216; --line: #4a3a26;
   --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
-  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a; --scarifie: #9e1b2c;
+  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a; --scarifie: #9e1b2c; --macabre: #5d6b78;
   --danger: #a33; --good: #5a8a5a;
   --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a; --r-divin: #e8413c;
   --font-title: 'Cinzel', serif;
@@ -1319,7 +1319,7 @@ const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Ma
 
 // Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
 // (4 héros, classes au choix, doublons permis).
-const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
+const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie', 'macabre'];
 const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
 // Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre
@@ -2057,6 +2057,63 @@ const LEGENDARIES = {
     power: { skillMod: { skill: 'lien-vital', costDelta: -3, effectPowerPct: 40 } },
     desc: 'Liens du sang — Lien vital coûte 3 % de PV de moins ; sa Régénération soigne 40 % de plus.',
     quote: 'Ce qui coule en toi coule aussi en moi.',
+  },
+  // ---- Macabre · Soldat décharné ----
+  hacheDuPasseur: {
+    name: 'Hache du Passeur', classKey: 'macabre', branch: 'soldat', slotType: 'arme', weaponType: 'hache2m', primary: 'force',
+    power: { skillMod: { skill: 'dechainement', powerPct: 25 } },
+    desc: 'Soldat décharné — Déchaînement frappe 25 % plus fort.',
+    quote: 'Une obole sous la langue, et la barque attend.',
+  },
+  gorgerinDuPendu: {
+    name: 'Gorgerin du Pendu', classKey: 'macabre', branch: 'soldat', slotType: 'collier', primary: 'force',
+    power: { requires: 'chair-morte', passive: { soulPhys: 3 } },
+    desc: 'Soldat décharné — Chair morte : chaque âme gardée donne encore +3 % de puissance physique.',
+    quote: 'Frères humains, qui après nous vivez…',
+  },
+  cuirasseDeCendre: {
+    name: 'Cuirasse de cendre', classKey: 'macabre', branch: 'soldat', slotType: 'plastron', armorType: 'moyenne', primary: 'force',
+    power: { skillMod: { skill: 'frappe-d-outre-tombe', powerPct: 20, critBonus: 10 } },
+    desc: 'Soldat décharné — Frappe d\'outre-tombe frappe 20 % plus fort, avec +10 % de chance de critique.',
+    quote: 'La cendre les surprit debout, et debout ils restèrent.',
+  },
+  // ---- Macabre · Mur d'os ----
+  ecuDesCatacombes: {
+    name: 'Écu des Catacombes', classKey: 'macabre', branch: 'murDOs', slotType: 'bouclier', primary: 'force',
+    power: { requires: 'ossature-de-fer', passive: { soulWard: 20, guardShieldPct: 10 } },
+    desc: 'Mur d\'os — Ossature : contrecoup des âmes réduit de 20 % de plus, et Défendre donne un Bouclier de 10 % des PV max en plus.',
+    quote: 'Arrête ! C\'est ici l\'empire de la Mort.',
+  },
+  heaumeDeLOssuaire: {
+    name: 'Heaume de l\'Ossuaire', classKey: 'macabre', branch: 'murDOs', slotType: 'casque', armorType: 'lourde', primary: 'force',
+    power: { skillMod: { skill: 'carapace-d-ossements', effectTurnsDelta: 1, effectPowerPct: 30 } },
+    desc: 'Mur d\'os — Carapace d\'ossements dure 1 tour de plus et protège 30 % de plus.',
+    quote: 'Ce que vous êtes, nous l\'avons été ; ce que nous sommes, vous le serez.',
+  },
+  masseDeSedlec: {
+    name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
+    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
+    quote: 'Quarante mille os, et pas un de trop pour le lustre.',
+  },
+  // ---- Macabre · Nécromancien ----
+  batonDEndor: {
+    name: 'Bâton d\'Endor', classKey: 'macabre', branch: 'necromancien', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    power: { skillMod: { skill: 'explosion-d-ame', powerPct: 25 } },
+    desc: 'Nécromancien — Explosion d\'âme frappe 25 % plus fort.',
+    quote: 'Fais-moi monter celui que je te dirai.',
+  },
+  anneauDIrem: {
+    name: 'Anneau d\'Irem', classKey: 'macabre', branch: 'necromancien', slotType: 'anneau', primary: 'intelligence',
+    power: { requires: 'savoir-interdit', passive: { soulMag: 3 } },
+    desc: 'Nécromancien — Savoir interdit : chaque âme gardée donne encore +3 % de puissance magique.',
+    quote: 'N\'est pas mort ce qui à jamais dort.',
+  },
+  linceulDeThebes: {
+    name: 'Linceul de Thèbes', classKey: 'macabre', branch: 'necromancien', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    power: { skillMod: { skill: 'malediction', powerPct: 15, effectPowerPct: 40, effectTurnsDelta: 1 } },
+    desc: 'Nécromancien — Malédiction frappe 15 % plus fort ; ses Ténèbres font 40 % de dégâts en plus, et ses effets durent 1 tour de plus.',
+    quote: 'La mort viendra sur des ailes rapides pour qui troublera le repos du roi.',
   },
   // ---- Communs à toutes les classes ----
   plumeLegere: {
@@ -2896,6 +2953,8 @@ __modules["src/data/classes.js"] = (() => {
 //   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
 //               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
+// starterSpares équipement commun rangé dans le sac à la création (classe dont l'orientation
+//             impose ses armes : de quoi s'équiper quelle que soit la première choisie)
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
 // starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
@@ -3116,6 +3175,43 @@ const CLASSES = {
       { id: 'transfusion', name: 'Transfusion', cost: 8, kind: 'heal', target: 'ally', power: 1.0, effects: [{ id: 'sang-partage', turns: 2 }], desc: 'Donne de son sang pour soigner un allié (Intelligence), qui gagne Sang partagé (vol de vie) 2 tours' },
     ],
   },
+  macabre: {
+    name: 'Macabre', nameF: 'Macabre', plural: 'Macabres',
+    title: 'Le Macabre', titleF: 'La Macabre',
+    icon: '💀',
+    color: 'var(--macabre)',
+    position: 'melee',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Il absorbe l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
+    base: { pv: 125, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 2, riposte: 3 },
+    growth: { pv: 12, force: 1, intelligence: 1 },
+    // Ressource = âmes absorbées (voir game/souls.js) : `cost` = âmes dépensées (0 = gratuit).
+    resource: { name: 'Âmes', souls: true, max: 3, start: 0, regen: 0 },
+    // L'orientation principale restreint armes et armure (data/talents.js, `gear`).
+    gear: {
+      weapons: ['hache', 'masse', 'hache2m', 'masse2m', 'baton'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'moyenne', 'legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    // Équipement des autres orientations, rangé dans le sac à la création (voir starterSpares).
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'masse', primary: 'force' },
+      { slotType: 'bouclier', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+      { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
+    ],
+    starterSkills: [
+      { id: 'coup-decharne', name: 'Coup décharné', cost: 0, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme (gratuit)' },
+      { id: 'fracas-d-os', name: "Fracas d'os", cost: 0, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours (gratuit)" },
+      { id: 'trait-funeste', name: 'Trait funeste', cost: 0, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques, gratuit)" },
+    ],
+  },
 };
 
 return { CLASSES };
@@ -3190,6 +3286,10 @@ const { CLASSES } = __modules["src/data/classes.js"];
 // compétences et passifs des gros paliers.
 //
 // Nœud : { id, name, tier, ranks, kind, desc, ...effet }
+// Orientation : { key, name, gear, icon, desc, nodes }. gear = { stat, armor?, weapons?, offHand? } :
+// stat principale conseillée (affichée aux menus Personnage et Création) ; armor / weapons /
+// offHand, s'ils sont donnés, limitent ce que porte le héros quand c'est son orientation
+// principale (celle qui a le plus de points, voir allowedGear dans game/equipment.js).
 //   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, 2 au choix parmi 3
 //        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
 //        'passive'   gros palier : nouveau passif ou amélioration de compétence
@@ -3214,6 +3314,9 @@ const { CLASSES } = __modules["src/data/classes.js"];
 //     critCombo      point de combo en plus quand un générateur fait un critique
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
+//     soulPhys / soulMag / soulDef / soulCrit / soulBlock / soulLifesteal  bonus PAR ÂME absorbée
+//                    (Macabre, voir applySoulBonuses dans game/party.js)
+//     soulWard       % de contrecoup des âmes en moins ; soulHeal : % des PV max rendus par âme absorbée
 //   skill    compétence accordée (même format que data/classes.js)
 //   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
@@ -3239,6 +3342,9 @@ const EFFECT_LABELS = {
     resRegen: ' de ressource regagnée par tour', resMaxBonus: ' de ressource maximum', resOnAttack: ' Rage par attaque',
     resOnHitTaken: ' Rage par coup encaissé', trapPct: ' % de dégâts des pièges', finisherRefund: ' Énergie rendue par point de combo dépensé',
     guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
+    soulWard: ' % de contrecoup des âmes en moins', soulPhys: ' % de puissance physique par âme', soulMag: ' % de puissance magique par âme',
+    soulDef: ' % de Défense et Défense magique par âme', soulCrit: ' % de Coup critique par âme', soulBlock: ' % de Blocage par âme',
+    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée',
   },
 };
 
@@ -3273,7 +3379,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', armor: ['lourde'], icon: '🛡️',
+      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'] }, icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -3343,7 +3449,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', armor: ['moyenne'], icon: '🪓',
+      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'] }, icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -3411,7 +3517,7 @@ const TALENTS = {
   ],
   voleur: [
     {
-      key: 'assassin', name: 'Assassin', icon: '🗡️',
+      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite' }, icon: '🗡️',
       desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
@@ -3477,7 +3583,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
+      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite' }, icon: '🧪',
       desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
@@ -3551,7 +3657,7 @@ const TALENTS = {
   ],
   pretre: [
     {
-      key: 'clerc', name: 'Clerc', icon: '✨',
+      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence' }, icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
@@ -3617,7 +3723,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'precheur', name: 'Prêcheur', icon: '📖',
+      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence' }, icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
@@ -3686,7 +3792,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'profane', name: 'Profane', icon: '🌑',
+      key: 'profane', name: 'Profane', gear: { stat: 'intelligence' }, icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
         starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
@@ -3757,7 +3863,7 @@ const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Feu', icon: '🔥',
+      key: 'feu', name: 'Feu', gear: { stat: 'intelligence' }, icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -3825,7 +3931,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Glace', icon: '❄️',
+      key: 'glace', name: 'Glace', gear: { stat: 'intelligence' }, icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -3893,7 +3999,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence' }, icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -3962,7 +4068,7 @@ const TALENTS = {
   ],
   chasseur: [
     {
-      key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite' }, icon: '🦅',
       desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
@@ -4005,7 +4111,7 @@ const TALENTS = {
           minor('visee-parfaite', 'Visée parfaite', { pct: { physPower: 4 } }),
         ]),
         skill(10, {
-          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 4.2, critBonus: 20,
           desc: 'Tir dévastateur sur un ennemi (+20 % de chance de critique)',
         }),
         ...choice(11, [
@@ -4026,7 +4132,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'traqueur', name: 'Traqueur', icon: '🐾',
+      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite' }, icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
@@ -4097,7 +4203,7 @@ const TALENTS = {
   ],
   paladin: [
     {
-      key: 'templier', name: 'Templier', icon: '🛡️',
+      key: 'templier', name: 'Templier', gear: { stat: 'force' }, icon: '🛡️',
       desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
@@ -4167,8 +4273,8 @@ const TALENTS = {
       ],
     },
     {
-      key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : armure légère, armes d\'Intelligence.',
+      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence' }, icon: '☀️',
+      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : garde l\'armure lourde, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
         ...choice(1, [
@@ -4236,7 +4342,7 @@ const TALENTS = {
   ],
   scarifie: [
     {
-      key: 'acharne', name: 'Acharné', icon: '🩸',
+      key: 'acharne', name: 'Acharné', gear: { stat: 'force' }, icon: '🩸',
       desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
       nodes: [
         starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
@@ -4304,7 +4410,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'violent', name: 'Violent', icon: '💥',
+      key: 'violent', name: 'Violent', gear: { stat: 'force' }, icon: '💥',
       desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
       nodes: [
         starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
@@ -4365,7 +4471,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'liensDuSang', name: 'Liens du sang', icon: '❤️',
+      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence' }, icon: '❤️',
       desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
       nodes: [
         starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
@@ -4429,6 +4535,204 @@ const TALENTS = {
           id: 'communion-sanglante', name: 'Communion sanglante', cost: 25, kind: 'heal', target: 'allAllies', power: 1.3,
           effects: [fx('sang-partage', 3)],
           desc: 'Soigne fortement toute l\'équipe, qui gagne Sang partagé (vol de vie) pendant 3 tours',
+        }),
+      ],
+    },
+  ],
+  macabre: [
+    {
+      key: 'soldat', name: 'Soldat décharné', gear: { stat: 'force', armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] }, icon: '💀',
+      desc: 'Dégâts au corps à corps : chaque âme le rend bien plus fort, mais le ronge. Il frappe fort tant qu\'il les garde, puis les libère d\'un coup. Force, hache ou masse à deux mains, armure moyenne.',
+      nodes: [
+        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne']), passive: { soulPhys: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-os-durs', 'Os durs', { pct: { physPower: 2.5 } }),
+          minor('mc-rictus', 'Rictus', { flat: { critDmg: 4 } }),
+          minor('mc-carcasse', 'Carcasse', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'dechainement', name: 'Déchaînement', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
+          desc: 'Libère toutes ses âmes dans un seul coup : puissance 2 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-faim', 'Faim', { flat: { critChance: 1 } }),
+          minor('mc-gorge-noire', 'Gorge noire', { passive: { lifestealPct: 1.5 } }),
+          minor('mc-tendons', 'Tendons secs', { pct: { physPower: 3 } }),
+        ]),
+        passive('chair-morte', 'Chair morte', 4, 'Chaque âme gardée donne encore +4 % de puissance physique (14 % par âme).', { passive: { soulPhys: 4 } }),
+        ...choice(5, [
+          minor('mc-coups-lourds', 'Coups lourds', { flat: { critDmg: 5 } }),
+          minor('mc-ossature', 'Ossature', { pct: { pv: 3 } }),
+          minor('mc-achever', 'Achever', { passive: { executePct: 4 } }),
+        ]),
+        skill(6, {
+          id: 'fauchee', name: 'Fauchée', cost: 0, kind: 'damage', target: 'allEnemies', power: 1.2,
+          desc: 'Grand coup circulaire sur tous les ennemis (gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-poids-mort', 'Poids mort', { pct: { physPower: 3.5 } }),
+          minor('mc-orbites', 'Orbites vides', { flat: { critChance: 1.5 } }),
+          minor('mc-dents', 'Dents longues', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          desc: 'Libère une âme dans un coup terrible, +20 % de chance de critique',
+        }),
+        ...choice(9, [
+          minor('mc-fossoyeur', 'Fossoyeur', { passive: { executePct: 5 } }),
+          minor('mc-fracas', 'Fracas', { flat: { critDmg: 6 } }),
+          minor('mc-tanne', 'Cuir tanné', { pct: { pv: 4 } }),
+        ]),
+        passive('festin-d-ames', 'Festin d\'âmes', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-lame-grise', 'Lame grise', { pct: { physPower: 4 } }),
+          minor('mc-regard-mort', 'Regard mort', { flat: { critChance: 2 } }),
+          minor('mc-habitude', 'Habitude', { passive: { soulWard: 5 } }),
+        ]),
+        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-carnage', 'Carnage', { pct: { physPower: 4.5 } }),
+          minor('mc-brise-os', 'Brise-os', { flat: { critDmg: 6.5 } }),
+          minor('mc-chair-dure', 'Chair dure', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'hecatombe', name: 'Hécatombe', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
+          desc: 'Libère toutes ses âmes sur tous les ennemis : puissance 1,4 par âme libérée',
+        }),
+      ],
+    },
+    {
+      key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
+      desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
+      nodes: [
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os']), passive: { soulDef: 8, soulBlock: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        ...choice(1, [
+          minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
+          minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
+          minor('mc-moelle', 'Moelle froide', { pct: { defMag: 3 } }),
+        ]),
+        skill(2, {
+          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 0, kind: 'support', target: 'self',
+          selfEffects: [fx('provocation', 2)],
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense (gratuit)',
+        }),
+        ...choice(3, [
+          minor('mc-ecu-d-os', 'Écu d\'os', { flat: { blocage: 2.5 } }),
+          minor('mc-resigne', 'Résigné', { passive: { soulWard: 5 } }),
+          minor('mc-squelette', 'Squelette', { pct: { pv: 2.5 } }),
+        ]),
+        passive('ossature-de-fer', 'Ossature', 4, 'Défendre donne un Bouclier de 15 % des PV max ; le contrecoup des âmes est réduit de 30 %.', { passive: { guardShieldPct: 15, soulWard: 30 } }),
+        ...choice(5, [
+          minor('mc-os-epais', 'Os épais', { passive: { shieldPct: 6.5 } }),
+          minor('mc-cuirasse-d-os', 'Cuirasse d\'os', { pct: { def: 5 } }),
+          minor('mc-crane', 'Crâne dur', { pct: { defMag: 5 } }),
+        ]),
+        skill(6, {
+          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 1, allSouls: true, kind: 'support', target: 'self',
+          selfEffects: [fx('bouclier', 2, 0.8)],
+          desc: 'Libère toutes ses âmes en une carapace d\'os : Bouclier 2 tours, de puissance 0,8 par âme libérée',
+        }),
+        ...choice(7, [
+          minor('mc-immobile', 'Immobile', { passive: { guardBonus: 3.5 } }),
+          minor('mc-vertebres', 'Vertèbres', { pct: { def: 3.5 } }),
+          minor('mc-sang-froid', 'Sang froid', { pct: { pv: 3.5 } }),
+        ]),
+        skill(8, {
+          id: 'ecrasement', name: 'Écrasement', cost: 0, kind: 'damage', target: 'enemy', power: 1.6,
+          effects: [fx('affaibli', 2)],
+          desc: 'Écrase la cible : Affaibli 2 tours (gratuit)',
+        }),
+        ...choice(9, [
+          minor('mc-ossuaire', 'Charnier', { pct: { pv: 4 } }),
+          minor('mc-voile', 'Voile gris', { pct: { defMag: 4.5 } }),
+          minor('mc-parade', 'Parade d\'os', { flat: { blocage: 3 } }),
+        ]),
+        passive('ossuaire-vivant', 'Ossuaire vivant', 10, 'Chaque âme absorbée le soigne de 8 % de ses PV max.', { passive: { soulHeal: 8 } }),
+        ...choice(11, [
+          minor('mc-remparts', 'Remparts', { pct: { def: 5 } }),
+          minor('mc-os-de-pierre', 'Os de pierre', { pct: { pv: 5 } }),
+          minor('mc-patience', 'Patience', { passive: { soulWard: 6 } }),
+        ]),
+        skill(12, {
+          id: 'mur-des-morts', name: 'Mur des morts', cost: 2, kind: 'support', target: 'allAllies',
+          effects: [fx('protection', 2)],
+          desc: 'Libère 2 âmes en un mur de spectres : toute l\'équipe gagne Protection 2 tours',
+        }),
+        ...choice(13, [
+          minor('mc-colosse', 'Colosse', { pct: { pv: 5.5 } }),
+          minor('mc-bastion-d-os', 'Bastion d\'os', { pct: { def: 5.5 } }),
+          minor('mc-linceul', 'Linceul', { pct: { defMag: 5.5 } }),
+        ]),
+        signature({
+          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 1, allSouls: true, kind: 'support', target: 'allAllies',
+          effects: [fx('bouclier', 2, 0.4)], selfEffects: [fx('provocation', 2)],
+          desc: 'Libère toutes ses âmes : toute l\'équipe gagne un Bouclier 2 tours (puissance 0,4 par âme) et il provoque les ennemis 2 tours',
+        }),
+      ],
+    },
+    {
+      key: 'necromancien', name: 'Nécromancien', gear: { stat: 'intelligence', armor: ['legere'], weapons: ['baton'], offHand: [] }, icon: '🕯️',
+      desc: 'Dégâts magiques à distance : chaque âme renforce ses sorts, mais le ronge ; il les libère en explosions d\'âmes. Seule orientation à l\'Intelligence : bâton, armure légère.',
+      nodes: [
+        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste']), passive: { soulMag: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-encre-noire', 'Encre noire', { pct: { magPower: 2.5 } }),
+          minor('mc-glas', 'Glas', { flat: { critDmg: 4 } }),
+          minor('mc-suaire', 'Suaire', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
+          desc: 'Libère toutes ses âmes sur une cible (dégâts magiques) : puissance 0,95 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-presage', 'Présage', { flat: { critChance: 1 } }),
+          minor('mc-rituel', 'Rituel', { pct: { magPower: 3 } }),
+          minor('mc-sangsue', 'Sangsue', { passive: { lifestealPct: 1.5 } }),
+        ]),
+        passive('savoir-interdit', 'Savoir interdit', 4, 'Chaque âme gardée donne encore +4 % de puissance magique (14 % par âme).', { passive: { soulMag: 4 } }),
+        ...choice(5, [
+          minor('mc-oraison', 'Oraison', { flat: { critDmg: 5 } }),
+          minor('mc-veille', 'Veillée', { pct: { pv: 3 } }),
+          minor('mc-putrefaction', 'Putréfaction', { pct: { magPower: 3 } }),
+        ]),
+        skill(6, {
+          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 0, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
+          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques, gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-necronomie', 'Nécrologie', { pct: { magPower: 3.5 } }),
+          minor('mc-mauvais-oeil', 'Mauvais œil', { flat: { critChance: 1.5 } }),
+          minor('mc-vampire', 'Soif', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'malediction', name: 'Malédiction', cost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
+          effects: [fx('tenebres', 3, 0.25), fx('terreur', 2)],
+          desc: 'Libère une âme en malédiction (dégâts magiques) : Ténèbres 3 tours et Terreur 2 tours',
+        }),
+        ...choice(9, [
+          minor('mc-pourriture', 'Pourriture', { passive: { dotPct: 5 } }),
+          minor('mc-fin', 'La fin', { flat: { critDmg: 6 } }),
+          minor('mc-os-blancs', 'Os blancs', { pct: { pv: 4 } }),
+        ]),
+        passive('siphon-des-morts', 'Siphon d\'âme', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-incantation', 'Incantation', { pct: { magPower: 4 } }),
+          minor('mc-funeste', 'Funeste', { flat: { critChance: 2 } }),
+          minor('mc-detachement', 'Détachement', { passive: { soulWard: 5 } }),
+        ]),
+        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-liturgie', 'Liturgie noire', { pct: { magPower: 4.5 } }),
+          minor('mc-dies-irae', 'Colère', { flat: { critDmg: 6.5 } }),
+          minor('mc-pierre-tombale', 'Pierre tombale', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'requiem', name: 'Requiem', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
+          effects: [fx('tenebres', 2, 0.1)],
+          desc: 'Libère toutes ses âmes sur tous les ennemis (dégâts magiques, puissance 0,7 par âme) et les plonge dans les Ténèbres 2 tours',
         }),
       ],
     },
@@ -4787,6 +5091,10 @@ const TOPS = {
     label: 'Cuir scarifié', body: 'beastmaster',
     map: { '#8f4d57': '#52333f', '#bd6a62': '#7d3833', '#63ab3f': '#ad2f45', '#3b7d4f': '#7d3833' },
   },
+  macabre: {
+    label: "Armure d'ossements", body: 'gladiator',
+    map: { '#d7d3bd': '#e8e2cc', '#9d9387': '#8f8a7a', '#633d4c': '#1b1a2c', '#8f4d57': '#3a3f5e', '#7d3833': '#141220', '#a47d72': '#b8b09a' },
+  },
   duelliste: {
     label: 'Tenue de duelliste', body: 'swashbuckler',
     map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#e64539': '#4a6fc4', '#ad2f45': '#2f437a', '#9c2a70': '#2f437a' },
@@ -4816,6 +5124,7 @@ const CLASS_LOOKS = {
   chasseur: { hair: 'queue', hairColor: 'chatain', eyes: 'verts', skin: 'halee', top: 'druide', bottom: 'cuir' },
   paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'templier', bottom: 'jambieres' },
   scarifie: { hair: 'longs', hairColor: 'noir', eyes: 'rouges', skin: 'pale', top: 'scarifie', bottom: 'garance' },
+  macabre: { hair: 'longs', hairColor: 'blanc', eyes: 'gris', skin: 'pale', top: 'macabre', bottom: 'sombre' },
 };
 
 // Champs d'une apparence → catalogue de ses choix (ordre de l'écran de création).
@@ -5168,6 +5477,12 @@ function createHero(classKey, name, look = null, feminine = false) {
   return hero;
 }
 
+// Équipement commun de niveau 1 à ranger dans le sac à l'arrivée du héros (Macabre : de quoi
+// s'équiper quelle que soit sa première orientation).
+function starterSpares(classKey) {
+  return (CLASSES[classKey].starterSpares ?? []).map((piece) => generateItem({ level: 1, rarity: 'commun', ...piece }));
+}
+
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.
@@ -5198,7 +5513,7 @@ function restoreFully(hero) {
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, starterSpares, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -11393,26 +11708,51 @@ const { mainBranch } = __modules["src/game/talents.js"];
 
 
 
-// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
-// l'emplacement), ou null s'il le peut.
 /**
- * Types d'armure permis : ceux de la classe, restreints par l'orientation principale si elle
- * en fixe (Impassible : Gardien = lourde, Berserker = moyenne ; à égalité de points, les deux).
+ * Équipement permis : celui de la classe, restreint par l'orientation principale si elle en
+ * fixe (`gear` de data/talents.js : Impassible Gardien = armure lourde, Berserker = moyenne ;
+ * Macabre : armes et armure de chaque orientation). À égalité de points, rien n'est restreint.
+ * Retourne { armor, weapons, offHand }.
  */
-function allowedArmor(hero) {
+function allowedGear(hero) {
   const cls = getClass(hero);
-  const branch = mainBranch(hero);
-  return branch?.armor ? cls.gear.armor.filter((a) => branch.armor.includes(a)) : cls.gear.armor;
+  const g = mainBranch(hero)?.gear ?? {};
+  const keep = (list, only) => (only ? list.filter((x) => only.includes(x)) : list);
+  return {
+    armor: keep(cls.gear.armor, g.armor),
+    weapons: keep(cls.gear.weapons, g.weapons),
+    offHand: keep(cls.gear.offHand, g.offHand),
+  };
 }
 
+function allowedArmor(hero) {
+  return allowedGear(hero).armor;
+}
+
+// Liste lisible : « hache à deux mains ou masse à deux mains ».
+function orList(labels) {
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} ou ${labels[labels.length - 1]}` : labels[0] ?? 'rien';
+}
+
+// Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
+// l'emplacement), ou null s'il le peut.
 function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
   if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
-  if (item.armorType && !allowedArmor(hero).includes(item.armorType)) return `Orientation ${mainBranch(hero).name} : ${ARMOR_TYPES[allowedArmor(hero)[0]].label.toLowerCase()} seulement`;
   if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
     return `Les ${cls.plural} ne manient pas ce type d'arme`;
+  }
+  // Restrictions de l'orientation principale.
+  const gear = allowedGear(hero);
+  const branch = mainBranch(hero)?.name;
+  if (item.armorType && !gear.armor.includes(item.armorType)) {
+    return `Orientation ${branch} : ${orList(gear.armor.map((a) => ARMOR_TYPES[a].label.toLowerCase()))} seulement`;
+  }
+  if (item.slotType === 'bouclier' && !gear.offHand.includes('bouclier')) return `Orientation ${branch} : pas de bouclier`;
+  if (item.slotType === 'arme' && !gear.weapons.includes(item.weaponType) && !gear.offHand.includes(item.weaponType)) {
+    return `Orientation ${branch} : ${orList(gear.weapons.map((w) => WEAPON_TYPES[w].name.toLowerCase()))} seulement`;
   }
   return null;
 }
@@ -11420,7 +11760,7 @@ function cannotEquipReason(hero, item) {
 // Emplacements où le héros peut placer cet objet (vide si aucun).
 function slotsFor(hero, item) {
   if (cannotEquipReason(hero, item)) return [];
-  const gear = getClass(hero).gear;
+  const gear = allowedGear(hero);
   return SLOT_ORDER.filter((slot) => {
     if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
     if (item.slotType !== 'arme') return true;
@@ -11474,6 +11814,25 @@ function returnForbiddenGear(hero, bag) {
   return removed;
 }
 
+/**
+ * Remplit les emplacements vides avec ce que le sac a de mieux parmi ce que le héros peut
+ * porter (niveau d'objet, puis stat conseillée de l'orientation principale). Sert après un
+ * changement d'orientation principale. Retourne les objets équipés.
+ */
+function refillGear(hero, bag) {
+  const stat = mainBranch(hero)?.gear?.stat;
+  const score = (it) => (it.level ?? 1) * 10 + (it.primary === stat ? 5 : 0) + (RARITY_RANK[it.rarity] ?? 0);
+  const equipped = [];
+  for (const slot of SLOT_ORDER) {
+    if (hero.equipment[slot]) continue;
+    if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) continue;
+    const best = bag.filter((it) => slotsFor(hero, it).includes(slot)).sort((a, b) => score(b) - score(a))[0];
+    if (best && equip(hero, bag, best, slot)) equipped.push(best);
+  }
+  return equipped;
+}
+const RARITY_RANK = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
+
 function unequip(hero, bag, slot) {
   const item = hero.equipment[slot];
   if (!item) return false;
@@ -11490,7 +11849,7 @@ function previewEquip(hero, item, slot) {
   return equip(copy, bag, item, slot) ? copy : null;
 }
 
-return { allowedArmor, cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, unequip, previewEquip };
+return { allowedGear, allowedArmor, cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, refillGear, unequip, previewEquip };
 })();
 
 // ---- src/ui/bagView.js
@@ -15117,7 +15476,7 @@ const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES } = __modules["src/data/items.js"];
 const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats, classTitle, hasFeminine, usesHp } = __modules["src/game/party.js"];
+const { createParty, createHero, getStats, classTitle, hasFeminine, usesHp, starterSpares } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { generateItem, possibleSecondaries } = __modules["src/game/items.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -15234,6 +15593,7 @@ function renderCreate(app) {
     readNames(app);
     draft.details = null;
     state.party = createParty(draft.names, draft.classes, draft.looks, draft.classes.map((k, i) => hasFeminine(k) && draft.feminine[i]));
+    state.bag.push(...state.party.flatMap((h) => starterSpares(h.classKey)));
     saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };
@@ -15456,7 +15816,8 @@ return { logLines, lastCombatLog, victorySummary };
 
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
-const { returnForbiddenGear } = __modules["src/game/equipment.js"];
+const { returnForbiddenGear, refillGear } = __modules["src/game/equipment.js"];
+const { itemName } = __modules["src/ui/items.js"];
 const { state } = __modules["src/state.js"];
 const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier } = __modules["src/game/talents.js"];
@@ -15467,6 +15828,7 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { XP } = __modules["src/config.js"];
 const { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } = __modules["src/ui/icons.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
 
 
 
@@ -15548,7 +15910,9 @@ function renderTalents(app) {
 // L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
 function gearNote(hero) {
   const removed = returnForbiddenGear(hero, state.bag);
-  return removed.length ? ` Nouvelle orientation principale : ${removed.map((it) => it.name).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac.` : '';
+  if (!removed.length) return '';
+  const added = refillGear(hero, state.bag);
+  return ` Nouvelle orientation principale : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
 }
 
 function doLearn(hero, node) {
@@ -16646,7 +17010,7 @@ return { openMerchant, renderMerchant };
 __modules["src/game/roster.js"] = (() => {
 const { INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { createHero, restoreFully } = __modules["src/game/party.js"];
+const { createHero, restoreFully, starterSpares } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 // Auberge : recrutement de compagnons et gestion de l'équipe.
 //
@@ -16679,6 +17043,7 @@ function rosterLockedReason(game) {
 function recruit(game, classKey, name, replaceIndex, feminine = false) {
   if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
   const hero = createHero(classKey, name?.trim(), null, feminine);
+  (game.bag ??= []).push(...starterSpares(classKey));
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);

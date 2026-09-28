@@ -275,6 +275,12 @@ export function createHero(classKey, name, look = null, feminine = false) {
   return hero;
 }
 
+// Équipement commun de niveau 1 à ranger dans le sac à l'arrivée du héros (Macabre : de quoi
+// s'équiper quelle que soit sa première orientation).
+export function starterSpares(classKey) {
+  return (CLASSES[classKey].starterSpares ?? []).map((piece) => generateItem({ level: 1, rarity: 'commun', ...piece }));
+}
+
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.

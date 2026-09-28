@@ -473,6 +473,63 @@ export const LEGENDARIES = {
     desc: 'Liens du sang — Lien vital coûte 3 % de PV de moins ; sa Régénération soigne 40 % de plus.',
     quote: 'Ce qui coule en toi coule aussi en moi.',
   },
+  // ---- Macabre · Soldat décharné ----
+  hacheDuPasseur: {
+    name: 'Hache du Passeur', classKey: 'macabre', branch: 'soldat', slotType: 'arme', weaponType: 'hache2m', primary: 'force',
+    power: { skillMod: { skill: 'dechainement', powerPct: 25 } },
+    desc: 'Soldat décharné — Déchaînement frappe 25 % plus fort.',
+    quote: 'Une obole sous la langue, et la barque attend.',
+  },
+  gorgerinDuPendu: {
+    name: 'Gorgerin du Pendu', classKey: 'macabre', branch: 'soldat', slotType: 'collier', primary: 'force',
+    power: { requires: 'chair-morte', passive: { soulPhys: 3 } },
+    desc: 'Soldat décharné — Chair morte : chaque âme gardée donne encore +3 % de puissance physique.',
+    quote: 'Frères humains, qui après nous vivez…',
+  },
+  cuirasseDeCendre: {
+    name: 'Cuirasse de cendre', classKey: 'macabre', branch: 'soldat', slotType: 'plastron', armorType: 'moyenne', primary: 'force',
+    power: { skillMod: { skill: 'frappe-d-outre-tombe', powerPct: 20, critBonus: 10 } },
+    desc: 'Soldat décharné — Frappe d\'outre-tombe frappe 20 % plus fort, avec +10 % de chance de critique.',
+    quote: 'La cendre les surprit debout, et debout ils restèrent.',
+  },
+  // ---- Macabre · Mur d'os ----
+  ecuDesCatacombes: {
+    name: 'Écu des Catacombes', classKey: 'macabre', branch: 'murDOs', slotType: 'bouclier', primary: 'force',
+    power: { requires: 'ossature-de-fer', passive: { soulWard: 20, guardShieldPct: 10 } },
+    desc: 'Mur d\'os — Ossature : contrecoup des âmes réduit de 20 % de plus, et Défendre donne un Bouclier de 10 % des PV max en plus.',
+    quote: 'Arrête ! C\'est ici l\'empire de la Mort.',
+  },
+  heaumeDeLOssuaire: {
+    name: 'Heaume de l\'Ossuaire', classKey: 'macabre', branch: 'murDOs', slotType: 'casque', armorType: 'lourde', primary: 'force',
+    power: { skillMod: { skill: 'carapace-d-ossements', effectTurnsDelta: 1, effectPowerPct: 30 } },
+    desc: 'Mur d\'os — Carapace d\'ossements dure 1 tour de plus et protège 30 % de plus.',
+    quote: 'Ce que vous êtes, nous l\'avons été ; ce que nous sommes, vous le serez.',
+  },
+  masseDeSedlec: {
+    name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
+    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
+    quote: 'Quarante mille os, et pas un de trop pour le lustre.',
+  },
+  // ---- Macabre · Nécromancien ----
+  batonDEndor: {
+    name: 'Bâton d\'Endor', classKey: 'macabre', branch: 'necromancien', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    power: { skillMod: { skill: 'explosion-d-ame', powerPct: 25 } },
+    desc: 'Nécromancien — Explosion d\'âme frappe 25 % plus fort.',
+    quote: 'Fais-moi monter celui que je te dirai.',
+  },
+  anneauDIrem: {
+    name: 'Anneau d\'Irem', classKey: 'macabre', branch: 'necromancien', slotType: 'anneau', primary: 'intelligence',
+    power: { requires: 'savoir-interdit', passive: { soulMag: 3 } },
+    desc: 'Nécromancien — Savoir interdit : chaque âme gardée donne encore +3 % de puissance magique.',
+    quote: 'N\'est pas mort ce qui à jamais dort.',
+  },
+  linceulDeThebes: {
+    name: 'Linceul de Thèbes', classKey: 'macabre', branch: 'necromancien', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    power: { skillMod: { skill: 'malediction', powerPct: 15, effectPowerPct: 40, effectTurnsDelta: 1 } },
+    desc: 'Nécromancien — Malédiction frappe 15 % plus fort ; ses Ténèbres font 40 % de dégâts en plus, et ses effets durent 1 tour de plus.',
+    quote: 'La mort viendra sur des ailes rapides pour qui troublera le repos du roi.',
+  },
   // ---- Communs à toutes les classes ----
   plumeLegere: {
     name: 'Plume légère', slotType: 'bottes', armorType: 'legere', primary: 'intelligence',

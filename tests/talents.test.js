@@ -177,7 +177,8 @@ test('toutes les compétences de talents sont définies correctement', () => {
         assert.ok(['damage', 'heal', 'revive', 'support'].includes(s.kind), `${classKey}/${s.id} kind`);
         assert.ok(['enemy', 'ally', 'allEnemies', 'allAllies', 'self', 'deadAlly'].includes(s.target), `${s.id} target`);
         // Classe qui paie en PV (Scarifié) : coût en % des PV max (un sacrifice coûte « tout sauf 1 »).
-        if (CLASSES[classKey].resource.hp) assert.ok(s.sacrifice ? s.cost === 0 : s.cost > 0 && s.cost <= 30, `${s.id} coût (% PV)`);
+        if (CLASSES[classKey].resource.souls) assert.ok(s.cost >= 0 && s.cost <= CLASSES[classKey].resource.max, `${s.id} coût (âmes)`);
+        else if (CLASSES[classKey].resource.hp) assert.ok(s.sacrifice ? s.cost === 0 : s.cost > 0 && s.cost <= 30, `${s.id} coût (% PV)`);
         else assert.ok(s.cost > 0 && s.cost <= CLASSES[classKey].resource.max, `${s.id} coût`);
         if (s.kind !== 'support') assert.ok(s.power > 0, `${s.id} power`);
       }

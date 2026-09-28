@@ -10,7 +10,7 @@ import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES } from '../../data/items.js';
 import { TALENTS, nodeSkills } from '../../data/talents.js';
-import { createParty, createHero, getStats, classTitle, hasFeminine, usesHp } from '../../game/party.js';
+import { createParty, createHero, getStats, classTitle, hasFeminine, usesHp, starterSpares } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { generateItem, possibleSecondaries } from '../../game/items.js';
 import { esc } from '../html.js';
@@ -100,6 +100,7 @@ export function renderCreate(app) {
     readNames(app);
     draft.details = null;
     state.party = createParty(draft.names, draft.classes, draft.looks, draft.classes.map((k, i) => hasFeminine(k) && draft.feminine[i]));
+    state.bag.push(...state.party.flatMap((h) => starterSpares(h.classKey)));
     saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };

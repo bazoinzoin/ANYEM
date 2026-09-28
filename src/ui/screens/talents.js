@@ -1,6 +1,7 @@
 // Maître des compétences : arbres de talents de chaque héros.
 
-import { returnForbiddenGear } from '../../game/equipment.js';
+import { returnForbiddenGear, refillGear } from '../../game/equipment.js';
+import { itemName } from '../items.js';
 import { state } from '../../state.js';
 import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import {
@@ -83,7 +84,9 @@ export function renderTalents(app) {
 // L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
 function gearNote(hero) {
   const removed = returnForbiddenGear(hero, state.bag);
-  return removed.length ? ` Nouvelle orientation principale : ${removed.map((it) => it.name).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac.` : '';
+  if (!removed.length) return '';
+  const added = refillGear(hero, state.bag);
+  return ` Nouvelle orientation principale : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
 }
 
 function doLearn(hero, node) {
