@@ -1,5 +1,6 @@
 // Maître des compétences : arbres de talents de chaque héros.
 
+import { returnForbiddenGear } from '../../game/equipment.js';
 import { state } from '../../state.js';
 import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import {
@@ -71,7 +72,7 @@ export function renderTalents(app) {
   app.querySelector('#reset').onclick = () => {
     if (!view.confirmReset) view.confirmReset = true;
     else {
-      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
+      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.${gearNote(hero)}`;
       view.confirmReset = false;
     }
     goTo('talents');
@@ -79,8 +80,14 @@ export function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
+// L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
+function gearNote(hero) {
+  const removed = returnForbiddenGear(hero, state.bag);
+  return removed.length ? ` Nouvelle orientation principale : ${removed.map((it) => it.name).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac.` : '';
+}
+
 function doLearn(hero, node) {
-  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).`;
+  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).${gearNote(hero)}`;
   view.node = node.id;
   view.confirmReset = false;
   goTo('talents');

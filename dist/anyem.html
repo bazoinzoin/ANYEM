@@ -3266,7 +3266,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', icon: '🛡️',
+      key: 'gardien', name: 'Gardien', armor: ['lourde'], icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -3336,7 +3336,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', icon: '🪓',
+      key: 'berserker', name: 'Berserker', armor: ['moyenne'], icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -4482,6 +4482,16 @@ function pointsInBranch(hero, branch) {
   return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
 }
 
+/**
+ * Orientation principale : celle qui a le plus de points de talent, ou null à égalité
+ * (aucun point dépensé, ou autant dans deux orientations).
+ */
+function mainBranch(hero) {
+  const scored = branchesOf(hero).map((b) => [b, pointsInBranch(hero, b)]).sort((a, b) => b[1] - a[1]);
+  if (!scored.length || (scored[1] && scored[1][1] === scored[0][1])) return null;
+  return scored[0][0];
+}
+
 // Rangs d'un palier une fois complet : le nœud d'un gros palier ; dans un petit palier,
 // CHOICE_PICKS bonus (parmi trois) à leur rang maximum.
 function tierMax(branch, tier) {
@@ -4602,7 +4612,7 @@ function talentEffects(hero) {
   return fx;
 }
 
-return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsInBranch, tierMax, tiersOf, tierRequirement, tierPoints, tierComplete, tierOpen, chosenInTier, excludedInTier, cannotLearnReason, learn, resetCost, resetTalents, sanitizeTalents, talentEffects };
+return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsInBranch, mainBranch, tierMax, tiersOf, tierRequirement, tierPoints, tierComplete, tierOpen, chosenInTier, excludedInTier, cannotLearnReason, learn, resetCost, resetTalents, sanitizeTalents, talentEffects };
 })();
 
 // ---- src/data/appearance.js
@@ -11318,9 +11328,10 @@ return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, 
 
 // ---- src/game/equipment.js
 __modules["src/game/equipment.js"] = (() => {
-const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { SLOTS, SLOT_ORDER, WEAPON_TYPES, ARMOR_TYPES } = __modules["src/data/items.js"];
 const { isTwoHanded } = __modules["src/game/items.js"];
 const { getClass, clampToStats } = __modules["src/game/party.js"];
+const { mainBranch } = __modules["src/game/talents.js"];
 // Règles d'équipement : qui peut porter quoi, où, et échanges avec le sac.
 //
 // hero.equipment : { [slotKey]: item } (emplacement absent = vide)
@@ -11330,12 +11341,24 @@ const { getClass, clampToStats } = __modules["src/game/party.js"];
 
 
 
+
 // Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
 // l'emplacement), ou null s'il le peut.
+/**
+ * Types d'armure permis : ceux de la classe, restreints par l'orientation principale si elle
+ * en fixe (Impassible : Gardien = lourde, Berserker = moyenne ; à égalité de points, les deux).
+ */
+function allowedArmor(hero) {
+  const cls = getClass(hero);
+  const branch = mainBranch(hero);
+  return branch?.armor ? cls.gear.armor.filter((a) => branch.armor.includes(a)) : cls.gear.armor;
+}
+
 function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
   if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
+  if (item.armorType && !allowedArmor(hero).includes(item.armorType)) return `Orientation ${mainBranch(hero).name} : ${ARMOR_TYPES[allowedArmor(hero)[0]].label.toLowerCase()} seulement`;
   if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
     return `Les ${cls.plural} ne manient pas ce type d'arme`;
@@ -11416,7 +11439,7 @@ function previewEquip(hero, item, slot) {
   return equip(copy, bag, item, slot) ? copy : null;
 }
 
-return { cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, unequip, previewEquip };
+return { allowedArmor, cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, unequip, previewEquip };
 })();
 
 // ---- src/ui/bagView.js
@@ -15253,6 +15276,7 @@ return { logLines, lastCombatLog, victorySummary };
 
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
+const { returnForbiddenGear } = __modules["src/game/equipment.js"];
 const { state } = __modules["src/state.js"];
 const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier } = __modules["src/game/talents.js"];
@@ -15263,6 +15287,7 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { XP } = __modules["src/config.js"];
 const { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } = __modules["src/ui/icons.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
 
 
 
@@ -15332,7 +15357,7 @@ function renderTalents(app) {
   app.querySelector('#reset').onclick = () => {
     if (!view.confirmReset) view.confirmReset = true;
     else {
-      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
+      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.${gearNote(hero)}`;
       view.confirmReset = false;
     }
     goTo('talents');
@@ -15340,8 +15365,14 @@ function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
+// L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
+function gearNote(hero) {
+  const removed = returnForbiddenGear(hero, state.bag);
+  return removed.length ? ` Nouvelle orientation principale : ${removed.map((it) => it.name).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac.` : '';
+}
+
 function doLearn(hero, node) {
-  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).`;
+  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).${gearNote(hero)}`;
   view.node = node.id;
   view.confirmReset = false;
   goTo('talents');

@@ -40,6 +40,16 @@ export function pointsInBranch(hero, branch) {
   return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
 }
 
+/**
+ * Orientation principale : celle qui a le plus de points de talent, ou null à égalité
+ * (aucun point dépensé, ou autant dans deux orientations).
+ */
+export function mainBranch(hero) {
+  const scored = branchesOf(hero).map((b) => [b, pointsInBranch(hero, b)]).sort((a, b) => b[1] - a[1]);
+  if (!scored.length || (scored[1] && scored[1][1] === scored[0][1])) return null;
+  return scored[0][0];
+}
+
 // Rangs d'un palier une fois complet : le nœud d'un gros palier ; dans un petit palier,
 // CHOICE_PICKS bonus (parmi trois) à leur rang maximum.
 export function tierMax(branch, tier) {

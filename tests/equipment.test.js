@@ -232,3 +232,20 @@ test("ancienne sauvegarde : une armure qui n'est plus permise retourne au sac", 
   assert.equal(paladin.equipment.plastron, undefined);
   assert.equal(returnForbiddenGear(paladin, bag).length, 0);
 });
+
+test("Impassible : l'orientation principale fixe l'armure (Gardien lourde, Berserker moyenne ; à égalité, les deux)", () => {
+  const [g] = createParty([], ['guerrier']);
+  g.level = 50;
+  const heavy = item({ slotType: 'plastron', armorType: 'lourde', primary: 'force' });
+  const medium = item({ slotType: 'plastron', armorType: 'moyenne', primary: 'force' });
+  assert.equal(cannotEquipReason(g, heavy), null, 'aucun point : les deux');
+  assert.equal(cannotEquipReason(g, medium), null);
+  learnPath(g, 'berserker', { upTo: 2 });
+  assert.ok(cannotEquipReason(g, heavy), 'Berserker : pas de lourd');
+  assert.equal(cannotEquipReason(g, medium), null);
+  learnPath(g, 'gardien', { upTo: 4 });
+  assert.equal(cannotEquipReason(g, heavy), null, 'Gardien : lourd');
+  assert.ok(cannotEquipReason(g, medium));
+  g.equipment.plastron = medium;
+  assert.equal(returnForbiddenGear(g, []).length, 1, 'la moyenne retourne au sac');
+});

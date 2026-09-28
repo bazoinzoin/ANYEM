@@ -100,7 +100,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 export const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', icon: '🛡️',
+      key: 'gardien', name: 'Gardien', armor: ['lourde'], icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -170,7 +170,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', icon: '🪓',
+      key: 'berserker', name: 'Berserker', armor: ['moyenne'], icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),

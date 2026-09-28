@@ -3,16 +3,28 @@
 // hero.equipment : { [slotKey]: item } (emplacement absent = vide)
 // bag            : tableau d'objets partagé par toute l'équipe
 
-import { SLOTS, SLOT_ORDER, WEAPON_TYPES } from '../data/items.js';
+import { SLOTS, SLOT_ORDER, WEAPON_TYPES, ARMOR_TYPES } from '../data/items.js';
 import { isTwoHanded } from './items.js';
 import { getClass, clampToStats } from './party.js';
+import { mainBranch } from './talents.js';
 
 // Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
 // l'emplacement), ou null s'il le peut.
+/**
+ * Types d'armure permis : ceux de la classe, restreints par l'orientation principale si elle
+ * en fixe (Impassible : Gardien = lourde, Berserker = moyenne ; à égalité de points, les deux).
+ */
+export function allowedArmor(hero) {
+  const cls = getClass(hero);
+  const branch = mainBranch(hero);
+  return branch?.armor ? cls.gear.armor.filter((a) => branch.armor.includes(a)) : cls.gear.armor;
+}
+
 export function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
   if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
+  if (item.armorType && !allowedArmor(hero).includes(item.armorType)) return `Orientation ${mainBranch(hero).name} : ${ARMOR_TYPES[allowedArmor(hero)[0]].label.toLowerCase()} seulement`;
   if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
     return `Les ${cls.plural} ne manient pas ce type d'arme`;
