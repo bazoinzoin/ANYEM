@@ -7,6 +7,7 @@
 
 import { TALENTS, CHOICE_PICKS, nodeSkills } from '../data/talents.js';
 import { TALENT_RULES } from '../config.js';
+import { WEAPON_TYPES } from '../data/items.js';
 
 export function branchesOf(hero) {
   return TALENTS[hero.classKey] ?? [];
@@ -115,6 +116,11 @@ export function cannotLearnReason(hero, nodeId) {
 export function learn(hero, nodeId) {
   if (cannotLearnReason(hero, nodeId)) return false;
   hero.talents = { ...hero.talents, [nodeId]: rankOf(hero, nodeId) + 1 };
+  // Orientation qui ne tire qu'à distance (arc : Violent, Vénateur) : le héros s'y place,
+  // sinon ses compétences à l'arc resteraient bloquées au corps à corps.
+  const branch = branchesOf(hero).find((b) => b.nodes.some((n) => n.id === nodeId));
+  const weapons = branch?.gear?.weapons ?? [];
+  if (weapons.length && weapons.every((w) => WEAPON_TYPES[w]?.range === 'ranged')) hero.position = 'ranged';
   return true;
 }
 

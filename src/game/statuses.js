@@ -42,6 +42,8 @@ export function addStatus(unit, status) {
   const i = list.findIndex((s) => s.key === status.key);
   if (i === -1) list.push({ ...status });
   else if (EFFECTS[status.key]?.stacks && list[i].doses && status.doses) list[i] = stackDoses(list[i], status);
+  // Bouclier : un nouveau ne remplace jamais un plus gros ; on garde le plus fort et la plus longue durée.
+  else if (status.shield && list[i].shield) list[i] = { ...status, shield: Math.max(list[i].shield, status.shield), turns: Math.max(list[i].turns, status.turns) };
   else list[i] = { ...status };
 }
 

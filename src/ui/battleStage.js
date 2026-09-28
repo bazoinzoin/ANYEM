@@ -13,10 +13,8 @@ import { heroSprite } from './heroSprite.js';
 import { enemySprite, mobScale } from './mobSprites.js';
 import { ENEMIES } from '../data/enemies.js';
 import { statsOf } from '../game/units.js';
-import { soulsOf } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
 import { image, isReady } from './sprites.js';
-import { effectIcon, COMMAND_ICONS } from './icons.js';
 import { diffBattle } from './battleDiff.js';
 import { battleBack, drawBattleBack } from './battleBacks.js';
 import { state } from '../state.js';
@@ -54,6 +52,9 @@ let pick = null;           // ciblage en cours : { units: Set, onPick }
 let canvas = null;
 let running = false;
 let focus = null;          // cible désignée (flèche) pendant le ciblage
+let badges = [];           // carrés d'effets des monstres dessinés : { unit, x, y, w, h }
+let hovered = null;        // monstre dont le carré d'effets est survolé
+let hoverFn = null;        // appelé au survol d'un carré : (unité, rectangle écran) ou (null)
 const off = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 const scene = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 
@@ -70,6 +71,7 @@ export function attachStage(el, combat) {
   focus = null;
   canvas.onclick = onClick;
   canvas.onmousemove = onHover;
+  canvas.onmouseleave = () => { if (hovered) { hovered = null; hoverFn?.(null); } };
   fitStage();
   draw(performance.now());
   if (!running) {
@@ -290,6 +292,7 @@ function draw(now) {
   out.drawImage(scene, 0, 0, canvas.width, canvas.height);
   out.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
   out.imageSmoothingEnabled = false;
+  badges = [];
   for (const p of placed) drawBars(out, p.u, p.v, p.y, now);
   for (const p of placed) drawArrows(out, p.u, p.v, p.y, now);
   drawPopups(out, now);
@@ -376,7 +379,7 @@ function arrow(ctx, x, tipY, size, fill, glow) {
 
 function drawArrows(ctx, unit, v, y, now) {
   if (!unit.alive && !pick?.units.has(unit)) return;
-  const top = y - looksOf(unit).body - (statusesOf(unit).length || unit.guard ? 16 : 2);
+  const top = y - looksOf(unit).body - (hasBadge(unit) ? 17 : 2);
   const bounce = Math.sin(now / 150) * 3;
   const targeted = pick && (pick.all ? pick.units.has(unit) : focus === unit);
   // La flèche dorée du tour reste affichée pendant le ciblage ; si le héros actif est
@@ -788,17 +791,53 @@ function drawBars(ctx, unit, v, y) {
     ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
     ctx.fillText(unit.name, v.x, by + h + 2);
   }
-  // Effets en cours au-dessus de la tête.
-  // Âmes du Macabre : un crâne parmi ses effets (voir l'écran de combat).
-  const souls = sideOf(unit) === 'hero' && soulsOf(unit) > 0 ? [862] : [];
-  const icons = [...souls, ...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
-  const sheet = image('icons/raven16');
-  if (icons.length && isReady(sheet)) {
-    const size = 12;
-    const left = Math.round(v.x - (icons.length * (size + 1)) / 2);
-    const top = Math.round(y - looksOf(unit).body - size - 2);
-    icons.forEach((ix, i) => ctx.drawImage(sheet, (ix % 16) * 16, Math.floor(ix / 16) * 16, 16, 16, left + i * (size + 1), top, size, size));
-  }
+  // Effets d'un monstre : résumés dans un petit carré doré au-dessus de sa tête (détail
+  // au survol, voir setStageHover). Ceux des héros sont à côté de leurs barres.
+  if (enemy && unit.alive && hasBadge(unit)) drawBadge(ctx, unit, v, y);
+}
+
+function hasBadge(unit) {
+  return sideOf(unit) === 'enemy' && (statusesOf(unit).length > 0 || unit.guard);
+}
+
+// Carré doré : nombre d'effets, pastille verte (effets positifs) et rouge (négatifs).
+function drawBadge(ctx, unit, v, y) {
+  const list = statusesOf(unit);
+  const size = 13;
+  const x = Math.round(v.x - size / 2);
+  const top = Math.round(y - looksOf(unit).body - size - 3);
+  badges.push({ unit, x, y: top, w: size, h: size });
+  const hover = hovered === unit;
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,211,90,.8)';
+  ctx.shadowBlur = hover ? 8 : 3;
+  const g = ctx.createLinearGradient(0, top, 0, top + size);
+  g.addColorStop(0, '#ffe79a');
+  g.addColorStop(1, '#d99a26');
+  ctx.fillStyle = g;
+  ctx.fillRect(x, top, size, size);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#4a2a08';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, top + 0.5, size - 1, size - 1);
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.strokeRect(x + 1.5, top + 1.5, size - 3, size - 3);
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#3a1f04';
+  ctx.fillText(String(list.length + (unit.guard ? 1 : 0)), x + size / 2, top + size / 2 + 0.5);
+  const dot = (dx, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x + dx, top, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a0f06';
+    ctx.stroke();
+  };
+  if (unit.guard || list.some((s) => s.kind === 'buff')) dot(0, '#62d65a');
+  if (list.some((s) => s.kind === 'debuff')) dot(size, '#ec4a3c');
+  ctx.restore();
 }
 
 function drawPopups(ctx, now) {
@@ -856,7 +895,29 @@ export function cycleStageFocus(dir) {
   return focus;
 }
 
+// Survol du carré d'effets d'un monstre : `fn(unité, { left, top, width, height })` (coordonnées
+// de l'écran), puis `fn(null)` en le quittant.
+export function setStageHover(fn) {
+  hoverFn = fn;
+  hovered = null;
+}
+
+function badgeAt(ev) {
+  const r = canvas.getBoundingClientRect();
+  const px = ((ev.clientX - r.left) / r.width) * W;
+  const py = ((ev.clientY - r.top) / r.height) * H;
+  const b = badges.find((it) => px >= it.x - 2 && px <= it.x + it.w + 2 && py >= it.y - 2 && py <= it.y + it.h + 2);
+  if (!b) return null;
+  const k = r.width / W;
+  return { unit: b.unit, rect: { left: r.left + b.x * k, top: r.top + b.y * (r.height / H), width: b.w * k, height: b.h * (r.height / H) } };
+}
+
 function onHover(ev) {
+  const b = badgeAt(ev);
+  if ((b?.unit ?? null) !== hovered) {
+    hovered = b?.unit ?? null;
+    hoverFn?.(hovered, b?.rect);
+  }
   const u = pick ? unitAt(ev) : null;
   canvas.style.cursor = u && pick.units.has(u) ? 'pointer' : '';
   if (u && pick && !pick.all) setStageFocus(u);

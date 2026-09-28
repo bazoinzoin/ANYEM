@@ -193,7 +193,8 @@ function soulTorment(cb, hero) {
   const souls = soulsOf(hero);
   const { self, allies } = soulBacklash(hero, cb.party);
   if (!self) return;
-  const { taken, fell } = hurt(cb, hero, self);
+  // Le contrecoup ronge le Macabre lui-même : ses boucliers ne l'arrêtent pas.
+  const { taken, fell } = hurt(cb, hero, self, { pierce: true });
   log(cb, `${souls} âme${souls > 1 ? 's' : ''} rongent ${hero.name} (-${taken} PV).`, true);
   if (fell) logFall(cb, hero);
   for (const { ally, amount } of allies) {
@@ -506,8 +507,8 @@ function strikeNotes(r) {
 }
 
 // Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
-function hurt(cb, unit, amount) {
-  const r = damage(unit, amount);
+function hurt(cb, unit, amount, opts) {
+  const r = damage(unit, amount, opts);
   if (r.protector?.fell) logFall(cb, r.protector.unit);
   for (const [who, rev] of [[unit, r.revived], [r.protector?.unit, r.protector?.revived]]) {
     if (rev) log(cb, `${who.name} refuse de mourir et se relève avec ${who.hp} PV${rev.source === 'passif' ? '' : ` (${rev.source})`}${hasStatus(who, 'stun') ? ', mais perd son prochain tour' : ''} !`, true);
@@ -649,6 +650,7 @@ function useSkill(cb, caster, skill, targets) {
     status.source = caster;
     applyStatus(cb, caster, status);
     credit(caster, 'shielded', status.shield ?? 0);
+    if (status.shield) parts.push(`${caster.name} : Bouclier de ${status.shield}`);
   }
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
