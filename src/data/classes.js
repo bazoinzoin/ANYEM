@@ -24,7 +24,8 @@
 // gear        ce que la classe peut équiper :
 //   weapons     types d'armes en main droite
 //   offHand     types d'armes ou 'bouclier' en main gauche
-//   armor       types d'armure (bijoux : toujours autorisés)
+//   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
+//               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
@@ -181,7 +182,7 @@ export const CLASSES = {
     gear: {
       weapons: ['arc'],
       offHand: [],
-      armor: ['moyenne', 'legere'],
+      armor: ['moyenne'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'arc', primary: 'agilite' },
@@ -200,14 +201,14 @@ export const CLASSES = {
     position: 'melee',
     mainStat: 'force',
     physStat: 'force',
-    desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, porte l'armure légère et soigne son groupe.",
+    desc: "Chevalier sacré au Mana. En Templier, il monte la Force, porte l'armure lourde, se soigne lui-même et encaisse les coups à la place de ses alliés. En Lumière, il monte l'Intelligence, garde son armure lourde et soigne son groupe.",
     base: { pv: 118, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 3, riposte: 3 },
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
       weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
       offHand: ['bouclier'],
-      armor: ['lourde', 'moyenne', 'legere'],
+      armor: ['lourde'],
     },
     starterKit: [
       { slotType: 'arme', weaponType: 'masse', primary: 'force' },

@@ -5,7 +5,7 @@ import { learnPath } from './helpers.js';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
 import { generateItem } from '../src/game/items.js';
-import { equip, unequip, slotsFor, cannotEquipReason } from '../src/game/equipment.js';
+import { equip, unequip, slotsFor, cannotEquipReason, returnForbiddenGear } from '../src/game/equipment.js';
 import { learn } from '../src/game/talents.js';
 import { LEGENDARIES } from '../src/data/items.js';
 import { CLASSES } from '../src/data/classes.js';
@@ -164,13 +164,14 @@ test('trois légendaires par orientation, chacun renforçant un gros palier ; de
   assert.deepEqual([LEGENDARIES.coeurSacrifie.slotType, LEGENDARIES.coeurSacrifie.primary], ['collier', 'force']);
 });
 
-test('Paladin : armes au corps à corps, bouclier, toutes les armures ; Chasseur : arc, armures moyenne et légère', () => {
+test('Lumineux : armes au corps à corps, bouclier, armure lourde seulement ; Vénateur : arc, armure moyenne seulement', () => {
   const [paladin, chasseur] = createParty([], ['paladin', 'chasseur']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'arme', weaponType: 'masse', primary: 'intelligence' })), ['mainDroite']);
   assert.deepEqual(slotsFor(paladin, item({ slotType: 'bouclier' })), ['mainGauche']);
-  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), null);
-  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })), null, 'qui peut le plus peut le moins');
-  assert.equal(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'legere' })), null);
+  assert.equal(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'lourde', primary: 'intelligence' })), null, 'le soigneur porte du lourd à l\'Intelligence');
+  assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'legere' })), 'plus de « qui peut le plus peut le moins »');
+  assert.ok(cannotEquipReason(paladin, item({ slotType: 'plastron', armorType: 'moyenne' })));
+  assert.ok(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'legere' })));
   assert.ok(cannotEquipReason(chasseur, item({ slotType: 'plastron', armorType: 'lourde' })));
   assert.ok(cannotEquipReason(paladin, item({ slotType: 'arme', weaponType: 'arc' })));
   assert.equal(chasseur.equipment.mainDroite.weaponType, 'arc');
@@ -219,4 +220,15 @@ test('secondaire Mana : augmente la Mana maximum des classes à Mana, sans effet
       assert.equal(after.resMaxItems, 0);
     }
   }
+});
+
+test("ancienne sauvegarde : une armure qui n'est plus permise retourne au sac", () => {
+  const [paladin] = createParty([], ['paladin']);
+  paladin.equipment.plastron = item({ slotType: 'plastron', armorType: 'legere', primary: 'intelligence' });
+  const bag = [];
+  const removed = returnForbiddenGear(paladin, bag);
+  assert.equal(removed.length, 1);
+  assert.equal(bag[0], removed[0]);
+  assert.equal(paladin.equipment.plastron, undefined);
+  assert.equal(returnForbiddenGear(paladin, bag).length, 0);
 });
