@@ -188,3 +188,28 @@ test('secondaires possibles : toutes celles qu\'un objet peut recevoir, avec leu
   }
   assert.deepEqual(possibleSecondaries(generateItem({ level: 50, rarity: 'commun' })), []);
 });
+
+test('stats secondaires : plus fortes sur une arme à deux mains, un peu plus faibles sur une dague ; arme en main gauche comptée en partie', async () => {
+  const { secondaryWeight, secondaryRange } = await import('../src/game/items.js');
+  const { COMBAT } = await import('../src/config.js');
+  const w = (weaponType) => secondaryWeight({ slotType: 'arme', weaponType });
+  assert.ok(w('hache2m') > w('epee') && w('epee') > w('dague'));
+  assert.ok(w('dague') * 2 * COMBAT.offHandBonusFactor < w('hache2m') * 2, 'deux dagues ne valent pas deux armes à deux mains');
+  assert.ok(secondaryWeight({ slotType: 'plastron' }) > secondaryWeight({ slotType: 'gants' }));
+  assert.equal(secondaryWeight({ slotType: 'anneau' }), 1);
+  const rare = RARITIES.epique.range;
+  assert.ok(secondaryRange('pv', 40, rare, w('epee2m')).hi > secondaryRange('pv', 40, rare, w('dague')).hi);
+  // Un objet tiré reste dans la fourchette affichée pour sa base.
+  for (let i = 0; i < 20; i++) {
+    const item = generateItem({ level: 30, rarity: 'epique', slotType: 'arme', weaponType: 'dague' });
+    for (const line of itemStatLines(item).filter((l) => l.secondary)) assert.ok(line.value >= line.range.lo && line.value <= line.range.hi, `${line.stat} ${line.value}`);
+  }
+  // Main gauche : les secondaires de l'arme comptent aux trois quarts.
+  const { createParty, getStats } = await import('../src/game/party.js');
+  const [hero] = createParty(['V'], ['voleur']);
+  hero.equipment = {};
+  const dagger = { ...generateItem({ level: 30, rarity: 'commun', slotType: 'arme', weaponType: 'dague', primary: 'agilite' }), bonus: { pv: 40 } };
+  const before = getStats(hero).pv;
+  hero.equipment.mainGauche = dagger;
+  assert.equal(getStats(hero).pv - before, Math.round(40 * COMBAT.offHandBonusFactor));
+});

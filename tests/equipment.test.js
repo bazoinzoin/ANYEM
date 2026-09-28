@@ -112,7 +112,7 @@ test("l'arme en main gauche ne compte qu'à moitié pour l'attaque", () => {
 test('un légendaire porté modifie la compétence visée (talent compris)', () => {
   const [, voleur] = party();
   voleur.level = 50;
-  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
+  for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
   const croc = generateItem({ legendary: 'fleursDuMal' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
   assert.equal(lame0.effects[0].turns, 6);
@@ -231,4 +231,21 @@ test("ancienne sauvegarde : une armure qui n'est plus permise retourne au sac", 
   assert.equal(bag[0], removed[0]);
   assert.equal(paladin.equipment.plastron, undefined);
   assert.equal(returnForbiddenGear(paladin, bag).length, 0);
+});
+
+test("Impassible : l'orientation principale fixe l'armure (Gardien lourde, Berserker moyenne ; à égalité, les deux)", () => {
+  const [g] = createParty([], ['guerrier']);
+  g.level = 50;
+  const heavy = item({ slotType: 'plastron', armorType: 'lourde', primary: 'force' });
+  const medium = item({ slotType: 'plastron', armorType: 'moyenne', primary: 'force' });
+  assert.equal(cannotEquipReason(g, heavy), null, 'aucun point : les deux');
+  assert.equal(cannotEquipReason(g, medium), null);
+  learnPath(g, 'berserker', { upTo: 2 });
+  assert.ok(cannotEquipReason(g, heavy), 'Berserker : pas de lourd');
+  assert.equal(cannotEquipReason(g, medium), null);
+  learnPath(g, 'gardien', { upTo: 4 });
+  assert.equal(cannotEquipReason(g, heavy), null, 'Gardien : lourd');
+  assert.ok(cannotEquipReason(g, medium));
+  g.equipment.plastron = medium;
+  assert.equal(returnForbiddenGear(g, []).length, 1, 'la moyenne retourne au sac');
 });

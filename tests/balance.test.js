@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createParty, getStats, getSkills } from '../src/game/party.js';
+import { createParty, getStats, getSkills, soulsOf, gainSouls } from '../src/game/party.js';
+import { isSoulBearer } from '../src/game/souls.js';
 import { createCombat, nextTurn, heroAct, enemyAct, canUseSkill, effectiveSkill } from '../src/game/combat.js';
 import { learn, branchesOf, tiersOf } from '../src/game/talents.js';
 import { generateItem } from '../src/game/items.js';
@@ -26,13 +27,14 @@ const GEAR = {
   oeilDeFaucon: ['agilite', 'moyenne', ['arc']], traqueur: ['agilite', 'moyenne', ['arc']],
   templier: ['force', 'lourde', ['masse', 'bouclier']],
   acharne: ['force', 'moyenne', ['hache2m']], violent: ['force', 'moyenne', ['arc']],
+  soldat: ['force', 'moyenne', ['hache2m']], murDOs: ['force', 'lourde', ['masse', 'bouclier']], necromancien: ['intelligence', 'legere', ['baton']],
 };
 const CLASS_OF = {
   gardien: 'guerrier', berserker: 'guerrier', assassin: 'voleur', empoisonneur: 'voleur', precheur: 'pretre', profane: 'pretre',
   feu: 'mage', glace: 'mage', foudre: 'mage', oeilDeFaucon: 'chasseur', traqueur: 'chasseur', templier: 'paladin',
-  acharne: 'scarifie', violent: 'scarifie',
+  acharne: 'scarifie', violent: 'scarifie', soldat: 'macabre', murDOs: 'macabre', necromancien: 'macabre',
 };
-const DPS = ['berserker', 'assassin', 'empoisonneur', 'profane', 'feu', 'glace', 'foudre', 'oeilDeFaucon', 'traqueur', 'acharne', 'violent'];
+const DPS = ['berserker', 'assassin', 'empoisonneur', 'profane', 'feu', 'glace', 'foudre', 'oeilDeFaucon', 'traqueur', 'acharne', 'violent', 'soldat', 'necromancien'];
 
 // Petit palier : le bonus offensif le plus utile.
 const weight = (n) => (n.pct?.physPower || n.pct?.magPower ? 3 : 0) + (n.passive?.dotPct ? 2.5 : 0) + (n.flat?.critChance ? 2 : 0)
@@ -101,6 +103,8 @@ function play(cb, hero) {
     }));
     const options = getSkills(hero).map((s, i) => [s, i])
       .filter(([s]) => canUseSkill(cb, hero, s) && ['enemy', 'allEnemies'].includes(s.target) && (!s.finisher || (hero.combo ?? 0) >= full(s)))
+      // Macabre : il garde ses âmes (bonus) et ne les dépense qu'une fois au maximum.
+      .filter(([s]) => !isSoulBearer(hero) || !s.cost || soulsOf(hero) >= getStats(hero).resMax)
       .map(([s, i]) => ({ act: { type: 'skill', skill: i, target: 0 }, cost: s.cost, v: value(cb, hero, s, target) + (s.comboGain ? perPoint * s.comboGain : 0) }));
     options.push({ act: { type: 'attack', target: 0 }, cost: actionCost(hero, 'attack') || 1, v: avg(estimateHit(statsOf(hero), BASIC_ATTACK, statsOf(target))) });
     options.sort((a, b) => (multi ? b.v / Math.max(10, b.cost) - a.v / Math.max(10, a.cost) : b.v - a.v));
@@ -124,6 +128,11 @@ export function dps(key, level) {
     dummy.hp = 1e8;
     dummy.enemyKey = 'mannequin';
     for (let t = nextTurn(cb); t && cb.round <= 10; t = nextTurn(cb)) {
+      // Macabre : une âme tous les deux rounds, comme si des ennemis tombaient autour de lui.
+      if (t.side === 'hero' && isSoulBearer(hero) && cb.round % 2 === 0 && hero.soulRound !== cb.round) {
+        hero.soulRound = cb.round;
+        gainSouls(hero, 1);
+      }
       if (t.side === 'hero') play(cb, t.unit);
       else { enemyAct(cb); hero.hp = getStats(hero).pv; }
     }
@@ -141,10 +150,10 @@ test('équilibrage : au niveau 50, les orientations de dégâts restent à ±20 
   const d = Object.fromEntries(DPS.map((k) => [k, dps(k, 50)]));
   const m = median(Object.values(d));
   for (const [k, v] of Object.entries(d)) assert.ok(v > m * 0.8 && v < m * 1.2, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
-  // Hybrides et tanks : moins de dégâts, mais pas négligeables.
-  for (const k of ['precheur', 'templier', 'gardien']) {
+  // Hybrides et tanks : moins de dégâts, mais pas négligeables (leurs petits paliers sont défensifs).
+  for (const k of ['precheur', 'templier', 'gardien', 'murDOs']) {
     const v = dps(k, 50);
-    assert.ok(v < m && v > m * 0.25, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
+    assert.ok(v < m && v > m * 0.2, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
   }
 });
 

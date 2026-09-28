@@ -99,8 +99,8 @@ test('Assassin : Déluge de lames (finisher) frappe 4 fois ; Vivacité donne plu
   const { cb, hero } = setup(1, 'assassin', 10, ['vivacite', 'souffle', 'second-souffle']);
   const target = cb.enemies[0];
   target.hp = target.stats.pv = 9999;
-  assert.equal(getStats(hero).resMax, 108);
-  assert.equal(getStats(hero).resRegen, 10);
+  assert.equal(getStats(hero).resMax, 112);
+  assert.equal(getStats(hero).resRegen, 15);
   hero.combo = 3;
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'deluge-de-lames'), target: 0 }));
   assert.match(cb.log[0].text, /3 points de combo.*\d+\*? \+ \d+\*? \+ \d+\*? \+ \d+\*? dégâts/);
@@ -219,7 +219,7 @@ test('Berserker : vol de vie et Exécution (dégâts doublés sous 30 % de PV)',
 
 test('Gardien : Garde de fer renforce la garde ; les boucliers donnés sont renforcés', () => {
   const { cb, hero } = setup(0, 'gardien', 14, ['bastion', 'protecteur', 'garde-de-fer']);
-  assert.equal(statsOf(hero).guardBonus, 11);
+  assert.equal(statsOf(hero).guardBonus, 16.5);
   heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'mur-de-boucliers') });
   const shield = cb.party[2].statuses.find((s) => s.key === 'bouclier').shield;
   const base = Math.round(statsOf(hero).physPower * 0.9);

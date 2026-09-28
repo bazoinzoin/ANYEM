@@ -76,6 +76,7 @@
 .meter.res .fill, .meter.res.mana .fill { background: linear-gradient(#8ec5ff, #3a6fc0); }
 .meter.res.energy .fill { background: linear-gradient(#ffe76a, #c9a21a); }
 .meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
+.meter.res.souls .fill { background: linear-gradient(#d9f2ee, #6fa8a0); } /* âmes du Macabre : pâles, spectrales */
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
 .bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
 .bs-status .st { position: relative; cursor: help; }

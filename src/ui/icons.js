@@ -73,6 +73,18 @@ export function effectIcon(key) {
 
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
+  // Macabre : crânes, os, spectres.
+  [/déchaînement/i, 863],
+  [/outre-tombe|décharné/i, 861],
+  [/hécatombe|citadelle des damnés/i, 1297],
+  [/fracas d'os|carapace d'ossements/i, 849],
+  [/sépulcrale/i, 862],
+  [/écrasement/i, 1478],
+  [/mur des morts|nuée spectrale/i, 1053],
+  [/trait funeste/i, 1051],
+  [/explosion d'âme/i, 1052],
+  [/requiem/i, 1296],
+  [/malédiction/i, 750],
   // Scarifié : sang, plaies, sacrifice (icônes rouges).
   [/pacte/i, 1180],
   [/dernier souffle/i, 1230],
@@ -108,11 +120,12 @@ const BRANCH_ICONS = {
   Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
   'Acharné': 1227, Violent: 1225, 'Liens du sang': 1092,
+  'Soldat décharné': 672, "Mur d'os": 849, 'Nécromancien': 1052,
 };
 export function branchIcon(branch) {
   return BRANCH_ICONS[branch.name] ?? 1000;
 }
-export const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182 };
+export const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182, macabre: 862 };
 
 // Commandes de combat.
 export const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
@@ -124,6 +137,7 @@ const TALENT_STAT_ICONS = {
   esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
   lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
   dotPct: 674, vsDebuffedPct: 616, healPct: GOLD_ICONS.soin, selfRevive: 1180, aoePct: 724, trapPct: 127,
+  soulPhys: 608, soulMag: 609, soulDef: 612, soulCrit: 670, soulBlock: 663, soulLifesteal: 676, soulHeal: 862, soulWard: 862,
 };
 export function talentNodeIcon(node, skills = []) {
   if (skills.length) return skillIconIndex(skills[0]);

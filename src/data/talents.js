@@ -10,13 +10,20 @@
 //   palier 14                  gros : compétence signature
 // Un palier s'ouvre quand tous les précédents sont complets (gros appris, petit : deux bonus
 // au rang maximum) : on passe forcément par chaque gros palier, et on choisit ses petits.
-// Une orientation complète coûte 36 points (8 gros + 7 petits × 2 bonus × 2 rangs) : au niveau
-// maximum (50 points), une orientation entière et une bonne partie d'une autre.
+// Une orientation complète coûte 50 points (8 gros + 7 petits × 2 bonus × 3 rangs) : tous les
+// points du niveau maximum. Un héros ne suit qu'UNE orientation (voir cannotLearnReason) ;
+// la signature est son 50e point.
 // Les effets des gros paliers suivent la logique de l'orientation (un bonus aux dégâts sur la
 // durée ne vient qu'après le premier sort qui en inflige). Les légendaires renforcent les
 // compétences et passifs des gros paliers.
 //
 // Nœud : { id, name, tier, ranks, kind, desc, ...effet }
+// Orientation : { key, name, gear, icon, desc, nodes }. gear = { stat, armor?, weapons?, offHand? } :
+// stat principale conseillée (affichée aux menus Personnage et Création) ; armor / weapons /
+// offHand, s'ils sont donnés, limitent ce que porte le héros quand c'est son orientation
+// principale (celle qui a le plus de points, voir allowedGear dans game/equipment.js).
+// Ses compétences à l'arme (coups, sorts, soins) demandent une de ses armes en main droite
+// (isWeaponSkill, `weapons` ajouté en bas du fichier) ; buffs, provocations, pièges sont neutres.
 //   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, 2 au choix parmi 3
 //        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
 //        'passive'   gros palier : nouveau passif ou amélioration de compétence
@@ -41,6 +48,9 @@
 //     critCombo      point de combo en plus quand un générateur fait un critique
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
+//     soulPhys / soulMag / soulDef / soulCrit / soulBlock / soulLifesteal  bonus PAR ÂME absorbée
+//                    (Macabre, voir applySoulBonuses dans game/party.js)
+//     soulWard       % de contrecoup des âmes en moins ; soulHeal : % des PV max rendus par âme absorbée
 //   skill    compétence accordée (même format que data/classes.js)
 //   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
@@ -50,7 +60,7 @@
 import { CLASSES } from './classes.js';
 
 // Rangs des petits paliers (chaque bonus choisi se prend autant de fois).
-export const CHOICE_RANKS = { 1: 2, 3: 2, 5: 2, 7: 2, 9: 2, 11: 2, 13: 2 };
+export const CHOICE_RANKS = { 1: 3, 3: 3, 5: 3, 7: 3, 9: 3, 11: 3, 13: 3 };
 // Bonus à prendre dans chaque petit palier (parmi trois).
 export const CHOICE_PICKS = 2;
 export const SIGNATURE_TIER = 14;
@@ -66,6 +76,9 @@ const EFFECT_LABELS = {
     resRegen: ' de ressource regagnée par tour', resMaxBonus: ' de ressource maximum', resOnAttack: ' Rage par attaque',
     resOnHitTaken: ' Rage par coup encaissé', trapPct: ' % de dégâts des pièges', finisherRefund: ' Énergie rendue par point de combo dépensé',
     guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
+    soulWard: ' % de contrecoup des âmes en moins', soulPhys: ' % de puissance physique par âme', soulMag: ' % de puissance magique par âme',
+    soulDef: ' % de Défense et Défense magique par âme', soulCrit: ' % de Coup critique par âme', soulBlock: ' % de Blocage par âme',
+    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée',
   },
 };
 
@@ -92,7 +105,7 @@ const starter = (id, name, classKey, ids) => ({
   skills: ids.map((sid) => {
     const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
     if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
-    return skill;
+    return { ...skill };
   }),
 });
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
@@ -100,7 +113,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 export const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', icon: '🛡️',
+      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'], weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -126,7 +139,7 @@ export const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', needsShield: true, cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -146,7 +159,7 @@ export const TALENTS = {
           minor('protecteur', 'Protecteur', { passive: { shieldPct: 8 } }),
         ]),
         skill(10, {
-          id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
+          id: 'mur-de-boucliers', name: 'Mur de boucliers', needsShield: true, cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.9)],
           desc: 'Bouclier sur toute l\'équipe pendant 2 tours',
         }),
@@ -170,7 +183,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', icon: '🪓',
+      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'], weapons: ['epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -238,7 +251,7 @@ export const TALENTS = {
   ],
   voleur: [
     {
-      key: 'assassin', name: 'Assassin', icon: '🗡️',
+      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite', weapons: ['dague'], offHand: ['dague'] }, icon: '🗡️',
       desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
@@ -248,7 +261,7 @@ export const TALENTS = {
           minor('lames-aiguisees', 'Lames aiguisées', { flat: { critDmg: 4 } }),
         ]),
         skill(2, {
-          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.65, comboGain: 1,
+          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1,
           effects: [fx('ralenti', 2)],
           desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
         }),
@@ -304,7 +317,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
+      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite', weapons: ['dague', 'epee'], offHand: ['dague', 'epee'] }, icon: '🧪',
       desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
@@ -378,7 +391,7 @@ export const TALENTS = {
   ],
   pretre: [
     {
-      key: 'clerc', name: 'Clerc', icon: '✨',
+      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
@@ -444,7 +457,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'precheur', name: 'Prêcheur', icon: '📖',
+      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
@@ -513,7 +526,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'profane', name: 'Profane', icon: '🌑',
+      key: 'profane', name: 'Profane', gear: { stat: 'intelligence', weapons: ['dague', 'baton'] }, icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
         starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
@@ -584,7 +597,7 @@ export const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Feu', icon: '🔥',
+      key: 'feu', name: 'Feu', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -652,7 +665,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Glace', icon: '❄️',
+      key: 'glace', name: 'Glace', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -720,7 +733,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -789,7 +802,7 @@ export const TALENTS = {
   ],
   chasseur: [
     {
-      key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🦅',
       desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
@@ -832,7 +845,7 @@ export const TALENTS = {
           minor('visee-parfaite', 'Visée parfaite', { pct: { physPower: 4 } }),
         ]),
         skill(10, {
-          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 4.2, critBonus: 20,
           desc: 'Tir dévastateur sur un ennemi (+20 % de chance de critique)',
         }),
         ...choice(11, [
@@ -853,7 +866,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'traqueur', name: 'Traqueur', icon: '🐾',
+      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
@@ -924,7 +937,7 @@ export const TALENTS = {
   ],
   paladin: [
     {
-      key: 'templier', name: 'Templier', icon: '🛡️',
+      key: 'templier', name: 'Templier', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
@@ -994,8 +1007,8 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : armure légère, armes d\'Intelligence.',
+      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence', weapons: ['masse', 'masse2m'], offHand: ['bouclier'] }, icon: '☀️',
+      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : garde l\'armure lourde, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
         ...choice(1, [
@@ -1063,7 +1076,7 @@ export const TALENTS = {
   ],
   scarifie: [
     {
-      key: 'acharne', name: 'Acharné', icon: '🩸',
+      key: 'acharne', name: 'Acharné', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🩸',
       desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
       nodes: [
         starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
@@ -1131,7 +1144,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'violent', name: 'Violent', icon: '💥',
+      key: 'violent', name: 'Violent', gear: { stat: 'force', weapons: ['arc'] }, icon: '💥',
       desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
       nodes: [
         starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
@@ -1192,7 +1205,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'liensDuSang', name: 'Liens du sang', icon: '❤️',
+      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '❤️',
       desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
       nodes: [
         starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
@@ -1260,7 +1273,223 @@ export const TALENTS = {
       ],
     },
   ],
+  macabre: [
+    {
+      key: 'soldat', name: 'Soldat décharné', gear: { stat: 'force', armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] }, icon: '💀',
+      desc: 'Dégâts au corps à corps : chaque âme le rend bien plus fort, mais le ronge. Il frappe fort tant qu\'il les garde, puis les libère d\'un coup. Force, hache ou masse à deux mains, armure moyenne.',
+      nodes: [
+        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne']), passive: { soulPhys: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-os-durs', 'Os durs', { pct: { physPower: 2.5 } }),
+          minor('mc-rictus', 'Rictus', { flat: { critDmg: 4 } }),
+          minor('mc-carcasse', 'Carcasse', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'dechainement', name: 'Déchaînement', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
+          desc: 'Libère toutes ses âmes dans un seul coup : puissance 2 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-faim', 'Faim', { flat: { critChance: 1 } }),
+          minor('mc-gorge-noire', 'Gorge noire', { passive: { lifestealPct: 1.5 } }),
+          minor('mc-tendons', 'Tendons secs', { pct: { physPower: 3 } }),
+        ]),
+        passive('chair-morte', 'Chair morte', 4, 'Chaque âme gardée donne encore +4 % de puissance physique (14 % par âme).', { passive: { soulPhys: 4 } }),
+        ...choice(5, [
+          minor('mc-coups-lourds', 'Coups lourds', { flat: { critDmg: 5 } }),
+          minor('mc-ossature', 'Ossature', { pct: { pv: 3 } }),
+          minor('mc-achever', 'Achever', { passive: { executePct: 4 } }),
+        ]),
+        skill(6, {
+          id: 'fauchee', name: 'Fauchée', cost: 0, kind: 'damage', target: 'allEnemies', power: 1.2,
+          desc: 'Grand coup circulaire sur tous les ennemis (gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-poids-mort', 'Poids mort', { pct: { physPower: 3.5 } }),
+          minor('mc-orbites', 'Orbites vides', { flat: { critChance: 1.5 } }),
+          minor('mc-dents', 'Dents longues', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          desc: 'Libère une âme dans un coup terrible, +20 % de chance de critique',
+        }),
+        ...choice(9, [
+          minor('mc-fossoyeur', 'Fossoyeur', { passive: { executePct: 5 } }),
+          minor('mc-fracas', 'Fracas', { flat: { critDmg: 6 } }),
+          minor('mc-tanne', 'Cuir tanné', { pct: { pv: 4 } }),
+        ]),
+        passive('festin-d-ames', 'Festin d\'âmes', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-lame-grise', 'Lame grise', { pct: { physPower: 4 } }),
+          minor('mc-regard-mort', 'Regard mort', { flat: { critChance: 2 } }),
+          minor('mc-habitude', 'Habitude', { passive: { soulWard: 5 } }),
+        ]),
+        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-carnage', 'Carnage', { pct: { physPower: 4.5 } }),
+          minor('mc-brise-os', 'Brise-os', { flat: { critDmg: 6.5 } }),
+          minor('mc-chair-dure', 'Chair dure', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'hecatombe', name: 'Hécatombe', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
+          desc: 'Libère toutes ses âmes sur tous les ennemis : puissance 1,4 par âme libérée',
+        }),
+      ],
+    },
+    {
+      key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
+      desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
+      nodes: [
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os']), passive: { soulDef: 8, soulBlock: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        ...choice(1, [
+          minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
+          minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
+          minor('mc-moelle', 'Moelle froide', { pct: { defMag: 3 } }),
+        ]),
+        skill(2, {
+          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 0, kind: 'support', target: 'self',
+          selfEffects: [fx('provocation', 2)],
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense (gratuit)',
+        }),
+        ...choice(3, [
+          minor('mc-ecu-d-os', 'Écu d\'os', { flat: { blocage: 2.5 } }),
+          minor('mc-resigne', 'Résigné', { passive: { soulWard: 5 } }),
+          minor('mc-squelette', 'Squelette', { pct: { pv: 2.5 } }),
+        ]),
+        passive('ossature-de-fer', 'Ossature', 4, 'Défendre donne un Bouclier de 15 % des PV max ; le contrecoup des âmes est réduit de 30 %.', { passive: { guardShieldPct: 15, soulWard: 30 } }),
+        ...choice(5, [
+          minor('mc-os-epais', 'Os épais', { passive: { shieldPct: 6.5 } }),
+          minor('mc-cuirasse-d-os', 'Cuirasse d\'os', { pct: { def: 5 } }),
+          minor('mc-crane', 'Crâne dur', { pct: { defMag: 5 } }),
+        ]),
+        skill(6, {
+          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 1, allSouls: true, kind: 'support', target: 'self',
+          selfEffects: [fx('bouclier', 2, 0.8)],
+          desc: 'Libère toutes ses âmes en une carapace d\'os : Bouclier 2 tours, de puissance 0,8 par âme libérée',
+        }),
+        ...choice(7, [
+          minor('mc-immobile', 'Immobile', { passive: { guardBonus: 3.5 } }),
+          minor('mc-vertebres', 'Vertèbres', { pct: { def: 3.5 } }),
+          minor('mc-sang-froid', 'Sang froid', { pct: { pv: 3.5 } }),
+        ]),
+        skill(8, {
+          id: 'ecrasement', name: 'Écrasement', cost: 0, kind: 'damage', target: 'enemy', power: 1.6,
+          effects: [fx('affaibli', 2)],
+          desc: 'Écrase la cible : Affaibli 2 tours (gratuit)',
+        }),
+        ...choice(9, [
+          minor('mc-ossuaire', 'Charnier', { pct: { pv: 4 } }),
+          minor('mc-voile', 'Voile gris', { pct: { defMag: 4.5 } }),
+          minor('mc-parade', 'Parade d\'os', { flat: { blocage: 3 } }),
+        ]),
+        passive('ossuaire-vivant', 'Ossuaire vivant', 10, 'Chaque âme absorbée le soigne de 8 % de ses PV max.', { passive: { soulHeal: 8 } }),
+        ...choice(11, [
+          minor('mc-remparts', 'Remparts', { pct: { def: 5 } }),
+          minor('mc-os-de-pierre', 'Os de pierre', { pct: { pv: 5 } }),
+          minor('mc-patience', 'Patience', { passive: { soulWard: 6 } }),
+        ]),
+        skill(12, {
+          id: 'mur-des-morts', name: 'Mur des morts', cost: 2, kind: 'support', target: 'allAllies',
+          effects: [fx('protection', 2)],
+          desc: 'Libère 2 âmes en un mur de spectres : toute l\'équipe gagne Protection 2 tours',
+        }),
+        ...choice(13, [
+          minor('mc-colosse', 'Colosse', { pct: { pv: 5.5 } }),
+          minor('mc-bastion-d-os', 'Bastion d\'os', { pct: { def: 5.5 } }),
+          minor('mc-linceul', 'Linceul', { pct: { defMag: 5.5 } }),
+        ]),
+        signature({
+          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 1, allSouls: true, kind: 'support', target: 'allAllies',
+          effects: [fx('bouclier', 2, 0.4)], selfEffects: [fx('provocation', 2)],
+          desc: 'Libère toutes ses âmes : toute l\'équipe gagne un Bouclier 2 tours (puissance 0,4 par âme) et il provoque les ennemis 2 tours',
+        }),
+      ],
+    },
+    {
+      key: 'necromancien', name: 'Nécromancien', gear: { stat: 'intelligence', armor: ['legere'], weapons: ['baton'], offHand: [] }, icon: '🕯️',
+      desc: 'Dégâts magiques à distance : chaque âme renforce ses sorts, mais le ronge ; il les libère en explosions d\'âmes. Seule orientation à l\'Intelligence : bâton, armure légère.',
+      nodes: [
+        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste']), passive: { soulMag: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-encre-noire', 'Encre noire', { pct: { magPower: 2.5 } }),
+          minor('mc-glas', 'Glas', { flat: { critDmg: 4 } }),
+          minor('mc-suaire', 'Suaire', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
+          desc: 'Libère toutes ses âmes sur une cible (dégâts magiques) : puissance 0,95 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-presage', 'Présage', { flat: { critChance: 1 } }),
+          minor('mc-rituel', 'Rituel', { pct: { magPower: 3 } }),
+          minor('mc-sangsue', 'Sangsue', { passive: { lifestealPct: 1.5 } }),
+        ]),
+        passive('savoir-interdit', 'Savoir interdit', 4, 'Chaque âme gardée donne encore +4 % de puissance magique (14 % par âme).', { passive: { soulMag: 4 } }),
+        ...choice(5, [
+          minor('mc-oraison', 'Oraison', { flat: { critDmg: 5 } }),
+          minor('mc-veille', 'Veillée', { pct: { pv: 3 } }),
+          minor('mc-putrefaction', 'Putréfaction', { pct: { magPower: 3 } }),
+        ]),
+        skill(6, {
+          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 0, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
+          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques, gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-necronomie', 'Nécrologie', { pct: { magPower: 3.5 } }),
+          minor('mc-mauvais-oeil', 'Mauvais œil', { flat: { critChance: 1.5 } }),
+          minor('mc-vampire', 'Soif', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'malediction', name: 'Malédiction', cost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
+          effects: [fx('tenebres', 3, 0.25), fx('terreur', 2)],
+          desc: 'Libère une âme en malédiction (dégâts magiques) : Ténèbres 3 tours et Terreur 2 tours',
+        }),
+        ...choice(9, [
+          minor('mc-pourriture', 'Pourriture', { passive: { dotPct: 5 } }),
+          minor('mc-fin', 'La fin', { flat: { critDmg: 6 } }),
+          minor('mc-os-blancs', 'Os blancs', { pct: { pv: 4 } }),
+        ]),
+        passive('siphon-des-morts', 'Siphon d\'âme', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-incantation', 'Incantation', { pct: { magPower: 4 } }),
+          minor('mc-funeste', 'Funeste', { flat: { critChance: 2 } }),
+          minor('mc-detachement', 'Détachement', { passive: { soulWard: 5 } }),
+        ]),
+        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-liturgie', 'Liturgie noire', { pct: { magPower: 4.5 } }),
+          minor('mc-dies-irae', 'Colère', { flat: { critDmg: 6.5 } }),
+          minor('mc-pierre-tombale', 'Pierre tombale', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'requiem', name: 'Requiem', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
+          effects: [fx('tenebres', 2, 0.1)],
+          desc: 'Libère toutes ses âmes sur tous les ennemis (dégâts magiques, puissance 0,7 par âme) et les plonge dans les Ténèbres 2 tours',
+        }),
+      ],
+    },
+  ],
 };
+
+// Compétence « à l'arme » : un coup ou un sort (dégâts, soin). Elle ne part qu'avec une arme de
+// son orientation en main (`weapons`, ajouté ci-dessous) ; les autres (buffs, provocation,
+// pièges, résurrection…) sont neutres. `needsShield: true` : demande en plus un bouclier.
+export function isWeaponSkill(skill) {
+  return skill.kind === 'damage' || skill.kind === 'heal';
+}
+
+// Chaque compétence à l'arme reçoit les armes de son orientation (sauf `weapons` déjà donné).
+for (const branches of Object.values(TALENTS)) {
+  for (const branch of branches) {
+    for (const node of branch.nodes) {
+      for (const sk of node.skills ?? (node.skill ? [node.skill] : [])) {
+        if (isWeaponSkill(sk) && branch.gear?.weapons && !sk.weapons) sk.weapons = branch.gear.weapons;
+      }
+    }
+  }
+}
 
 // Compétences accordées par un nœud (champ `skill` ou `skills`).
 export function nodeSkills(node) {

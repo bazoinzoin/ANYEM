@@ -18,14 +18,14 @@ function newGame() {
   return { party: [], reserve: [], bag: [], gold: 0, dungeons: {}, consumables: {} };
 }
 
-test('partie Debug : héros niveau max avec leurs sorts de départ, toutes les classes présentes', () => {
+test('partie Debug : héros niveau max, 50 points à placer dans l\'orientation de son choix, toutes les classes présentes', () => {
   const game = setupDebugGame(newGame());
   const heroes = [...game.party, ...game.reserve];
   assert.deepEqual([...new Set(heroes.map((h) => h.classKey))].sort(), [...CLASS_ORDER].sort());
   for (const h of heroes) {
     assert.equal(h.level, XP.maxLevel);
-    assert.ok(getSkills(h).length > 0, `${h.name} connaît ses sorts de départ`);
-    assert.ok(pointsAvailable(h) > 0, 'il reste des points de talent à dépenser');
+    assert.equal(getSkills(h).length, 0, `${h.name} : orientation encore à choisir`);
+    assert.equal(pointsAvailable(h), XP.maxLevel, 'tous les points à placer');
     assert.equal(h.hp, getStats(h).pv);
   }
 });

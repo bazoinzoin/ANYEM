@@ -4,7 +4,7 @@
 import { DUNGEONS } from '../data/dungeons.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { MERCHANT } from '../config.js';
-import { getStats, gainResource } from './party.js';
+import { getStats, gainResource, getClass, usesSouls } from './party.js';
 import { heal } from './units.js';
 import { statusesOf } from './statuses.js';
 
@@ -45,6 +45,8 @@ export function isValidTarget(key, target) {
   if (def.target === 'deadAlly') return !target.alive;
   if (def.target !== 'ally' || !target.alive) return false;
   if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
+  // Les âmes du Macabre ne viennent que des morts : pas d'élixir de ressource pour lui.
+  if (def.effect.resourcePct && !def.effect.healPct && usesSouls(getClass(target))) return false;
   return true;
 }
 
@@ -82,7 +84,7 @@ export function restoreParty(party, pct) {
   for (const hero of party.filter((h) => h.alive)) {
     const stats = getStats(hero);
     hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
-    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+    if (!usesSouls(getClass(hero))) hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
   }
 }
 

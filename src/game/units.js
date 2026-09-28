@@ -1,6 +1,6 @@
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
 
-import { getStats } from './party.js';
+import { getStats, getClass, usesSouls } from './party.js';
 import { statusMods, statusBonus, isDebuffed, absorbWithShields, statusesOf, addStatus, makeStatus } from './statuses.js';
 
 export const isHero = (unit) => 'classKey' in unit;
@@ -58,6 +58,7 @@ function applyDamage(unit, amount) {
       unit.alive = false;
       unit.statuses = [];
       fell = true;
+      if (isHero(unit) && usesSouls(getClass(unit))) unit.res = 0; // ses âmes s'échappent
     }
   }
   return { taken, absorbed, fell, ...(revived ? { revived } : {}) };

@@ -13,7 +13,7 @@ export function tip(text, extraClass = '') {
 }
 
 // Classe CSS d'une ressource, pour la couleur de sa barre : mana (bleu), energy (jaune), rage (rouge).
-const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage' };
+const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage', 'Âmes': 'souls' };
 export function resourceKind(name) {
   return RESOURCE_KINDS[name] ?? 'mana';
 }

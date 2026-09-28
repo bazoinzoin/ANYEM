@@ -160,6 +160,10 @@ export const TOPS = {
     label: 'Cuir scarifié', body: 'beastmaster',
     map: { '#8f4d57': '#52333f', '#bd6a62': '#7d3833', '#63ab3f': '#ad2f45', '#3b7d4f': '#7d3833' },
   },
+  macabre: {
+    label: "Armure d'ossements", body: 'gladiator',
+    map: { '#d7d3bd': '#e8e2cc', '#9d9387': '#8f8a7a', '#633d4c': '#1b1a2c', '#8f4d57': '#3a3f5e', '#7d3833': '#141220', '#a47d72': '#b8b09a' },
+  },
   duelliste: {
     label: 'Tenue de duelliste', body: 'swashbuckler',
     map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#e64539': '#4a6fc4', '#ad2f45': '#2f437a', '#9c2a70': '#2f437a' },
@@ -189,6 +193,7 @@ export const CLASS_LOOKS = {
   chasseur: { hair: 'queue', hairColor: 'chatain', eyes: 'verts', skin: 'halee', top: 'druide', bottom: 'cuir' },
   paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'templier', bottom: 'jambieres' },
   scarifie: { hair: 'longs', hairColor: 'noir', eyes: 'rouges', skin: 'pale', top: 'scarifie', bottom: 'garance' },
+  macabre: { hair: 'longs', hairColor: 'blanc', eyes: 'gris', skin: 'pale', top: 'macabre', bottom: 'sombre' },
 };
 
 // Champs d'une apparence → catalogue de ses choix (ordre de l'écran de création).

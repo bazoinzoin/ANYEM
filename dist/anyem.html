@@ -14,7 +14,7 @@
 :root {
   --bg: #161009; --panel: #241b12; --panel2: #2e2216; --line: #4a3a26;
   --gold: #c9a876; --cream: #e8dcc8; --dim: #a9987e;
-  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a; --scarifie: #9e1b2c;
+  --guerrier: #8a3a3a; --voleur: #3f6b45; --pretre: #3f5a8a; --mage: #7a3f7a; --chasseur: #7a6a2f; --paladin: #b08a3a; --scarifie: #9e1b2c; --macabre: #5d6b78;
   --danger: #a33; --good: #5a8a5a;
   --r-commun: #a8a29a; --r-peu-commun: #6cc15a; --r-rare: #5b9cf0; --r-epique: #b57cf2; --r-legendaire: #f0953a; --r-divin: #e8413c;
   --font-title: 'Cinzel', serif;
@@ -218,6 +218,7 @@ button.full { width: 100%; margin-top: 12px; }
 .meter.res .fill, .meter.res.mana .fill { background: linear-gradient(#8ec5ff, #3a6fc0); }
 .meter.res.energy .fill { background: linear-gradient(#ffe76a, #c9a21a); }
 .meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
+.meter.res.souls .fill { background: linear-gradient(#d9f2ee, #6fa8a0); } /* âmes du Macabre : pâles, spectrales */
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
 .bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
 .bs-status .st { position: relative; cursor: help; }
@@ -666,6 +667,13 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 @keyframes slot-glow { from { filter: brightness(1); } to { filter: brightness(1.3); } }
 .eq-slot sup, .bag-cell sup { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
 .inv-help { font-size: 12px; text-align: center; margin: 0; }
+/* Guide d'équipement par orientation (ui/gearGuide.js) : écran Personnage et création. */
+.gear-guide { font-size: 12px; line-height: 1.3; max-width: 100%; margin: 0; }
+.gear-guide p { margin: 0 0 3px; }
+.gear-guide ul { margin: 0; padding: 0; list-style: none; }
+.gear-guide li { padding: 1px 4px; color: var(--dim); border-left: 2px solid transparent; }
+.gear-guide li.current { color: var(--cream); border-left-color: var(--gold); background: rgba(201, 168, 118, .08); }
+.gear-guide .hint { margin: 3px 0 0; font-size: 11px; }
 .inv-bag { grid-area: bag; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .inv-bag.over { filter: brightness(1.2); }
 .bag-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -716,6 +724,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-branch { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .tal-branch h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 17px; }
 .tal-branch h3 small { margin-left: auto; color: #f3d58c; font-weight: 400; }
+.tal-branch.closed { opacity: .45; filter: grayscale(.7); } /* une seule orientation par héros */
 .tal-progress { margin: 4px 0 6px; height: 7px; }
 .tal-tiers { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
 .tal-row { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; position: relative; }
@@ -1005,6 +1014,7 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-modal p { margin: 0; }
 .hud-modal .event-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px; }
 .hud-modal .event-choice ul { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
+.hud-modal .event-cost { margin: 3px 0 0; font-size: 12px; color: #f3d58c; }
 .hud-modal .event-stock { display: flex; flex-direction: column; gap: 3px; }
 .hud-modal .event-stock .bag-row { display: flex; align-items: center; gap: 6px; padding: 2px 6px; }
 .hud-modal .event-stock .bag-row button { margin-left: auto; font-size: 12px; padding: 0 8px; }
@@ -1319,8 +1329,15 @@ const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Ma
 
 // Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
 // (4 héros, classes au choix, doublons permis).
-const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
+const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie', 'macabre'];
 const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
+
+// Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre
+// (le repos à l'auberge les libère). Contrecoup à la fin de chacun de ses tours :
+//   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
+//   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
+//   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
+const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
 
 const COMBAT = {
   logMax: 40,
@@ -1334,6 +1351,7 @@ const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
+  offHandBonusFactor: 0.75, // part des stats secondaires d'une arme en main gauche
   caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
   meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
   ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)
@@ -1570,7 +1588,7 @@ const TIMING = {
   outcomeMs: 1200, // dernier coup, puis fin du combat
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -1624,6 +1642,11 @@ const MATERIA_KINDS = {
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+// Poids des stats secondaires d'une pièce d'armure (plus fort sur un plastron que sur des gants ;
+// écart volontairement plus faible que pour l'Armure). Armes : `secWeight` de WEAPON_TYPES ;
+// bouclier : SHIELD.secWeight ; bijoux : 1.
+const ARMOR_SECONDARY = { casque: 1.0, epaulieres: 0.95, plastron: 1.2, gants: 0.9, bottes: 0.95 };
+
 const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
@@ -1654,23 +1677,26 @@ const ARMOR_TYPES = {
 // épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
 // d'Intelligence au Paladin Lumière.
 const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
+// secWeight : poids des stats secondaires de l'arme (à niveau et rareté égaux) : une arme à deux
+// mains en porte de plus fortes qu'une arme à une main (sans atteindre deux armes), une dague
+// un peu moins qu'une épée (elle est plus rapide).
 const WEAPON_TYPES = {
-  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
-  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
-  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', secWeight: 0.85, primaries: ALL_PRIMARIES },
 };
 
 const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', secWeight: 0.9, primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 // Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
 // stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
@@ -2051,6 +2077,63 @@ const LEGENDARIES = {
     desc: 'Liens du sang — Lien vital coûte 3 % de PV de moins ; sa Régénération soigne 40 % de plus.',
     quote: 'Ce qui coule en toi coule aussi en moi.',
   },
+  // ---- Macabre · Soldat décharné ----
+  hacheDuPasseur: {
+    name: 'Hache du Passeur', classKey: 'macabre', branch: 'soldat', slotType: 'arme', weaponType: 'hache2m', primary: 'force',
+    power: { skillMod: { skill: 'dechainement', powerPct: 25 } },
+    desc: 'Soldat décharné — Déchaînement frappe 25 % plus fort.',
+    quote: 'Une obole sous la langue, et la barque attend.',
+  },
+  gorgerinDuPendu: {
+    name: 'Gorgerin du Pendu', classKey: 'macabre', branch: 'soldat', slotType: 'collier', primary: 'force',
+    power: { requires: 'chair-morte', passive: { soulPhys: 3 } },
+    desc: 'Soldat décharné — Chair morte : chaque âme gardée donne encore +3 % de puissance physique.',
+    quote: 'Frères humains, qui après nous vivez…',
+  },
+  cuirasseDeCendre: {
+    name: 'Cuirasse de cendre', classKey: 'macabre', branch: 'soldat', slotType: 'plastron', armorType: 'moyenne', primary: 'force',
+    power: { skillMod: { skill: 'frappe-d-outre-tombe', powerPct: 20, critBonus: 10 } },
+    desc: 'Soldat décharné — Frappe d\'outre-tombe frappe 20 % plus fort, avec +10 % de chance de critique.',
+    quote: 'La cendre les surprit debout, et debout ils restèrent.',
+  },
+  // ---- Macabre · Mur d'os ----
+  ecuDesCatacombes: {
+    name: 'Écu des Catacombes', classKey: 'macabre', branch: 'murDOs', slotType: 'bouclier', primary: 'force',
+    power: { requires: 'ossature-de-fer', passive: { soulWard: 20, guardShieldPct: 10 } },
+    desc: 'Mur d\'os — Ossature : contrecoup des âmes réduit de 20 % de plus, et Défendre donne un Bouclier de 10 % des PV max en plus.',
+    quote: 'Arrête ! C\'est ici l\'empire de la Mort.',
+  },
+  heaumeDeLOssuaire: {
+    name: 'Heaume de l\'Ossuaire', classKey: 'macabre', branch: 'murDOs', slotType: 'casque', armorType: 'lourde', primary: 'force',
+    power: { skillMod: { skill: 'carapace-d-ossements', effectTurnsDelta: 1, effectPowerPct: 30 } },
+    desc: 'Mur d\'os — Carapace d\'ossements dure 1 tour de plus et protège 30 % de plus.',
+    quote: 'Ce que vous êtes, nous l\'avons été ; ce que nous sommes, vous le serez.',
+  },
+  masseDeSedlec: {
+    name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
+    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
+    quote: 'Quarante mille os, et pas un de trop pour le lustre.',
+  },
+  // ---- Macabre · Nécromancien ----
+  batonDEndor: {
+    name: 'Bâton d\'Endor', classKey: 'macabre', branch: 'necromancien', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    power: { skillMod: { skill: 'explosion-d-ame', powerPct: 25 } },
+    desc: 'Nécromancien — Explosion d\'âme frappe 25 % plus fort.',
+    quote: 'Fais-moi monter celui que je te dirai.',
+  },
+  anneauDIrem: {
+    name: 'Anneau d\'Irem', classKey: 'macabre', branch: 'necromancien', slotType: 'anneau', primary: 'intelligence',
+    power: { requires: 'savoir-interdit', passive: { soulMag: 3 } },
+    desc: 'Nécromancien — Savoir interdit : chaque âme gardée donne encore +3 % de puissance magique.',
+    quote: 'N\'est pas mort ce qui à jamais dort.',
+  },
+  linceulDeThebes: {
+    name: 'Linceul de Thèbes', classKey: 'macabre', branch: 'necromancien', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    power: { skillMod: { skill: 'malediction', powerPct: 15, effectPowerPct: 40, effectTurnsDelta: 1 } },
+    desc: 'Nécromancien — Malédiction frappe 15 % plus fort ; ses Ténèbres font 40 % de dégâts en plus, et ses effets durent 1 tour de plus.',
+    quote: 'La mort viendra sur des ailes rapides pour qui troublera le repos du roi.',
+  },
   // ---- Communs à toutes les classes ----
   plumeLegere: {
     name: 'Plume légère', slotType: 'bottes', armorType: 'legere', primary: 'intelligence',
@@ -2084,7 +2167,7 @@ const LEGENDARIES = {
   },
 };
 
-return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_RARITIES, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_RARITIES, MATERIA_KINDS, ARMOR_SECONDARY, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
 })();
 
 // ---- src/game/rng.js
@@ -2130,7 +2213,7 @@ return { setRandomSource, random, rand, pick, seededRandom };
 // ---- src/game/items.js
 __modules["src/game/items.js"] = (() => {
 const { ITEM, LOOT, FORGE } = __modules["src/config.js"];
-const { RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
+const { RARITIES, ARMOR_PIECES, ARMOR_SECONDARY, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
 const { rand, pick, random } = __modules["src/game/rng.js"];
 // Génération des objets d'équipement.
 //
@@ -2174,7 +2257,7 @@ function itemStatLines(item) {
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
   const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
-    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range, secondaryWeight(item));
     return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
   });
   return [...main, ...bonus];
@@ -2266,16 +2349,25 @@ function primaryWeight(base) {
   return ARMOR_PIECES[base.slotType];
 }
 
-function secondaryValue(stat, level, range) {
+// Poids des stats secondaires selon la base de l'objet (arme à deux mains plus forte, dague
+// un peu plus faible, plastron plus fort que des gants…). Voir secWeight / ARMOR_SECONDARY.
+function secondaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].secWeight ?? 1;
+  if (base.slotType === 'bouclier') return SHIELD.secWeight ?? 1;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_SECONDARY[base.slotType] ?? 1;
+}
+
+function secondaryValue(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
 }
 
 // Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
-function secondaryRange(stat, level, range) {
+function secondaryRange(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
@@ -2293,7 +2385,7 @@ function secondaryPool(base, stats) {
 function possibleSecondaries(item) {
   const range = RARITIES[item.rarity].range;
   if (!RARITIES[item.rarity].secondaries) return [];
-  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range) }));
+  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range, secondaryWeight(item)) }));
 }
 
 /**
@@ -2326,7 +2418,7 @@ function generateItem(opts = {}) {
   const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    bonus[stat] = secondaryValue(stat, level, r.range);
+    bonus[stat] = secondaryValue(stat, level, r.range, secondaryWeight(base));
   }
 
   let name = legendary ? legendary.name : baseName(base);
@@ -2358,7 +2450,7 @@ function refreshLegendary(item) {
   return changed;
 }
 
-return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, possibleSecondaries, generateItem, refreshLegendary };
+return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryWeight, secondaryValue, secondaryRange, possibleSecondaries, generateItem, refreshLegendary };
 })();
 
 // ---- src/game/forge.js
@@ -2889,6 +2981,9 @@ __modules["src/data/classes.js"] = (() => {
 //   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
 //               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
+// starterSpares équipement commun rangé dans le sac à la création ou au recrutement : de quoi
+//             s'équiper quelle que soit la première orientation choisie (chaque orientation
+//             impose ses armes, voir `gear` dans data/talents.js)
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
 // starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
@@ -2942,6 +3037,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
     starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.7, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
@@ -2961,8 +3060,8 @@ const CLASSES = {
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
     comboMax: 5,
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'dague'],
-      offHand: ['epee', 'hache', 'masse', 'dague'],
+      weapons: ['epee', 'dague'],
+      offHand: ['epee', 'dague'],
       armor: ['moyenne'],
     },
     starterKit: [
@@ -2970,8 +3069,8 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     starterSkills: [
-      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
-      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
+      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.55, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
       { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
@@ -3068,7 +3167,7 @@ const CLASSES = {
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
+      weapons: ['epee', 'hache', 'masse', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde'],
     },
@@ -3103,10 +3202,51 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
     ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'arc', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+    ],
     starterSkills: [
       { id: 'entaille-rituelle', name: 'Entaille rituelle', cost: 6, kind: 'damage', target: 'enemy', power: 1.6, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Coup qui ouvre une plaie : saignement sur 3 tours' },
       { id: 'decharge-sanglante', name: 'Décharge sanglante', cost: 10, kind: 'damage', target: 'enemy', power: 1.6, desc: 'Frappe de toute la force de son sang versé (dégâts physiques, Force)' },
       { id: 'transfusion', name: 'Transfusion', cost: 8, kind: 'heal', target: 'ally', power: 1.0, effects: [{ id: 'sang-partage', turns: 2 }], desc: 'Donne de son sang pour soigner un allié (Intelligence), qui gagne Sang partagé (vol de vie) 2 tours' },
+    ],
+  },
+  macabre: {
+    name: 'Macabre', nameF: 'Macabre', plural: 'Macabres',
+    title: 'Le Macabre', titleF: 'La Macabre',
+    icon: '💀',
+    color: 'var(--macabre)',
+    position: 'melee',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Il absorbe l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
+    base: { pv: 125, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 2, riposte: 3 },
+    growth: { pv: 12, force: 1, intelligence: 1 },
+    // Ressource = âmes absorbées (voir game/souls.js) : `cost` = âmes dépensées (0 = gratuit).
+    resource: { name: 'Âmes', souls: true, max: 3, start: 0, regen: 0 },
+    // L'orientation principale restreint armes et armure (data/talents.js, `gear`).
+    gear: {
+      weapons: ['hache', 'masse', 'hache2m', 'masse2m', 'baton'],
+      offHand: ['bouclier'],
+      armor: ['lourde', 'moyenne', 'legere'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    // Équipement des autres orientations, rangé dans le sac à la création (voir starterSpares).
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'masse', primary: 'force' },
+      { slotType: 'bouclier', primary: 'force' },
+      { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
+      { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
+    ],
+    starterSkills: [
+      { id: 'coup-decharne', name: 'Coup décharné', cost: 0, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme (gratuit)' },
+      { id: 'fracas-d-os', name: "Fracas d'os", cost: 0, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours (gratuit)" },
+      { id: 'trait-funeste', name: 'Trait funeste', cost: 0, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques, gratuit)" },
     ],
   },
 };
@@ -3176,13 +3316,20 @@ const { CLASSES } = __modules["src/data/classes.js"];
 //   palier 14                  gros : compétence signature
 // Un palier s'ouvre quand tous les précédents sont complets (gros appris, petit : deux bonus
 // au rang maximum) : on passe forcément par chaque gros palier, et on choisit ses petits.
-// Une orientation complète coûte 36 points (8 gros + 7 petits × 2 bonus × 2 rangs) : au niveau
-// maximum (50 points), une orientation entière et une bonne partie d'une autre.
+// Une orientation complète coûte 50 points (8 gros + 7 petits × 2 bonus × 3 rangs) : tous les
+// points du niveau maximum. Un héros ne suit qu'UNE orientation (voir cannotLearnReason) ;
+// la signature est son 50e point.
 // Les effets des gros paliers suivent la logique de l'orientation (un bonus aux dégâts sur la
 // durée ne vient qu'après le premier sort qui en inflige). Les légendaires renforcent les
 // compétences et passifs des gros paliers.
 //
 // Nœud : { id, name, tier, ranks, kind, desc, ...effet }
+// Orientation : { key, name, gear, icon, desc, nodes }. gear = { stat, armor?, weapons?, offHand? } :
+// stat principale conseillée (affichée aux menus Personnage et Création) ; armor / weapons /
+// offHand, s'ils sont donnés, limitent ce que porte le héros quand c'est son orientation
+// principale (celle qui a le plus de points, voir allowedGear dans game/equipment.js).
+// Ses compétences à l'arme (coups, sorts, soins) demandent une de ses armes en main droite
+// (isWeaponSkill, `weapons` ajouté en bas du fichier) ; buffs, provocations, pièges sont neutres.
 //   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, 2 au choix parmi 3
 //        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
 //        'passive'   gros palier : nouveau passif ou amélioration de compétence
@@ -3207,6 +3354,9 @@ const { CLASSES } = __modules["src/data/classes.js"];
 //     critCombo      point de combo en plus quand un générateur fait un critique
 //     trapPct        +% de dégâts des pièges
 //     finisherRefund Énergie rendue par point de combo dépensé
+//     soulPhys / soulMag / soulDef / soulCrit / soulBlock / soulLifesteal  bonus PAR ÂME absorbée
+//                    (Macabre, voir applySoulBonuses dans game/party.js)
+//     soulWard       % de contrecoup des âmes en moins ; soulHeal : % des PV max rendus par âme absorbée
 //   skill    compétence accordée (même format que data/classes.js)
 //   skills   plusieurs compétences accordées (sorts de départ du palier 0)
 //   skillMod { skill: id, powerPct, costDelta, critBonus, dotTurnsDelta, dotPowerPct,
@@ -3216,7 +3366,7 @@ const { CLASSES } = __modules["src/data/classes.js"];
 
 
 // Rangs des petits paliers (chaque bonus choisi se prend autant de fois).
-const CHOICE_RANKS = { 1: 2, 3: 2, 5: 2, 7: 2, 9: 2, 11: 2, 13: 2 };
+const CHOICE_RANKS = { 1: 3, 3: 3, 5: 3, 7: 3, 9: 3, 11: 3, 13: 3 };
 // Bonus à prendre dans chaque petit palier (parmi trois).
 const CHOICE_PICKS = 2;
 const SIGNATURE_TIER = 14;
@@ -3232,6 +3382,9 @@ const EFFECT_LABELS = {
     resRegen: ' de ressource regagnée par tour', resMaxBonus: ' de ressource maximum', resOnAttack: ' Rage par attaque',
     resOnHitTaken: ' Rage par coup encaissé', trapPct: ' % de dégâts des pièges', finisherRefund: ' Énergie rendue par point de combo dépensé',
     guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
+    soulWard: ' % de contrecoup des âmes en moins', soulPhys: ' % de puissance physique par âme', soulMag: ' % de puissance magique par âme',
+    soulDef: ' % de Défense et Défense magique par âme', soulCrit: ' % de Coup critique par âme', soulBlock: ' % de Blocage par âme',
+    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée',
   },
 };
 
@@ -3258,7 +3411,7 @@ const starter = (id, name, classKey, ids) => ({
   skills: ids.map((sid) => {
     const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
     if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
-    return skill;
+    return { ...skill };
   }),
 });
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
@@ -3266,7 +3419,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', icon: '🛡️',
+      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'], weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -3292,7 +3445,7 @@ const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', needsShield: true, cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -3312,7 +3465,7 @@ const TALENTS = {
           minor('protecteur', 'Protecteur', { passive: { shieldPct: 8 } }),
         ]),
         skill(10, {
-          id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
+          id: 'mur-de-boucliers', name: 'Mur de boucliers', needsShield: true, cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.9)],
           desc: 'Bouclier sur toute l\'équipe pendant 2 tours',
         }),
@@ -3336,7 +3489,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', icon: '🪓',
+      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'], weapons: ['epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -3404,7 +3557,7 @@ const TALENTS = {
   ],
   voleur: [
     {
-      key: 'assassin', name: 'Assassin', icon: '🗡️',
+      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite', weapons: ['dague'], offHand: ['dague'] }, icon: '🗡️',
       desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
@@ -3414,7 +3567,7 @@ const TALENTS = {
           minor('lames-aiguisees', 'Lames aiguisées', { flat: { critDmg: 4 } }),
         ]),
         skill(2, {
-          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.65, comboGain: 1,
+          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1,
           effects: [fx('ralenti', 2)],
           desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
         }),
@@ -3470,7 +3623,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'empoisonneur', name: 'Empoisonneur', icon: '🧪',
+      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite', weapons: ['dague', 'epee'], offHand: ['dague', 'epee'] }, icon: '🧪',
       desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
@@ -3544,7 +3697,7 @@ const TALENTS = {
   ],
   pretre: [
     {
-      key: 'clerc', name: 'Clerc', icon: '✨',
+      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
@@ -3610,7 +3763,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'precheur', name: 'Prêcheur', icon: '📖',
+      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
@@ -3679,7 +3832,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'profane', name: 'Profane', icon: '🌑',
+      key: 'profane', name: 'Profane', gear: { stat: 'intelligence', weapons: ['dague', 'baton'] }, icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
         starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
@@ -3750,7 +3903,7 @@ const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Feu', icon: '🔥',
+      key: 'feu', name: 'Feu', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -3818,7 +3971,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Glace', icon: '❄️',
+      key: 'glace', name: 'Glace', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -3886,7 +4039,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -3955,7 +4108,7 @@ const TALENTS = {
   ],
   chasseur: [
     {
-      key: 'oeilDeFaucon', name: 'Œil de Faucon', icon: '🦅',
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🦅',
       desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
@@ -3998,7 +4151,7 @@ const TALENTS = {
           minor('visee-parfaite', 'Visée parfaite', { pct: { physPower: 4 } }),
         ]),
         skill(10, {
-          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          id: 'tir-de-l-aigle', name: 'Tir de l\'aigle', cost: 80, kind: 'damage', target: 'enemy', power: 4.2, critBonus: 20,
           desc: 'Tir dévastateur sur un ennemi (+20 % de chance de critique)',
         }),
         ...choice(11, [
@@ -4019,7 +4172,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'traqueur', name: 'Traqueur', icon: '🐾',
+      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
@@ -4090,7 +4243,7 @@ const TALENTS = {
   ],
   paladin: [
     {
-      key: 'templier', name: 'Templier', icon: '🛡️',
+      key: 'templier', name: 'Templier', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
@@ -4160,8 +4313,8 @@ const TALENTS = {
       ],
     },
     {
-      key: 'lumiere', name: 'Lumière', icon: '☀️',
-      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : armure légère, armes d\'Intelligence.',
+      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence', weapons: ['masse', 'masse2m'], offHand: ['bouclier'] }, icon: '☀️',
+      desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : garde l\'armure lourde, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
         ...choice(1, [
@@ -4229,7 +4382,7 @@ const TALENTS = {
   ],
   scarifie: [
     {
-      key: 'acharne', name: 'Acharné', icon: '🩸',
+      key: 'acharne', name: 'Acharné', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🩸',
       desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
       nodes: [
         starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
@@ -4297,7 +4450,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'violent', name: 'Violent', icon: '💥',
+      key: 'violent', name: 'Violent', gear: { stat: 'force', weapons: ['arc'] }, icon: '💥',
       desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
       nodes: [
         starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
@@ -4358,7 +4511,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'liensDuSang', name: 'Liens du sang', icon: '❤️',
+      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '❤️',
       desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
       nodes: [
         starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
@@ -4426,14 +4579,230 @@ const TALENTS = {
       ],
     },
   ],
+  macabre: [
+    {
+      key: 'soldat', name: 'Soldat décharné', gear: { stat: 'force', armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] }, icon: '💀',
+      desc: 'Dégâts au corps à corps : chaque âme le rend bien plus fort, mais le ronge. Il frappe fort tant qu\'il les garde, puis les libère d\'un coup. Force, hache ou masse à deux mains, armure moyenne.',
+      nodes: [
+        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne']), passive: { soulPhys: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-os-durs', 'Os durs', { pct: { physPower: 2.5 } }),
+          minor('mc-rictus', 'Rictus', { flat: { critDmg: 4 } }),
+          minor('mc-carcasse', 'Carcasse', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'dechainement', name: 'Déchaînement', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
+          desc: 'Libère toutes ses âmes dans un seul coup : puissance 2 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-faim', 'Faim', { flat: { critChance: 1 } }),
+          minor('mc-gorge-noire', 'Gorge noire', { passive: { lifestealPct: 1.5 } }),
+          minor('mc-tendons', 'Tendons secs', { pct: { physPower: 3 } }),
+        ]),
+        passive('chair-morte', 'Chair morte', 4, 'Chaque âme gardée donne encore +4 % de puissance physique (14 % par âme).', { passive: { soulPhys: 4 } }),
+        ...choice(5, [
+          minor('mc-coups-lourds', 'Coups lourds', { flat: { critDmg: 5 } }),
+          minor('mc-ossature', 'Ossature', { pct: { pv: 3 } }),
+          minor('mc-achever', 'Achever', { passive: { executePct: 4 } }),
+        ]),
+        skill(6, {
+          id: 'fauchee', name: 'Fauchée', cost: 0, kind: 'damage', target: 'allEnemies', power: 1.2,
+          desc: 'Grand coup circulaire sur tous les ennemis (gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-poids-mort', 'Poids mort', { pct: { physPower: 3.5 } }),
+          minor('mc-orbites', 'Orbites vides', { flat: { critChance: 1.5 } }),
+          minor('mc-dents', 'Dents longues', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          desc: 'Libère une âme dans un coup terrible, +20 % de chance de critique',
+        }),
+        ...choice(9, [
+          minor('mc-fossoyeur', 'Fossoyeur', { passive: { executePct: 5 } }),
+          minor('mc-fracas', 'Fracas', { flat: { critDmg: 6 } }),
+          minor('mc-tanne', 'Cuir tanné', { pct: { pv: 4 } }),
+        ]),
+        passive('festin-d-ames', 'Festin d\'âmes', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-lame-grise', 'Lame grise', { pct: { physPower: 4 } }),
+          minor('mc-regard-mort', 'Regard mort', { flat: { critChance: 2 } }),
+          minor('mc-habitude', 'Habitude', { passive: { soulWard: 5 } }),
+        ]),
+        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-carnage', 'Carnage', { pct: { physPower: 4.5 } }),
+          minor('mc-brise-os', 'Brise-os', { flat: { critDmg: 6.5 } }),
+          minor('mc-chair-dure', 'Chair dure', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'hecatombe', name: 'Hécatombe', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
+          desc: 'Libère toutes ses âmes sur tous les ennemis : puissance 1,4 par âme libérée',
+        }),
+      ],
+    },
+    {
+      key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
+      desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
+      nodes: [
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os']), passive: { soulDef: 8, soulBlock: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        ...choice(1, [
+          minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
+          minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
+          minor('mc-moelle', 'Moelle froide', { pct: { defMag: 3 } }),
+        ]),
+        skill(2, {
+          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 0, kind: 'support', target: 'self',
+          selfEffects: [fx('provocation', 2)],
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense (gratuit)',
+        }),
+        ...choice(3, [
+          minor('mc-ecu-d-os', 'Écu d\'os', { flat: { blocage: 2.5 } }),
+          minor('mc-resigne', 'Résigné', { passive: { soulWard: 5 } }),
+          minor('mc-squelette', 'Squelette', { pct: { pv: 2.5 } }),
+        ]),
+        passive('ossature-de-fer', 'Ossature', 4, 'Défendre donne un Bouclier de 15 % des PV max ; le contrecoup des âmes est réduit de 30 %.', { passive: { guardShieldPct: 15, soulWard: 30 } }),
+        ...choice(5, [
+          minor('mc-os-epais', 'Os épais', { passive: { shieldPct: 6.5 } }),
+          minor('mc-cuirasse-d-os', 'Cuirasse d\'os', { pct: { def: 5 } }),
+          minor('mc-crane', 'Crâne dur', { pct: { defMag: 5 } }),
+        ]),
+        skill(6, {
+          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 1, allSouls: true, kind: 'support', target: 'self',
+          selfEffects: [fx('bouclier', 2, 0.8)],
+          desc: 'Libère toutes ses âmes en une carapace d\'os : Bouclier 2 tours, de puissance 0,8 par âme libérée',
+        }),
+        ...choice(7, [
+          minor('mc-immobile', 'Immobile', { passive: { guardBonus: 3.5 } }),
+          minor('mc-vertebres', 'Vertèbres', { pct: { def: 3.5 } }),
+          minor('mc-sang-froid', 'Sang froid', { pct: { pv: 3.5 } }),
+        ]),
+        skill(8, {
+          id: 'ecrasement', name: 'Écrasement', cost: 0, kind: 'damage', target: 'enemy', power: 1.6,
+          effects: [fx('affaibli', 2)],
+          desc: 'Écrase la cible : Affaibli 2 tours (gratuit)',
+        }),
+        ...choice(9, [
+          minor('mc-ossuaire', 'Charnier', { pct: { pv: 4 } }),
+          minor('mc-voile', 'Voile gris', { pct: { defMag: 4.5 } }),
+          minor('mc-parade', 'Parade d\'os', { flat: { blocage: 3 } }),
+        ]),
+        passive('ossuaire-vivant', 'Ossuaire vivant', 10, 'Chaque âme absorbée le soigne de 8 % de ses PV max.', { passive: { soulHeal: 8 } }),
+        ...choice(11, [
+          minor('mc-remparts', 'Remparts', { pct: { def: 5 } }),
+          minor('mc-os-de-pierre', 'Os de pierre', { pct: { pv: 5 } }),
+          minor('mc-patience', 'Patience', { passive: { soulWard: 6 } }),
+        ]),
+        skill(12, {
+          id: 'mur-des-morts', name: 'Mur des morts', cost: 2, kind: 'support', target: 'allAllies',
+          effects: [fx('protection', 2)],
+          desc: 'Libère 2 âmes en un mur de spectres : toute l\'équipe gagne Protection 2 tours',
+        }),
+        ...choice(13, [
+          minor('mc-colosse', 'Colosse', { pct: { pv: 5.5 } }),
+          minor('mc-bastion-d-os', 'Bastion d\'os', { pct: { def: 5.5 } }),
+          minor('mc-linceul', 'Linceul', { pct: { defMag: 5.5 } }),
+        ]),
+        signature({
+          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 1, allSouls: true, kind: 'support', target: 'allAllies',
+          effects: [fx('bouclier', 2, 0.4)], selfEffects: [fx('provocation', 2)],
+          desc: 'Libère toutes ses âmes : toute l\'équipe gagne un Bouclier 2 tours (puissance 0,4 par âme) et il provoque les ennemis 2 tours',
+        }),
+      ],
+    },
+    {
+      key: 'necromancien', name: 'Nécromancien', gear: { stat: 'intelligence', armor: ['legere'], weapons: ['baton'], offHand: [] }, icon: '🕯️',
+      desc: 'Dégâts magiques à distance : chaque âme renforce ses sorts, mais le ronge ; il les libère en explosions d\'âmes. Seule orientation à l\'Intelligence : bâton, armure légère.',
+      nodes: [
+        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste']), passive: { soulMag: 10, soulCrit: 2 },
+          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
+        ...choice(1, [
+          minor('mc-encre-noire', 'Encre noire', { pct: { magPower: 2.5 } }),
+          minor('mc-glas', 'Glas', { flat: { critDmg: 4 } }),
+          minor('mc-suaire', 'Suaire', { pct: { pv: 2.5 } }),
+        ]),
+        skill(2, {
+          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
+          desc: 'Libère toutes ses âmes sur une cible (dégâts magiques) : puissance 0,95 par âme libérée',
+        }),
+        ...choice(3, [
+          minor('mc-presage', 'Présage', { flat: { critChance: 1 } }),
+          minor('mc-rituel', 'Rituel', { pct: { magPower: 3 } }),
+          minor('mc-sangsue', 'Sangsue', { passive: { lifestealPct: 1.5 } }),
+        ]),
+        passive('savoir-interdit', 'Savoir interdit', 4, 'Chaque âme gardée donne encore +4 % de puissance magique (14 % par âme).', { passive: { soulMag: 4 } }),
+        ...choice(5, [
+          minor('mc-oraison', 'Oraison', { flat: { critDmg: 5 } }),
+          minor('mc-veille', 'Veillée', { pct: { pv: 3 } }),
+          minor('mc-putrefaction', 'Putréfaction', { pct: { magPower: 3 } }),
+        ]),
+        skill(6, {
+          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 0, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
+          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques, gratuit)',
+        }),
+        ...choice(7, [
+          minor('mc-necronomie', 'Nécrologie', { pct: { magPower: 3.5 } }),
+          minor('mc-mauvais-oeil', 'Mauvais œil', { flat: { critChance: 1.5 } }),
+          minor('mc-vampire', 'Soif', { passive: { lifestealPct: 2 } }),
+        ]),
+        skill(8, {
+          id: 'malediction', name: 'Malédiction', cost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
+          effects: [fx('tenebres', 3, 0.25), fx('terreur', 2)],
+          desc: 'Libère une âme en malédiction (dégâts magiques) : Ténèbres 3 tours et Terreur 2 tours',
+        }),
+        ...choice(9, [
+          minor('mc-pourriture', 'Pourriture', { passive: { dotPct: 5 } }),
+          minor('mc-fin', 'La fin', { flat: { critDmg: 6 } }),
+          minor('mc-os-blancs', 'Os blancs', { pct: { pv: 4 } }),
+        ]),
+        passive('siphon-des-morts', 'Siphon d\'âme', 10, 'Chaque âme gardée donne 3 % de vol de vie : de quoi tenir face au contrecoup.', { passive: { soulLifesteal: 3 } }),
+        ...choice(11, [
+          minor('mc-incantation', 'Incantation', { pct: { magPower: 4 } }),
+          minor('mc-funeste', 'Funeste', { flat: { critChance: 2 } }),
+          minor('mc-detachement', 'Détachement', { passive: { soulWard: 5 } }),
+        ]),
+        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        ...choice(13, [
+          minor('mc-liturgie', 'Liturgie noire', { pct: { magPower: 4.5 } }),
+          minor('mc-dies-irae', 'Colère', { flat: { critDmg: 6.5 } }),
+          minor('mc-pierre-tombale', 'Pierre tombale', { pct: { pv: 4.5 } }),
+        ]),
+        signature({
+          id: 'requiem', name: 'Requiem', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
+          effects: [fx('tenebres', 2, 0.1)],
+          desc: 'Libère toutes ses âmes sur tous les ennemis (dégâts magiques, puissance 0,7 par âme) et les plonge dans les Ténèbres 2 tours',
+        }),
+      ],
+    },
+  ],
 };
+
+// Compétence « à l'arme » : un coup ou un sort (dégâts, soin). Elle ne part qu'avec une arme de
+// son orientation en main (`weapons`, ajouté ci-dessous) ; les autres (buffs, provocation,
+// pièges, résurrection…) sont neutres. `needsShield: true` : demande en plus un bouclier.
+function isWeaponSkill(skill) {
+  return skill.kind === 'damage' || skill.kind === 'heal';
+}
+
+// Chaque compétence à l'arme reçoit les armes de son orientation (sauf `weapons` déjà donné).
+for (const branches of Object.values(TALENTS)) {
+  for (const branch of branches) {
+    for (const node of branch.nodes) {
+      for (const sk of node.skills ?? (node.skill ? [node.skill] : [])) {
+        if (isWeaponSkill(sk) && branch.gear?.weapons && !sk.weapons) sk.weapons = branch.gear.weapons;
+      }
+    }
+  }
+}
 
 // Compétences accordées par un nœud (champ `skill` ou `skills`).
 function nodeSkills(node) {
   return node.skills ?? (node.skill ? [node.skill] : []);
 }
 
-return { CHOICE_RANKS, CHOICE_PICKS, SIGNATURE_TIER, describeEffect, TALENTS, nodeSkills };
+return { CHOICE_RANKS, CHOICE_PICKS, SIGNATURE_TIER, describeEffect, TALENTS, isWeaponSkill, nodeSkills };
 })();
 
 // ---- src/game/talents.js
@@ -4480,6 +4849,16 @@ function pointsAvailable(hero) {
 
 function pointsInBranch(hero, branch) {
   return branch.nodes.reduce((sum, n) => sum + rankOf(hero, n.id), 0);
+}
+
+/**
+ * Orientation principale : celle qui a des points de talent (un héros n'en suit qu'une), ou
+ * null tant qu'aucun point n'est dépensé (ou à égalité, pour d'anciennes données).
+ */
+function mainBranch(hero) {
+  const scored = branchesOf(hero).map((b) => [b, pointsInBranch(hero, b)]).sort((a, b) => b[1] - a[1]);
+  if (!scored.length || (scored[1] && scored[1][1] === scored[0][1])) return null;
+  return scored[0][0];
 }
 
 // Rangs d'un palier une fois complet : le nœud d'un gros palier ; dans un petit palier,
@@ -4538,6 +4917,8 @@ function cannotLearnReason(hero, nodeId) {
     const gate = branch.nodes.filter((n) => n.tier === missing);
     return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (${CHOICE_PICKS} bonus au choix, ${tierMax(branch, missing)} rangs)`;
   }
+  const other = branchesOf(hero).find((b) => b !== branch && pointsInBranch(hero, b) > 0);
+  if (other) return `Une seule orientation par héros (${other.name}) : réinitialisez ses talents pour en changer`;
   if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
   return null;
 }
@@ -4562,7 +4943,7 @@ function resetTalents(game, hero) {
 }
 
 // Talents d'une ancienne sauvegarde (arbres modifiés depuis) : retire les nœuds inconnus,
-// ramène chaque rang au maximum du nœud ; si l'arbre n'est plus cohérent (palier appris
+// ramène chaque rang au maximum du nœud, ne garde que l'orientation la plus investie ; si l'arbre n'est plus cohérent (palier appris
 // sans ses prédécesseurs, trop de bonus dans un petit palier), les points sont rendus.
 // Retourne vrai si les talents ont été réinitialisés.
 function sanitizeTalents(hero) {
@@ -4573,6 +4954,11 @@ function sanitizeTalents(hero) {
     if (node && rank > 0) talents[id] = Math.min(rank, node.ranks);
   }
   hero.talents = talents;
+  // Une seule orientation : les points d'une ancienne sauvegarde répartis sur plusieurs arbres
+  // ne gardent que l'orientation la plus investie (les autres points sont rendus).
+  const invested = branchesOf(hero).filter((b) => pointsInBranch(hero, b) > 0)
+    .sort((a, b) => pointsInBranch(hero, b) - pointsInBranch(hero, a));
+  for (const extra of invested.slice(1)) for (const n of extra.nodes) delete hero.talents[n.id];
   const broken = branchesOf(hero).some((branch) => branch.nodes.some((n) => rankOf(hero, n.id) > 0 && (!tierOpen(hero, branch, n.tier)
     || (n.kind === 'minor' && chosenInTier(hero, branch, n.tier).length > CHOICE_PICKS))));
   if (broken) hero.talents = {};
@@ -4602,7 +4988,7 @@ function talentEffects(hero) {
   return fx;
 }
 
-return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsInBranch, tierMax, tiersOf, tierRequirement, tierPoints, tierComplete, tierOpen, chosenInTier, excludedInTier, cannotLearnReason, learn, resetCost, resetTalents, sanitizeTalents, talentEffects };
+return { branchesOf, rankOf, pointsTotal, pointsSpent, pointsAvailable, pointsInBranch, mainBranch, tierMax, tiersOf, tierRequirement, tierPoints, tierComplete, tierOpen, chosenInTier, excludedInTier, cannotLearnReason, learn, resetCost, resetTalents, sanitizeTalents, talentEffects };
 })();
 
 // ---- src/data/appearance.js
@@ -4770,6 +5156,10 @@ const TOPS = {
     label: 'Cuir scarifié', body: 'beastmaster',
     map: { '#8f4d57': '#52333f', '#bd6a62': '#7d3833', '#63ab3f': '#ad2f45', '#3b7d4f': '#7d3833' },
   },
+  macabre: {
+    label: "Armure d'ossements", body: 'gladiator',
+    map: { '#d7d3bd': '#e8e2cc', '#9d9387': '#8f8a7a', '#633d4c': '#1b1a2c', '#8f4d57': '#3a3f5e', '#7d3833': '#141220', '#a47d72': '#b8b09a' },
+  },
   duelliste: {
     label: 'Tenue de duelliste', body: 'swashbuckler',
     map: { '#2b2b45': '#1b1a2c', '#3a3f5e': '#2b2b45', '#e64539': '#4a6fc4', '#ad2f45': '#2f437a', '#9c2a70': '#2f437a' },
@@ -4799,6 +5189,7 @@ const CLASS_LOOKS = {
   chasseur: { hair: 'queue', hairColor: 'chatain', eyes: 'verts', skin: 'halee', top: 'druide', bottom: 'cuir' },
   paladin: { hair: 'courts', hairColor: 'blond', eyes: 'dores', skin: 'claire', top: 'templier', bottom: 'jambieres' },
   scarifie: { hair: 'longs', hairColor: 'noir', eyes: 'rouges', skin: 'pale', top: 'scarifie', bottom: 'garance' },
+  macabre: { hair: 'longs', hairColor: 'blanc', eyes: 'gris', skin: 'pale', top: 'macabre', bottom: 'sombre' },
 };
 
 // Champs d'une apparence → catalogue de ses choix (ordre de l'écran de création).
@@ -4871,7 +5262,7 @@ const { SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
 const { PARTY_ORDER, COMBAT, XP } = __modules["src/config.js"];
-const { generateItem, itemStats } = __modules["src/game/items.js"];
+const { generateItem, itemStatLines } = __modules["src/game/items.js"];
 const { talentEffects, rankOf } = __modules["src/game/talents.js"];
 const { sanitizeLook } = __modules["src/game/appearance.js"];
 // Héros et équipe.
@@ -4947,6 +5338,25 @@ function paySkill(hero, skill) {
   return paid;
 }
 
+// Classe à âmes (Macabre) : sa ressource est le nombre d'âmes absorbées (0 à resMax), gagnées
+// à la mort des ennemis seulement (voir game/souls.js), jamais par régénération.
+function usesSouls(cls) {
+  return !!cls.resource.souls;
+}
+
+// Âmes absorbées par le héros (0 pour les autres classes).
+function soulsOf(hero) {
+  return usesSouls(getClass(hero)) ? Math.max(0, hero.res ?? 0) : 0;
+}
+
+// Ajoute des âmes (plafond : resMax). Retourne le nombre d'âmes réellement gagnées.
+function gainSouls(hero, amount) {
+  if (!usesSouls(getClass(hero))) return 0;
+  const before = soulsOf(hero);
+  hero.res = Math.min(getStats(hero).resMax, before + amount);
+  return hero.res - before;
+}
+
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
 function usesMana(cls) {
   return cls.resource.name === 'Mana';
@@ -4974,9 +5384,10 @@ function getStats(hero) {
   for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
   for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(itemStats(item))) {
-      // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
-      const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
+    const offHand = slot === 'mainGauche' && item.slotType === 'arme';
+    for (const { stat, value, secondary } of itemStatLines(item)) {
+      // Arme en main gauche (ambidextrie) : son attaque et ses secondaires ne comptent qu'en partie.
+      const factor = !offHand ? 1 : stat === 'atq' && !secondary ? COMBAT.offHandAtqFactor : secondary ? COMBAT.offHandBonusFactor : 1;
       total[stat] += Math.round(value * factor);
     }
   }
@@ -5002,7 +5413,28 @@ function getStats(hero) {
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
+  if (usesSouls(cls)) applySoulBonuses(stats, Math.min(Math.max(0, hero.res ?? 0), stats.resMax));
   return stats;
+}
+
+/**
+ * Macabre : bonus par âme absorbée (passifs des orientations, des talents et des légendaires) :
+ *   soulPhys / soulMag  +% puissance physique / magique par âme
+ *   soulDef             +% Défense et Défense magique par âme
+ *   soulCrit / soulBlock  + % Coup critique / Blocage par âme
+ *   soulLifesteal       + % de vol de vie par âme
+ */
+function applySoulBonuses(stats, souls) {
+  stats.souls = souls;
+  if (!souls) return;
+  const pct = (stat, per) => { if (per) stats[stat] = Math.round(stats[stat] * (1 + (per * souls) / 100)); };
+  pct('physPower', stats.soulPhys);
+  pct('magPower', stats.soulMag);
+  pct('def', stats.soulDef);
+  pct('defMag', stats.soulDef);
+  if (stats.soulCrit) stats.critChance += stats.soulCrit * souls;
+  if (stats.soulBlock) stats.blocage += stats.soulBlock * souls;
+  if (stats.soulLifesteal) stats.lifestealPct = (stats.lifestealPct ?? 0) + stats.soulLifesteal * souls;
 }
 
 /**
@@ -5111,6 +5543,12 @@ function createHero(classKey, name, look = null, feminine = false) {
   return hero;
 }
 
+// Équipement commun de niveau 1 à ranger dans le sac à l'arrivée du héros (Macabre : de quoi
+// s'équiper quelle que soit sa première orientation).
+function starterSpares(classKey) {
+  return (CLASSES[classKey].starterSpares ?? []).map((piece) => generateItem({ level: 1, rarity: 'commun', ...piece }));
+}
+
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.
@@ -5119,7 +5557,7 @@ function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = [
 }
 
 function gainResource(hero, amount) {
-  if (!amount) return;
+  if (!amount || usesSouls(getClass(hero))) return; // les âmes ne viennent que des morts
   hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
 }
 
@@ -5135,12 +5573,13 @@ function restoreFully(hero) {
   const stats = getStats(hero);
   hero.alive = true;
   hero.hp = stats.pv;
-  hero.res = stats.resMax;
+  hero.res = usesSouls(getClass(hero)) ? 0 : stats.resMax; // le repos libère les âmes
+  hero.soulHeld = 0;
   hero.guard = false;
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, starterSpares, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -5282,7 +5721,7 @@ return { makeStatus, statusesOf, addStatus, detonateStatus, hasStatus, isDebuffe
 
 // ---- src/game/units.js
 __modules["src/game/units.js"] = (() => {
-const { getStats } = __modules["src/game/party.js"];
+const { getStats, getClass, usesSouls } = __modules["src/game/party.js"];
 const { statusMods, statusBonus, isDebuffed, absorbWithShields, statusesOf, addStatus, makeStatus } = __modules["src/game/statuses.js"];
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
 
@@ -5344,6 +5783,7 @@ function applyDamage(unit, amount) {
       unit.alive = false;
       unit.statuses = [];
       fell = true;
+      if (isHero(unit) && usesSouls(getClass(unit))) unit.res = 0; // ses âmes s'échappent
     }
   }
   return { taken, absorbed, fell, ...(revived ? { revived } : {}) };
@@ -5389,7 +5829,7 @@ __modules["src/game/consumables.js"] = (() => {
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MERCHANT } = __modules["src/config.js"];
-const { getStats, gainResource } = __modules["src/game/party.js"];
+const { getStats, gainResource, getClass, usesSouls } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
@@ -5439,6 +5879,8 @@ function isValidTarget(key, target) {
   if (def.target === 'deadAlly') return !target.alive;
   if (def.target !== 'ally' || !target.alive) return false;
   if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
+  // Les âmes du Macabre ne viennent que des morts : pas d'élixir de ressource pour lui.
+  if (def.effect.resourcePct && !def.effect.healPct && usesSouls(getClass(target))) return false;
   return true;
 }
 
@@ -5476,7 +5918,7 @@ function restoreParty(party, pct) {
   for (const hero of party.filter((h) => h.alive)) {
     const stats = getStats(hero);
     hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
-    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+    if (!usesSouls(getClass(hero))) hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
   }
 }
 
@@ -6393,15 +6835,21 @@ return { idx, inside, isFloor, distances, stepToward, lineOfSight, visibleFrom, 
 // ---- src/data/events.js
 __modules["src/data/events.js"] = (() => {
 
-// Événements d'expédition : après un combat gagné (hors boss), une chance
-// qu'une rencontre propose un choix au joueur. Données pures (règles : game/events.js).
+// Événements d'expédition : rencontres posées sur la carte de l'étage, qui proposent un
+// DILEMME au joueur (chaque choix a son prix ou son risque). Données pures (règles :
+// game/events.js).
 //
 // Événement : { name, icon, text, weight, choices: [choix] } ou, pour un marchand
 // ambulant, { kind: 'merchant', … } (stock tiré à la rencontre, voir EVENTS dans config.js).
 // « Passer son chemin » est toujours proposé en plus.
 //
 // Choix : { label, cost?, outcomes: [{ chance, text, effects }] } (chances en %, total 100)
-//   cost     { gold: { base, perLevel } } ou { consumable: clé } : payé en choisissant
+//   cost     payé en choisissant (un ou plusieurs) :
+//              gold { base, perLevel }        or
+//              consumable clé                 un consommable
+//              hpPct %                        chaque héros en vie perd ce % de ses PV max
+//              materia { rarity, amount }     matéria de cette rareté (toutes sortes confondues)
+//              bagItem true                   un objet du sac, au hasard
 // Effets (le niveau est celui de l'étage) :
 //   gold        { base, perLevel }      or gagné
 //   item        { minRarity }           un équipement de cette rareté ou mieux
@@ -6412,6 +6860,11 @@ __modules["src/data/events.js"] = (() => {
 //   hurtAll     %                       chaque héros en vie perd ce % de ses PV max
 //   curseRandom { id, turns }           un héros au hasard subit cet effet négatif (il reste
 //                                       d'un combat à l'autre, voir data/effects.js)
+//   curseAll    { id, turns }           toute l'équipe le subit
+//   blessAll    [{ id, turns }]         effets positifs posés au début du prochain combat
+//   xpPct       %                       chaque héros gagne ce % de l'XP de son niveau suivant
+//   cleanseAll  true                    retire les effets négatifs de toute l'équipe
+//   consumables n                       n consommables au hasard
 // Un événement ne tue jamais : un héros garde au moins 1 PV.
 //
 // look : ce qui le représente sur la carte (dessiné par ui/mapView.js, mis en valeur) :
@@ -6421,102 +6874,292 @@ __modules["src/data/events.js"] = (() => {
 
 const EVENTS = {
   sorciere: {
-    name: 'La sorcière', icon: '🧙‍♀️', weight: 10,
+    name: 'La sorcière', icon: '🧙‍♀️', weight: 9,
     look: { hero: { hair: 'longs', hairColor: 'noir', eyes: 'violets', skin: 'pale', top: 'sorciere', bottom: 'sombre' } },
-    text: 'Une sorcière encapuchonnée vous barre la route et vous propose un marché.',
-    choices: [{
-      label: 'Accepter le marché',
-      outcomes: [
-        { chance: 50, text: 'La sorcière tient parole et vous tend un objet.', effects: { item: { minRarity: 'peuCommun' } } },
-        { chance: 50, text: 'Le marché tourne mal : un maléfice frappe deux de vos héros.', effects: { hurtRandom: { count: 2, pct: 30 } } },
-      ],
-    }],
+    text: 'Une sorcière encapuchonnée vous barre la route : « Un marché, ou un philtre ? Les deux ont un prix. »',
+    choices: [
+      {
+        label: 'Accepter son marché',
+        outcomes: [
+          { chance: 50, text: 'La sorcière tient parole et vous tend un objet.', effects: { item: { minRarity: 'peuCommun' } } },
+          { chance: 50, text: 'Le marché tourne mal : un maléfice frappe deux de vos héros.', effects: { hurtRandom: { count: 2, pct: 30 } } },
+        ],
+      },
+      {
+        label: 'Lui acheter un philtre', cost: { gold: { base: 15, perLevel: 4 } },
+        outcomes: [{ chance: 100, text: 'Le philtre bout dans vos veines : vous frapperez fort au prochain combat.', effects: { blessAll: [{ id: 'puissance', turns: 3 }] } }],
+      },
+    ],
   },
   autel: {
-    name: 'Autel oublié', icon: '🕯️', weight: 10,
+    name: 'Autel oublié', icon: '🕯️', weight: 9,
     look: { object: ['dungeon_obj', 248, 176, 32, 32] },
-    text: "Un autel couvert d'offrandes anciennes luit faiblement dans la pénombre.",
+    text: "Un autel couvert d'offrandes anciennes luit faiblement. Il réclame quelque chose : de l'or, du sang… ou rien, si l'on se sert soi-même.",
     choices: [
       {
         label: 'Faire une offrande', cost: { gold: { base: 10, perLevel: 3 } },
         outcomes: [
-          { chance: 70, text: "Une douce lumière enveloppe l'équipe.", effects: { restoreAll: 40 } },
+          { chance: 70, text: "Une douce lumière enveloppe l'équipe et chasse ses maux.", effects: { restoreAll: 40, cleanseAll: true } },
           { chance: 30, text: "L'autel reste silencieux.", effects: {} },
         ],
+      },
+      {
+        label: 'Offrir son sang', cost: { hpPct: 20 },
+        outcomes: [{ chance: 100, text: "Le sang s'écoule sur la pierre, qui se fend : une matéria y brille.", effects: { materia: { rarity: 'rare', amount: 1 } } }],
       },
       {
         label: 'Piller les offrandes',
         outcomes: [
           { chance: 50, text: "Vous raflez l'or et les pierres de l'autel.", effects: { gold: { base: 20, perLevel: 8 }, materia: { rarity: 'peuCommun', amount: 2 } } },
-          { chance: 50, text: "Une malédiction s'abat sur l'équipe.", effects: { hurtAll: 15 } },
+          { chance: 50, text: "Une malédiction s'abat sur l'équipe.", effects: { hurtAll: 15, curseAll: { id: 'affaibli', turns: 3 } } },
         ],
       },
     ],
   },
   coffre: {
-    name: 'Coffre abandonné', icon: '🧰', weight: 12,
+    name: 'Coffre abandonné', icon: '🧰', weight: 10,
     look: { object: ['dungeon_obj', 323, 124, 26, 19] },
     text: 'Un coffre abandonné gît au milieu du chemin. Trop beau pour être vrai ?',
-    choices: [{
-      label: "L'ouvrir",
-      outcomes: [
-        { chance: 60, text: 'Le coffre contient de l\'or et des provisions.', effects: { gold: { base: 15, perLevel: 6 }, consumable: 'random' } },
-        { chance: 40, text: "C'était un piège ! Une lame jaillit du coffre.", effects: { hurtRandom: { count: 1, pct: 35 } } },
-      ],
-    }],
+    choices: [
+      {
+        label: "L'ouvrir",
+        outcomes: [
+          { chance: 60, text: 'Le coffre contient de l\'or et des provisions.', effects: { gold: { base: 15, perLevel: 6 }, consumable: 'random' } },
+          { chance: 40, text: "C'était un piège ! Une lame jaillit du coffre.", effects: { hurtRandom: { count: 1, pct: 35 } } },
+        ],
+      },
+      {
+        label: 'Le fracasser de loin',
+        outcomes: [{ chance: 100, text: 'Le piège se déclenche dans le vide… et brise les fioles. Il reste un peu d\'or.', effects: { gold: { base: 8, perLevel: 3 } } }],
+      },
+    ],
   },
   voyageur: {
     name: 'Voyageur blessé', icon: '🤕', weight: 8,
     look: { hero: { hair: 'courts', hairColor: 'chatain', eyes: 'clos', skin: 'halee', top: 'voyageur', bottom: 'cuir' }, pose: 'hit' },
-    text: 'Un voyageur blessé, adossé à un arbre, implore votre aide.',
-    choices: [{
-      label: 'Lui donner une potion de soin', cost: { consumable: 'potion' },
-      outcomes: [
-        { chance: 100, text: 'Reconnaissant, il vous offre ce qu\'il a de plus précieux.', effects: { materia: { rarity: 'rare', amount: 1 }, gold: { base: 10, perLevel: 4 } } },
-      ],
-    }],
+    text: 'Un voyageur blessé, adossé à un mur, implore votre aide. Sa bourse est bien remplie.',
+    choices: [
+      {
+        label: 'Le soigner', cost: { consumable: 'potion' },
+        outcomes: [{ chance: 100, text: 'Reconnaissant, il vous offre ce qu\'il a de plus précieux.', effects: { materia: { rarity: 'rare', amount: 1 }, gold: { base: 10, perLevel: 4 } } }],
+      },
+      {
+        label: "L'escorter jusqu'à la sortie", cost: { hpPct: 10 },
+        outcomes: [{ chance: 100, text: 'Le chemin est long, mais il vous apprend tout ce qu\'il sait de ces lieux.', effects: { xpPct: 20 } }],
+      },
+      {
+        label: 'Le détrousser',
+        outcomes: [{ chance: 100, text: 'Vous prenez sa bourse. Son regard vous hantera longtemps.', effects: { gold: { base: 30, perLevel: 10 }, curseRandom: { id: 'terreur', turns: 3 } } }],
+      },
+    ],
   },
   source: {
-    name: 'Source mystérieuse', icon: '⛲', weight: 10,
+    name: 'Source mystérieuse', icon: '⛲', weight: 8,
     look: { object: ['dungeon_obj', 290, 177, 28, 30] },
     text: "Une source aux reflets irisés murmure doucement. L'eau semble… vivante.",
-    choices: [{
-      label: 'Boire',
-      outcomes: [
-        { chance: 55, text: "L'eau vous revigore.", effects: { restoreAll: 50 } },
-        { chance: 45, text: "L'eau est empoisonnée !", effects: { hurtAll: 20 } },
-      ],
-    }],
+    choices: [
+      {
+        label: 'Boire',
+        outcomes: [
+          { chance: 55, text: "L'eau vous revigore.", effects: { restoreAll: 50 } },
+          { chance: 45, text: "L'eau est empoisonnée !", effects: { hurtAll: 20 } },
+        ],
+      },
+      {
+        label: 'Remplir une gourde',
+        outcomes: [
+          { chance: 70, text: "L'eau se change en élixir dans la gourde.", effects: { consumable: 'potion' } },
+          { chance: 30, text: "L'eau croupit aussitôt : celui qui la porte s'en trouve affaibli.", effects: { curseRandom: { id: 'affaibli', turns: 3 } } },
+        ],
+      },
+    ],
   },
   joueur: {
-    name: 'Le joueur de dés', icon: '🎲', weight: 8,
+    name: 'Le joueur de dés', icon: '🎲', weight: 7,
     look: { hero: { hair: 'crete', hairColor: 'rose', eyes: 'plisses', skin: 'mate', top: 'barde', bottom: 'pourpre' } },
-    text: 'Un joueur de dés goguenard vous propose de parier votre or.',
-    choices: [{
-      label: 'Parier', cost: { gold: { base: 10, perLevel: 5 } },
-      outcomes: [
-        { chance: 45, text: 'Double six ! Vous doublez votre mise.', effects: { gold: { base: 20, perLevel: 10 } } },
-        { chance: 55, text: 'Les dés ne vous aiment pas : vous perdez votre mise.', effects: {} },
-      ],
-    }],
+    text: 'Un joueur de dés goguenard vous propose de parier votre or. « Petite mise, petit gain… ou tout sur un seul lancer ? »',
+    choices: [
+      {
+        label: 'Parier', cost: { gold: { base: 10, perLevel: 5 } },
+        outcomes: [
+          { chance: 45, text: 'Double six ! Vous doublez votre mise.', effects: { gold: { base: 20, perLevel: 10 } } },
+          { chance: 55, text: 'Les dés ne vous aiment pas : vous perdez votre mise.', effects: {} },
+        ],
+      },
+      {
+        label: 'Tout miser', cost: { gold: { base: 30, perLevel: 12 } },
+        outcomes: [
+          { chance: 30, text: 'Le dé roule, roule… et tombe sur le bon côté : vous triplez votre mise !', effects: { gold: { base: 90, perLevel: 36 } } },
+          { chance: 70, text: 'Le joueur ramasse vos pièces en souriant.', effects: {} },
+        ],
+      },
+    ],
   },
   marchand: {
-    kind: 'merchant', name: 'Marchand ambulant', icon: '🧳', weight: 10,
+    kind: 'merchant', name: 'Marchand ambulant', icon: '🧳', weight: 9,
     look: { hero: { hair: 'chignon', hairColor: 'blanc', eyes: 'dores', skin: 'foncee', top: 'rodeur', bottom: 'toile' }, extra: ['dungeon_obj', 322, 156, 26, 19] },
     text: "Un marchand ambulant déballe sa marchandise : des pièces rares, à des prix qu'on ne trouve pas au village.",
   },
   cadavre: {
-    name: "Dépouille d'aventurier", icon: '💀', weight: 9,
+    name: "Dépouille d'aventurier", icon: '💀', weight: 8,
     look: { object: ['dungeon_obj', 226, 66, 27, 32] },
     text: "Les restes d'un aventurier enchaîné gisent là. Sa besace n'a pas l'air vide… mais une odeur de maladie flotte autour.",
-    choices: [{
-      label: 'Fouiller le cadavre',
-      outcomes: [
-        { chance: 55, text: 'Sa besace contient encore de quoi survivre.', effects: { gold: { base: 12, perLevel: 5 }, consumable: 'random' } },
-        { chance: 20, text: 'Sous les haillons, une pièce d\'équipement intacte !', effects: { item: { minRarity: 'rare' } } },
-        { chance: 25, text: 'Une maladie ronge celui qui a fouillé la dépouille.', effects: { curseRandom: { id: 'affaibli', turns: 4 } } },
-      ],
-    }],
+    choices: [
+      {
+        label: 'Fouiller le cadavre',
+        outcomes: [
+          { chance: 55, text: 'Sa besace contient encore de quoi survivre.', effects: { gold: { base: 12, perLevel: 5 }, consumable: 'random' } },
+          { chance: 20, text: 'Sous les haillons, une pièce d\'équipement intacte !', effects: { item: { minRarity: 'rare' } } },
+          { chance: 25, text: 'Une maladie ronge celui qui a fouillé la dépouille.', effects: { curseRandom: { id: 'affaibli', turns: 4 } } },
+        ],
+      },
+      {
+        label: 'Lui offrir une sépulture',
+        outcomes: [{ chance: 100, text: 'Vous l\'enterrez sans rien prendre. Au prochain combat, une présence veille sur vous.', effects: { blessAll: [{ id: 'protection', turns: 3 }] } }],
+      },
+    ],
+  },
+  prisonnier: {
+    name: 'Le prisonnier', icon: '⛓️', weight: 8,
+    look: { hero: { hair: 'boucles', hairColor: 'brun', eyes: 'bruns', skin: 'halee', top: 'bure', bottom: 'toile' }, pose: 'hit', extra: ['dungeon_obj', 224, 14, 28, 34] },
+    text: "Un prisonnier vous supplie derrière des barreaux. Son geôlier dort tout près, la clé à la ceinture ; il paierait bien qui lui signalerait une évasion.",
+    choices: [
+      {
+        label: 'Voler la clé et le libérer',
+        outcomes: [
+          { chance: 60, text: 'Le prisonnier file en vous glissant ses secrets et ses provisions cachées.', effects: { xpPct: 15, consumable: 'random' } },
+          { chance: 40, text: 'Le geôlier se réveille ! Vous fuyez avec le prisonnier sous les coups.', effects: { hurtAll: 20, xpPct: 15 } },
+        ],
+      },
+      {
+        label: 'Réveiller le geôlier',
+        outcomes: [{ chance: 100, text: 'Le geôlier vous paie grassement. Les cris du prisonnier vous poursuivent.', effects: { gold: { base: 35, perLevel: 12 }, curseRandom: { id: 'terreur', turns: 3 } } }],
+      },
+    ],
+  },
+  pelerin: {
+    name: 'Le pèlerin fiévreux', icon: '🙏', weight: 7,
+    look: { hero: { hair: 'rase', hairColor: 'blanc', eyes: 'clos', skin: 'claire', top: 'pretre', bottom: 'lin' }, pose: 'hit' },
+    text: "Un vieux pèlerin grelotte de fièvre. Il ne vous demande rien… mais il porte au cou une amulette qui luit.",
+    choices: [
+      {
+        label: 'Lui donner un remède', cost: { consumable: 'remede' },
+        outcomes: [{ chance: 100, text: 'Guéri, il vous bénit et vous confie son amulette.', effects: { item: { minRarity: 'rare' }, blessAll: [{ id: 'protection', turns: 2 }] } }],
+      },
+      {
+        label: 'Prier avec lui',
+        outcomes: [{ chance: 100, text: 'Vous veillez le vieil homme. La prière apaise l\'équipe.', effects: { restoreAll: 25, cleanseAll: true } }],
+      },
+      {
+        label: 'Prendre l\'amulette',
+        outcomes: [
+          { chance: 60, text: 'Il n\'a pas la force de vous en empêcher.', effects: { item: { minRarity: 'peuCommun' } } },
+          { chance: 40, text: 'L\'amulette brûle la main qui la prend : elle était maudite.', effects: { curseAll: { id: 'terreur', turns: 2 } } },
+        ],
+      },
+    ],
+  },
+  stele: {
+    name: 'La stèle aux deux visages', icon: '🗿', weight: 7,
+    look: { object: ['dungeon_obj', 104, 304, 32, 34] },
+    text: "Une stèle sculptée de deux visages : l'un sourit, l'autre grimace. Une inscription : « Choisis. »",
+    choices: [
+      {
+        label: 'Toucher le visage souriant',
+        outcomes: [{ chance: 100, text: 'Une chaleur douce parcourt l\'équipe.', effects: { restoreAll: 60 } }],
+      },
+      {
+        label: 'Toucher le visage grimaçant',
+        outcomes: [{ chance: 100, text: 'La pierre crache deux matéria… et un froid mortel.', effects: { materia: { rarity: 'rare', amount: 2 }, curseAll: { id: 'affaibli', turns: 3 } } }],
+      },
+    ],
+  },
+  alchimiste: {
+    name: "L'alchimiste fou", icon: '⚗️', weight: 7,
+    look: { hero: { hair: 'herisses', hairColor: 'vert', eyes: 'grands', skin: 'pale', top: 'mage', bottom: 'gris' }, extra: ['dungeon_obj', 100, 56, 46, 24] },
+    text: "Un alchimiste aux yeux fous agite une fiole fumante : « Goûtez ! C'est presque au point ! » Ses autres fioles, elles, ont l'air sûres… et chères.",
+    choices: [
+      {
+        label: "Boire l'élixir expérimental",
+        outcomes: [
+          { chance: 50, text: 'Vos muscles se tendent, le monde ralentit : quelle puissance !', effects: { blessAll: [{ id: 'puissance', turns: 3 }, { id: 'hate', turns: 3 }] } },
+          { chance: 50, text: "L'élixir tourne la tête de toute l'équipe.", effects: { curseAll: { id: 'confus', turns: 2 } } },
+        ],
+      },
+      {
+        label: 'Lui acheter des fioles', cost: { gold: { base: 20, perLevel: 6 } },
+        outcomes: [{ chance: 100, text: 'Il vous cède trois fioles en marmonnant.', effects: { consumables: 3 } }],
+      },
+    ],
+  },
+  grimoire: {
+    name: 'Le grimoire interdit', icon: '📕', weight: 6,
+    look: { object: ['dungeon_obj', 8, 304, 34, 34] },
+    text: "Dans une crypte ouverte, un grimoire relié de peau attend sur un cercueil. Il chuchote des secrets… et des folies.",
+    choices: [
+      {
+        label: 'Lire le grimoire',
+        outcomes: [{ chance: 100, text: 'Un savoir terrible s\'imprime dans vos esprits… qui vacillent.', effects: { xpPct: 30, curseAll: { id: 'confus', turns: 2 } } }],
+      },
+      {
+        label: 'Le brûler',
+        outcomes: [{ chance: 100, text: 'Les flammes purifient la crypte, et l\'équipe avec elle.', effects: { cleanseAll: true, restoreAll: 20 } }],
+      },
+    ],
+  },
+  mercenaire: {
+    name: 'Le mercenaire', icon: '🗡️', weight: 7,
+    look: { hero: { hair: 'queue', hairColor: 'roux', eyes: 'gris', skin: 'mate', top: 'loup', bottom: 'cuir' } },
+    text: "Un mercenaire désœuvré aiguise sa lame : « Je me bats avec vous pour de l'or… ou contre vous, pour le plaisir. »",
+    choices: [
+      {
+        label: "L'engager", cost: { gold: { base: 20, perLevel: 7 } },
+        outcomes: [{ chance: 100, text: 'Il vous suit jusqu\'au prochain combat et montre l\'exemple.', effects: { blessAll: [{ id: 'puissance', turns: 3 }, { id: 'protection', turns: 2 }] } }],
+      },
+      {
+        label: 'Le défier en duel',
+        outcomes: [
+          { chance: 50, text: 'Vous l\'emportez : il paie son dû et vous en tirez une leçon.', effects: { gold: { base: 20, perLevel: 8 }, xpPct: 15 } },
+          { chance: 50, text: 'Il vous donne une rude leçon.', effects: { hurtRandom: { count: 2, pct: 40 } } },
+        ],
+      },
+    ],
+  },
+  forgeron: {
+    name: 'Le forgeron fantôme', icon: '🔨', weight: 6,
+    look: { hero: { hair: 'rase', hairColor: 'blanc', eyes: 'clos', skin: 'pale', top: 'bronze', bottom: 'jambieres' } },
+    text: "Le spectre d'un forgeron frappe une enclume invisible. Il tend la main : il lui faut de la matière, ou de l'or.",
+    choices: [
+      {
+        label: 'Lui confier des matéria', cost: { materia: { rarity: 'peuCommun', amount: 3 } },
+        outcomes: [{ chance: 100, text: 'Il forge en silence une pièce remarquable.', effects: { item: { minRarity: 'rare' } } }],
+      },
+      {
+        label: 'Le payer', cost: { gold: { base: 25, perLevel: 8 } },
+        outcomes: [{ chance: 100, text: 'Il forge une pièce honnête avant de s\'évanouir.', effects: { item: { minRarity: 'peuCommun' } } }],
+      },
+    ],
+  },
+  gouffre: {
+    name: 'Le gouffre qui murmure', icon: '🕳️', weight: 6,
+    look: { object: ['dungeon_obj', 148, 228, 40, 24] },
+    text: "Au bord d'un gouffre sans fond, une voix murmure : « Donne-moi ce qui compte pour toi, je te rendrai mieux. »",
+    choices: [
+      {
+        label: 'Jeter un objet du sac', cost: { bagItem: true },
+        outcomes: [
+          { chance: 70, text: 'Le gouffre recrache un objet bien meilleur.', effects: { item: { minRarity: 'epique' } } },
+          { chance: 30, text: 'Le gouffre garde tout et se tait.', effects: {} },
+        ],
+      },
+      {
+        label: 'Jeter de l\'or', cost: { gold: { base: 15, perLevel: 5 } },
+        outcomes: [
+          { chance: 50, text: 'Un souffle tiède remonte du gouffre.', effects: { restoreAll: 35 } },
+          { chance: 50, text: 'Rien. Juste l\'écho des pièces qui tombent.', effects: {} },
+        ],
+      },
+    ],
   },
 };
 
@@ -6699,12 +7342,12 @@ const { EVENTS } = __modules["src/data/events.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
 const { addStatus, makeStatus } = __modules["src/game/statuses.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { RARITY_ORDER, MATERIA_KINDS } = __modules["src/data/items.js"];
+const { RARITY_ORDER, MATERIA_KINDS, RARITIES } = __modules["src/data/items.js"];
 const { generateItem, weightedPick } = __modules["src/game/items.js"];
 const { sellPrice } = __modules["src/game/merchant.js"];
 const { addConsumable, countOf, restoreParty } = __modules["src/game/consumables.js"];
 const { CONSUMABLE_DROP_WEIGHTS } = __modules["src/game/loot.js"];
-const { getStats } = __modules["src/game/party.js"];
+const { getStats, gainXp, xpToNext } = __modules["src/game/party.js"];
 const { random, pick } = __modules["src/game/rng.js"];
 // Événements d'expédition (données : data/events.js).
 //
@@ -6754,12 +7397,20 @@ function currentEvent(game) {
   return game.expedition?.event ?? null;
 }
 
-// Coût d'un choix : { gold, consumable } (or déjà mis à l'échelle du niveau).
+// Coût d'un choix : { gold, consumable, hpPct, materia, bagItem } (or à l'échelle du niveau).
 function choiceCost(choice, level) {
   return {
     gold: choice.cost?.gold ? scaled(choice.cost.gold, level) : 0,
     consumable: choice.cost?.consumable ?? null,
+    hpPct: choice.cost?.hpPct ?? 0,
+    materia: choice.cost?.materia ?? null,
+    bagItem: !!choice.cost?.bagItem,
   };
+}
+
+// Matéria d'une rareté, toutes sortes confondues.
+function materiaCount(game, rarity) {
+  return Object.values(game.materia ?? {}).reduce((sum, byRarity) => sum + (byRarity[rarity] ?? 0), 0);
 }
 
 // Raison pour laquelle le choix est impossible (coût non payable), ou null.
@@ -6770,6 +7421,8 @@ function cannotChooseReason(game, index) {
   const cost = choiceCost(choice, event.level);
   if (game.gold < cost.gold) return `Il faut ${cost.gold} pièces d'or.`;
   if (cost.consumable && countOf(game.consumables, cost.consumable) < 1) return `Il faut : ${CONSUMABLES[cost.consumable].name}.`;
+  if (cost.materia && materiaCount(game, cost.materia.rarity) < cost.materia.amount) return `Il faut ${cost.materia.amount} matéria ${RARITIES[cost.materia.rarity].label.toLowerCase()}.`;
+  if (cost.bagItem && !(game.bag ?? []).length) return 'Il faut un objet dans le sac.';
   return null;
 }
 
@@ -6833,6 +7486,32 @@ function applyEffects(game, effects, level) {
   if (effects.hurtAll) {
     for (const hero of alive) parts.push(`${hero.name} −${hurt(hero, effects.hurtAll)} PV`);
   }
+  if (effects.consumables) {
+    for (let i = 0; i < effects.consumables; i++) {
+      const key = weightedPick(CONSUMABLE_DROP_WEIGHTS);
+      if (addConsumable(game.consumables, key)) parts.push(CONSUMABLES[key].name);
+    }
+  }
+  if (effects.cleanseAll) {
+    for (const hero of alive) hero.statuses = (hero.statuses ?? []).filter((s) => s.kind !== 'debuff');
+    parts.push('effets négatifs retirés');
+  }
+  if (effects.curseAll) {
+    for (const hero of alive) addStatus(hero, makeStatus(effects.curseAll.id, effects.curseAll.turns));
+    parts.push(`${EFFECTS[effects.curseAll.id].name} sur toute l'équipe`);
+  }
+  if (effects.blessAll) {
+    // Bénédiction : effets positifs posés au début du prochain combat (voir createCombat).
+    for (const hero of alive) hero.pendingEffects = [...(hero.pendingEffects ?? []), ...effects.blessAll];
+    parts.push(`${effects.blessAll.map((e) => EFFECTS[e.id].name).join(' et ')} au prochain combat`);
+  }
+  if (effects.xpPct) {
+    const ups = [];
+    for (const hero of alive) {
+      if (gainXp(hero, Math.round(xpToNext(hero.level) * effects.xpPct / 100))) ups.push(hero.name);
+    }
+    parts.push(`+${effects.xpPct} % d'un niveau d'XP${ups.length ? ` (${ups.join(', ')} monte${ups.length > 1 ? 'nt' : ''} de niveau)` : ''}`);
+  }
   return { parts, loot };
 }
 
@@ -6847,12 +7526,38 @@ function chooseEvent(game, index) {
   const cost = choiceCost(choice, event.level);
   game.gold -= cost.gold;
   if (cost.consumable) game.consumables[cost.consumable]--;
+  const paid = payExtraCosts(game, cost);
   let roll = random() * 100;
   const outcome = choice.outcomes.find((o) => (roll -= o.chance) < 0) ?? choice.outcomes[choice.outcomes.length - 1];
   const { parts, loot } = applyEffects(game, outcome.effects, event.level);
   game.expedition.event = null;
-  const detail = parts.length ? ` (${parts.join(', ')})` : '';
+  const detail = [...paid, ...parts].length ? ` (${[...paid, ...parts].join(', ')})` : '';
   return { ok: true, message: `${EVENTS[event.key].name} : ${outcome.text}${detail}`, loot };
+}
+
+// Coûts autres que l'or et les consommables : PV de toute l'équipe (jamais mortels), matéria
+// (prises dans les sortes les mieux fournies), un objet du sac au hasard. Retourne les textes.
+function payExtraCosts(game, cost) {
+  const parts = [];
+  if (cost.hpPct) {
+    for (const hero of game.party.filter((h) => h.alive)) hurt(hero, cost.hpPct);
+    parts.push(`−${cost.hpPct} % de PV à l'équipe`);
+  }
+  if (cost.materia) {
+    let left = cost.materia.amount;
+    const kinds = Object.keys(game.materia).sort((a, b) => game.materia[b][cost.materia.rarity] - game.materia[a][cost.materia.rarity]);
+    for (const kind of kinds) {
+      const take = Math.min(left, game.materia[kind][cost.materia.rarity]);
+      game.materia[kind][cost.materia.rarity] -= take;
+      left -= take;
+    }
+    parts.push(`−${cost.materia.amount} matéria ${RARITIES[cost.materia.rarity].label.toLowerCase()}`);
+  }
+  if (cost.bagItem) {
+    const [item] = game.bag.splice(Math.floor(random() * game.bag.length), 1);
+    parts.push(`${item.name} perdu`);
+  }
+  return parts;
 }
 
 // « Passer son chemin » (ou quitter le marchand ambulant).
@@ -10241,7 +10946,7 @@ function tip(text, extraClass = '') {
 }
 
 // Classe CSS d'une ressource, pour la couleur de sa barre : mana (bleu), energy (jaune), rage (rouge).
-const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage' };
+const RESOURCE_KINDS = { Mana: 'mana', 'Énergie': 'energy', Rage: 'rage', 'Âmes': 'souls' };
 function resourceKind(name) {
   return RESOURCE_KINDS[name] ?? 'mana';
 }
@@ -10336,6 +11041,18 @@ function effectIcon(key) {
 
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
+  // Macabre : crânes, os, spectres.
+  [/déchaînement/i, 863],
+  [/outre-tombe|décharné/i, 861],
+  [/hécatombe|citadelle des damnés/i, 1297],
+  [/fracas d'os|carapace d'ossements/i, 849],
+  [/sépulcrale/i, 862],
+  [/écrasement/i, 1478],
+  [/mur des morts|nuée spectrale/i, 1053],
+  [/trait funeste/i, 1051],
+  [/explosion d'âme/i, 1052],
+  [/requiem/i, 1296],
+  [/malédiction/i, 750],
   // Scarifié : sang, plaies, sacrifice (icônes rouges).
   [/pacte/i, 1180],
   [/dernier souffle/i, 1230],
@@ -10371,11 +11088,12 @@ const BRANCH_ICONS = {
   Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
   'Acharné': 1227, Violent: 1225, 'Liens du sang': 1092,
+  'Soldat décharné': 672, "Mur d'os": 849, 'Nécromancien': 1052,
 };
 function branchIcon(branch) {
   return BRANCH_ICONS[branch.name] ?? 1000;
 }
-const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182 };
+const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182, macabre: 862 };
 
 // Commandes de combat.
 const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
@@ -10387,6 +11105,7 @@ const TALENT_STAT_ICONS = {
   esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
   lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
   dotPct: 674, vsDebuffedPct: 616, healPct: GOLD_ICONS.soin, selfRevive: 1180, aoePct: 724, trapPct: 127,
+  soulPhys: 608, soulMag: 609, soulDef: 612, soulCrit: 670, soulBlock: 663, soulLifesteal: 676, soulHeal: 862, soulWard: 862,
 };
 function talentNodeIcon(node, skills = []) {
   if (skills.length) return skillIconIndex(skills[0]);
@@ -11318,9 +12037,10 @@ return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, 
 
 // ---- src/game/equipment.js
 __modules["src/game/equipment.js"] = (() => {
-const { SLOTS, SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { SLOTS, SLOT_ORDER, WEAPON_TYPES, ARMOR_TYPES } = __modules["src/data/items.js"];
 const { isTwoHanded } = __modules["src/game/items.js"];
 const { getClass, clampToStats } = __modules["src/game/party.js"];
+const { mainBranch } = __modules["src/game/talents.js"];
 // Règles d'équipement : qui peut porter quoi, où, et échanges avec le sac.
 //
 // hero.equipment : { [slotKey]: item } (emplacement absent = vide)
@@ -11329,6 +12049,33 @@ const { getClass, clampToStats } = __modules["src/game/party.js"];
 
 
 
+
+
+/**
+ * Équipement permis : celui de la classe, restreint par l'orientation du héros (une seule, voir mainBranch) si elle en
+ * fixe (`gear` de data/talents.js : Impassible Gardien = armure lourde, Berserker = moyenne ;
+ * Macabre : armes et armure de chaque orientation). Sans point de talent, rien n'est restreint.
+ * Retourne { armor, weapons, offHand }.
+ */
+function allowedGear(hero) {
+  const cls = getClass(hero);
+  const g = mainBranch(hero)?.gear ?? {};
+  const keep = (list, only) => (only ? list.filter((x) => only.includes(x)) : list);
+  return {
+    armor: keep(cls.gear.armor, g.armor),
+    weapons: keep(cls.gear.weapons, g.weapons),
+    offHand: keep(cls.gear.offHand, g.offHand),
+  };
+}
+
+function allowedArmor(hero) {
+  return allowedGear(hero).armor;
+}
+
+// Liste lisible : « hache à deux mains ou masse à deux mains ».
+function orList(labels) {
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} ou ${labels[labels.length - 1]}` : labels[0] ?? 'rien';
+}
 
 // Raison pour laquelle le héros ne peut pas porter cet objet (quel que soit
 // l'emplacement), ou null s'il le peut.
@@ -11340,13 +12087,23 @@ function cannotEquipReason(hero, item) {
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
     return `Les ${cls.plural} ne manient pas ce type d'arme`;
   }
+  // Restrictions de l'orientation principale.
+  const gear = allowedGear(hero);
+  const branch = mainBranch(hero)?.name;
+  if (item.armorType && !gear.armor.includes(item.armorType)) {
+    return `Orientation ${branch} : ${orList(gear.armor.map((a) => ARMOR_TYPES[a].label.toLowerCase()))} seulement`;
+  }
+  if (item.slotType === 'bouclier' && !gear.offHand.includes('bouclier')) return `Orientation ${branch} : pas de bouclier`;
+  if (item.slotType === 'arme' && !gear.weapons.includes(item.weaponType) && !gear.offHand.includes(item.weaponType)) {
+    return `Orientation ${branch} : ${orList(gear.weapons.map((w) => WEAPON_TYPES[w].name.toLowerCase()))} seulement`;
+  }
   return null;
 }
 
 // Emplacements où le héros peut placer cet objet (vide si aucun).
 function slotsFor(hero, item) {
   if (cannotEquipReason(hero, item)) return [];
-  const gear = getClass(hero).gear;
+  const gear = allowedGear(hero);
   return SLOT_ORDER.filter((slot) => {
     if (!SLOTS[slot].accepts.includes(item.slotType)) return false;
     if (item.slotType !== 'arme') return true;
@@ -11400,6 +12157,25 @@ function returnForbiddenGear(hero, bag) {
   return removed;
 }
 
+/**
+ * Remplit les emplacements vides avec ce que le sac a de mieux parmi ce que le héros peut
+ * porter (niveau d'objet, puis stat conseillée de l'orientation principale). Sert après un
+ * changement d'orientation principale. Retourne les objets équipés.
+ */
+function refillGear(hero, bag) {
+  const stat = mainBranch(hero)?.gear?.stat;
+  const score = (it) => (it.level ?? 1) * 10 + (it.primary === stat ? 5 : 0) + (RARITY_RANK[it.rarity] ?? 0);
+  const equipped = [];
+  for (const slot of SLOT_ORDER) {
+    if (hero.equipment[slot]) continue;
+    if (slot === 'mainGauche' && hero.equipment.mainDroite && isTwoHanded(hero.equipment.mainDroite)) continue;
+    const best = bag.filter((it) => slotsFor(hero, it).includes(slot)).sort((a, b) => score(b) - score(a))[0];
+    if (best && equip(hero, bag, best, slot)) equipped.push(best);
+  }
+  return equipped;
+}
+const RARITY_RANK = { commun: 0, peuCommun: 1, rare: 2, epique: 3, legendaire: 4, divin: 5 };
+
 function unequip(hero, bag, slot) {
   const item = hero.equipment[slot];
   if (!item) return false;
@@ -11416,7 +12192,7 @@ function previewEquip(hero, item, slot) {
   return equip(copy, bag, item, slot) ? copy : null;
 }
 
-return { cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, unequip, previewEquip };
+return { allowedGear, allowedArmor, cannotEquipReason, slotsFor, equippedItems, equip, returnForbiddenGear, refillGear, unequip, previewEquip };
 })();
 
 // ---- src/ui/bagView.js
@@ -11947,6 +12723,108 @@ function createEnemies(keys, level, power = 1) {
 return { enemyStats, createEnemy, createEnemies };
 })();
 
+// ---- src/game/souls.js
+__modules["src/game/souls.js"] = (() => {
+const { SOULS } = __modules["src/config.js"];
+const { getClass, getStats, usesSouls, soulsOf, gainSouls } = __modules["src/game/party.js"];
+// Âmes du Macabre. Quand un ennemi meurt, chaque Macabre en vie absorbe son âme (1 âme,
+// jusqu'à son maximum : 3 de base, `resMaxBonus` en plus). Les âmes sont sa ressource
+// (hero.res) : gardées d'un combat à l'autre, libérées au repos (restoreFully) ou s'il tombe.
+// Selon l'orientation, chaque âme donne des bonus (getStats, applySoulBonuses) ou se dépense
+// dans des compétences (`cost` en âmes ; `allSouls` : toutes les âmes, puissance par âme).
+// Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
+// plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
+// en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
+// d'un % des PV max à chaque âme absorbée.
+
+
+
+
+function isSoulBearer(hero) {
+  return usesSouls(getClass(hero));
+}
+
+function soulMax(hero) {
+  return getStats(hero).resMax;
+}
+
+/**
+ * Un ennemi vient de mourir : chaque Macabre en vie de l'équipe absorbe son âme.
+ * Retourne [{ hero, gained, healed }] pour ceux qui en ont gagné une.
+ */
+function absorbSoul(party) {
+  const out = [];
+  for (const hero of party.filter((h) => h.alive && isSoulBearer(h))) {
+    const gained = gainSouls(hero, 1);
+    if (!gained) continue;
+    const stats = getStats(hero);
+    let healed = 0;
+    if (stats.soulHeal) {
+      const before = hero.hp;
+      hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * stats.soulHeal / 100));
+      healed = hero.hp - before;
+    }
+    out.push({ hero, gained, healed });
+  }
+  return out;
+}
+
+/**
+ * Contrecoup pour `souls` âmes (sans rien modifier) : % des PV max perdus par le Macabre
+ * (`self`) et par chacun de ses alliés (`allies`, au maximum d'âmes seulement).
+ * `held` = tours déjà passés au maximum (le premier ne coûte rien de plus).
+ */
+function backlashPct(stats, souls, held = 0) {
+  if (!souls) return { self: 0, allies: 0 };
+  const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
+  const atMax = souls >= stats.resMax;
+  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
+  return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
+}
+
+/**
+ * Fin d'un tour du Macabre : calcule le contrecoup et met à jour le compteur de tours passés
+ * au maximum (hero.soulHeld). Retourne { self, allies } en PV (le combat les inflige).
+ */
+function soulBacklash(hero, party) {
+  const souls = soulsOf(hero);
+  const stats = getStats(hero);
+  if (!souls) {
+    hero.soulHeld = 0;
+    return { self: 0, allies: [] };
+  }
+  const atMax = souls >= stats.resMax;
+  const held = atMax ? hero.soulHeld ?? 0 : 0;
+  hero.soulHeld = atMax ? held + 1 : 0;
+  const pct = backlashPct(stats, souls, held);
+  const self = Math.max(1, Math.round(stats.pv * pct.self / 100));
+  const allies = pct.allies
+    ? party.filter((h) => h.alive && h !== hero).map((ally) => ({ ally, amount: Math.round(getStats(ally).pv * pct.allies / 100) }))
+    : [];
+  return { self, allies };
+}
+
+/**
+ * Compétence `allSouls` telle qu'elle partira : dépense toutes les âmes (au moins une),
+ * puissance et valeur des effets multipliées par le nombre d'âmes (soulsSpent).
+ */
+function atSouls(skill, souls) {
+  if (!skill.allSouls) return skill;
+  const n = Math.max(1, souls);
+  const scale = (v) => (v === undefined ? v : +(v * n).toFixed(3));
+  return {
+    ...skill,
+    power: scale(skill.power),
+    effects: (skill.effects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
+    selfEffects: (skill.selfEffects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
+    cost: n,
+    soulsSpent: n,
+  };
+}
+
+return { isSoulBearer, soulMax, absorbSoul, backlashPct, soulBacklash, atSouls };
+})();
+
 // ---- src/game/combo.js
 __modules["src/game/combo.js"] = (() => {
 const { getClass } = __modules["src/game/party.js"];
@@ -12035,7 +12913,10 @@ const { isMultiAction } = __modules["src/game/combo.js"];
 // - Les ennemis ont leur position dans le bestiaire (`ranged`).
 // - Une unité au corps à corps a plus de chances d'être ciblée (COMBAT.meleeTargetWeight).
 // - Une arme ne sert que depuis sa position (WEAPON_TYPES[].range) : attaque simple et
-//   compétences physiques (« à l'arme ») ; sorts, soins, pièges et objets restent possibles.
+//   compétences physiques ; sorts, soins, pièges et objets restent possibles.
+// - Une compétence à l'arme (coup, sort, soin) demande une arme de son orientation en main
+//   (`weapons`, data/talents.js) : un arc pour les tirs, un bâton pour les sorts du mage…
+//   Les compétences neutres (buffs, provocations, pièges) se lancent avec n'importe quelle arme.
 // - Riposte : une unité au corps à corps attaquée au corps à corps peut riposter
 //   (chance = stat Riposte), en infligeant une part de sa puissance physique.
 
@@ -12074,6 +12955,32 @@ function weaponBlockedReason(hero) {
     : 'Arme de corps à corps : impossible de frapper à distance. Changez de position.';
 }
 
+// Liste lisible d'armes : « dague ou épée ».
+function weaponNames(types) {
+  const names = types.map((t) => WEAPON_TYPES[t].name.toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} ou ${names[names.length - 1]}` : names[0];
+}
+
+/**
+ * Pourquoi le héros ne peut pas lancer cette compétence avec ses armes (texte), ou null :
+ * compétence à l'arme (`weapons` : armes de son orientation) sans une de ces armes en main
+ * droite ; `needsShield` sans bouclier en main gauche ; coup physique dont l'arme n'a pas la
+ * portée de la position (un arc au corps à corps, une hache à distance).
+ */
+function skillWeaponProblem(hero, skill) {
+  return skillGearProblem(hero, skill) ?? (usesWeapon(skill) && !canUseWeapon(hero) ? weaponBlockedReason(hero) : null);
+}
+
+// Même chose sans la portée (hors combat, où la position ne compte pas).
+function skillGearProblem(hero, skill) {
+  const main = hero.equipment?.mainDroite;
+  if (skill.weapons && !(main?.slotType === 'arme' && skill.weapons.includes(main.weaponType))) {
+    return `Arme requise : ${weaponNames(skill.weapons)}.`;
+  }
+  if (skill.needsShield && hero.equipment?.mainGauche?.slotType !== 'bouclier') return 'Demande un bouclier en main gauche.';
+  return null;
+}
+
 // Changer de position : toujours possible pour une classe à une action ; une
 // classe à Énergie ne peut plus le faire après avoir agi ce tour.
 function canChangePosition(hero) {
@@ -12096,7 +13003,7 @@ function setPosition(hero, position) {
   return true;
 }
 
-return { POSITIONS, defaultPosition, weaponRange, usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition, otherRow, targetWeight, setPosition };
+return { POSITIONS, defaultPosition, weaponRange, usesWeapon, canUseWeapon, weaponBlockedReason, skillWeaponProblem, skillGearProblem, canChangePosition, otherRow, targetWeight, setPosition };
 })();
 
 // ---- src/game/formulas.js
@@ -12256,9 +13163,10 @@ __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { createEnemies } = __modules["src/game/enemies.js"];
-const { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill } = __modules["src/game/party.js"];
+const { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill, soulsOf } = __modules["src/game/party.js"];
+const { absorbSoul, soulBacklash, atSouls, isSoulBearer } = __modules["src/game/souls.js"];
 const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __modules["src/game/combo.js"];
-const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } = __modules["src/game/position.js"];
+const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight, skillWeaponProblem } = __modules["src/game/position.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } = __modules["src/game/statuses.js"];
@@ -12296,6 +13204,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 
 
 
+
 /**
  * Prépare un combat.
  * enemies     : clés d'ennemis (data/enemies.js), tous au niveau `level`
@@ -12309,6 +13218,9 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
     // remède) ; les effets positifs disparaissent.
     hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
+    // Bénédictions d'un événement d'expédition : posées au début de ce combat.
+    for (const e of hero.pendingEffects ?? []) if (hero.alive) addStatus(hero, makeStatus(e.id, e.turns));
+    hero.pendingEffects = [];
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
@@ -12431,6 +13343,23 @@ function endUnitTurn(cb, unit) {
       }
     }
   }
+  if (unit.alive && isHero(unit) && isSoulBearer(unit)) soulTorment(cb, unit);
+}
+
+// Macabre : les âmes gardées le rongent (et, au maximum, rongent ses alliés).
+function soulTorment(cb, hero) {
+  const souls = soulsOf(hero);
+  const { self, allies } = soulBacklash(hero, cb.party);
+  if (!self) return;
+  const { taken, fell } = hurt(cb, hero, self);
+  log(cb, `${souls} âme${souls > 1 ? 's' : ''} rongent ${hero.name} (-${taken} PV).`, true);
+  if (fell) logFall(cb, hero);
+  for (const { ally, amount } of allies) {
+    const lost = Math.min(ally.hp - 1, amount);
+    if (lost <= 0) continue;
+    ally.hp -= lost;
+    log(cb, `Les âmes débordent de ${hero.name} : ${ally.name} perd ${lost} PV.`, true);
+  }
 }
 
 // Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
@@ -12465,6 +13394,12 @@ function applyStatus(cb, unit, status) {
 
 function logFall(cb, unit) {
   log(cb, isHero(unit) ? `${unit.name} s'effondre !` : `${unit.name} est vaincu !`, true);
+  if (isHero(unit)) return;
+  // Macabre : l'âme de l'ennemi mort est absorbée.
+  for (const { hero, healed } of absorbSoul(cb.party)) {
+    const n = soulsOf(hero);
+    log(cb, `${hero.name} absorbe l'âme de ${unit.name} (${n} âme${n > 1 ? 's' : ''})${healed ? ` et récupère ${healed} PV` : ''}.`, true);
+  }
 }
 
 function aliveAt(list, index) {
@@ -12503,8 +13438,9 @@ function canUseItem(cb, key) {
 function canUseSkill(cb, hero, skill) {
   if (!canPaySkill(hero, skill)) return false; // ressource, ou PV (jamais le dernier)
   if (skill.finisher && comboOf(hero) < 1) return false;
+  if (skill.allSouls && soulsOf(hero) < 1) return false; // au moins une âme à libérer
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
-  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
+  if (skillWeaponProblem(hero, skill)) return false; // arme de l'orientation, bouclier, portée
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -12607,6 +13543,7 @@ function heroAct(cb, action) {
     if (!targets) return false;
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
+    if (isSoulBearer(hero) && skill.cost > 0) log(cb, `${hero.name} libère ${skill.cost} âme${skill.cost > 1 ? 's' : ''}.`);
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
@@ -12641,10 +13578,10 @@ function heroAct(cb, action) {
 /**
  * Compétence telle qu'elle partira maintenant : puissance selon les points de combo
  * (finisher) ; sacrifice (Scarifié) : puissance augmentée selon la part des PV max
- * sacrifiés (tous les PV sauf un). Sert aussi aux estimations affichées.
+ * sacrifiés (tous les PV sauf un) ; `allSouls` (Macabre) : toutes les âmes, puissance par âme. Sert aussi aux estimations affichées.
  */
 function effectiveSkill(hero, base) {
-  const skill = atCombo(base, comboOf(hero));
+  const skill = atSouls(atCombo(base, comboOf(hero)), soulsOf(hero));
   if (!skill.sacrifice) return skill;
   const share = Math.max(0, hero.hp - 1) / Math.max(1, getStats(hero).pv);
   return { ...skill, power: +(skill.power + skill.sacrifice * share).toFixed(3) };
@@ -14282,10 +15219,8 @@ const { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } = __modules["src/co
 const { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } = __modules["src/data/items.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
-const { nodeSkills } = __modules["src/data/talents.js"];
 const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { generateItem, primaryOptions } = __modules["src/game/items.js"];
-const { branchesOf, learn } = __modules["src/game/talents.js"];
 const { progressOf } = __modules["src/game/dungeon.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
 const { medalDifficulties } = __modules["src/game/medals.js"];
@@ -14295,8 +15230,6 @@ const { medalDifficulties } = __modules["src/game/medals.js"];
 // points de départ ouverts, toutes les médailles des 3 premières zones) ; dans le sac, chaque base d'objet au niveau maximum, dans
 // chacune de ses stats principales, en Divin, Épique, Rare et Peu commun (pour les
 // comparer), plus tous les légendaires.
-
-
 
 
 
@@ -14318,14 +15251,11 @@ function itemBases() {
   ];
 }
 
-// Héros au niveau maximum, sorts de départ de ses orientations appris (1 point chacun).
+// Héros au niveau maximum, sans talent : ses 50 points restent à placer dans l'orientation
+// de son choix (un héros n'en suit qu'une).
 function maxedHero(hero) {
   hero.level = XP.maxLevel;
   hero.xp = 0;
-  for (const branch of branchesOf(hero)) {
-    const node = branch.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
-    if (node) learn(hero, node.id);
-  }
   hero.hp = getStats(hero).pv;
   return hero;
 }
@@ -14359,7 +15289,7 @@ __modules["src/version.js"] = (() => {
 
 // Version du jeu (affichée sur l'écran titre). Doit être égale à celle de package.json et
 // avoir sa section dans CHANGELOG.md (un test le vérifie). Voir docs/RELEASES.md.
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 return { VERSION };
 })();
@@ -14898,6 +15828,10 @@ function consumableEstimate(key, hero) {
  * « 14 PV » (héros donné) / « 6 % PV » (sans héros) ; un sacrifice coûte tout sauf 1 PV.
  */
 function skillCostLabel(cls, skill, hero = null) {
+  if (cls.resource.souls) {
+    if (skill.allSouls) return skill.soulsSpent ? `toutes les âmes (${skill.soulsSpent})` : 'toutes les âmes';
+    return skill.cost ? `${skill.cost} âme${skill.cost > 1 ? 's' : ''}` : 'gratuit';
+  }
   if (!usesHp(cls)) return `${skill.cost} ${cls.resource.name}`;
   if (skill.sacrifice) return 'tous les PV sauf 1';
   return hero ? `${hpCost(hero, skill)} PV` : `${skill.cost} % PV`;
@@ -14906,15 +15840,118 @@ function skillCostLabel(cls, skill, hero = null) {
 return { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel };
 })();
 
+// ---- src/ui/gearGuide.js
+__modules["src/ui/gearGuide.js"] = (() => {
+const { CLASSES } = __modules["src/data/classes.js"];
+const { TALENTS } = __modules["src/data/talents.js"];
+const { STATS } = __modules["src/data/stats.js"];
+const { ARMOR_TYPES, WEAPON_TYPES } = __modules["src/data/items.js"];
+const { mainBranch } = __modules["src/game/talents.js"];
+const { esc } = __modules["src/ui/html.js"];
+// Guide d'équipement : ce que porte chaque orientation (stat conseillée, armure, armes), pour
+// les écrans Personnage et Création. Les limites viennent de la classe (`gear`) et, quand elle
+// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation du héros).
+
+
+
+
+
+
+
+
+// « épée, hache ou masse (une ou deux mains) », « bâton »…
+function weaponsText(weapons) {
+  const bases = [];
+  for (const w of weapons) {
+    const base = w.replace(/2m$/, '');
+    let entry = bases.find((b) => b.base === base);
+    if (!entry) bases.push(entry = { base, one: false, two: false });
+    if (w.endsWith('2m')) entry.two = true;
+    else entry.one = true;
+  }
+  const name = (b) => (WEAPON_TYPES[b.base] ?? WEAPON_TYPES[`${b.base}2m`]).name.toLowerCase().replace(/ à deux mains$/, '');
+  const groups = [
+    [bases.filter((b) => b.one && b.two), ' (une ou deux mains)'],
+    [bases.filter((b) => b.one && !b.two), ''],
+    [bases.filter((b) => !b.one && b.two), ' à deux mains'],
+  ].filter(([list]) => list.length);
+  return groups.map(([list, suffix]) => orList(list.map(name)) + suffix).join(' ; ');
+}
+
+function orList(words) {
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} ou ${words[words.length - 1]}` : words[0] ?? '';
+}
+
+/**
+ * Équipement d'une orientation : { stat, armor, weapons, offHand, limited } (textes) ;
+ * limited = l'orientation restreint l'équipement de la classe quand elle est principale.
+ */
+function branchGear(classKey, branch) {
+  const cls = CLASSES[classKey];
+  const g = branch.gear ?? {};
+  const keep = (list, only) => (only ? list.filter((x) => only.includes(x)) : list);
+  const armor = keep(cls.gear.armor, g.armor);
+  const weapons = keep(cls.gear.weapons, g.weapons);
+  const off = keep(cls.gear.offHand, g.offHand);
+  const offWeapons = off.filter((x) => x !== 'bouclier');
+  return {
+    stat: STATS[g.stat ?? cls.mainStat].label,
+    armor: orList(armor.map((a) => ARMOR_TYPES[a].label.replace('Armure ', 'armure '))),
+    weapons: weaponsText(weapons),
+    offHand: [off.includes('bouclier') ? 'bouclier' : '', offWeapons.length ? `une 2e arme (${weaponsText(offWeapons)})` : ''].filter(Boolean).join(' ou '),
+    limited: !!(g.armor || g.weapons || g.offHand),
+  };
+}
+
+// Une ligne : « Gardien — Force · armure lourde · épée, hache… + bouclier ».
+function branchGearLine(classKey, branch) {
+  const g = branchGear(classKey, branch);
+  return `${g.stat} · ${g.armor} · ${g.weapons}${g.offHand ? ` + ${g.offHand}` : ''}`;
+}
+
+// Arme demandée par une compétence : « Arme : dague ou épée », « Neutre : n'importe quelle arme ».
+function skillGearText(skill) {
+  const shield = skill.needsShield ? ' + bouclier' : '';
+  if (!skill.weapons) return `Neutre : se lance avec n'importe quelle arme${shield}`;
+  return `Arme : ${weaponsText(skill.weapons)}${shield}`;
+}
+
+// Stat conseillée du héros : celle de son orientation principale (sinon celle de la classe).
+function preferredStat(hero) {
+  return mainBranch(hero)?.gear?.stat ?? CLASSES[hero.classKey].mainStat;
+}
+
+/**
+ * Bloc de l'écran Personnage : orientation principale, ce qu'elle permet de porter et la stat
+ * à chercher sur les objets ; les autres orientations en dessous, en petit.
+ */
+function gearGuideHtml(hero) {
+  const branches = TALENTS[hero.classKey] ?? [];
+  const main = mainBranch(hero);
+  const anyLimit = branches.some((b) => branchGear(hero.classKey, b).limited);
+  const head = main
+    ? `<b>${esc(main.name)}</b> : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
+    : "Pas encore d'orientation (aucun point de talent) : tout l'équipement de la classe est permis.";
+  return `
+    <div class="gear-guide">
+      <p>${head}</p>
+      <ul>${branches.map((b) => `<li class="${b === main ? 'current' : ''}"><b>${esc(b.name)}</b> — ${esc(branchGearLine(hero.classKey, b))}</li>`).join('')}</ul>
+      <p class="hint">Un héros ne suit qu'une orientation : elle décide de ses armes${anyLimit ? ' et de son armure' : ''}.</p>
+    </div>`;
+}
+
+return { weaponsText, branchGear, branchGearLine, skillGearText, preferredStat, gearGuideHtml };
+})();
+
 // ---- src/ui/screens/create.js
 __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { PARTY_ORDER, CLASS_ORDER, XP } = __modules["src/config.js"];
+const { PARTY_ORDER, CLASS_ORDER, XP, SOULS } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES } = __modules["src/data/items.js"];
 const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats, classTitle, hasFeminine, usesHp } = __modules["src/game/party.js"];
+const { createParty, createHero, getStats, classTitle, hasFeminine, usesHp, starterSpares } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { generateItem, possibleSecondaries } = __modules["src/game/items.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -14929,11 +15966,13 @@ const { LOOK_PARTS, BODIES, TOPS } = __modules["src/data/appearance.js"];
 const { defaultLook, cycleLook, randomLook, lookKey } = __modules["src/game/appearance.js"];
 const { lookSprite } = __modules["src/ui/heroSprite.js"];
 const { drawActor } = __modules["src/ui/actors.js"];
+const { branchGear, branchGearLine } = __modules["src/ui/gearGuide.js"];
 // Création de l'équipe, plein écran : quatre colonnes (une par héros) avec l'aperçu animé
 // du personnage, son nom, sa classe et son apparence (coupe, couleur des cheveux, yeux,
 // peau, haut et bas du corps : data/appearance.js). « Classes et légendaires » ouvre une
 // fenêtre à deux onglets : le détail d'une classe (stats, sorts et équipement de départ,
 // orientations) et tous les légendaires en icônes.
+
 
 
 
@@ -15031,6 +16070,7 @@ function renderCreate(app) {
     readNames(app);
     draft.details = null;
     state.party = createParty(draft.names, draft.classes, draft.looks, draft.classes.map((k, i) => hasFeminine(k) && draft.feminine[i]));
+    state.bag.push(...state.party.flatMap((h) => starterSpares(h.classKey)));
     saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };
@@ -15051,10 +16091,16 @@ function heroColumn(key, i) {
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
-      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${STATS[cls.mainStat].label}${['paladin', 'scarifie'].includes(key) ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
+      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${esc(classStats(key))} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(`${b.name} : ${branchGearLine(key, b)}`))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
       <div class="look-actions"><button data-random="${i}">Au hasard</button><button data-reset="${i}">Tenue de la classe</button></div>
     </section>`;
+}
+
+// Stats conseillées des orientations de la classe : « Force ou Intelligence ».
+function classStats(key) {
+  const labels = [...new Set(TALENTS[key].map((b) => branchGear(key, b).stat))];
+  return labels.join(' ou ');
 }
 
 // Une ligne « Coupe ◀ Courts ▶ » avec un échantillon de couleur pour les teintes.
@@ -15114,7 +16160,9 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.hp
+  const resourceText = r.souls
+    ? `Âmes : il absorbe l'âme de chaque ennemi qui meurt (${r.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe. Ses coups de base sont gratuits, les plus forts dépensent des âmes. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
+    : r.hp
     ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
     : r.multiAction
     ? `${r.name} : ${r.max} au maximum, pleine au début de chaque combat, +${r.regen} par tour. Chaque action en coûte (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}) : plusieurs actions par tour.`
@@ -15132,13 +16180,14 @@ function classesTab() {
       </div>
       <div class="details-col">
         <p class="hint">${esc(resourceText)} Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'}. Par niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
-        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 14</small></h4>
+        <h4>Orientations <small class="hint">— un héros n'en suit qu'une : son premier point de talent la choisit et apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au 50e point</small></h4>
         <div class="skill-list">${TALENTS[key].map((b) => {
           const starterNode = b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
           const starter = starterNode ? nodeSkills(starterNode)[0] : null;
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
+              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}</small><br>
               ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>
@@ -15253,6 +16302,9 @@ return { logLines, lastCombatLog, victorySummary };
 
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
+const { returnForbiddenGear, refillGear } = __modules["src/game/equipment.js"];
+const { itemName } = __modules["src/ui/items.js"];
+const { skillGearText } = __modules["src/ui/gearGuide.js"];
 const { state } = __modules["src/state.js"];
 const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier } = __modules["src/game/talents.js"];
@@ -15263,6 +16315,9 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { XP } = __modules["src/config.js"];
 const { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } = __modules["src/ui/icons.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
+
+
 
 
 
@@ -15332,7 +16387,7 @@ function renderTalents(app) {
   app.querySelector('#reset').onclick = () => {
     if (!view.confirmReset) view.confirmReset = true;
     else {
-      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.`;
+      if (resetTalents(state, hero)) view.flash = `Les talents de ${hero.name} ont été réinitialisés.${gearNote(hero)}`;
       view.confirmReset = false;
     }
     goTo('talents');
@@ -15340,8 +16395,16 @@ function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
+// L'orientation a pu changer (armes et armure permises) : ce qui n'est plus portable va au sac.
+function gearNote(hero) {
+  const removed = returnForbiddenGear(hero, state.bag);
+  if (!removed.length) return '';
+  const added = refillGear(hero, state.bag);
+  return ` Nouvelle orientation : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
+}
+
 function doLearn(hero, node) {
-  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).`;
+  if (learn(hero, node.id)) view.flash = `${hero.name} apprend ${node.name} (rang ${rankOf(hero, node.id)}/${node.ranks}).${gearNote(hero)}`;
   view.node = node.id;
   view.confirmReset = false;
   goTo('talents');
@@ -15372,9 +16435,11 @@ function branchColumn(hero, branch) {
     return `<div class="tal-tier ${big ? 'big' : 'pick'} ${locked ? 'locked' : ''}" title="${big ? `Gros palier ${tier} (obligatoire)` : `Petit palier ${tier} : ${CHOICE_PICKS} bonus au choix parmi les trois`}">
       ${big ? '' : `<span class="tal-req">${CHOICE_PICKS}/3</span>`}${nodes.map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
   };
+  // Un héros ne suit qu'une orientation : les autres se ferment dès le premier point.
+  const closed = !invested && branchesOf(hero).some((b) => b !== branch && pointsInBranch(hero, b) > 0);
   return `
-    <section class="win tal-branch">
-      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} / ${max} pts</small></h3>
+    <section class="win tal-branch ${closed ? 'closed' : ''}" ${closed ? 'title="Un héros ne suit qu\'une orientation : réinitialisez ses talents pour en changer."' : ''}>
+      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${closed ? 'fermée' : `${invested} / ${max} pts`}</small></h3>
       <span class="meter xp tal-progress"><span class="fill" style="width:${Math.min(100, (invested / Math.max(1, max)) * 100)}%"></span></span>
       <div class="tal-tiers">
         ${rows.map((row) => `<div class="tal-row">${row.map(group).join('')}</div>`).join('')}
@@ -15394,7 +16459,7 @@ function nodeIcon(hero, branch, node) {
 function introDetail(hero, cls) {
   return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
-    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
+    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature. <b>Un héros ne suit qu'une orientation</b> : le premier point la choisit (armes, armure), la réinitialisation permet d'en changer.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
 }
 
@@ -15403,7 +16468,7 @@ function nodeDetail(hero, branch, node) {
   const reason = cannotLearnReason(hero, node.id);
   const skills = nodeSkills(node);
   const body = skills.length
-    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
+    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small><br><small class="hint">${esc(skillGearText(sk))}.</small></p>`).join('')
     : `<p>${esc(node.desc)}</p>`;
   const action = rank >= node.ranks ? '<p class="tal-maxed">Maîtrisé.</p>'
     : reason ? `<p class="warning">${esc(reason)}</p>`
@@ -15435,6 +16500,7 @@ const { BAG_TABS, bagItems, paginate } = __modules["src/ui/bagView.js"];
 const { drawActor } = __modules["src/ui/actors.js"];
 const { heroSprite } = __modules["src/ui/heroSprite.js"];
 const { openTalents } = __modules["src/ui/screens/talents.js"];
+const { gearGuideHtml, preferredStat } = __modules["src/ui/gearGuide.js"];
 // Écran Personnage (équipement et inventaire), plein écran et sans défilement :
 // à gauche les statistiques du héros (écart en vert / rouge quand on survole un objet),
 // au centre le héros et ses emplacements, à droite le sac en grille d'icônes (onglets,
@@ -15442,6 +16508,7 @@ const { openTalents } = __modules["src/ui/screens/talents.js"];
 // Équiper : glisser un objet du sac sur un emplacement (les emplacements possibles
 // s'allument), double-clic, ou clic sur l'objet puis sur l'emplacement. Retirer : glisser
 // l'objet équipé vers le sac, ou double-clic.
+
 
 
 
@@ -15502,7 +16569,8 @@ function renderEquipment(app) {
           ${DOLL.map(([slot, col, row]) => slotCell(hero, slot, col, row)).join('')}
           <canvas id="dollHero" width="96" height="124" style="grid-column:2; grid-row:1 / span 5"></canvas>
         </div>
-        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic). Glissez-le vers le sac pour le retirer.</p>
+        ${gearGuideHtml(hero)}
+        <p class="hint inv-help">Glissez un objet sur un emplacement (ou double-clic) ; vers le sac pour le retirer.</p>
       </section>
       <section class="win inv-bag" id="bagDrop">
         <nav class="bag-tabs">${BAG_TABS.map((t) => `<button class="bag-tab ${t.id === view.tab ? 'current' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}</nav>
@@ -15525,7 +16593,7 @@ function statGrid(hero, preview) {
   const cls = getClass(hero);
   const rows = [
     ['physPower', 'Puiss. physique', ''], ['magPower', 'Puiss. magique', ''],
-    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === cls.mainStat ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
+    ...STAT_ORDER.map((k) => [k, STATS[k].label + (k === preferredStat(hero) ? ' ★' : ''), STATS[k].suffix ? ` ${STATS[k].suffix}` : '']),
   ];
   return rows.map(([k, label, suffix]) => {
     const d = after ? after[k] - now[k] : 0;
@@ -16104,7 +17172,7 @@ return { openForge, renderForge };
 __modules["src/game/runes.js"] = (() => {
 const { RUNES } = __modules["src/config.js"];
 const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
-const { secondaryValue } = __modules["src/game/items.js"];
+const { secondaryValue, secondaryWeight } = __modules["src/game/items.js"];
 const { pick } = __modules["src/game/rng.js"];
 // Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
 // et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
@@ -16144,7 +17212,7 @@ function rerollSecondary(game, item, stat) {
   game.gold -= rerollCost(item);
   const from = { stat, value: item.bonus[stat] };
   const newStat = pick(rerollPool(item, stat));
-  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range, secondaryWeight(item)) };
   item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
   return { from, to };
 }
@@ -16435,7 +17503,7 @@ return { openMerchant, renderMerchant };
 __modules["src/game/roster.js"] = (() => {
 const { INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { createHero, restoreFully } = __modules["src/game/party.js"];
+const { createHero, restoreFully, starterSpares } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 // Auberge : recrutement de compagnons et gestion de l'équipe.
 //
@@ -16468,6 +17536,7 @@ function rosterLockedReason(game) {
 function recruit(game, classKey, name, replaceIndex, feminine = false) {
   if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
   const hero = createHero(classKey, name?.trim(), null, feminine);
+  (game.bag ??= []).push(...starterSpares(classKey));
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);
@@ -16928,10 +17997,12 @@ const { getSkills, canPaySkill, paySkill, usesHp, getClass } = __modules["src/ga
 const { statsOf, heal } = __modules["src/game/units.js"];
 const { healAmount } = __modules["src/game/formulas.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
+const { skillGearProblem } = __modules["src/game/position.js"];
 // Soins hors combat (entre deux combats d'une expédition) : les héros peuvent
 // lancer leurs compétences de soin et de purification. Les autres effets (buffs,
 // boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
 // se sur-préparer avant une rencontre.
+
 
 
 
@@ -16963,6 +18034,8 @@ function cannotCastReason(game, casterIndex, skill) {
   if (!game.expedition) return 'Uniquement pendant une expédition.';
   if (!caster?.alive) return 'Ce héros est tombé.';
   if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
+  const gear = skillGearProblem(caster, skill);
+  if (gear) return gear;
   if (!canPaySkill(caster, skill)) return usesHp(getClass(caster)) ? 'Pas assez de PV (le dernier ne se sacrifie pas).' : 'Pas assez de ressource.';
   return null;
 }
@@ -17482,6 +18555,7 @@ const { countOf, usableIn, isUntargeted, isValidTarget, useOnMap, usedThisTier }
 const { currentEvent, chooseEvent, skipEvent, cannotChooseReason, choiceCost, eventItemPrice, buyEventItem, buyEventConsumable } = __modules["src/game/events.js"];
 const { EVENTS } = __modules["src/data/events.js"];
 const { RARITIES } = __modules["src/data/items.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
 const { MERCHANT } = __modules["src/config.js"];
 const { esc, tip } = __modules["src/ui/html.js"];
 const { itemChip, itemName, itemMeta, itemTooltipText } = __modules["src/ui/items.js"];
@@ -17501,6 +18575,7 @@ const { drawPortraits } = __modules["src/ui/portraits.js"];
 // dessus (ui/hud.js) : état de l'équipe,
 // objets et sorts hors combat, événements, et après un boss le choix entre rentrer
 // au village et continuer.
+
 
 
 
@@ -17776,7 +18851,14 @@ function outcomeText(outcome, level) {
   if (e.restoreAll) parts.push(`+${e.restoreAll} % de PV et de ressource à l'équipe`);
   if (e.hurtRandom) parts.push(`${e.hurtRandom.count} héros au hasard perd${e.hurtRandom.count > 1 ? 'ent' : ''} ${e.hurtRandom.pct} % de ${e.hurtRandom.count > 1 ? 'leurs' : 'ses'} PV max`);
   if (e.hurtAll) parts.push(`chaque héros perd ${e.hurtAll} % de ses PV max`);
-  return `${outcome.chance} % : ${parts.length ? parts.join(', ') : 'rien'}`;
+  if (e.curseRandom) parts.push(`un héros au hasard subit ${EFFECTS[e.curseRandom.id].name} (${e.curseRandom.turns} tours)`);
+  if (e.curseAll) parts.push(`toute l'équipe subit ${EFFECTS[e.curseAll.id].name} (${e.curseAll.turns} tours)`);
+  if (e.blessAll) parts.push(`${e.blessAll.map((b) => `${EFFECTS[b.id].name} (${b.turns} tours)`).join(' et ')} au prochain combat`);
+  if (e.xpPct) parts.push(`+${e.xpPct} % d'un niveau d'XP à chaque héros`);
+  if (e.cleanseAll) parts.push("retire les effets négatifs de l'équipe");
+  if (e.consumables) parts.push(`${e.consumables} consommables au hasard`);
+  const chance = outcome.chance === 100 ? '' : `${outcome.chance} % : `;
+  return `${chance}${parts.length ? parts.join(', ') : 'rien'}`;
 }
 
 function eventPanel(event) {
@@ -17785,11 +18867,17 @@ function eventPanel(event) {
     <div class="event-choices">
       ${def.choices.map((c, i) => {
         const cost = choiceCost(c, event.level);
-        const costText = [cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : ''].filter(Boolean).join(', ');
+        const costText = [
+          cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : '',
+          cost.hpPct ? `${cost.hpPct} % des PV de chaque héros` : '',
+          cost.materia ? `${cost.materia.amount} matéria ${RARITIES[cost.materia.rarity].label.toLowerCase()}` : '',
+          cost.bagItem ? 'un objet du sac au hasard' : '',
+        ].filter(Boolean).join(', ');
         const reason = cannotChooseReason(state, i);
         return `
           <div class="event-choice">
-            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}${costText ? ` (coût : ${costText})` : ''}</button>
+            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}</button>
+            ${costText ? `<p class="event-cost">Coût : ${esc(costText)}</p>` : ''}
             <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
           </div>`;
       }).join('')}
@@ -17838,7 +18926,7 @@ const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
 const { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove, effectiveSkill } = __modules["src/game/combat.js"];
 const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src/game/combo.js"];
-const { usesWeapon, canUseWeapon, weaponBlockedReason } = __modules["src/game/position.js"];
+const { usesWeapon, weaponBlockedReason, skillWeaponProblem } = __modules["src/game/position.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, range, resourceKind } = __modules["src/ui/html.js"];
@@ -17981,9 +19069,11 @@ function skillButtons(hero) {
   const stats = statsOf(hero);
   const cls = getClass(hero);
   return getSkills(hero).map((base, i) => {
-    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`) : s.cost;
-    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
+    const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
+    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`)
+      : cls.resource.souls ? (s.cost ? `${s.cost} âme${s.cost > 1 ? 's' : ''}` : 'gratuit') : s.cost;
+    const problem = skillWeaponProblem(hero, s);
+    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(problem ? `${s.name} : ${problem}` : s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
       <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost${usesHp(cls) ? ' hp' : ''}" title="${esc(skillCostLabel(cls, s, hero))}">${cost}</small></button>`;
   }).join('');
@@ -18065,8 +19155,9 @@ function helpFor(hero, el) {
   const crit = `Critique : ${Math.min(stats.critChance, COMBAT.caps.critChance)} %, +${stats.critDmg} % de dégâts.`;
   if (el.dataset.skill !== undefined) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
-    const s = base.sacrifice ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
+    const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
+    const problem = skillWeaponProblem(hero, s);
+    const weapon = problem ? ` ${problem}` : s.weapons ? (usesWeapon(s) ? " Frappe avec l'arme." : ' Sort lancé avec son arme.') : '';
     return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${esc(skillCostLabel(cls, s, hero))}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
   if (el.dataset.item) {
@@ -19045,9 +20136,11 @@ const MANUAL = {
   distance: { terms: ['à distance'], desc: "Position de combat en retrait : moins souvent ciblé ; l'arc ne sert qu'à distance." },
   boss: { terms: ['boss'], desc: "Gardien du dernier étage de chaque sous-zone : bien plus fort, bien meilleur butin. Le vaincre ouvre un point de départ." },
   elite: { terms: ['élite', 'élites'], desc: 'Monstre renforcé (plus gros, 1,5 × plus d\'XP et d\'or).' },
+  ame: { terms: ['âme', 'âmes', 'Âme', 'Âmes'], desc: "Ressource du Macabre : il absorbe l'âme de chaque ennemi qui meurt (3 au plus), la garde d'un combat à l'autre et la perd au repos ou s'il tombe. Chaque âme le renforce ou se dépense dans ses compétences, mais provoque un contrecoup." },
+  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
-  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 45 points.' },
+  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },
   grosPalier: { terms: ['gros palier', 'gros paliers'], desc: 'Palier obligatoire : sort de départ, nouvelle compétence, passif important ou signature.' },
   petitPalier: { terms: ['petit palier', 'petits paliers'], desc: 'Trois bonus de stats au choix : on n\'en prend qu\'un, à tous ses rangs.' },
   signature: { terms: ['signature'], desc: "Compétence ultime d'une orientation, au dernier palier." },

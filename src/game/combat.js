@@ -17,9 +17,10 @@
 import { COMBAT } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
-import { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill } from './party.js';
+import { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill, soulsOf } from './party.js';
+import { absorbSoul, soulBacklash, atSouls, isSoulBearer } from './souls.js';
 import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
-import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
+import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight, skillWeaponProblem } from './position.js';
 import {
   rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor,
   BASIC_ATTACK, ENEMY_ATTACK,
@@ -44,6 +45,9 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
     // remède) ; les effets positifs disparaissent.
     hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
+    // Bénédictions d'un événement d'expédition : posées au début de ce combat.
+    for (const e of hero.pendingEffects ?? []) if (hero.alive) addStatus(hero, makeStatus(e.id, e.turns));
+    hero.pendingEffects = [];
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
@@ -166,6 +170,23 @@ function endUnitTurn(cb, unit) {
       }
     }
   }
+  if (unit.alive && isHero(unit) && isSoulBearer(unit)) soulTorment(cb, unit);
+}
+
+// Macabre : les âmes gardées le rongent (et, au maximum, rongent ses alliés).
+function soulTorment(cb, hero) {
+  const souls = soulsOf(hero);
+  const { self, allies } = soulBacklash(hero, cb.party);
+  if (!self) return;
+  const { taken, fell } = hurt(cb, hero, self);
+  log(cb, `${souls} âme${souls > 1 ? 's' : ''} rongent ${hero.name} (-${taken} PV).`, true);
+  if (fell) logFall(cb, hero);
+  for (const { ally, amount } of allies) {
+    const lost = Math.min(ally.hp - 1, amount);
+    if (lost <= 0) continue;
+    ally.hp -= lost;
+    log(cb, `Les âmes débordent de ${hero.name} : ${ally.name} perd ${lost} PV.`, true);
+  }
 }
 
 // Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
@@ -200,6 +221,12 @@ function applyStatus(cb, unit, status) {
 
 function logFall(cb, unit) {
   log(cb, isHero(unit) ? `${unit.name} s'effondre !` : `${unit.name} est vaincu !`, true);
+  if (isHero(unit)) return;
+  // Macabre : l'âme de l'ennemi mort est absorbée.
+  for (const { hero, healed } of absorbSoul(cb.party)) {
+    const n = soulsOf(hero);
+    log(cb, `${hero.name} absorbe l'âme de ${unit.name} (${n} âme${n > 1 ? 's' : ''})${healed ? ` et récupère ${healed} PV` : ''}.`, true);
+  }
 }
 
 function aliveAt(list, index) {
@@ -238,8 +265,9 @@ export function canUseItem(cb, key) {
 export function canUseSkill(cb, hero, skill) {
   if (!canPaySkill(hero, skill)) return false; // ressource, ou PV (jamais le dernier)
   if (skill.finisher && comboOf(hero) < 1) return false;
+  if (skill.allSouls && soulsOf(hero) < 1) return false; // au moins une âme à libérer
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
-  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
+  if (skillWeaponProblem(hero, skill)) return false; // arme de l'orientation, bouclier, portée
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -342,6 +370,7 @@ export function heroAct(cb, action) {
     if (!targets) return false;
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
+    if (isSoulBearer(hero) && skill.cost > 0) log(cb, `${hero.name} libère ${skill.cost} âme${skill.cost > 1 ? 's' : ''}.`);
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
@@ -376,10 +405,10 @@ export function heroAct(cb, action) {
 /**
  * Compétence telle qu'elle partira maintenant : puissance selon les points de combo
  * (finisher) ; sacrifice (Scarifié) : puissance augmentée selon la part des PV max
- * sacrifiés (tous les PV sauf un). Sert aussi aux estimations affichées.
+ * sacrifiés (tous les PV sauf un) ; `allSouls` (Macabre) : toutes les âmes, puissance par âme. Sert aussi aux estimations affichées.
  */
 export function effectiveSkill(hero, base) {
-  const skill = atCombo(base, comboOf(hero));
+  const skill = atSouls(atCombo(base, comboOf(hero)), soulsOf(hero));
   if (!skill.sacrifice) return skill;
   const share = Math.max(0, hero.hp - 1) / Math.max(1, getStats(hero).pv);
   return { ...skill, power: +(skill.power + skill.sacrifice * share).toFixed(3) };

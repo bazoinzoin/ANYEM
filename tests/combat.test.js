@@ -278,8 +278,8 @@ test("un finisher demande au moins 1 point de combo ; ses dégâts croissent ave
   const one = strike(1);
   const five = strike(5);
   const physPower = getStats(hero).physPower;
-  assert.equal(one, Math.round(physPower * 0.45 * (0.9 + 0.5 * 0.25)));
-  assert.equal(five, Math.round(physPower * 2.25 * (0.9 + 0.5 * 0.25)));
+  assert.equal(one, Math.round(physPower * 0.55 * (0.9 + 0.5 * 0.25)));
+  assert.equal(five, Math.round(physPower * 2.75 * (0.9 + 0.5 * 0.25)));
   assert.equal(hero.combo, 0);
 });
 

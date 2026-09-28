@@ -10,7 +10,7 @@ import { SLOT_ORDER, WEAPON_TYPES } from '../data/items.js';
 import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
-import { generateItem, itemStats } from './items.js';
+import { generateItem, itemStatLines } from './items.js';
 import { talentEffects, rankOf } from './talents.js';
 import { sanitizeLook } from './appearance.js';
 
@@ -71,6 +71,25 @@ export function paySkill(hero, skill) {
   return paid;
 }
 
+// Classe à âmes (Macabre) : sa ressource est le nombre d'âmes absorbées (0 à resMax), gagnées
+// à la mort des ennemis seulement (voir game/souls.js), jamais par régénération.
+export function usesSouls(cls) {
+  return !!cls.resource.souls;
+}
+
+// Âmes absorbées par le héros (0 pour les autres classes).
+export function soulsOf(hero) {
+  return usesSouls(getClass(hero)) ? Math.max(0, hero.res ?? 0) : 0;
+}
+
+// Ajoute des âmes (plafond : resMax). Retourne le nombre d'âmes réellement gagnées.
+export function gainSouls(hero, amount) {
+  if (!usesSouls(getClass(hero))) return 0;
+  const before = soulsOf(hero);
+  hero.res = Math.min(getStats(hero).resMax, before + amount);
+  return hero.res - before;
+}
+
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
 export function usesMana(cls) {
   return cls.resource.name === 'Mana';
@@ -98,9 +117,10 @@ export function getStats(hero) {
   for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
   for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(itemStats(item))) {
-      // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
-      const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
+    const offHand = slot === 'mainGauche' && item.slotType === 'arme';
+    for (const { stat, value, secondary } of itemStatLines(item)) {
+      // Arme en main gauche (ambidextrie) : son attaque et ses secondaires ne comptent qu'en partie.
+      const factor = !offHand ? 1 : stat === 'atq' && !secondary ? COMBAT.offHandAtqFactor : secondary ? COMBAT.offHandBonusFactor : 1;
       total[stat] += Math.round(value * factor);
     }
   }
@@ -126,7 +146,28 @@ export function getStats(hero) {
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
+  if (usesSouls(cls)) applySoulBonuses(stats, Math.min(Math.max(0, hero.res ?? 0), stats.resMax));
   return stats;
+}
+
+/**
+ * Macabre : bonus par âme absorbée (passifs des orientations, des talents et des légendaires) :
+ *   soulPhys / soulMag  +% puissance physique / magique par âme
+ *   soulDef             +% Défense et Défense magique par âme
+ *   soulCrit / soulBlock  + % Coup critique / Blocage par âme
+ *   soulLifesteal       + % de vol de vie par âme
+ */
+function applySoulBonuses(stats, souls) {
+  stats.souls = souls;
+  if (!souls) return;
+  const pct = (stat, per) => { if (per) stats[stat] = Math.round(stats[stat] * (1 + (per * souls) / 100)); };
+  pct('physPower', stats.soulPhys);
+  pct('magPower', stats.soulMag);
+  pct('def', stats.soulDef);
+  pct('defMag', stats.soulDef);
+  if (stats.soulCrit) stats.critChance += stats.soulCrit * souls;
+  if (stats.soulBlock) stats.blocage += stats.soulBlock * souls;
+  if (stats.soulLifesteal) stats.lifestealPct = (stats.lifestealPct ?? 0) + stats.soulLifesteal * souls;
 }
 
 /**
@@ -235,6 +276,12 @@ export function createHero(classKey, name, look = null, feminine = false) {
   return hero;
 }
 
+// Équipement commun de niveau 1 à ranger dans le sac à l'arrivée du héros (Macabre : de quoi
+// s'équiper quelle que soit sa première orientation).
+export function starterSpares(classKey) {
+  return (CLASSES[classKey].starterSpares ?? []).map((piece) => generateItem({ level: 1, rarity: 'commun', ...piece }));
+}
+
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.
@@ -243,7 +290,7 @@ export function createParty(names = [], classes = PARTY_ORDER, looks = [], femin
 }
 
 export function gainResource(hero, amount) {
-  if (!amount) return;
+  if (!amount || usesSouls(getClass(hero))) return; // les âmes ne viennent que des morts
   hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
 }
 
@@ -259,7 +306,8 @@ export function restoreFully(hero) {
   const stats = getStats(hero);
   hero.alive = true;
   hero.hp = stats.pv;
-  hero.res = stats.resMax;
+  hero.res = usesSouls(getClass(hero)) ? 0 : stats.resMax; // le repos libère les âmes
+  hero.soulHeld = 0;
   hero.guard = false;
   hero.statuses = [];
 }

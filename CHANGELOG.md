@@ -8,6 +8,20 @@ versions sont publiées comme « pré-versions ») ; 1.0.0 sera la première ver
 versions 0.0.x sont les étapes de développement d'avant le jeu Windows (une par fusion dans `main`).
 Marche à suivre pour publier une version : `docs/RELEASES.md`.
 
+## [0.3.0] - 2026-09-28
+
+Troisième bêta.
+
+- Nouvelle classe : **Le Macabre / La Macabre**. Il absorbe l'âme de chaque ennemi qui meurt (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. Trois orientations : **Soldat décharné** (arme à deux mains), **Mur d'os** (tank, bouclier) et **Nécromancien** (sorts à distance). Neuf nouveaux légendaires.
+- **Une seule orientation par héros** : elle coûte les 50 points du niveau maximum (petits paliers à 3 rangs, signature au dernier point). Le premier point de talent la choisit ; la réinitialisation permet d'en changer. Les anciennes sauvegardes gardent l'orientation la plus investie.
+- **Chaque orientation a ses armes** (l'Assassin ne porte que des dagues, l'Empoisonneur des dagues ou des épées…). Les coups, sorts et soins demandent une arme de l'orientation en main (un arc pour tirer, un bouclier pour Coup de bouclier) ; les buffs, provocations et pièges se lancent avec n'importe quelle arme.
+- **Chaque classe porte son type d'armure** ; l'Impassible porte de l'armure lourde en Gardien, moyenne en Berserker. Ce qui n'est plus portable retourne au sac, et le héros est rééquipé avec le meilleur du sac.
+- Écrans Personnage et Création : ce que porte chaque orientation et la stat à chercher sur les objets.
+- **Stats secondaires selon le type d'objet** : plus fortes sur une arme à deux mains, un peu plus faibles sur une dague ; celles d'une arme en main gauche comptent aux trois quarts.
+- **Événements refaits en dilemmes** : chaque rencontre propose deux ou trois choix avec leur prix (or, PV, matéria, un objet du sac…). Huit nouvelles rencontres : le prisonnier, le pèlerin, la stèle aux deux visages, l'alchimiste fou, le grimoire interdit, le mercenaire, le forgeron fantôme, le gouffre qui murmure. Nouvelles récompenses : bénédiction au prochain combat, XP, purification.
+- Cadres de rareté : fiches et cases d'inventaire de plus en plus ouvragées du commun au divin (éclat orangé des légendaires, effet « foil » rouge des divins).
+- Équilibrage : Assassin renforcé en début d'arbre.
+
 ## [0.2.0] - 2026-09-28
 
 Deuxième bêta.

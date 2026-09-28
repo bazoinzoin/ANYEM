@@ -8,7 +8,7 @@
 
 import { INN } from '../config.js';
 import { CLASSES } from '../data/classes.js';
-import { createHero, restoreFully } from './party.js';
+import { createHero, restoreFully, starterSpares } from './party.js';
 import { equippedItems } from './equipment.js';
 
 export function reserveOf(game) {
@@ -29,6 +29,7 @@ export function rosterLockedReason(game) {
 export function recruit(game, classKey, name, replaceIndex, feminine = false) {
   if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
   const hero = createHero(classKey, name?.trim(), null, feminine);
+  (game.bag ??= []).push(...starterSpares(classKey));
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);

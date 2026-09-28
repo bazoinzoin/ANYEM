@@ -46,6 +46,11 @@ export const MATERIA_KINDS = {
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+// Poids des stats secondaires d'une pièce d'armure (plus fort sur un plastron que sur des gants ;
+// écart volontairement plus faible que pour l'Armure). Armes : `secWeight` de WEAPON_TYPES ;
+// bouclier : SHIELD.secWeight ; bijoux : 1.
+export const ARMOR_SECONDARY = { casque: 1.0, epaulieres: 0.95, plastron: 1.2, gants: 0.9, bottes: 0.95 };
+
 export const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
@@ -76,23 +81,26 @@ export const ARMOR_TYPES = {
 // épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
 // d'Intelligence au Paladin Lumière.
 const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
+// secWeight : poids des stats secondaires de l'arme (à niveau et rareté égaux) : une arme à deux
+// mains en porte de plus fortes qu'une arme à une main (sans atteindre deux armes), une dague
+// un peu moins qu'une épée (elle est plus rapide).
 export const WEAPON_TYPES = {
-  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
-  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
-  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', secWeight: 0.85, primaries: ALL_PRIMARIES },
 };
 
 export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', secWeight: 0.9, primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 // Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
 // stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
@@ -472,6 +480,63 @@ export const LEGENDARIES = {
     power: { skillMod: { skill: 'lien-vital', costDelta: -3, effectPowerPct: 40 } },
     desc: 'Liens du sang — Lien vital coûte 3 % de PV de moins ; sa Régénération soigne 40 % de plus.',
     quote: 'Ce qui coule en toi coule aussi en moi.',
+  },
+  // ---- Macabre · Soldat décharné ----
+  hacheDuPasseur: {
+    name: 'Hache du Passeur', classKey: 'macabre', branch: 'soldat', slotType: 'arme', weaponType: 'hache2m', primary: 'force',
+    power: { skillMod: { skill: 'dechainement', powerPct: 25 } },
+    desc: 'Soldat décharné — Déchaînement frappe 25 % plus fort.',
+    quote: 'Une obole sous la langue, et la barque attend.',
+  },
+  gorgerinDuPendu: {
+    name: 'Gorgerin du Pendu', classKey: 'macabre', branch: 'soldat', slotType: 'collier', primary: 'force',
+    power: { requires: 'chair-morte', passive: { soulPhys: 3 } },
+    desc: 'Soldat décharné — Chair morte : chaque âme gardée donne encore +3 % de puissance physique.',
+    quote: 'Frères humains, qui après nous vivez…',
+  },
+  cuirasseDeCendre: {
+    name: 'Cuirasse de cendre', classKey: 'macabre', branch: 'soldat', slotType: 'plastron', armorType: 'moyenne', primary: 'force',
+    power: { skillMod: { skill: 'frappe-d-outre-tombe', powerPct: 20, critBonus: 10 } },
+    desc: 'Soldat décharné — Frappe d\'outre-tombe frappe 20 % plus fort, avec +10 % de chance de critique.',
+    quote: 'La cendre les surprit debout, et debout ils restèrent.',
+  },
+  // ---- Macabre · Mur d'os ----
+  ecuDesCatacombes: {
+    name: 'Écu des Catacombes', classKey: 'macabre', branch: 'murDOs', slotType: 'bouclier', primary: 'force',
+    power: { requires: 'ossature-de-fer', passive: { soulWard: 20, guardShieldPct: 10 } },
+    desc: 'Mur d\'os — Ossature : contrecoup des âmes réduit de 20 % de plus, et Défendre donne un Bouclier de 10 % des PV max en plus.',
+    quote: 'Arrête ! C\'est ici l\'empire de la Mort.',
+  },
+  heaumeDeLOssuaire: {
+    name: 'Heaume de l\'Ossuaire', classKey: 'macabre', branch: 'murDOs', slotType: 'casque', armorType: 'lourde', primary: 'force',
+    power: { skillMod: { skill: 'carapace-d-ossements', effectTurnsDelta: 1, effectPowerPct: 30 } },
+    desc: 'Mur d\'os — Carapace d\'ossements dure 1 tour de plus et protège 30 % de plus.',
+    quote: 'Ce que vous êtes, nous l\'avons été ; ce que nous sommes, vous le serez.',
+  },
+  masseDeSedlec: {
+    name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
+    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
+    quote: 'Quarante mille os, et pas un de trop pour le lustre.',
+  },
+  // ---- Macabre · Nécromancien ----
+  batonDEndor: {
+    name: 'Bâton d\'Endor', classKey: 'macabre', branch: 'necromancien', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    power: { skillMod: { skill: 'explosion-d-ame', powerPct: 25 } },
+    desc: 'Nécromancien — Explosion d\'âme frappe 25 % plus fort.',
+    quote: 'Fais-moi monter celui que je te dirai.',
+  },
+  anneauDIrem: {
+    name: 'Anneau d\'Irem', classKey: 'macabre', branch: 'necromancien', slotType: 'anneau', primary: 'intelligence',
+    power: { requires: 'savoir-interdit', passive: { soulMag: 3 } },
+    desc: 'Nécromancien — Savoir interdit : chaque âme gardée donne encore +3 % de puissance magique.',
+    quote: 'N\'est pas mort ce qui à jamais dort.',
+  },
+  linceulDeThebes: {
+    name: 'Linceul de Thèbes', classKey: 'macabre', branch: 'necromancien', slotType: 'plastron', armorType: 'legere', primary: 'intelligence',
+    power: { skillMod: { skill: 'malediction', powerPct: 15, effectPowerPct: 40, effectTurnsDelta: 1 } },
+    desc: 'Nécromancien — Malédiction frappe 15 % plus fort ; ses Ténèbres font 40 % de dégâts en plus, et ses effets durent 1 tour de plus.',
+    quote: 'La mort viendra sur des ailes rapides pour qui troublera le repos du roi.',
   },
   // ---- Communs à toutes les classes ----
   plumeLegere: {

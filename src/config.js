@@ -6,8 +6,15 @@ export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stoc
 
 // Classes jouables (ordre d'affichage) et équipe proposée par défaut à la création
 // (4 héros, classes au choix, doublons permis).
-export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
+export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie', 'macabre'];
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
+
+// Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre
+// (le repos à l'auberge les libère). Contrecoup à la fin de chacun de ses tours :
+//   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
+//   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
+//   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
+export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
 
 export const COMBAT = {
   logMax: 40,
@@ -21,6 +28,7 @@ export const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
+  offHandBonusFactor: 0.75, // part des stats secondaires d'une arme en main gauche
   caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
   meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
   ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)

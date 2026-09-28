@@ -6,7 +6,10 @@
 // - Les ennemis ont leur position dans le bestiaire (`ranged`).
 // - Une unité au corps à corps a plus de chances d'être ciblée (COMBAT.meleeTargetWeight).
 // - Une arme ne sert que depuis sa position (WEAPON_TYPES[].range) : attaque simple et
-//   compétences physiques (« à l'arme ») ; sorts, soins, pièges et objets restent possibles.
+//   compétences physiques ; sorts, soins, pièges et objets restent possibles.
+// - Une compétence à l'arme (coup, sort, soin) demande une arme de son orientation en main
+//   (`weapons`, data/talents.js) : un arc pour les tirs, un bâton pour les sorts du mage…
+//   Les compétences neutres (buffs, provocations, pièges) se lancent avec n'importe quelle arme.
 // - Riposte : une unité au corps à corps attaquée au corps à corps peut riposter
 //   (chance = stat Riposte), en infligeant une part de sa puissance physique.
 
@@ -43,6 +46,32 @@ export function weaponBlockedReason(hero) {
   return weaponRange(hero) === 'ranged'
     ? 'Arme à distance : impossible de tirer au corps à corps. Changez de position.'
     : 'Arme de corps à corps : impossible de frapper à distance. Changez de position.';
+}
+
+// Liste lisible d'armes : « dague ou épée ».
+function weaponNames(types) {
+  const names = types.map((t) => WEAPON_TYPES[t].name.toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} ou ${names[names.length - 1]}` : names[0];
+}
+
+/**
+ * Pourquoi le héros ne peut pas lancer cette compétence avec ses armes (texte), ou null :
+ * compétence à l'arme (`weapons` : armes de son orientation) sans une de ces armes en main
+ * droite ; `needsShield` sans bouclier en main gauche ; coup physique dont l'arme n'a pas la
+ * portée de la position (un arc au corps à corps, une hache à distance).
+ */
+export function skillWeaponProblem(hero, skill) {
+  return skillGearProblem(hero, skill) ?? (usesWeapon(skill) && !canUseWeapon(hero) ? weaponBlockedReason(hero) : null);
+}
+
+// Même chose sans la portée (hors combat, où la position ne compte pas).
+export function skillGearProblem(hero, skill) {
+  const main = hero.equipment?.mainDroite;
+  if (skill.weapons && !(main?.slotType === 'arme' && skill.weapons.includes(main.weaponType))) {
+    return `Arme requise : ${weaponNames(skill.weapons)}.`;
+  }
+  if (skill.needsShield && hero.equipment?.mainGauche?.slotType !== 'bouclier') return 'Demande un bouclier en main gauche.';
+  return null;
 }
 
 // Changer de position : toujours possible pour une classe à une action ; une

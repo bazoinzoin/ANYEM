@@ -65,7 +65,7 @@ test('Violent : après s\'être relevé, il perd son tour suivant', () => {
 
 test('Dernier souffle : tombe à 1 PV, et frappe plus fort qu\'il a sacrifié de PV ; une fois par combat', () => {
   const { cb, hero } = setup('violent', 14);
-  hero.row = 'melee'; // arme de départ : hache à deux mains
+  hero.row = 'ranged'; // arc du Violent
   const i = skillIndex(hero, 'dernier-souffle');
   const full = effectiveSkill(hero, getSkills(hero)[i]);
   assert.equal(full.power, +(1.5 + 8 * (hero.hp - 1) / getStats(hero).pv).toFixed(3));
