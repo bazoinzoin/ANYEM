@@ -4,7 +4,7 @@
 import { state } from '../../state.js';
 import { CLASS_ORDER, INN } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
-import { getClass, getStats } from '../../game/party.js';
+import { getClass, getStats, heroClassTitle, heroClassName, classTitle, hasFeminine } from '../../game/party.js';
 import { restAtInn } from '../../game/progression.js';
 import { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } from '../../game/roster.js';
 import { RARITIES } from '../../data/items.js';
@@ -18,7 +18,13 @@ import { portrait, heroPortrait, drawPortraits } from '../portraits.js';
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
+// Nom proposé pour un compagnon : celui de sa classe, accordé.
+function recruitDefaultName() {
+  const cls = CLASSES[view.recruitClass];
+  return hasFeminine(view.recruitClass) && view.recruitFeminine ? cls.nameF : cls.name;
+}
+
+const view = { recruitClass: 'guerrier', recruitName: '', recruitFeminine: false, selectedReserve: null, confirmDismiss: false, flash: null };
 
 export function openInn() {
   Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
@@ -51,10 +57,13 @@ export function renderInn(app) {
         <h3>${iconHtml(1000, 16)} Recruter un compagnon</h3>
         <p class="hint">Niveau 1, équipement de départ de sa classe. Il prend la place d'un membre de l'équipe, qui part se reposer ici.</p>
         <div class="class-picks">
-          ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="class-pick ${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].desc)}">${portrait(`classe:${k}`, 2)}<span>${esc(CLASSES[k].name)}</span></button>`).join('')}
+          ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="class-pick ${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].desc)}">${portrait(`classe:${k}`, 2)}<span>${esc(CLASSES[k].title)}</span></button>`).join('')}
         </div>
         <p class="hint">${esc(CLASSES[view.recruitClass].desc)}</p>
-        <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+        <div class="recruit-name">
+          <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || recruitDefaultName())}" maxlength="24">
+          ${hasFeminine(view.recruitClass) ? `<button class="gender-pick" id="recruitGender" title="Nom de classe au ${view.recruitFeminine ? 'masculin' : 'féminin'} : ${esc(classTitle(view.recruitClass, !view.recruitFeminine))}">${view.recruitFeminine ? 'Le' : 'La'}</button> <small>${esc(classTitle(view.recruitClass, view.recruitFeminine))}</small>` : ''}
+        </div>
         ${cannotRecruit && !locked ? `<p class="warning">${esc(cannotRecruit)}</p>` : ''}
         <div class="actions stack">
           ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
@@ -72,18 +81,24 @@ export function renderInn(app) {
   app.querySelectorAll('[data-recruit-class]').forEach((btn) => {
     btn.onclick = () => {
       readName();
-      if (view.recruitName === CLASSES[view.recruitClass].name) view.recruitName = '';
+      if (view.recruitName === recruitDefaultName()) view.recruitName = '';
       view.recruitClass = btn.dataset.recruitClass;
       goTo('inn');
     };
+  });
+  app.querySelector('#recruitGender')?.addEventListener('click', () => {
+    readName();
+    if (view.recruitName === recruitDefaultName()) view.recruitName = '';
+    view.recruitFeminine = !view.recruitFeminine;
+    goTo('inn');
   });
   app.querySelectorAll('[data-recruit-replace]').forEach((btn) => {
     btn.onclick = () => {
       readName();
       const leaving = state.party[Number(btn.dataset.recruitReplace)];
-      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace));
+      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace), hasFeminine(view.recruitClass) && view.recruitFeminine);
       if (hero) {
-        view.flash = `${hero.name} (${getClass(hero).name}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+        view.flash = `${hero.name} (${heroClassName(hero)}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
         view.recruitName = '';
       }
       goTo('inn');
@@ -150,7 +165,7 @@ function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = 
       ${heroPortrait(hero, 3)}
       <span class="inn-hero-info">
         <b>${esc(hero.name)}</b>
-        <small>${esc(cls.name)} · niv. ${hero.level}</small>
+        <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small>
         <span class="meter hp"><span class="fill" style="width:${Math.round((hero.hp / pv) * 100)}%"></span></span>
         <small>PV ${hero.hp}/${pv}</small>
         <span class="inn-items">${equippedItems(hero).map((item) => iconHtml(itemIcon(item), 16)).join('')}</span>

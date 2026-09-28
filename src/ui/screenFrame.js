@@ -9,7 +9,7 @@ import { esc } from './html.js';
 import { itemCard } from './items.js';
 import { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, CLASS_ICONS } from './icons.js';
 import { paginate } from './bagView.js';
-import { getClass } from '../game/party.js';
+import { getClass, heroClassTitle } from '../game/party.js';
 import { equippedItems } from '../game/equipment.js';
 import { backLabel, goBack } from './router.js';
 
@@ -148,7 +148,7 @@ export function wornRows(id, filter = () => true, selectedId = null) {
 export function heroTabs(current) {
   return `<div class="inv-tabs">${state.party.map((h, i) => `
     <button class="inv-hero ${i === current ? 'current' : ''}" data-hero="${i}" style="--c:${getClass(h).color}">
-      ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(getClass(h).name)} · niv. ${h.level}</small></span>
+      ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
     </button>`).join('')}</div>`;
 }
 

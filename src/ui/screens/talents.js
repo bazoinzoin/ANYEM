@@ -1,7 +1,7 @@
 // Maître des compétences : arbres de talents de chaque héros.
 
 import { state } from '../../state.js';
-import { getClass, getStats, xpToNext } from '../../game/party.js';
+import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import {
   branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement,
   cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier,
@@ -42,7 +42,7 @@ export function renderTalents(app) {
       <header class="inv-top">
         <div class="inv-tabs">${state.party.map((h, i) => `
           <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}">
-            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
           </button>`).join('')}
         </div>
         <span class="tal-points ${available ? 'has' : ''}">${iconHtml(682, 32)} ${available} / ${pointsTotal(hero)} points</span>
@@ -131,7 +131,7 @@ function nodeIcon(hero, branch, node) {
 }
 
 function introDetail(hero, cls) {
-  return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+  return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
     <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;

@@ -1129,6 +1129,11 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 .title-screen .title-hint { font-size: 13px; }
 @media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
 .title-version { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: .08em; color: rgba(243,213,140,.75); text-shadow: 0 2px 0 #1a0d04; pointer-events: none; }
+
+/* Forme féminine du nom de classe (création, recrutement) : petit bouton « Le / La ». */
+.gender-pick { padding: 0 8px; min-height: 0; font-size: 12px; line-height: 20px; vertical-align: middle; margin-left: 4px; }
+.recruit-name { display: flex; align-items: center; gap: 6px; }
+.recruit-name input { flex: 1; }
 </style>
 
 </head>
@@ -2614,6 +2619,10 @@ __modules["src/data/classes.js"] = (() => {
 
 // Définition des classes jouables. Données pures : aucune logique ici.
 //
+// name        nom de la classe dans les phrases, accordé comme un nom ordinaire (« l'Impassible
+//             cède à la rage », « réservé aux Vénateurs ») ; nameF : au féminin ; plural : pluriel
+// title       nom de la classe dans les menus, avec son article (« Le Dissimulé ») ; titleF :
+//             au féminin (« La Dissimulée »), identique quand la classe n'a pas de forme féminine
 // position    position de combat par défaut : 'melee' (corps à corps) ou 'ranged'
 //             (distance), modifiable au village (écran Stratégie)
 // mainStat    stat principale de la classe (affichage, orientation de l'équipement)
@@ -2669,7 +2678,8 @@ __modules["src/data/classes.js"] = (() => {
 
 const CLASSES = {
   guerrier: {
-    name: 'Guerrier',
+    name: 'Impassible', nameF: 'Impassible', plural: 'Impassibles',
+    title: 'L\'Impassible', titleF: 'L\'Impassible',
     icon: '⚔️',
     color: 'var(--guerrier)',
     position: 'melee',
@@ -2694,7 +2704,8 @@ const CLASSES = {
     ],
   },
   voleur: {
-    name: 'Voleur',
+    name: 'Dissimulé', nameF: 'Dissimulée', plural: 'Dissimulés',
+    title: 'Le Dissimulé', titleF: 'La Dissimulée',
     icon: '🗡️',
     color: 'var(--voleur)',
     position: 'melee',
@@ -2721,7 +2732,8 @@ const CLASSES = {
     ],
   },
   pretre: {
-    name: 'Prêtre',
+    name: 'Dévot', nameF: 'Dévote', plural: 'Dévots',
+    title: 'Le Dévot', titleF: 'La Dévote',
     icon: '✨',
     color: 'var(--pretre)',
     position: 'ranged',
@@ -2747,7 +2759,8 @@ const CLASSES = {
     ],
   },
   mage: {
-    name: 'Mage',
+    name: 'Élémentaliste', nameF: 'Élémentaliste', plural: 'Élémentalistes',
+    title: 'L\'Élémentaliste', titleF: 'L\'Élémentaliste',
     icon: '🔥',
     color: 'var(--mage)',
     position: 'ranged',
@@ -2773,13 +2786,14 @@ const CLASSES = {
     ],
   },
   chasseur: {
-    name: 'Chasseur',
+    name: 'Vénateur', nameF: 'Vénatrice', plural: 'Vénateurs',
+    title: 'Le Vénateur', titleF: 'La Vénatrice',
     icon: '🏹',
     color: 'var(--chasseur)',
     position: 'ranged',
     mainStat: 'agilite',
     physStat: 'agilite',
-    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
+    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Dissimulé, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
     base: { pv: 100, atq: 6, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 8, critDmg: 50, esquive: 4 },
     growth: { pv: 9, agilite: 1 },
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
@@ -2798,7 +2812,8 @@ const CLASSES = {
     ],
   },
   paladin: {
-    name: 'Paladin',
+    name: 'Lumineux', nameF: 'Lumineuse', plural: 'Lumineux',
+    title: 'Le Lumineux', titleF: 'La Lumineuse',
     icon: '⚜️',
     color: 'var(--paladin)',
     position: 'melee',
@@ -2991,7 +3006,7 @@ const TALENTS = {
         skill(2, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
-          desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours (+30 % Défense)',
         }),
         ...choice(3, [
           minor('maitrise-bouclier', 'Maîtrise du bouclier', { flat: { blocage: 2.5 } }),
@@ -3044,7 +3059,7 @@ const TALENTS = {
           id: 'dernier-rempart', name: 'Dernier rempart', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 3, 1.6), fx('protection', 3)],
           selfEffects: [fx('provocation', 3)],
-          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; le Guerrier provoque les ennemis',
+          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; provoque aussi les ennemis',
         }),
       ],
     },
@@ -3076,7 +3091,7 @@ const TALENTS = {
         skill(6, {
           id: 'rage-aveugle', name: 'Rage aveugle', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('enrage', 3)],
-          desc: 'Le Guerrier cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
+          desc: 'Cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
         }),
         ...choice(7, [
           minor('frenesie', 'Frénésie', { passive: { resOnAttack: 2 } }),
@@ -3417,7 +3432,7 @@ const TALENTS = {
         skill(6, {
           id: 'siphon-d-ame', name: 'Siphon d\'âme', cost: 30, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
           selfEffects: [fx('regeneration', 3, 0.25)],
-          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le Prêtre se régénère pendant 3 tours',
+          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le lanceur se régénère pendant 3 tours',
         }),
         ...choice(7, [
           minor('murmures', 'Murmures', { passive: { vsDebuffedPct: 3.5 } }),
@@ -3460,7 +3475,7 @@ const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Mage de feu', icon: '🔥',
+      key: 'feu', name: 'Feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -3528,7 +3543,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Mage de glace', icon: '❄️',
+      key: 'glace', name: 'Glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -3566,7 +3581,7 @@ const TALENTS = {
         skill(8, {
           id: 'armure-de-glace', name: 'Armure de glace', cost: 30, kind: 'support', target: 'self', magic: true,
           selfEffects: [fx('bouclier', 3, 1.2), fx('protection', 2)],
-          desc: 'Le Mage se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
+          desc: 'Se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
         }),
         ...choice(9, [
           minor('zero-absolu', 'Zéro absolu', { pct: { magPower: 4 } }),
@@ -3596,7 +3611,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Mage de foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -3633,7 +3648,7 @@ const TALENTS = {
         skill(8, {
           id: 'canalisation', name: 'Canalisation', cost: 10, kind: 'support', target: 'self', resourceGain: 30, oncePerCombat: true,
           selfEffects: [fx('hate', 2)],
-          desc: 'Une fois par combat : le Mage canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
+          desc: 'Une fois par combat : canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
         }),
         ...choice(9, [
           minor('foudroiement', 'Foudroiement', { flat: { critDmg: 6 } }),
@@ -3812,7 +3827,7 @@ const TALENTS = {
         skill(2, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
           effects: [fx('intercession', 3)],
-          desc: 'Le Paladin encaisse la moitié des dégâts subis par un allié pendant 3 tours',
+          desc: 'Encaisse la moitié des dégâts subis par un allié pendant 3 tours',
         }),
         ...choice(3, [
           minor('foi-inebranlable', 'Foi inébranlable', { pct: { defMag: 3.5 } }),
@@ -3822,7 +3837,7 @@ const TALENTS = {
         skill(4, {
           id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1, physHeal: true,
           effects: [fx('regeneration', 3, 0.25)],
-          desc: 'Le Paladin se soigne et se régénère pendant 3 tours (soins sur la Force)',
+          desc: 'Se soigne et se régénère pendant 3 tours (soins sur la Force)',
         }),
         ...choice(5, [
           minor('consecration', 'Consécration', { pct: { def: 3 } }),
@@ -3848,7 +3863,7 @@ const TALENTS = {
         skill(10, {
           id: 'aura-de-protection', name: 'Aura de protection', cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 2), fx('bouclier', 2, 0.6)],
-          desc: 'Bouclier sur toute l\'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours',
+          desc: 'Bouclier sur toute l\'équipe ; encaisse aussi la moitié des dégâts de ses alliés pendant 2 tours',
         }),
         ...choice(11, [
           minor('chatiment', 'Châtiment', { flat: { riposte: 5 } }),
@@ -3865,7 +3880,7 @@ const TALENTS = {
           id: 'sacrifice-divin', name: 'Sacrifice divin', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 3)],
           selfEffects: [fx('bouclier', 3, 2), fx('protection', 3), fx('provocation', 3)],
-          desc: 'Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
+          desc: 'Attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
         }),
       ],
     },
@@ -4542,11 +4557,30 @@ function gainXp(hero, amount) {
   return levels;
 }
 
-function createHero(classKey, name, look = null) {
+// Nom de classe accordé : titre des menus avec son article (« La Dissimulée ») ou nom seul
+// pour les phrases (« Dissimulée ») ; au féminin si le héros l'a choisi à sa création.
+function classTitle(classKey, feminine = false) {
+  const cls = CLASSES[classKey];
+  return feminine ? cls.titleF : cls.title;
+}
+function heroClassTitle(hero) {
+  return classTitle(hero.classKey, hero.feminine);
+}
+function heroClassName(hero) {
+  const cls = CLASSES[hero.classKey];
+  return hero.feminine ? cls.nameF : cls.name;
+}
+// La classe a-t-elle une forme féminine distincte (Le Dissimulé / La Dissimulée) ?
+function hasFeminine(classKey) {
+  return CLASSES[classKey].titleF !== CLASSES[classKey].title;
+}
+
+function createHero(classKey, name, look = null, feminine = false) {
   const cls = CLASSES[classKey];
   const hero = {
     classKey,
-    name: name || cls.name,
+    name: name || (feminine ? cls.nameF : cls.name),
+    feminine: !!feminine, // forme féminine du nom de classe (choisie à la création)
     hp: 0,
     res: cls.resource.start,
     level: 1,
@@ -4568,9 +4602,10 @@ function createHero(classKey, name, look = null) {
 }
 
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
-// `looks` : apparences choisies à la création (défaut : celle de chaque classe).
-function createParty(names = [], classes = PARTY_ORDER, looks = []) {
-  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i]));
+// `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
+// `feminine` : forme féminine du nom de classe, par héros.
+function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = []) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i], feminine[i]));
 }
 
 function gainResource(hero, amount) {
@@ -4595,7 +4630,7 @@ function restoreFully(hero) {
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, usesMana, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -9748,7 +9783,7 @@ function skillIconIndex(skill) {
 // Orientations de talents et classes.
 const BRANCH_ICONS = {
   Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
-  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
+  Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
 };
 function branchIcon(branch) {
@@ -9859,7 +9894,7 @@ return { portrait, heroPortrait, drawPortraits };
 // ---- src/ui/hud.js
 __modules["src/ui/hud.js"] = (() => {
 const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 const { esc, resourceKind } = __modules["src/ui/html.js"];
@@ -9893,7 +9928,7 @@ function partyHud(party, { resource = false } = {}) {
     const points = pointsAvailable(hero);
     const debuffs = hero.alive ? statusesOf(hero).filter((st) => st.kind === 'debuff') : [];
     return `
-      <button class="hud-hero ${hero.alive ? '' : 'dead'}" data-hud-hero="${i}" style="--c:${cls.color}" title="${esc(`${hero.name} — ${cls.name} niveau ${hero.level} · ${STATS[cls.mainStat].label}`)}">
+      <button class="hud-hero ${hero.alive ? '' : 'dead'}" data-hud-hero="${i}" style="--c:${cls.color}" title="${esc(`${hero.name} — ${heroClassTitle(hero)}, niveau ${hero.level} · ${STATS[cls.mainStat].label}`)}">
         ${heroPortrait(hero, 2)}
         <span class="hud-hero-info">
           <b>${esc(hero.name)} ${points ? `<span class="badge">${points}</span>` : ''}</b>
@@ -10708,10 +10743,10 @@ const { getClass, clampToStats } = __modules["src/game/party.js"];
 function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
-  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `${cls.name} ne porte pas ce type d'armure`;
-  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `${cls.name} ne manie pas le bouclier`;
+  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
+  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
-    return `${cls.name} ne manie pas ce type d'arme`;
+    return `Les ${cls.plural} ne manient pas ce type d'arme`;
   }
   return null;
 }
@@ -10832,7 +10867,7 @@ const { esc } = __modules["src/ui/html.js"];
 const { itemCard } = __modules["src/ui/items.js"];
 const { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, CLASS_ICONS } = __modules["src/ui/icons.js"];
 const { paginate } = __modules["src/ui/bagView.js"];
-const { getClass } = __modules["src/game/party.js"];
+const { getClass, heroClassTitle } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { backLabel, goBack } = __modules["src/ui/router.js"];
 // Briques communes des écrans plein écran sans défilement : cadre (barre du haut avec
@@ -10985,7 +11020,7 @@ function wornRows(id, filter = () => true, selectedId = null) {
 function heroTabs(current) {
   return `<div class="inv-tabs">${state.party.map((h, i) => `
     <button class="inv-hero ${i === current ? 'current' : ''}" data-hero="${i}" style="--c:${getClass(h).color}">
-      ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(getClass(h).name)} · niv. ${h.level}</small></span>
+      ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
     </button>`).join('')}</div>`;
 }
 
@@ -14196,7 +14231,7 @@ const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES } = __modules["src/data/items.js"];
 const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
-const { createParty, createHero, getStats } = __modules["src/game/party.js"];
+const { createParty, createHero, getStats, classTitle, hasFeminine } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { generateItem, possibleSecondaries } = __modules["src/game/items.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -14241,7 +14276,10 @@ const { drawActor } = __modules["src/ui/actors.js"];
 
 // Choix en cours (classes et noms), conservés quand on change une classe.
 // Détails ouverts : { tab: 'classes' | 'legendaries', classKey } ou null.
-const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), looks: PARTY_ORDER.map(defaultLook), details: null };
+// feminine : forme féminine du nom de classe (« La Dissimulée »), par héros.
+const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), feminine: PARTY_ORDER.map(() => false), looks: PARTY_ORDER.map(defaultLook), details: null };
+// Nom proposé par défaut : le nom de la classe, accordé.
+const defaultName = (key, feminine) => (feminine ? CLASSES[key].nameF : CLASSES[key].name);
 
 // Parties de l'apparence, dans l'ordre de l'écran.
 const PART_LABELS = { hair: 'Coupe', hairColor: 'Cheveux', eyes: 'Yeux', skin: 'Peau', top: 'Haut', bottom: 'Bas' };
@@ -14267,10 +14305,19 @@ function renderCreate(app) {
     btn.onclick = rerender(() => {
       const i = Number(btn.dataset.classSlot);
       // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
-      if (draft.names[i] === CLASSES[draft.classes[i]].name) draft.names[i] = CLASSES[btn.dataset.class].name;
+      if (draft.names[i] === defaultName(draft.classes[i], draft.feminine[i])) draft.names[i] = defaultName(btn.dataset.class, draft.feminine[i]);
       // Apparence encore celle de l'ancienne classe : elle suit aussi.
       if (lookKey(draft.looks[i]) === lookKey(defaultLook(draft.classes[i]))) draft.looks[i] = defaultLook(btn.dataset.class);
       draft.classes[i] = btn.dataset.class;
+    });
+  });
+  app.querySelectorAll('[data-feminine]').forEach((btn) => {
+    btn.onclick = rerender(() => {
+      const i = Number(btn.dataset.feminine);
+      const key = draft.classes[i];
+      const wasDefault = draft.names[i] === defaultName(key, draft.feminine[i]);
+      draft.feminine[i] = !draft.feminine[i];
+      if (wasDefault) draft.names[i] = defaultName(key, draft.feminine[i]);
     });
   });
   app.querySelectorAll('[data-look]').forEach((btn) => {
@@ -14300,7 +14347,7 @@ function renderCreate(app) {
   app.querySelector('#startBtn').onclick = () => {
     readNames(app);
     draft.details = null;
-    state.party = createParty(draft.names, draft.classes, draft.looks);
+    state.party = createParty(draft.names, draft.classes, draft.looks, draft.classes.map((k, i) => hasFeminine(k) && draft.feminine[i]));
     saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };
@@ -14315,11 +14362,11 @@ function heroColumn(key, i) {
   const look = draft.looks[i];
   return `
     <section class="win create-hero" style="--c:${cls.color}">
-      <h3>Héros ${i + 1} · ${esc(cls.name)}</h3>
+      <h3 title="Héros ${i + 1}">${esc(classTitle(key, draft.feminine[i]))}${hasFeminine(key) ? ` <button class="gender-pick" data-feminine="${i}" title="Nom de classe au ${draft.feminine[i] ? 'masculin' : 'féminin'} : ${esc(classTitle(key, !draft.feminine[i]))}">${draft.feminine[i] ? 'Le' : 'La'}</button>` : ''}</h3>
       <div class="create-portrait"><canvas data-preview="${i}" width="120" height="130" class="portrait"></canvas></div>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
-        ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].name)}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
+        ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
       <p class="create-meta" title="${esc(cls.desc)}">${esc(cls.resource.name)} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
@@ -14391,11 +14438,11 @@ function classesTab() {
       : `${r.name} : ${r.max} au maximum, +${r.regen} au début de chaque tour.`;
   return `
     <div class="create-classes details">
-      ${CLASS_ORDER.map((k) => `<button data-details-class="${k}" class="choice ${k === key ? 'selected' : ''}">${iconHtml(CLASS_ICONS[k], 32)}<span>${esc(CLASSES[k].name)}</span></button>`).join('')}
+      ${CLASS_ORDER.map((k) => `<button data-details-class="${k}" class="choice ${k === key ? 'selected' : ''}">${iconHtml(CLASS_ICONS[k], 32)}<span>${esc(CLASSES[k].title)}</span></button>`).join('')}
     </div>
     <div class="details-body">
       <div class="details-col">
-        <div class="beast-head">${portrait(`classe:${key}`, 3)}<div><h3>${esc(cls.name)}</h3><p class="hint">${esc(cls.desc)}</p></div></div>
+        <div class="beast-head">${portrait(`classe:${key}`, 3)}<div><h3>${esc(hasFeminine(key) ? `${cls.title} · ${cls.titleF}` : cls.title)}</h3><p class="hint">${esc(cls.desc)}</p></div></div>
         <div class="stats sheet stats-cols">${statsList(hero)}</div>
       </div>
       <div class="details-col">
@@ -14425,7 +14472,7 @@ function legendariesTab() {
     <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec ${RARITIES.legendaire.secondaries} stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
     <div class="details-body">
       <div class="details-col leg-groups">${groups.map(([classKey, list]) => `
-        <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].name)}` : 'Toutes classes'}</span>
+        <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].title)}` : 'Toutes classes'}</span>
           <div class="cells">${list.map((k) => `<div class="bag-cell pick" data-legendary="${k}" style="--rc:${RARITIES.legendaire.color}">${iconHtml(itemIcon(sample(k)), 32)}</div>`).join('')}</div>
         </div>`).join('')}
       </div>
@@ -14452,7 +14499,7 @@ function legendaryDetail(key) {
     return `<li>${def.label} <b>+${lo} à ${hi}${def.suffix ? ` ${def.suffix}` : ''}</b></li>`;
   });
   return `${itemDetail(item)}
-    <p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
+    <p class="hint">${cls ? `Réservé aux ${esc(cls.plural)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
     <div class="leg-secondaries"><b>Stats secondaires possibles</b> <small>(en jeu, ${count} tirées au hasard parmi celles-ci)</small>
       <ul>${lines.join('')}</ul></div>`;
 }
@@ -14522,7 +14569,7 @@ return { logLines, lastCombatLog, victorySummary };
 // ---- src/ui/screens/talents.js
 __modules["src/ui/screens/talents.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier } = __modules["src/game/talents.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
@@ -14571,7 +14618,7 @@ function renderTalents(app) {
       <header class="inv-top">
         <div class="inv-tabs">${state.party.map((h, i) => `
           <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}">
-            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}${pointsAvailable(h) ? ` <span class="badge">${pointsAvailable(h)}</span>` : ''}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
           </button>`).join('')}
         </div>
         <span class="tal-points ${available ? 'has' : ''}">${iconHtml(682, 32)} ${available} / ${pointsTotal(hero)} points</span>
@@ -14660,7 +14707,7 @@ function nodeIcon(hero, branch, node) {
 }
 
 function introDetail(hero, cls) {
-  return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+  return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
     <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
@@ -14692,7 +14739,7 @@ const { isTwoHanded } = __modules["src/game/items.js"];
 const { SLOT_ORDER, RARITIES, MATERIA_KINDS, MATERIA_RARITIES } = __modules["src/data/items.js"];
 const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
-const { getClass, getStats, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { itemCard, slotLabel } = __modules["src/ui/items.js"];
@@ -14753,7 +14800,7 @@ function renderEquipment(app) {
       <header class="inv-top">
         <div class="inv-tabs">${state.party.map((h, i) => `
           <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}" style="--c:${getClass(h).color}">
-            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
           </button>`).join('')}
         </div>
         <span class="inv-gold">${iconHtml(GOLD_ICON, 32)} ${state.gold.toLocaleString('fr-FR')}</span>
@@ -14761,7 +14808,7 @@ function renderEquipment(app) {
         <button id="backHub">${esc(backLabel())}</button>
       </header>
       <section class="win inv-stats" style="--c:${cls.color}">
-        <h3>${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+        <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
         <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
         <div class="stat-grid" id="statGrid">${statGrid(hero, null)}</div>
       </section>
@@ -15340,7 +15387,7 @@ function divineBody() {
     </section>
     <section class="win detail-panel" id="divineDetail">
       ${divine ? itemDetail(divine) : '<p class="hint">Choisissez un objet divin.</p>'}
-      ${leg ? `<div class="forge-section"><h4>${iconHtml(itemIcon(leg), 16)} <span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${esc(cls.name)})</small>` : ''}</h4><p>${esc(leg.legendary.desc)}</p></div>` : ''}
+      ${leg ? `<div class="forge-section"><h4>${iconHtml(itemIcon(leg), 16)} <span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${esc(cls.title)})</small>` : ''}</h4><p>${esc(leg.legendary.desc)}</p></div>` : ''}
       ${divine?.absorbed && leg ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
       <div class="actions"><button id="absorbBtn" class="${confirming ? 'btn-primary' : 'gold'}" ${problem ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : 'Absorber le pouvoir'}</button></div>
     </section>`;
@@ -15733,9 +15780,9 @@ function rosterLockedReason(game) {
  * de l'équipe ; le héros remplacé part à l'auberge. Retourne le nouveau héros, ou
  * null si c'est impossible.
  */
-function recruit(game, classKey, name, replaceIndex) {
+function recruit(game, classKey, name, replaceIndex, feminine = false) {
   if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
-  const hero = createHero(classKey, name?.trim());
+  const hero = createHero(classKey, name?.trim(), null, feminine);
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);
@@ -15793,7 +15840,7 @@ __modules["src/ui/screens/inn.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { CLASS_ORDER, INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { getClass, getStats, heroClassTitle, heroClassName, classTitle, hasFeminine } = __modules["src/game/party.js"];
 const { restAtInn } = __modules["src/game/progression.js"];
 const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
 const { RARITIES } = __modules["src/data/items.js"];
@@ -15824,7 +15871,13 @@ const { portrait, heroPortrait, drawPortraits } = __modules["src/ui/portraits.js
 
 // État de l'écran : classe du compagnon à recruter, héros de l'auberge sélectionné
 // pour un échange, message.
-const view = { recruitClass: 'guerrier', recruitName: '', selectedReserve: null, confirmDismiss: false, flash: null };
+// Nom proposé pour un compagnon : celui de sa classe, accordé.
+function recruitDefaultName() {
+  const cls = CLASSES[view.recruitClass];
+  return hasFeminine(view.recruitClass) && view.recruitFeminine ? cls.nameF : cls.name;
+}
+
+const view = { recruitClass: 'guerrier', recruitName: '', recruitFeminine: false, selectedReserve: null, confirmDismiss: false, flash: null };
 
 function openInn() {
   Object.assign(view, { selectedReserve: null, confirmDismiss: false, flash: null });
@@ -15857,10 +15910,13 @@ function renderInn(app) {
         <h3>${iconHtml(1000, 16)} Recruter un compagnon</h3>
         <p class="hint">Niveau 1, équipement de départ de sa classe. Il prend la place d'un membre de l'équipe, qui part se reposer ici.</p>
         <div class="class-picks">
-          ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="class-pick ${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].desc)}">${portrait(`classe:${k}`, 2)}<span>${esc(CLASSES[k].name)}</span></button>`).join('')}
+          ${CLASS_ORDER.map((k) => `<button data-recruit-class="${k}" class="class-pick ${k === view.recruitClass ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].desc)}">${portrait(`classe:${k}`, 2)}<span>${esc(CLASSES[k].title)}</span></button>`).join('')}
         </div>
         <p class="hint">${esc(CLASSES[view.recruitClass].desc)}</p>
-        <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || CLASSES[view.recruitClass].name)}" maxlength="24">
+        <div class="recruit-name">
+          <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || recruitDefaultName())}" maxlength="24">
+          ${hasFeminine(view.recruitClass) ? `<button class="gender-pick" id="recruitGender" title="Nom de classe au ${view.recruitFeminine ? 'masculin' : 'féminin'} : ${esc(classTitle(view.recruitClass, !view.recruitFeminine))}">${view.recruitFeminine ? 'Le' : 'La'}</button> <small>${esc(classTitle(view.recruitClass, view.recruitFeminine))}</small>` : ''}
+        </div>
         ${cannotRecruit && !locked ? `<p class="warning">${esc(cannotRecruit)}</p>` : ''}
         <div class="actions stack">
           ${state.party.map((h, i) => `<button data-recruit-replace="${i}" ${cannotRecruit ? 'disabled' : ''}>Remplacer ${esc(h.name)}</button>`).join('')}
@@ -15878,18 +15934,24 @@ function renderInn(app) {
   app.querySelectorAll('[data-recruit-class]').forEach((btn) => {
     btn.onclick = () => {
       readName();
-      if (view.recruitName === CLASSES[view.recruitClass].name) view.recruitName = '';
+      if (view.recruitName === recruitDefaultName()) view.recruitName = '';
       view.recruitClass = btn.dataset.recruitClass;
       goTo('inn');
     };
+  });
+  app.querySelector('#recruitGender')?.addEventListener('click', () => {
+    readName();
+    if (view.recruitName === recruitDefaultName()) view.recruitName = '';
+    view.recruitFeminine = !view.recruitFeminine;
+    goTo('inn');
   });
   app.querySelectorAll('[data-recruit-replace]').forEach((btn) => {
     btn.onclick = () => {
       readName();
       const leaving = state.party[Number(btn.dataset.recruitReplace)];
-      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace));
+      const hero = recruit(state, view.recruitClass, view.recruitName, Number(btn.dataset.recruitReplace), hasFeminine(view.recruitClass) && view.recruitFeminine);
       if (hero) {
-        view.flash = `${hero.name} (${getClass(hero).name}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
+        view.flash = `${hero.name} (${heroClassName(hero)}) rejoint l'équipe ; ${leaving.name} se repose à l'auberge.`;
         view.recruitName = '';
       }
       goTo('inn');
@@ -15956,7 +16018,7 @@ function heroTile(hero, { partyIndex, reserveIndex, picking = false, selected = 
       ${heroPortrait(hero, 3)}
       <span class="inn-hero-info">
         <b>${esc(hero.name)}</b>
-        <small>${esc(cls.name)} · niv. ${hero.level}</small>
+        <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small>
         <span class="meter hp"><span class="fill" style="width:${Math.round((hero.hp / pv) * 100)}%"></span></span>
         <small>PV ${hero.hp}/${pv}</small>
         <span class="inn-items">${equippedItems(hero).map((item) => iconHtml(itemIcon(item), 16)).join('')}</span>
@@ -15972,7 +16034,7 @@ __modules["src/ui/screens/stats.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { RARITIES } = __modules["src/data/items.js"];
-const { getClass, getStats, getSkills, xpToNext } = __modules["src/game/party.js"];
+const { getClass, getStats, getSkills, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
 const { pointsAvailable } = __modules["src/game/talents.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -16024,7 +16086,7 @@ function renderStats(app) {
     extras: heroTabs(index),
     body: `
       <section class="win" style="--c:${cls.color}">
-        <h3>${esc(hero.name)} <small>${esc(cls.name)} · niveau ${hero.level} · stat principale : ${STATS[cls.mainStat].label} ★</small></h3>
+        <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level} · stat principale : ${STATS[cls.mainStat].label} ★</small></h3>
         <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
         <div class="stats sheet stats-cols">${statsList(hero)}</div>
       </section>
@@ -17085,7 +17147,7 @@ __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getSkills } = __modules["src/game/party.js"];
+const { getClass, getSkills, heroClassTitle } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
@@ -17264,7 +17326,7 @@ function info(hero) {
   const cls = getClass(hero);
   const multi = isMultiAction(hero);
   return `
-    <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${cls.name} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
+    <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
     <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
 }
@@ -17346,7 +17408,7 @@ function overlay() {
   const hero = cb.party[ui.overlay.hero];
   if (!hero) return '';
   const cls = getClass(hero);
-  return `<div class="bs-modal"><div class="win"><h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niv. ${hero.level}</small></h3>
+  return `<div class="bs-modal"><div class="win"><h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small></h3>
     <div class="stat-list">${statsList(hero)}</div>
     <div class="bs-status big">${statusIcons(hero)}</div>
     <button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;
@@ -17448,7 +17510,7 @@ __modules["src/ui/screens/strategy.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { WEAPON_TYPES, RANGE_LABELS } = __modules["src/data/items.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { getClass, getStats, heroClassTitle } = __modules["src/game/party.js"];
 const { setPosition, weaponRange, POSITIONS } = __modules["src/game/position.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { goTo } = __modules["src/ui/router.js"];
@@ -17500,7 +17562,7 @@ function heroColumn(hero, i) {
     : '';
   return `
     <section class="win strat-hero" style="--c:${getClass(hero).color}">
-      <h3>${esc(hero.name)} <small>${esc(cls.name)} · niv. ${hero.level}</small></h3>
+      <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small></h3>
       <div class="strat-portrait ${hero.position}">${heroPortrait(hero, 5)}</div>
       <p class="strat-weapon">${weapon ? iconHtml(itemIcon(weapon), 32) : ''} ${esc(weaponName)} <small>(${RANGE_LABELS[range].toLowerCase()}) · Riposte ${getStats(hero).riposte} %</small></p>
       <div class="strat-choice">
@@ -18270,8 +18332,8 @@ const MANUAL = {
   decraft: { terms: ['décraft', 'décrafter', 'décrafte'], desc: "Détruire un objet du sac à la Forge pour obtenir 1 à 3 matéria de sa rareté." },
   sac: { terms: ['sac'], desc: "Objets, matéria et consommables transportés. En cas de défaite, une partie du sac est perdue (jamais tout) ; la banque met à l'abri." },
   // ---- Stats ----
-  force: { terms: ['Force'], cs: true, desc: 'Stat principale : renforce les coups physiques du Guerrier, du Paladin (Templier)…' },
-  agilite: { terms: ['Agilité'], cs: true, desc: 'Stat principale : renforce les coups physiques du Voleur et du Chasseur (un peu plus que la Force).' },
+  force: { terms: ['Force'], cs: true, desc: 'Stat principale : renforce les coups physiques de l\'Impassible, du Lumineux (Templier)…' },
+  agilite: { terms: ['Agilité'], cs: true, desc: 'Stat principale : renforce les coups physiques du Dissimulé et du Vénateur (un peu plus que la Force).' },
   intelligence: { terms: ['Intelligence'], cs: true, desc: "Stat principale : puissance magique (× 2), qui renforce les sorts et les soins. Ne renforce jamais une attaque à l'arme." },
   attaque: { terms: ['Attaque'], cs: true, desc: 'Apportée par les armes : compte pour la puissance physique.' },
   armure: { terms: ['Armure'], cs: true, desc: 'Stat des armures et boucliers : compte à la fois comme Défense et comme Défense magique.' },
@@ -18287,10 +18349,10 @@ const MANUAL = {
   puissancePhysique: { terms: ['puissance physique', 'Puissance physique'], desc: "Attaque des armes + Force ou Agilité (selon la classe) : base des coups physiques." },
   puissanceMagique: { terms: ['puissance magique', 'Puissance magique'], desc: 'Intelligence × 2 : base des sorts, des soins et des dégâts magiques sur la durée.' },
   // ---- Ressources et combat ----
-  rage: { terms: ['Rage'], cs: true, desc: 'Ressource du Guerrier : se remplit en frappant et en encaissant des coups.' },
-  energie: { terms: ['Énergie'], cs: true, desc: "Ressource du Voleur et du Chasseur : +45 par tour ; chaque action en coûte, on agit tant qu'on peut payer." },
-  mana: { terms: ['Mana'], cs: true, desc: 'Ressource des lanceurs de sorts (Prêtre, Mage, Paladin) : +10 par tour.' },
-  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Voleur : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance dès 3 points." },
+  rage: { terms: ['Rage'], cs: true, desc: 'Ressource de l\'Impassible : se remplit en frappant et en encaissant des coups.' },
+  energie: { terms: ['Énergie'], cs: true, desc: "Ressource du Dissimulé et du Vénateur : +45 par tour ; chaque action en coûte, on agit tant qu'on peut payer." },
+  mana: { terms: ['Mana'], cs: true, desc: 'Ressource des lanceurs de sorts (Dévot, Élémentaliste, Lumineux) : +10 par tour.' },
+  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Dissimulé : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance dès 3 points." },
   finisher: { terms: ['finisher', 'finishers', 'Finisher'], desc: 'Compétence qui dépense tous les points de combo : plus il y en a, plus elle frappe fort.' },
   corpsACorps: { terms: ['corps à corps'], desc: "Position de combat en première ligne : on est plus souvent ciblé ; seules les armes de mêlée y servent. Riposte possible." },
   distance: { terms: ['à distance'], desc: "Position de combat en retrait : moins souvent ciblé ; l'arc ne sert qu'à distance." },

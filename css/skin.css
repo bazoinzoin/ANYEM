@@ -580,3 +580,8 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 .title-screen .title-hint { font-size: 13px; }
 @media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
 .title-version { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: .08em; color: rgba(243,213,140,.75); text-shadow: 0 2px 0 #1a0d04; pointer-events: none; }
+
+/* Forme féminine du nom de classe (création, recrutement) : petit bouton « Le / La ». */
+.gender-pick { padding: 0 8px; min-height: 0; font-size: 12px; line-height: 20px; vertical-align: middle; margin-left: 4px; }
+.recruit-name { display: flex; align-items: center; gap: 6px; }
+.recruit-name input { flex: 1; }

@@ -112,7 +112,7 @@ export const TALENTS = {
         skill(2, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
-          desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours (+30 % Défense)',
         }),
         ...choice(3, [
           minor('maitrise-bouclier', 'Maîtrise du bouclier', { flat: { blocage: 2.5 } }),
@@ -165,7 +165,7 @@ export const TALENTS = {
           id: 'dernier-rempart', name: 'Dernier rempart', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 3, 1.6), fx('protection', 3)],
           selfEffects: [fx('provocation', 3)],
-          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; le Guerrier provoque les ennemis',
+          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; provoque aussi les ennemis',
         }),
       ],
     },
@@ -197,7 +197,7 @@ export const TALENTS = {
         skill(6, {
           id: 'rage-aveugle', name: 'Rage aveugle', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('enrage', 3)],
-          desc: 'Le Guerrier cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
+          desc: 'Cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
         }),
         ...choice(7, [
           minor('frenesie', 'Frénésie', { passive: { resOnAttack: 2 } }),
@@ -538,7 +538,7 @@ export const TALENTS = {
         skill(6, {
           id: 'siphon-d-ame', name: 'Siphon d\'âme', cost: 30, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
           selfEffects: [fx('regeneration', 3, 0.25)],
-          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le Prêtre se régénère pendant 3 tours',
+          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le lanceur se régénère pendant 3 tours',
         }),
         ...choice(7, [
           minor('murmures', 'Murmures', { passive: { vsDebuffedPct: 3.5 } }),
@@ -581,7 +581,7 @@ export const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Mage de feu', icon: '🔥',
+      key: 'feu', name: 'Feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -649,7 +649,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Mage de glace', icon: '❄️',
+      key: 'glace', name: 'Glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -687,7 +687,7 @@ export const TALENTS = {
         skill(8, {
           id: 'armure-de-glace', name: 'Armure de glace', cost: 30, kind: 'support', target: 'self', magic: true,
           selfEffects: [fx('bouclier', 3, 1.2), fx('protection', 2)],
-          desc: 'Le Mage se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
+          desc: 'Se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
         }),
         ...choice(9, [
           minor('zero-absolu', 'Zéro absolu', { pct: { magPower: 4 } }),
@@ -717,7 +717,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Mage de foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -754,7 +754,7 @@ export const TALENTS = {
         skill(8, {
           id: 'canalisation', name: 'Canalisation', cost: 10, kind: 'support', target: 'self', resourceGain: 30, oncePerCombat: true,
           selfEffects: [fx('hate', 2)],
-          desc: 'Une fois par combat : le Mage canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
+          desc: 'Une fois par combat : canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
         }),
         ...choice(9, [
           minor('foudroiement', 'Foudroiement', { flat: { critDmg: 6 } }),
@@ -933,7 +933,7 @@ export const TALENTS = {
         skill(2, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
           effects: [fx('intercession', 3)],
-          desc: 'Le Paladin encaisse la moitié des dégâts subis par un allié pendant 3 tours',
+          desc: 'Encaisse la moitié des dégâts subis par un allié pendant 3 tours',
         }),
         ...choice(3, [
           minor('foi-inebranlable', 'Foi inébranlable', { pct: { defMag: 3.5 } }),
@@ -943,7 +943,7 @@ export const TALENTS = {
         skill(4, {
           id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1, physHeal: true,
           effects: [fx('regeneration', 3, 0.25)],
-          desc: 'Le Paladin se soigne et se régénère pendant 3 tours (soins sur la Force)',
+          desc: 'Se soigne et se régénère pendant 3 tours (soins sur la Force)',
         }),
         ...choice(5, [
           minor('consecration', 'Consécration', { pct: { def: 3 } }),
@@ -969,7 +969,7 @@ export const TALENTS = {
         skill(10, {
           id: 'aura-de-protection', name: 'Aura de protection', cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 2), fx('bouclier', 2, 0.6)],
-          desc: 'Bouclier sur toute l\'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours',
+          desc: 'Bouclier sur toute l\'équipe ; encaisse aussi la moitié des dégâts de ses alliés pendant 2 tours',
         }),
         ...choice(11, [
           minor('chatiment', 'Châtiment', { flat: { riposte: 5 } }),
@@ -986,7 +986,7 @@ export const TALENTS = {
           id: 'sacrifice-divin', name: 'Sacrifice divin', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 3)],
           selfEffects: [fx('bouclier', 3, 2), fx('protection', 3), fx('provocation', 3)],
-          desc: 'Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
+          desc: 'Attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
         }),
       ],
     },

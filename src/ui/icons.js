@@ -94,7 +94,7 @@ export function skillIconIndex(skill) {
 // Orientations de talents et classes.
 const BRANCH_ICONS = {
   Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
-  'Mage de feu': 992, 'Mage de glace': 1008, 'Mage de foudre': 1040, 'Œil de Faucon': 1482, Traqueur: 127,
+  Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
 };
 export function branchIcon(branch) {

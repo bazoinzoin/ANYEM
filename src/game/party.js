@@ -160,11 +160,30 @@ export function gainXp(hero, amount) {
   return levels;
 }
 
-export function createHero(classKey, name, look = null) {
+// Nom de classe accordé : titre des menus avec son article (« La Dissimulée ») ou nom seul
+// pour les phrases (« Dissimulée ») ; au féminin si le héros l'a choisi à sa création.
+export function classTitle(classKey, feminine = false) {
+  const cls = CLASSES[classKey];
+  return feminine ? cls.titleF : cls.title;
+}
+export function heroClassTitle(hero) {
+  return classTitle(hero.classKey, hero.feminine);
+}
+export function heroClassName(hero) {
+  const cls = CLASSES[hero.classKey];
+  return hero.feminine ? cls.nameF : cls.name;
+}
+// La classe a-t-elle une forme féminine distincte (Le Dissimulé / La Dissimulée) ?
+export function hasFeminine(classKey) {
+  return CLASSES[classKey].titleF !== CLASSES[classKey].title;
+}
+
+export function createHero(classKey, name, look = null, feminine = false) {
   const cls = CLASSES[classKey];
   const hero = {
     classKey,
-    name: name || cls.name,
+    name: name || (feminine ? cls.nameF : cls.name),
+    feminine: !!feminine, // forme féminine du nom de classe (choisie à la création)
     hp: 0,
     res: cls.resource.start,
     level: 1,
@@ -186,9 +205,10 @@ export function createHero(classKey, name, look = null) {
 }
 
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
-// `looks` : apparences choisies à la création (défaut : celle de chaque classe).
-export function createParty(names = [], classes = PARTY_ORDER, looks = []) {
-  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i]));
+// `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
+// `feminine` : forme féminine du nom de classe, par héros.
+export function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = []) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i], feminine[i]));
 }
 
 export function gainResource(hero, amount) {

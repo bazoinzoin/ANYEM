@@ -4,7 +4,7 @@
 import { state } from '../../state.js';
 import { STATS } from '../../data/stats.js';
 import { RARITIES } from '../../data/items.js';
-import { getClass, getStats, getSkills, xpToNext } from '../../game/party.js';
+import { getClass, getStats, getSkills, xpToNext, heroClassTitle } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { pointsAvailable } from '../../game/talents.js';
 import { esc } from '../html.js';
@@ -38,7 +38,7 @@ export function renderStats(app) {
     extras: heroTabs(index),
     body: `
       <section class="win" style="--c:${cls.color}">
-        <h3>${esc(hero.name)} <small>${esc(cls.name)} · niveau ${hero.level} · stat principale : ${STATS[cls.mainStat].label} ★</small></h3>
+        <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level} · stat principale : ${STATS[cls.mainStat].label} ★</small></h3>
         <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
         <div class="stats sheet stats-cols">${statsList(hero)}</div>
       </section>
