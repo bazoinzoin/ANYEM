@@ -14200,11 +14200,10 @@ function content() {
       <button data-pause="quitNow" class="title-item">Quitter sans sauvegarder</button>
       <button data-pause="main" class="title-item">◂ Retour</button>`;
   }
-  const slotText = state.saveSlot ? `Emplacement ${state.saveSlot}` : 'Choisir un emplacement';
   return `
     <h2>Pause</h2>
     <button data-pause="resume" class="title-item">Reprendre</button>
-    <button data-pause="save" class="title-item">Sauvegarder <small>${esc(slotText)}</small></button>
+    <button data-pause="save" class="title-item">Sauvegarder${state.saveSlot ? ` <small>${esc(`Emplacement ${state.saveSlot}`)}</small>` : ''}</button>
     <button data-pause="options" class="title-item">Options</button>
     <button data-pause="quit" class="title-item">Quitter</button>
     ${note ? `<p class="pause-note">${esc(note)}</p>` : '<p class="hint">Échap : reprendre</p>'}`;
