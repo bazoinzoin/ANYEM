@@ -55,7 +55,7 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     log: [], queue: [], qIndex: 0, round: 0, acting: null, result: null,
   };
   log(cb, `${title} (niveau ${level}).`);
-  // Légendaires « au début du combat » (L'Olifant de Roland…) : effets sur toute l'équipe.
+  // Légendaires « au début du combat » (L'Olifant…) : effets sur toute l'équipe.
   for (const hero of party.filter((h) => h.alive)) {
     for (const power of legendaryPowers(hero)) {
       for (const e of power.startEffects ?? []) {

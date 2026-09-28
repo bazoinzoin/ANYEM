@@ -19,7 +19,7 @@ import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../gam
 import { usesWeapon, canUseWeapon, weaponBlockedReason } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
-import { esc, range } from '../html.js';
+import { esc, range, resourceKind } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate } from '../format.js';
 import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
 
@@ -73,7 +73,7 @@ function heroRow(hero, i, active) {
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
-        ${meter(hero.res, stats.resMax, 'res', cls.resource.name)}
+        ${meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
       <span class="bs-status">${combo}${statusIcons(hero)}</span>
     </button>`;

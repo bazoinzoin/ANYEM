@@ -1,7 +1,7 @@
 // Affichage des objets et des stats.
 
 import { STATS } from '../data/stats.js';
-import { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS } from '../data/items.js';
+import { RARITIES, SLOTS, WEAPON_TYPES, RANGE_LABELS, LEGENDARIES } from '../data/items.js';
 import { CLASSES } from '../data/classes.js';
 import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
@@ -34,7 +34,14 @@ export function itemTooltipText(item) {
   const lines = [itemName(item), itemMeta(item), ...itemStatLines(item).map((l) => `${formatStat(l.stat, l.value)}${rangeText(l)}`)];
   if (item.legendary) lines.push(`Unique${legendaryOwner(item)} : ${item.legendary.desc}`);
   if (item.absorbed) lines.push(`Pouvoir absorbé (${item.absorbed.name}${absorbedOwner(item)}) : ${item.absorbed.desc}`);
+  if (quoteOf(item)) lines.push(`« ${quoteOf(item)} »`);
   return lines.join('\n');
+}
+
+// Citation d'un légendaire (ou du pouvoir absorbé par un objet divin), lue dans le catalogue.
+function quoteOf(item) {
+  const key = item.legendary?.key ?? item.absorbed?.key;
+  return (key && LEGENDARIES[key]?.quote) || '';
 }
 
 // « (Guerrier) » pour un légendaire réservé à une classe, rien s'il est neutre.
@@ -73,6 +80,7 @@ export function itemCard(item) {
       <ul class="item-stats">${statLines.join('')}</ul>
       ${item.legendary ? `<div class="item-legendary">Unique${legendaryOwner(item)} : ${esc(item.legendary.desc)}</div>` : ''}
       ${item.absorbed ? `<div class="item-legendary item-absorbed">Pouvoir absorbé — ${esc(item.absorbed.name)}${absorbedOwner(item)} : ${esc(item.absorbed.desc)}</div>` : ''}
+      ${quoteOf(item) ? `<div class="item-quote no-gloss">« ${esc(quoteOf(item))} »</div>` : ''}
     </div>`;
 }
 

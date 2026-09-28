@@ -7,7 +7,7 @@
 import { CLASSES } from '../data/classes.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { DIFFICULTIES } from '../config.js';
-import { reserveItemIds } from './items.js';
+import { reserveItemIds, refreshLegendary } from './items.js';
 import { difficultyOf } from './difficulty.js';
 import { sanitizeTalents } from './talents.js';
 
@@ -106,20 +106,24 @@ export function applySave(game, save) {
   // Arbres de talents modifiés depuis la sauvegarde : points rendus aux héros concernés.
   const reset = [...game.party, ...(game.reserve ?? [])].filter((h) => sanitizeTalents(h)).map((h) => h.name);
   if (reset.length) game.hubMessage = `Les arbres de talents ont changé : les points de ${reset.join(', ')} ont été rendus (à redépenser chez le Maître des compétences).`;
-  // Les nouveaux objets ne doivent pas reprendre un identifiant déjà utilisé.
-  reserveItemIds(maxItemId(data));
+  // Les nouveaux objets ne doivent pas reprendre un identifiant déjà utilisé ; les
+  // légendaires reprennent le nom et le pouvoir du catalogue actuel.
+  const items = itemsIn(data);
+  items.forEach(refreshLegendary);
+  reserveItemIds(items.reduce((max, it) => Math.max(max, Number(it.id.slice(2))), 0));
   return true;
 }
 
-function maxItemId(root) {
-  let max = 0;
+// Tous les objets (identifiant « itN ») de la partie, une fois chacun.
+function itemsIn(root) {
+  const items = [];
   const seen = new Set();
   const walk = (v) => {
     if (!v || typeof v !== 'object' || seen.has(v)) return;
     seen.add(v);
-    if (typeof v.id === 'string' && /^it\d+$/.test(v.id)) max = Math.max(max, Number(v.id.slice(2)));
+    if (typeof v.id === 'string' && /^it\d+$/.test(v.id)) items.push(v);
     Object.values(v).forEach(walk);
   };
   walk(root);
-  return max;
+  return items;
 }

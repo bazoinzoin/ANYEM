@@ -94,7 +94,7 @@ test("Forge divine : l'objet divin absorbe le pouvoir d'un légendaire du sac, q
   assert.ok(equip(warrior, game.bag, generateItem({ rarity: 'divin', slotType: 'anneau' }), 'anneau1') === false, 'pas dans le sac');
   assert.equal(absorbLegendary(game, divine, other).key, 'demainDesLAube');
   assert.equal(divine.absorbed.key, 'fleursDuMal');
-  assert.equal(divine.name, 'Les Fleurs du Mal');
+  assert.equal(divine.name, LEGENDARIES.fleursDuMal.name);
   assert.ok(absorbProblem(game, divine, leg), 'déjà détruit');
   game.bag.push(divine);
   paladin.equipment.anneau1 = null;

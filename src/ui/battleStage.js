@@ -469,26 +469,37 @@ function drawSlash(ctx, x, y, k, dir) {
 // Barres de vie sous les pieds.
 function drawBars(ctx, unit, v, y) {
   if (!unit.alive) return;
-  const max = sideOf(unit) === 'hero' ? statsOf(unit).pv : unit.stats.pv;
-  const w = unit.boss ? 56 : 36;
+  const enemy = sideOf(unit) === 'enemy';
+  const max = enemy ? unit.stats.pv : statsOf(unit).pv;
+  // Barre de PV (toujours verte) ; les monstres l'ont plus grande, PV en chiffres dedans.
+  const w = enemy ? (unit.boss ? 84 : 58) : 36;
+  const h = enemy ? 9 : 4;
   const x = Math.round(v.x - w / 2);
   const by = Math.round(y + 7);
-  ctx.fillStyle = 'rgba(0,0,0,.75)';
-  ctx.fillRect(x - 1, by - 1, w + 2, 6);
+  ctx.fillStyle = 'rgba(0,0,0,.8)';
+  ctx.fillRect(x - 1, by - 1, w + 2, h + 2);
   const k = Math.max(0, Math.min(1, unit.hp / max));
-  ctx.fillStyle = k > 0.5 ? '#6fcf5a' : k > 0.25 ? '#e0b23c' : '#e0523c';
-  ctx.fillRect(x, by, Math.round(w * k), 4);
-  // Monstres : nom sous la barre ; tout le monde : effets en cours au-dessus de la tête.
+  ctx.fillStyle = '#4fae45';
+  ctx.fillRect(x, by, Math.round(w * k), h);
+  ctx.fillStyle = '#8fe07f';
+  ctx.fillRect(x, by, Math.round(w * k), 1);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  if (sideOf(unit) === 'enemy') {
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0,0,0,.85)';
+  if (enemy) {
+    ctx.font = 'bold 8px sans-serif';
+    const hp = `${Math.max(0, Math.round(unit.hp))}/${max}`;
+    ctx.strokeText(hp, v.x, by + 1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(hp, v.x, by + 1);
+    // Nom sous la barre.
     ctx.font = 'bold 9px sans-serif';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,.8)';
-    ctx.strokeText(unit.name, v.x, by + 6);
+    ctx.strokeText(unit.name, v.x, by + h + 2);
     ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
-    ctx.fillText(unit.name, v.x, by + 6);
+    ctx.fillText(unit.name, v.x, by + h + 2);
   }
+  // Effets en cours au-dessus de la tête.
   const icons = [...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
   const sheet = image('icons/raven16');
   if (icons.length && isReady(sheet)) {

@@ -129,10 +129,12 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .inv-detail.dense { font-size: 12px; }
 .inv-detail.dense .item-card .item-name { font-size: 14px; }
 .inv-detail.dense .item-card .item-meta, .inv-detail.dense .item-stats, .inv-detail.dense .item-legendary { font-size: 12px; line-height: 1.2; }
+.inv-detail.dense .item-quote { font-size: 11px; line-height: 1.2; }
 .inv-detail.dense .detail-vs .item-meta { display: none; }
 .inv-detail.dense .detail-actions button { padding-top: 0; padding-bottom: 0; }
 .inv-detail.denser .item-card .item-meta { display: none; }
 .inv-detail.denser .item-stats, .inv-detail.denser .item-legendary { font-size: 11px; }
+.inv-detail.denser .item-quote { display: none; }
 .inv-detail.denser .item-card .item-rarity { display: none; }
 
 /* ---- Talents : arbres visuels ---- */
