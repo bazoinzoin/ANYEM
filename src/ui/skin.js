@@ -42,7 +42,12 @@ export const SLOT_ART = {
   mainGauche: 'ui/slot_02_shield',
 };
 
-const FONTS = { FantasyRPGtext: 'fonts/FantasyRPGtext', FantasyRPGtitle: 'fonts/FantasyRPGtitle', FantasyRPGtitleOutline: 'fonts/FantasyRPGtitleOutline' };
+// Polices intégrées : [famille, fichier, graisse]. Almendra (OFL) = police médiévale des titres,
+// boutons et noms (variable --font-title).
+const FONTS = [
+  ['FantasyRPGtext', 'fonts/FantasyRPGtext'], ['FantasyRPGtitle', 'fonts/FantasyRPGtitle'], ['FantasyRPGtitleOutline', 'fonts/FantasyRPGtitleOutline'],
+  ['Almendra', 'fonts/Almendra-Regular', '400'], ['Almendra', 'fonts/Almendra-Bold', '700'],
+];
 
 export function assetUrl(key) {
   return `url(${ASSET_DATA[key]})`;
@@ -52,9 +57,9 @@ export function applySkin() {
   if (typeof document === 'undefined') return;
   const root = document.documentElement.style;
   for (const [name, key] of Object.entries(IMAGES)) if (ASSET_DATA[key]) root.setProperty(name, assetUrl(key));
-  for (const [family, key] of Object.entries(FONTS)) {
+  for (const [family, key, weight = 'normal'] of FONTS) {
     if (!ASSET_DATA[key] || typeof FontFace === 'undefined') continue;
-    const face = new FontFace(family, `url(${ASSET_DATA[key]})`);
+    const face = new FontFace(family, `url(${ASSET_DATA[key]})`, { weight });
     document.fonts.add(face);
     face.load().catch(() => {});
   }

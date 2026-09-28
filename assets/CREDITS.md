@@ -9,3 +9,7 @@
 - `icons/raven16.png` : **Raven Fantasy Icons (Free)**, Clockwork Raven Studios — planche 16 × 16 (2 192 icônes), plus une ligne de variantes dorées d'icônes rouges (soins lumineux, le rouge étant réservé au Scarifié), générée par `tools/recolor_icons.py`.
 - `ui/` et `fonts/` : **RPG UI pack**, par Franuka (https://franuka.itch.io/) — usage commercial et non commercial autorisé, crédit apprécié, pas de redistribution telle quelle. Cadres recadrés (`box_*`), variante sombre `box_night` / `slot_night` générée à partir de `BGbox_01B` / `Slot_02_Empty`.
 - `logo/` : logo d'Anyem (icône du jeu et de l'onglet) dessiné en pixel art à partir du « A » de la police FantasyRPGtitle (RPG UI pack, Franuka), généré par `tools/logo.py` (qui écrit aussi `dist/anyem.ico`).
+
+## Police Almendra
+
+`assets/fonts/Almendra-Regular.ttf` et `Almendra-Bold.ttf` : « Almendra » d'Ana Sanfelippo, sous licence SIL Open Font License 1.1 (https://openfontlicense.org), obtenue via Google Fonts. Police des titres, boutons et noms du jeu.

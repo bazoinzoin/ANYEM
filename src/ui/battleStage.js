@@ -609,13 +609,13 @@ function drawBars(ctx, unit, v, y) {
   ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(0,0,0,.85)';
   if (enemy) {
-    ctx.font = 'bold 8px sans-serif';
+    ctx.font = 'bold 8px sans-serif'; // chiffres : police simple, lisible en petit
     const hp = `${Math.max(0, Math.round(unit.hp))}/${max}`;
     ctx.strokeText(hp, v.x, by + 1);
     ctx.fillStyle = '#fff';
     ctx.fillText(hp, v.x, by + 1);
     // Nom sous la barre.
-    ctx.font = 'bold 9px sans-serif';
+    ctx.font = 'bold 10px Almendra, serif';
     ctx.strokeText(unit.name, v.x, by + h + 2);
     ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
     ctx.fillText(unit.name, v.x, by + h + 2);
@@ -642,7 +642,7 @@ function drawPopups(ctx, now) {
     if (!v) continue;
     const y = Math.max(18 + p.stack * 16, slotOf(p.unit).y - looksOf(p.unit).body - Math.min(1, k * 3) * 14 - k * 10 - p.stack * 16);
     ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-    ctx.font = p.small ? 'bold 11px sans-serif' : `bold ${p.big ? 20 : 16}px sans-serif`;
+    ctx.font = p.small ? 'bold 12px Almendra, serif' : `bold ${p.big ? 20 : 16}px sans-serif`;
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#1a0f06';
     ctx.strokeText(p.text, v.x, y);
