@@ -21,6 +21,9 @@ export const STATS = {
   esquive: { label: 'Esquive', suffix: '%' },
   blocage: { label: 'Blocage', suffix: '%' },
   riposte: { label: 'Riposte', suffix: '%' }, // chance de contre-attaquer au corps à corps
+  // Secondaire d'objet : Mana maximum en plus, sans effet pour les classes à Énergie ou à Rage.
+  // Absente des feuilles de personnage (voir le détail au survol de la ligne Mana).
+  mana: { label: 'Mana' },
 };
 
 export const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];

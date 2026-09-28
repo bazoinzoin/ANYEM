@@ -126,7 +126,7 @@ export const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.7,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -180,7 +180,7 @@ export const TALENTS = {
           minor('fureur', 'Fureur', { passive: { resOnAttack: 2 } }),
         ]),
         skill(2, {
-          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.6, critBonus: 25,
+          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.9, critBonus: 25,
           desc: 'Coup violent, +25 % de chance de critique',
         }),
         ...choice(3, [
@@ -222,7 +222,7 @@ export const TALENTS = {
           minor('sang-bouillant', 'Sang bouillant', { flat: { critDmg: 8 } }),
           minor('festin-de-sang', 'Festin de sang', { passive: { lifestealPct: 1.5 } }),
         ]),
-        passive('soif-de-carnage', 'Soif de carnage', 12, '+12 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 12 }, passive: { lifestealPct: 8 } }),
+        passive('soif-de-carnage', 'Soif de carnage', 12, '+22 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 22 }, passive: { lifestealPct: 8 } }),
         ...choice(13, [
           minor('soif-de-combat', 'Soif de combat', { pct: { physPower: 4.5 } }),
           minor('sauvagerie-sanglante', 'Sauvagerie sanglante', { flat: { critDmg: 6.5 } }),
@@ -323,7 +323,7 @@ export const TALENTS = {
           minor('toxicite', 'Toxicité', { passive: { dotPct: 3.5 } }),
           minor('sang-froid', 'Sang-froid', { pct: { pv: 2.5 } }),
         ]),
-        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [fx('affaibli', 4)] } }),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +60 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 60, addEffects: [fx('affaibli', 4)] } }),
         ...choice(5, [
           minor('distillation', 'Distillation', { passive: { dotPct: 5 } }),
           minor('patience', 'Patience', { passive: { resRegen: 3 } }),

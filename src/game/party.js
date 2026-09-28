@@ -40,12 +40,18 @@ export function weaponSpeedOf(hero) {
   return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
 }
 
+// La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
+export function usesMana(cls) {
+  return cls.resource.name === 'Mana';
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
- *   resMax     maximum de la ressource de classe
+ *   resMax     maximum de la ressource de classe = base de la classe + talents et légendaires
+ *              (resMaxTalents) + Mana des objets pour une classe à Mana (resMaxItems)
  *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 export function getStats(hero) {
@@ -81,7 +87,10 @@ export function getStats(hero) {
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0) + (usesMana(cls) ? total.mana : 0),
+    resMaxBase: cls.resource.max,
+    resMaxTalents: fx.passive.resMaxBonus ?? 0,
+    resMaxItems: usesMana(cls) ? total.mana : 0,
     // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };

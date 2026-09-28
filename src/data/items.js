@@ -125,6 +125,8 @@ export const SECONDARY_STATS = {
   esquive: { base: 0.5, perLevel: 0.04 },
   blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
+  // Mana maximum : utile aux seules classes à Mana (les autres la changent chez le Runomancien).
+  mana: { base: 1, perLevel: 0.1 },
 };
 
 // Objets légendaires : noms tirés (plus ou moins librement) de la littérature française.

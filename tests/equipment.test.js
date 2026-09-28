@@ -201,3 +201,22 @@ test("un légendaire sans classe (neutre) est équipable par toutes les classes"
     assert.equal(cannotEquipReason(hero, ring), null, hero.classKey);
   }
 });
+
+test('secondaire Mana : augmente la Mana maximum des classes à Mana, sans effet sur les autres', () => {
+  const [mage, guerrier] = createParty(['M', 'G'], ['mage', 'guerrier']);
+  for (const hero of [mage, guerrier]) {
+    const before = getStats(hero);
+    const ring = { ...generateItem({ level: 20, rarity: 'rare', slotType: 'anneau' }), bonus: { mana: 12 } };
+    const bag = [ring];
+    equip(hero, bag, ring, 'anneau1');
+    const after = getStats(hero);
+    if (hero === mage) {
+      assert.equal(after.resMax, before.resMax + 12);
+      assert.equal(after.resMaxItems, 12);
+      assert.equal(after.resMaxBase, CLASSES.mage.resource.max);
+    } else {
+      assert.equal(after.resMax, before.resMax, 'la Rage ne change pas');
+      assert.equal(after.resMaxItems, 0);
+    }
+  }
+});

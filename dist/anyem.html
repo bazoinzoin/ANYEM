@@ -595,6 +595,8 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
   border-image: var(--ui-parch) 10 fill / 20px stretch; font-family: var(--font-body); text-shadow: none;
 }
 .tooltip:hover::before, .tooltip:focus-visible::before { display: none; }
+/* Feuilles de personnage : libellés au bord gauche, la bulle part vers la droite. */
+.stat-row .tooltip:hover::after, .stat-row .tooltip:focus-visible::after { left: 0; transform: none; width: 260px; }
 
 /* Menu principal et combat : fenêtres et listes */
 .title-panel { border: 12px solid transparent; border-image: var(--ui-box) 10 fill / 20px stretch; background: none; box-shadow: none; border-radius: 0; }
@@ -1531,6 +1533,8 @@ const SECONDARY_STATS = {
   esquive: { base: 0.5, perLevel: 0.04 },
   blocage: { base: 1.5, perLevel: 0.15 },
   riposte: { base: 1, perLevel: 0.1 },
+  // Mana maximum : utile aux seules classes à Mana (les autres la changent chez le Runomancien).
+  mana: { base: 1, perLevel: 0.1 },
 };
 
 // Objets légendaires : noms tirés (plus ou moins librement) de la littérature française.
@@ -2849,6 +2853,9 @@ const STATS = {
   esquive: { label: 'Esquive', suffix: '%' },
   blocage: { label: 'Blocage', suffix: '%' },
   riposte: { label: 'Riposte', suffix: '%' }, // chance de contre-attaquer au corps à corps
+  // Secondaire d'objet : Mana maximum en plus, sans effet pour les classes à Énergie ou à Rage.
+  // Absente des feuilles de personnage (voir le détail au survol de la ligne Mana).
+  mana: { label: 'Mana' },
 };
 
 const PRIMARY_STATS = ['force', 'agilite', 'intelligence'];
@@ -2998,7 +3005,7 @@ const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.7,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -3052,7 +3059,7 @@ const TALENTS = {
           minor('fureur', 'Fureur', { passive: { resOnAttack: 2 } }),
         ]),
         skill(2, {
-          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.6, critBonus: 25,
+          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.9, critBonus: 25,
           desc: 'Coup violent, +25 % de chance de critique',
         }),
         ...choice(3, [
@@ -3094,7 +3101,7 @@ const TALENTS = {
           minor('sang-bouillant', 'Sang bouillant', { flat: { critDmg: 8 } }),
           minor('festin-de-sang', 'Festin de sang', { passive: { lifestealPct: 1.5 } }),
         ]),
-        passive('soif-de-carnage', 'Soif de carnage', 12, '+12 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 12 }, passive: { lifestealPct: 8 } }),
+        passive('soif-de-carnage', 'Soif de carnage', 12, '+22 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 22 }, passive: { lifestealPct: 8 } }),
         ...choice(13, [
           minor('soif-de-combat', 'Soif de combat', { pct: { physPower: 4.5 } }),
           minor('sauvagerie-sanglante', 'Sauvagerie sanglante', { flat: { critDmg: 6.5 } }),
@@ -3195,7 +3202,7 @@ const TALENTS = {
           minor('toxicite', 'Toxicité', { passive: { dotPct: 3.5 } }),
           minor('sang-froid', 'Sang-froid', { pct: { pv: 2.5 } }),
         ]),
-        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [fx('affaibli', 4)] } }),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +60 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 60, addEffects: [fx('affaibli', 4)] } }),
         ...choice(5, [
           minor('distillation', 'Distillation', { passive: { dotPct: 5 } }),
           minor('patience', 'Patience', { passive: { resRegen: 3 } }),
@@ -4415,12 +4422,18 @@ function weaponSpeedOf(hero) {
   return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
 }
 
+// La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
+function usesMana(cls) {
+  return cls.resource.name === 'Mana';
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
- *   resMax     maximum de la ressource de classe
+ *   resMax     maximum de la ressource de classe = base de la classe + talents et légendaires
+ *              (resMaxTalents) + Mana des objets pour une classe à Mana (resMaxItems)
  *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 function getStats(hero) {
@@ -4456,7 +4469,10 @@ function getStats(hero) {
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0) + (usesMana(cls) ? total.mana : 0),
+    resMaxBase: cls.resource.max,
+    resMaxTalents: fx.passive.resMaxBonus ?? 0,
+    resMaxItems: usesMana(cls) ? total.mana : 0,
     // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };
@@ -4579,7 +4595,7 @@ function restoreFully(hero) {
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesMana, getStats, getSkills, xpToNext, gainXp, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -13986,7 +14002,7 @@ return { renderTitle };
 __modules["src/ui/heroStats.js"] = (() => {
 const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
 const { COMBAT } = __modules["src/config.js"];
-const { getClass, getStats } = __modules["src/game/party.js"];
+const { getClass, getStats, usesMana } = __modules["src/game/party.js"];
 const { tip } = __modules["src/ui/html.js"];
 // Tableau des stats finales d'un héros (feuilles de personnage, écran d'équipement).
 
@@ -14027,6 +14043,16 @@ function row(label, value, tipText) {
   return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
 }
 
+// Détail du maximum de ressource : base de la classe, talents et légendaires, objets (Mana).
+function resourceTip(cls, stats) {
+  const name = cls.resource.name;
+  const parts = [`${name} de base : ${stats.resMaxBase}`];
+  if (stats.resMaxTalents) parts.push(`talents et légendaires : +${stats.resMaxTalents}`);
+  if (usesMana(cls)) parts.push(`Mana des objets : +${stats.resMaxItems}`);
+  const note = usesMana(cls) ? '' : ' La stat Mana des objets ne sert pas à cette classe.';
+  return `${name} maximum ${stats.resMax} = ${parts.join(' ; ')}.${note}`;
+}
+
 function statsList(hero) {
   const cls = getClass(hero);
   const stats = getStats(hero);
@@ -14043,7 +14069,7 @@ function statsList(hero) {
       `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
-  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`, resourceTip(cls, stats)));
   // Bonus des talents (n'apparaissent que s'ils existent).
   for (const [key, label, suffix, tipText] of BONUS_ROWS) {
     if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));

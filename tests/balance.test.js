@@ -42,7 +42,9 @@ function makeHero(key, level) {
   hero.equipment = {};
   const [primary, armorType, weapons] = GEAR[key];
   const bag = [];
-  const put = (opts, slot) => { const it = generateItem({ level, rarity: 'rare', primary, ...opts }); bag.push(it); equip(hero, bag, it, slot); };
+  // Objets rares sans secondaires : les secondaires, tirées au hasard, ne doivent pas
+  // décider de l'équilibrage (on compare les kits de compétences, pas la chance au butin).
+  const put = (opts, slot) => { const it = { ...generateItem({ level, rarity: 'rare', primary, ...opts }), bonus: {} }; bag.push(it); equip(hero, bag, it, slot); };
   for (const slot of ['casque', 'epaulieres', 'plastron', 'gants', 'bottes']) put({ slotType: slot, armorType }, slot);
   put({ slotType: 'collier' }, 'collier');
   put({ slotType: 'anneau' }, 'anneau1');

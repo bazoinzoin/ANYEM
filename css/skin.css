@@ -46,6 +46,8 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
   border-image: var(--ui-parch) 10 fill / 20px stretch; font-family: var(--font-body); text-shadow: none;
 }
 .tooltip:hover::before, .tooltip:focus-visible::before { display: none; }
+/* Feuilles de personnage : libellés au bord gauche, la bulle part vers la droite. */
+.stat-row .tooltip:hover::after, .stat-row .tooltip:focus-visible::after { left: 0; transform: none; width: 260px; }
 
 /* Menu principal et combat : fenêtres et listes */
 .title-panel { border: 12px solid transparent; border-image: var(--ui-box) 10 fill / 20px stretch; background: none; box-shadow: none; border-radius: 0; }
