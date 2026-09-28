@@ -3,7 +3,7 @@
 
 import { RUNES } from '../config.js';
 import { RARITIES, SECONDARY_STATS, SHIELD } from '../data/items.js';
-import { secondaryValue } from './items.js';
+import { secondaryValue, secondaryWeight } from './items.js';
 import { pick } from './rng.js';
 
 // Prix d'une relance, ou null si l'objet n'a pas de secondaire.
@@ -36,7 +36,7 @@ export function rerollSecondary(game, item, stat) {
   game.gold -= rerollCost(item);
   const from = { stat, value: item.bonus[stat] };
   const newStat = pick(rerollPool(item, stat));
-  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range, secondaryWeight(item)) };
   item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
   return { from, to };
 }

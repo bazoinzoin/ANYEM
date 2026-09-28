@@ -1349,6 +1349,7 @@ const COMBAT = {
   defenseK: 100,          // dégâts × K / (K + défense)
   blockReduction: 0.5,    // un coup bloqué perd cette part de ses dégâts
   offHandAtqFactor: 0.5,  // part de l'attaque d'une arme en main gauche (ambidextrie)
+  offHandBonusFactor: 0.75, // part des stats secondaires d'une arme en main gauche
   caps: { critChance: 75, esquive: 50, blocage: 50, riposte: 50 }, // plafonds en %
   meleeTargetWeight: 3,   // un héros au corps à corps a 3 fois plus de chances d'être ciblé qu'à distance
   ripostePower: 0.5,      // riposte : part de la puissance physique infligée (réduite par la Défense)
@@ -1639,6 +1640,11 @@ const MATERIA_KINDS = {
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+// Poids des stats secondaires d'une pièce d'armure (plus fort sur un plastron que sur des gants ;
+// écart volontairement plus faible que pour l'Armure). Armes : `secWeight` de WEAPON_TYPES ;
+// bouclier : SHIELD.secWeight ; bijoux : 1.
+const ARMOR_SECONDARY = { casque: 1.0, epaulieres: 0.95, plastron: 1.2, gants: 0.9, bottes: 0.95 };
+
 const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
@@ -1669,23 +1675,26 @@ const ARMOR_TYPES = {
 // épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
 // d'Intelligence au Paladin Lumière.
 const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
+// secWeight : poids des stats secondaires de l'arme (à niveau et rareté égaux) : une arme à deux
+// mains en porte de plus fortes qu'une arme à une main (sans atteindre deux armes), une dague
+// un peu moins qu'une épée (elle est plus rapide).
 const WEAPON_TYPES = {
-  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
-  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
-  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', secWeight: 0.85, primaries: ALL_PRIMARIES },
 };
 
 const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
+const SHIELD = { name: 'Bouclier', label: 'Bouclier', secWeight: 0.9, primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 // Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
 // stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),
@@ -2156,7 +2165,7 @@ const LEGENDARIES = {
   },
 };
 
-return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_RARITIES, MATERIA_KINDS, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
+return { SLOTS, SLOT_ORDER, RARITIES, RARITY_ORDER, MATERIA_RARITIES, MATERIA_KINDS, ARMOR_SECONDARY, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, RANGE_LABELS, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES };
 })();
 
 // ---- src/game/rng.js
@@ -2202,7 +2211,7 @@ return { setRandomSource, random, rand, pick, seededRandom };
 // ---- src/game/items.js
 __modules["src/game/items.js"] = (() => {
 const { ITEM, LOOT, FORGE } = __modules["src/config.js"];
-const { RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
+const { RARITIES, ARMOR_PIECES, ARMOR_SECONDARY, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS, PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES } = __modules["src/data/items.js"];
 const { rand, pick, random } = __modules["src/game/rng.js"];
 // Génération des objets d'équipement.
 //
@@ -2246,7 +2255,7 @@ function itemStatLines(item) {
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
   const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
-    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range, secondaryWeight(item));
     return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
   });
   return [...main, ...bonus];
@@ -2338,16 +2347,25 @@ function primaryWeight(base) {
   return ARMOR_PIECES[base.slotType];
 }
 
-function secondaryValue(stat, level, range) {
+// Poids des stats secondaires selon la base de l'objet (arme à deux mains plus forte, dague
+// un peu plus faible, plastron plus fort que des gants…). Voir secWeight / ARMOR_SECONDARY.
+function secondaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].secWeight ?? 1;
+  if (base.slotType === 'bouclier') return SHIELD.secWeight ?? 1;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_SECONDARY[base.slotType] ?? 1;
+}
+
+function secondaryValue(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
 }
 
 // Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
-function secondaryRange(stat, level, range) {
+function secondaryRange(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
@@ -2365,7 +2383,7 @@ function secondaryPool(base, stats) {
 function possibleSecondaries(item) {
   const range = RARITIES[item.rarity].range;
   if (!RARITIES[item.rarity].secondaries) return [];
-  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range) }));
+  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range, secondaryWeight(item)) }));
 }
 
 /**
@@ -2398,7 +2416,7 @@ function generateItem(opts = {}) {
   const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    bonus[stat] = secondaryValue(stat, level, r.range);
+    bonus[stat] = secondaryValue(stat, level, r.range, secondaryWeight(base));
   }
 
   let name = legendary ? legendary.name : baseName(base);
@@ -2430,7 +2448,7 @@ function refreshLegendary(item) {
   return changed;
 }
 
-return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, possibleSecondaries, generateItem, refreshLegendary };
+return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryWeight, secondaryValue, secondaryRange, possibleSecondaries, generateItem, refreshLegendary };
 })();
 
 // ---- src/game/forge.js
@@ -5234,7 +5252,7 @@ const { SLOT_ORDER, WEAPON_TYPES } = __modules["src/data/items.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
 const { zeroStats } = __modules["src/data/stats.js"];
 const { PARTY_ORDER, COMBAT, XP } = __modules["src/config.js"];
-const { generateItem, itemStats } = __modules["src/game/items.js"];
+const { generateItem, itemStatLines } = __modules["src/game/items.js"];
 const { talentEffects, rankOf } = __modules["src/game/talents.js"];
 const { sanitizeLook } = __modules["src/game/appearance.js"];
 // Héros et équipe.
@@ -5356,9 +5374,10 @@ function getStats(hero) {
   for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
   for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(itemStats(item))) {
-      // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
-      const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
+    const offHand = slot === 'mainGauche' && item.slotType === 'arme';
+    for (const { stat, value, secondary } of itemStatLines(item)) {
+      // Arme en main gauche (ambidextrie) : son attaque et ses secondaires ne comptent qu'en partie.
+      const factor = !offHand ? 1 : stat === 'atq' && !secondary ? COMBAT.offHandAtqFactor : secondary ? COMBAT.offHandBonusFactor : 1;
       total[stat] += Math.round(value * factor);
     }
   }
@@ -16882,7 +16901,7 @@ return { openForge, renderForge };
 __modules["src/game/runes.js"] = (() => {
 const { RUNES } = __modules["src/config.js"];
 const { RARITIES, SECONDARY_STATS, SHIELD } = __modules["src/data/items.js"];
-const { secondaryValue } = __modules["src/game/items.js"];
+const { secondaryValue, secondaryWeight } = __modules["src/game/items.js"];
 const { pick } = __modules["src/game/rng.js"];
 // Runomancien : relance une stat secondaire choisie d'un objet (nouvelle stat
 // et nouvelle valeur, tirées comme au butin), contre de l'or selon la rareté.
@@ -16922,7 +16941,7 @@ function rerollSecondary(game, item, stat) {
   game.gold -= rerollCost(item);
   const from = { stat, value: item.bonus[stat] };
   const newStat = pick(rerollPool(item, stat));
-  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range) };
+  const to = { stat: newStat, value: secondaryValue(newStat, item.level, RARITIES[item.rarity].range, secondaryWeight(item)) };
   item.bonus = Object.fromEntries(Object.entries(item.bonus).map(([k, v]) => (k === stat ? [newStat, to.value] : [k, v])));
   return { from, to };
 }

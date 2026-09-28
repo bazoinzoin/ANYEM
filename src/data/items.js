@@ -46,6 +46,11 @@ export const MATERIA_KINDS = {
 };
 
 // Pièces d'armure : poids relatif (part de la défense et de la stat principale).
+// Poids des stats secondaires d'une pièce d'armure (plus fort sur un plastron que sur des gants ;
+// écart volontairement plus faible que pour l'Armure). Armes : `secWeight` de WEAPON_TYPES ;
+// bouclier : SHIELD.secWeight ; bijoux : 1.
+export const ARMOR_SECONDARY = { casque: 1.0, epaulieres: 0.95, plastron: 1.2, gants: 0.9, bottes: 0.95 };
+
 export const ARMOR_PIECES = {
   casque: 0.6, epaulieres: 0.5, plastron: 1.0, gants: 0.4, bottes: 0.5,
 };
@@ -76,23 +81,26 @@ export const ARMOR_TYPES = {
 // épée de Force ira au Guerrier ou au Paladin Templier, d'Agilité au Voleur,
 // d'Intelligence au Paladin Lumière.
 const ALL_PRIMARIES = ['force', 'agilite', 'intelligence'];
+// secWeight : poids des stats secondaires de l'arme (à niveau et rareté égaux) : une arme à deux
+// mains en porte de plus fortes qu'une arme à une main (sans atteindre deux armes), une dague
+// un peu moins qu'une épée (elle est plus rapide).
 export const WEAPON_TYPES = {
-  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, primaries: ALL_PRIMARIES },
-  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, primaries: ALL_PRIMARIES },
-  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', primaries: ALL_PRIMARIES },
-  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', primaries: ALL_PRIMARIES },
-  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', primaries: ALL_PRIMARIES },
-  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', primaries: ALL_PRIMARIES },
+  masse2m: { name: 'Masse à deux mains', label: 'Arme à deux mains', atqMult: 1.8, speed: 0.8, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  hache2m: { name: 'Hache à deux mains', label: 'Arme à deux mains', atqMult: 1.65, speed: 0.84, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  epee2m: { name: 'Épée à deux mains', label: 'Arme à deux mains', atqMult: 1.5, speed: 0.88, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  baton: { name: 'Bâton', label: 'Arme à deux mains', atqMult: 1.45, speed: 0.92, range: 'melee', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  arc: { name: 'Arc', label: 'Arme à deux mains', atqMult: 1.4, speed: 0.96, range: 'ranged', twoHanded: true, secWeight: 1.3, primaries: ALL_PRIMARIES },
+  masse: { name: 'Masse', label: 'Arme à une main', atqMult: 1.15, speed: 1.0, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  hache: { name: 'Hache', label: 'Arme à une main', atqMult: 1.0, speed: 1.04, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  epee: { name: 'Épée', label: 'Arme à une main', atqMult: 0.9, speed: 1.08, range: 'melee', secWeight: 1.0, primaries: ALL_PRIMARIES },
+  dague: { name: 'Dague', label: 'Arme à une main', atqMult: 0.7, speed: 1.12, range: 'melee', secWeight: 0.85, primaries: ALL_PRIMARIES },
 };
 
 export const RANGE_LABELS = { melee: 'Corps à corps', ranged: 'Distance' };
 
 // Bouclier : exception, deux stats obligatoires (Armure et Blocage). Le Blocage
 // peut en plus ressortir en stat secondaire (repeatableSecondaries).
-export const SHIELD = { name: 'Bouclier', label: 'Bouclier', primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
+export const SHIELD = { name: 'Bouclier', label: 'Bouclier', secWeight: 0.9, primaries: ['force', 'intelligence'], repeatableSecondaries: ['blocage'] };
 
 // Bijoux : troisième catégorie d'équipement (avec les armes et les armures). Aucune
 // stat obligatoire : seulement une stat principale (Force, Agilité ou Intelligence),

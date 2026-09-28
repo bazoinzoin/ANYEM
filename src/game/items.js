@@ -11,7 +11,7 @@
 
 import { ITEM, LOOT, FORGE } from '../config.js';
 import {
-  RARITIES, ARMOR_PIECES, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS,
+  RARITIES, ARMOR_PIECES, ARMOR_SECONDARY, ARMOR_TYPES, WEAPON_TYPES, SHIELD, JEWELS,
   PRIMARY_SUFFIX, SECONDARY_STATS, LEGENDARIES,
 } from '../data/items.js';
 import { rand, pick, random } from './rng.js';
@@ -43,7 +43,7 @@ export function itemStatLines(item) {
   const main = Object.entries(item.stats).map(([stat, value]) =>
     ({ stat, value: boost(value, plus, item.mandatory.includes(stat)), secondary: false }));
   const bonus = Object.entries(item.bonus ?? {}).map(([stat, value]) => {
-    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range);
+    const { lo, hi } = secondaryRange(stat, item.level, RARITIES[item.rarity].range, secondaryWeight(item));
     return { stat, value: boost(value, plus, false), secondary: true, range: { lo: boost(lo, plus, false), hi: boost(hi, plus, false) } };
   });
   return [...main, ...bonus];
@@ -135,16 +135,25 @@ function primaryWeight(base) {
   return ARMOR_PIECES[base.slotType];
 }
 
-export function secondaryValue(stat, level, range) {
+// Poids des stats secondaires selon la base de l'objet (arme à deux mains plus forte, dague
+// un peu plus faible, plastron plus fort que des gants…). Voir secWeight / ARMOR_SECONDARY.
+export function secondaryWeight(base) {
+  if (base.slotType === 'arme') return WEAPON_TYPES[base.weaponType].secWeight ?? 1;
+  if (base.slotType === 'bouclier') return SHIELD.secWeight ?? 1;
+  if (JEWELS[base.slotType]) return 1;
+  return ARMOR_SECONDARY[base.slotType] ?? 1;
+}
+
+export function secondaryValue(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return Math.max(1, Math.round(unit * rand(range[0], range[1])));
 }
 
 // Fourchette { lo, hi } des valeurs possibles d'une stat secondaire.
-export function secondaryRange(stat, level, range) {
+export function secondaryRange(stat, level, range, weight = 1) {
   const def = SECONDARY_STATS[stat];
-  const unit = def.base + def.perLevel * level;
+  const unit = (def.base + def.perLevel * level) * weight;
   return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
@@ -162,7 +171,7 @@ function secondaryPool(base, stats) {
 export function possibleSecondaries(item) {
   const range = RARITIES[item.rarity].range;
   if (!RARITIES[item.rarity].secondaries) return [];
-  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range) }));
+  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range, secondaryWeight(item)) }));
 }
 
 /**
@@ -195,7 +204,7 @@ export function generateItem(opts = {}) {
   const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
-    bonus[stat] = secondaryValue(stat, level, r.range);
+    bonus[stat] = secondaryValue(stat, level, r.range, secondaryWeight(base));
   }
 
   let name = legendary ? legendary.name : baseName(base);

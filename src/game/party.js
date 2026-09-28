@@ -10,7 +10,7 @@ import { SLOT_ORDER, WEAPON_TYPES } from '../data/items.js';
 import { EFFECTS } from '../data/effects.js';
 import { zeroStats } from '../data/stats.js';
 import { PARTY_ORDER, COMBAT, XP } from '../config.js';
-import { generateItem, itemStats } from './items.js';
+import { generateItem, itemStatLines } from './items.js';
 import { talentEffects, rankOf } from './talents.js';
 import { sanitizeLook } from './appearance.js';
 
@@ -117,9 +117,10 @@ export function getStats(hero) {
   for (const [stat, value] of Object.entries(cls.growth ?? {})) total[stat] += value * ((hero.level ?? 1) - 1);
   for (const [stat, value] of Object.entries(fx.flat)) total[stat] += value;
   for (const [slot, item] of wornItems(hero)) {
-    for (const [stat, value] of Object.entries(itemStats(item))) {
-      // Arme en main gauche (ambidextrie) : son attaque ne compte qu'en partie.
-      const factor = slot === 'mainGauche' && stat === 'atq' && item.slotType === 'arme' ? COMBAT.offHandAtqFactor : 1;
+    const offHand = slot === 'mainGauche' && item.slotType === 'arme';
+    for (const { stat, value, secondary } of itemStatLines(item)) {
+      // Arme en main gauche (ambidextrie) : son attaque et ses secondaires ne comptent qu'en partie.
+      const factor = !offHand ? 1 : stat === 'atq' && !secondary ? COMBAT.offHandAtqFactor : secondary ? COMBAT.offHandBonusFactor : 1;
       total[stat] += Math.round(value * factor);
     }
   }
