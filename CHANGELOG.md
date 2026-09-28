@@ -8,6 +8,20 @@ versions sont publiées comme « pré-versions ») ; 1.0.0 sera la première ver
 versions 0.0.x sont les étapes de développement d'avant le jeu Windows (une par fusion dans `main`).
 Marche à suivre pour publier une version : `docs/RELEASES.md`.
 
+## [0.5.0] - 2026-09-28
+
+Cinquième bêta.
+
+- **Coefficient d'efficacité au combat** : chaque héros gagne de ×0,8 à ×1,2 de l'XP d'une victoire selon les tours joués et ce qu'il a apporté (dégâts, soins, boucliers, coups encaissés) ; un soigneur qui agit à chaque tour n'est pas pénalisé.
+- **Effets en combat** : buffs et debuffs s'affichent à droite des barres de PV et de ressource ; leur survol détaille leur effet et leur durée.
+- **Macabre** :
+  - une icône de crâne parmi ses effets montre ses âmes et, au survol, leurs bonus et leur contrecoup ;
+  - nouveau sort dès le niveau 1, **Libération des âmes**, qui relâche toutes ses âmes et met fin à leur contrecoup ;
+  - en **Mur d'os**, ses alliés ne souffrent plus de ses âmes au maximum : il encaisse lui-même le débordement, en double.
+- **Objets en combat** : grille d'icônes avec les quantités ; le survol montre le nom et l'effet de chaque objet, même inutilisable.
+- **Objets sur la carte** : le survol montre l'effet de l'objet dans le panneau.
+- Les bulles des sorts hors combat, du sac et des choix d'événement grisés s'affichent de nouveau.
+
 ## [0.4.0] - 2026-09-28
 
 Quatrième bêta.
