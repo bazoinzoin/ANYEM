@@ -10,6 +10,7 @@ import { DIFFICULTIES } from '../config.js';
 import { reserveItemIds, refreshLegendary } from './items.js';
 import { difficultyOf } from './difficulty.js';
 import { sanitizeTalents } from './talents.js';
+import { returnForbiddenGear } from './equipment.js';
 
 export const SAVE_VERSION = 1;
 export const SAVE_SLOTS = 4;
@@ -106,6 +107,13 @@ export function applySave(game, save) {
   // Arbres de talents modifiés depuis la sauvegarde : points rendus aux héros concernés.
   const reset = [...game.party, ...(game.reserve ?? [])].filter((h) => sanitizeTalents(h)).map((h) => h.name);
   if (reset.length) game.hubMessage = `Les arbres de talents ont changé : les points de ${reset.join(', ')} ont été rendus (à redépenser chez le Maître des compétences).`;
+  // Règles d'équipement changées (ex. armures permises) : ce qui n'est plus portable va au sac.
+  if (!Array.isArray(game.bag)) game.bag = [];
+  const stripped = [...game.party, ...(game.reserve ?? [])].filter((h) => returnForbiddenGear(h, game.bag).length).map((h) => h.name);
+  if (stripped.length) {
+    const note = `Règles d'équipement changées : ce que ${stripped.join(', ')} ne peut plus porter a été rangé dans le sac.`;
+    game.hubMessage = game.hubMessage ? `${game.hubMessage} ${note}` : note;
+  }
   // Les nouveaux objets ne doivent pas reprendre un identifiant déjà utilisé ; les
   // légendaires reprennent le nom et le pouvoir du catalogue actuel.
   const items = itemsIn(data);

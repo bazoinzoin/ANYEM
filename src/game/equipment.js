@@ -62,6 +62,21 @@ export function equip(hero, bag, item, slot) {
   return true;
 }
 
+/**
+ * Retire les objets qu'un héros ne peut plus porter (règles changées depuis la sauvegarde)
+ * et les range dans le sac. Retourne les objets retirés.
+ */
+export function returnForbiddenGear(hero, bag) {
+  const removed = [];
+  for (const [slot, item] of Object.entries(hero.equipment ?? {})) {
+    if (item && cannotEquipReason(hero, item)) {
+      unequip(hero, bag, slot);
+      removed.push(item);
+    }
+  }
+  return removed;
+}
+
 export function unequip(hero, bag, slot) {
   const item = hero.equipment[slot];
   if (!item) return false;
