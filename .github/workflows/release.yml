@@ -1,14 +1,20 @@
 # Version officielle d'Anyem : à chaque étiquette vX.Y.Z poussée sur GitHub, fabrique le jeu
 # Windows (Electron, sur une machine Windows) et publie une page de téléchargement (Release)
 # avec Anyem-X.Y.Z.exe, le zip et anyem.html, et la section de CHANGELOG.md de la version.
-# Lancé à la main (onglet Actions, « Run workflow »), il fabrique seulement le .exe à tester
-# (téléchargeable dans les artefacts de l'exécution), sans rien publier.
+# Lancé à la main (onglet Actions, « Run workflow ») : fabrique le .exe à tester (artefacts de
+# l'exécution) ; avec « publier » coché, publie aussi la version de package.json (l'étiquette
+# vX.Y.Z est alors créée par GitHub sur le commit lancé).
 name: Version Windows
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publier:
+        description: 'Publier la version de package.json (étiquette vX.Y.Z et page de téléchargement)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,13 +29,16 @@ jobs:
           node-version: 22
       - name: Tests
         run: npm test
-      - name: Version cohérente avec l'étiquette
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Version et notes
+        id: version
         shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "package.json ($VERSION) ≠ étiquette ($GITHUB_REF_NAME)"; exit 1; }
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "package.json ($VERSION) ≠ étiquette ($GITHUB_REF_NAME)"; exit 1; }
+          fi
           node tools/changelog.mjs "$VERSION" > release-notes.md
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
       - name: Préparer la version Windows
         run: npm run desktop
       - name: Fabriquer le .exe
@@ -46,10 +55,12 @@ jobs:
             desktop/release/*.zip
             dist/anyem.html
       - name: Publier la version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publier
         uses: softprops/action-gh-release@v2
         with:
-          name: Anyem ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Anyem ${{ steps.version.outputs.tag }}
           body_path: release-notes.md
           files: |
             desktop/release/*.exe

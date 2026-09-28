@@ -18,9 +18,12 @@ Numérotation : `X` grande refonte, `Y` nouvelle version jouable (nouveautés), 
 1. Sur la branche de travail : monter la version dans `package.json` et `src/version.js`,
    ajouter sa section en tête de `CHANGELOG.md`, `npm run build`, `npm test`, commit.
 2. Fusionner dans `main`.
-3. Poser l'étiquette sur `main` et la pousser : `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
-4. Le workflow `.github/workflows/release.yml` (machine Windows) teste, fabrique le `.exe` et
-   publie la page de téléchargement. Il vérifie que l'étiquette correspond à `package.json`.
+3. Publier : onglet Actions → « Version Windows » → « Run workflow » sur `main`, case
+   « publier » cochée (depuis l'environnement de Claude, qui ne peut pas pousser d'étiquette :
+   `actions_run_trigger` avec l'entrée `publier: true`). Le workflow
+   `.github/workflows/release.yml` (machine Windows) teste, fabrique le `.exe`, crée l'étiquette
+   `vX.Y.Z` et publie la page de téléchargement. Pousser soi-même une étiquette `vX.Y.Z` sur
+   `main` fait la même chose (le workflow vérifie qu'elle correspond à `package.json`).
 
 Pour tester un `.exe` sans publier : onglet Actions → « Version Windows » → « Run workflow » ;
 le `.exe` est dans les artefacts de l'exécution.
