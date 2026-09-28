@@ -515,7 +515,7 @@ export const LEGENDARIES = {
   },
   masseDeSedlec: {
     name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
-    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    power: { skillMod: { skill: 'mur-des-morts', soulCostDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
     desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
     quote: 'Quarante mille os, et pas un de trop pour le lustre.',
   },

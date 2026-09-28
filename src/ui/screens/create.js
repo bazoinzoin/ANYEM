@@ -191,8 +191,8 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.souls
-    ? `Âmes : il absorbe l'âme de chaque ennemi qui meurt (${r.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe. Ses coups de base sont gratuits, les plus forts dépensent des âmes. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
+  const resourceText = cls.souls
+    ? `${r.name} : ${r.max} au maximum, +${r.regen} au début de chaque tour. Âmes : il absorbe aussi l'âme de chaque ennemi qui meurt (${cls.souls.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe ; ses compétences les plus fortes en dépensent en plus du Mana. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
     : r.hp
     ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
     : r.multiAction

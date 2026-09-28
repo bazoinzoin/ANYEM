@@ -10,7 +10,7 @@ import { recordEncounter } from '../game/bestiary.js';
 import { DUNGEONS } from '../data/dungeons.js';
 import { render, showHub, goTo } from './router.js';
 import { getSkills } from '../game/party.js';
-import { snapshotBattle, diffBattle, heroGesture, enemyGesture } from './battleDiff.js';
+import { snapshotBattle, diffBattle, heroGesture, enemyGesture, actionFx, enemyFx } from './battleDiff.js';
 import { playAction } from './battleStage.js';
 import { later } from './pauseClock.js';
 import { enemyDelayFactor } from './saves.js';
@@ -34,7 +34,7 @@ export function playerAction(action) {
   const skill = action.type === 'skill' ? getSkills(hero)[action.skill] : null;
   const before = snapshotBattle(cb);
   if (!heroAct(cb, action)) return;
-  playAction(cb, hero, before, heroGesture(skill, action));
+  playAction(cb, hero, before, heroGesture(skill, action), actionFx(hero, skill, action));
   // Héros à Énergie : il garde la main tant qu'il n'a pas fini son tour.
   if (cb.acting && !checkOutcome(cb)) render();
   else advance();
@@ -63,7 +63,7 @@ function enemyTurn(cb, turn) {
   later(() => {
     const beforeAct = snapshotBattle(cb);
     enemyAct(cb);
-    playAction(cb, turn.unit, beforeAct, enemyGesture(turn.unit, diffBattle(cb, beforeAct)));
+    playAction(cb, turn.unit, beforeAct, enemyGesture(turn.unit, diffBattle(cb, beforeAct)), enemyFx(turn.unit, cb.lastSkill));
     render();
     if (checkOutcome(cb)) return endAfterAnimation();
     later(advance, TIMING.enemyAfterMs * enemyDelayFactor());

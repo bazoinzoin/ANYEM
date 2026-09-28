@@ -52,7 +52,7 @@
 .bs-stage { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
 .bs-commands, .bs-info { overflow: hidden; }
 .cmd { min-width: 0; overflow: hidden; }
-.bs-stage canvas { display: block; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
+.bs-stage canvas { display: block; box-sizing: border-box; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
 .bs-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; height: 212px; }
 
 /* Équipe */
@@ -83,6 +83,7 @@
 .bs-status .st sub { font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
 .bs-status .ko { font-size: 11px; color: #ff9a8a; font-weight: 600; }
 .bs-combo { color: #f3d58c; font-size: 11px; letter-spacing: 1px; margin-right: 3px; }
+.bs-combo.bs-souls { color: #bfe8e2; text-shadow: 0 0 4px rgba(150, 230, 220, .7); } /* âmes du Macabre */
 
 /* Commandes */
 .bs-commands { display: flex; flex-direction: column; gap: 6px; }

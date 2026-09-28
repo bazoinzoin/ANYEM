@@ -20,7 +20,11 @@ import { diffBattle } from './battleDiff.js';
 import { battleBack, drawBattleBack } from './battleBacks.js';
 import { state } from '../state.js';
 
-const W = 640;             // taille du canvas (pixels ; affiché agrandi, net)
+// Scène en pixels « logiques » : hauteur fixe, largeur selon la fenêtre (plus de bandes vides).
+// Les personnages et le décor sont dessinés sur `scene` (pixel art, agrandi sans flou) ;
+// barres, noms, chiffres et flèches sont dessinés ensuite à la résolution de l'écran (nets).
+const BASE_W = 640;        // largeur de référence de la mise en place
+let W = BASE_W;
 const H = 360;
 const SCALE = 3;           // zoom des héros et des monstres ordinaires (élites ×1,5, boss ×2)
 const MAX_BODY = 190;      // hauteur maximale d'un corps à l'écran (grands dragons)
@@ -44,10 +48,13 @@ const COLORS = {
 let cb = null;             // combat affiché
 let vis = new WeakMap();   // unité → { x, y, fx: [...] }
 let popups = [];           // chiffres et textes qui s'envolent
+let shots = [];            // projectiles en vol puis leur impact (sorts, flèches)
 let pick = null;           // ciblage en cours : { units: Set, onPick }
 let canvas = null;
 let running = false;
+let focus = null;          // cible désignée (flèche) pendant le ciblage
 const off = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+const scene = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 
 // Branche le canvas de l'écran de combat (appelé à chaque rendu).
 export function attachStage(el, combat) {
@@ -55,13 +62,14 @@ export function attachStage(el, combat) {
     cb = combat;
     vis = new WeakMap();
     popups = [];
+    shots = [];
   }
   canvas = el;
   pick = null;
-  canvas.width = W;
-  canvas.height = H;
+  focus = null;
   canvas.onclick = onClick;
   canvas.onmousemove = onHover;
+  fitStage();
   draw(performance.now());
   if (!running) {
     running = true;
@@ -69,39 +77,78 @@ export function attachStage(el, combat) {
   }
 }
 
-// Taille d'affichage : la plus grande qui tient dans le parent, proportions gardées.
+// Le canvas remplit toute la fenêtre de scène : la largeur logique suit ses proportions, la
+// résolution suit l'écran (texte net).
 export function fitStage() {
   const parent = canvas?.parentElement;
   if (!parent) return;
-  const k = Math.min(parent.clientWidth / W, parent.clientHeight / H);
-  if (!(k > 0)) return;
-  canvas.style.width = `${Math.floor(W * k)}px`;
-  canvas.style.height = `${Math.floor(H * k)}px`;
+  const pw = parent.clientWidth;
+  const ph = parent.clientHeight;
+  if (!(pw > 0 && ph > 0)) return;
+  W = Math.max(560, Math.min(1200, Math.round(H * pw / ph)));
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+  canvas.style.width = `${pw}px`;
+  canvas.style.height = `${ph}px`;
+  canvas.width = Math.round(pw * dpr);
+  canvas.height = Math.round(ph * dpr);
+  scene.width = W;
+  scene.height = H;
 }
 
-// Ciblage : met en évidence les cibles valides ; un clic sur l'une appelle onPick(unité).
-// Sans argument : fin du ciblage.
-export function setStagePick(units, onPick) {
-  pick = units ? { units: new Set(units), onPick } : null;
+/**
+ * Ciblage : met en évidence les cibles valides ; un clic sur l'une appelle onPick(unité).
+ * tone 'hostile' (flèche rouge : attaques, effets négatifs) ou 'friendly' (verte : soins,
+ * effets positifs) ; all : action de zone, toutes les cibles sont désignées en attendant la
+ * confirmation. Sans argument : fin du ciblage.
+ */
+export function setStagePick(units, onPick, { tone = 'hostile', all = false } = {}) {
+  pick = units ? { units: new Set(units), onPick, tone, all } : null;
+  focus = units && !all ? units[0] ?? null : null;
   if (canvas) canvas.style.cursor = '';
 }
 
-// Anime l'issue d'une action : geste de l'acteur ('lunge' | 'cast' | null), impacts,
-// chiffres, effets posés, chutes et relevés (voir ui/battleDiff.js).
-export function playAction(combat, actor, before, gesture = null) {
+// Cible désignée par la flèche (survol d'un bouton de cible, curseur de la manette…).
+export function setStageFocus(unit) {
+  if (pick?.units.has(unit)) focus = unit;
+}
+
+// Anime l'issue d'une action : geste de l'acteur ('lunge' | 'cast' | null), effet visuel
+// (`vfx`, voir actionFx dans ui/battleDiff.js : projectile, entaille, soin, bouclier…),
+// impacts, chiffres, effets posés, chutes et relevés.
+export function playAction(combat, actor, before, gesture = null, vfx = null) {
   if (combat !== cb) return;
   const now = performance.now();
   const diff = diffBattle(combat, before);
   const actorSide = actor && combat.party.includes(actor) ? 'hero' : 'enemy';
   let impact = 0;
+  const bolt = vfx?.style === 'bolt' && vfx.projectile;
+  // Un projectile ne part pas en bondissant : l'acteur lance ou tire depuis sa place.
+  if (bolt && gesture === 'lunge') gesture = 'cast';
   if (actor && gesture) {
     const v = visOf(actor);
     if (gesture === 'lunge') {
       v.fx.push({ type: 'lunge', t0: now, dur: 420 });
       impact = HIT_DELAY;
     } else {
-      v.fx.push({ type: 'cast', t0: now, dur: 560, color: actorSide === 'hero' ? COLORS.cast : COLORS.castEnemy });
-      impact = 300;
+      v.fx.push({ type: 'cast', t0: now, dur: 560, color: vfx?.tint ?? (actorSide === 'hero' ? COLORS.cast : COLORS.castEnemy) });
+      impact = bolt ? 470 : 300;
+    }
+  }
+  // Projectiles : un par cible touchée (légèrement décalés pour une action de zone).
+  if (bolt && actor) {
+    const hit = diff.changes.filter((c) => c.unit !== actor && c.side !== actorSide && (c.delta < 0 || c.added.length || c.died));
+    const from = visOf(actor);
+    const fromY = slotOf(actor).y - looksOf(actor).body * 0.55;
+    hit.forEach((c, i) => {
+      const to = slotOf(c.unit);
+      shots.push({ key: vfx.projectile, x0: from.x, y0: fromY, x1: to.x, y1: to.y - looksOf(c.unit).body * 0.5, t0: now + 170 + i * 50, dur: 300 });
+    });
+  }
+  // Effets posés sur les cibles (soin, bouclier, bénédiction, malédiction).
+  if (vfx && ['heal', 'shield', 'buff', 'curse'].includes(vfx.style)) {
+    const own = vfx.style === 'curse' ? (c) => c.side !== actorSide : (c) => c.side === actorSide;
+    for (const c of diff.changes.filter((ch) => own(ch) && (ch.delta > 0 || ch.added.length || ch.revived))) {
+      visOf(c.unit).fx.push({ type: vfx.style, t0: now + impact, dur: 750, color: vfx.tint });
     }
   }
   for (const c of diff.changes) {
@@ -110,7 +157,7 @@ export function playAction(combat, actor, before, gesture = null) {
     const t0 = now + (c.unit === actor && c.delta < 0 ? impact + 220 : c.side !== actorSide || !actor ? impact : impact * 0.6);
     if (c.delta < 0) {
       v.fx.push({ type: 'hit', t0, dur: 320 });
-      if (gesture === 'lunge' && c.unit !== actor) v.fx.push({ type: 'slash', t0: t0 - 60, dur: 240 });
+      if (gesture === 'lunge' && c.unit !== actor) v.fx.push({ type: 'slash', t0: t0 - 60, dur: 240, color: vfx?.tint ?? '#ffffff' });
       popup(c.unit, `${-c.delta}`, diff.crit ? COLORS.crit : COLORS.damage, t0, diff.crit);
     } else if (c.delta > 0) {
       v.fx.push({ type: 'sparkle', t0, dur: 700, color: c.revived ? COLORS.revive : COLORS.heal });
@@ -133,14 +180,19 @@ function sideOf(unit) {
 // Place d'un personnage : les héros en colonne à gauche, en quinconce ; les unités au
 // corps à corps plus près du centre. Côté monstres, les grands (élites, boss) forment
 // une rangée à l'arrière, les autres une rangée devant eux.
+// Largeur en plus de la référence : partagée entre les deux bords (la mise en place reste centrée).
+const margin = () => (W - BASE_W) / 2;
+
+// Emplacement d'un héros au rang donné (corps à corps ou distance).
+function heroSpot(i, row) {
+  const n = cb.party.length;
+  const y = n === 1 ? (TOP + BOTTOM) / 2 + 20 : TOP + ((BOTTOM - TOP) * i) / (n - 1);
+  return { x: margin() + (row === 'melee' ? 236 : 146) + (i % 2) * 28, y };
+}
+
 function slotOf(unit) {
   const side = sideOf(unit);
-  if (side === 'hero') {
-    const i = cb.party.indexOf(unit);
-    const n = cb.party.length;
-    const y = n === 1 ? (TOP + BOTTOM) / 2 + 20 : TOP + ((BOTTOM - TOP) * i) / (n - 1);
-    return { x: (unit.row === 'melee' ? 236 : 146) + (i % 2) * 28, y };
-  }
+  if (side === 'hero') return heroSpot(cb.party.indexOf(unit), unit.row);
   const big = (u) => u.boss || ENEMIES[u.enemyKey]?.elite;
   const bigs = cb.enemies.filter(big);
   const smalls = cb.enemies.filter((u) => !big(u));
@@ -150,12 +202,12 @@ function slotOf(unit) {
   const spread = (top, bottom) => (n === 1 ? (top + bottom) / 2 : top + ((bottom - top) * i) / (n - 1));
   if (big(unit)) {
     const back = smalls.length ? 110 : 190;
-    return { x: W - back - (unit.boss ? 20 : 0) - (i % 2) * 40, y: unit.boss && n === 1 ? BOTTOM - 20 : spread(TOP + 60, BOTTOM - 10) };
+    return { x: W - margin() - back - (unit.boss ? 20 : 0) - (i % 2) * 40, y: unit.boss && n === 1 ? BOTTOM - 20 : spread(TOP + 60, BOTTOM - 10) };
   }
   // Devant un grand monstre, la rangée avance d'autant qu'il est large.
   const bigHalf = Math.max(0, ...bigs.map((u) => looksOf(u).width / 2));
   const front = bigs.length ? Math.max(270, 150 + bigHalf + 60) : 236;
-  return { x: W - (unit.row === 'melee' ? front : front - 60) - (i % 2) * 28, y: spread(TOP, BOTTOM) };
+  return { x: W - margin() - (unit.row === 'melee' ? front : front - 60) - (i % 2) * 28, y: spread(TOP, BOTTOM) };
 }
 
 function visOf(unit) {
@@ -192,7 +244,8 @@ function loop(now) {
 function draw(now) {
   const dt = Math.min(0.05, (now - (last || now)) / 1000);
   last = now;
-  const ctx = canvas.getContext('2d');
+  if (scene.width !== W) scene.width = W;
+  const ctx = scene.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   drawBackground(ctx, now);
 
@@ -207,15 +260,118 @@ function draw(now) {
     return { u, v, y: slot.y };
   }).sort((a, b) => a.y - b.y);
 
+  drawSpots(ctx, now);
   for (const p of placed) drawUnit(ctx, p.u, p.v, p.y, now);
-  for (const p of placed) drawBars(ctx, p.u, p.v, p.y, now);
-  drawPopups(ctx, now);
+  drawShots(ctx, now);
+
+  // Agrandi à l'écran sans flou, puis textes et flèches à pleine résolution.
+  const out = canvas.getContext('2d');
+  out.setTransform(1, 0, 0, 1, 0, 0);
+  out.imageSmoothingEnabled = false;
+  out.drawImage(scene, 0, 0, canvas.width, canvas.height);
+  out.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  out.imageSmoothingEnabled = false;
+  for (const p of placed) drawBars(out, p.u, p.v, p.y, now);
+  for (const p of placed) drawArrows(out, p.u, p.v, p.y, now);
+  drawPopups(out, now);
+  out.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// ---- Emplacements au sol ----
+
+// Cercle d'un emplacement : anneau de pixels et runes qui tournent lentement. `on` : occupé.
+function drawSpot(ctx, x, y, rx, rgb, on, now, pulse = 0) {
+  const ry = rx * 0.36;
+  ctx.save();
+  ctx.fillStyle = `rgba(${rgb},${on ? 0.16 + pulse * 0.12 : 0.07})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Liseré sombre sous l'anneau : visible sur un sol clair (neige) comme sombre (crypte).
+  ctx.strokeStyle = 'rgba(0,0,0,.4)';
+  ctx.lineWidth = on ? 4 : 3;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(${rgb},${on ? 0.75 + pulse * 0.25 : 0.45})`;
+  ctx.lineWidth = on ? 2 : 1;
+  if (!on) ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (on) {
+    ctx.fillStyle = `rgba(${rgb},${0.7 + pulse * 0.3})`;
+    for (let i = 0; i < 6; i++) {
+      const a = now / 2400 + (i / 6) * Math.PI * 2;
+      ctx.fillRect(Math.round(x + Math.cos(a) * (rx - 4)) - 1, Math.round(y + Math.sin(a) * (ry - 1.5)) - 1, 2, 2);
+    }
+  }
+  ctx.restore();
+}
+
+// Tous les emplacements : chaque héros a les siens au corps à corps et à distance (le vide est
+// en pointillés), chaque monstre le sien.
+function drawSpots(ctx, now) {
+  const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+  cb.party.forEach((hero, i) => {
+    for (const row of ['melee', 'ranged']) {
+      const s = heroSpot(i, row);
+      const here = hero.row === row && hero.alive;
+      const active = here && cb.acting?.unit === hero;
+      drawSpot(ctx, s.x, s.y, 22, active ? '255,214,110' : '120,180,255', here, now, active ? pulse : 0);
+    }
+  });
+  for (const e of cb.enemies) {
+    if (!e.alive) continue;
+    const s = slotOf(e);
+    const rx = Math.max(22, Math.min(64, looksOf(e).width * 0.55));
+    const active = cb.acting?.unit === e;
+    drawSpot(ctx, s.x, s.y, rx, active ? '255,214,110' : '255,110,100', true, now, active ? pulse : 0);
+  }
+}
+
+// ---- Flèches : unité qui joue (dorée), cibles (rouge : hostile, verte : amicale) ----
+
+function arrow(ctx, x, tipY, size, fill, glow) {
+  ctx.save();
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = '#1a0f06';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, tipY);
+  ctx.lineTo(x - size, tipY - size * 1.2);
+  ctx.lineTo(x - size * 0.4, tipY - size * 1.2);
+  ctx.lineTo(x - size * 0.4, tipY - size * 2);
+  ctx.lineTo(x + size * 0.4, tipY - size * 2);
+  ctx.lineTo(x + size * 0.4, tipY - size * 1.2);
+  ctx.lineTo(x + size, tipY - size * 1.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawArrows(ctx, unit, v, y, now) {
+  if (!unit.alive && !pick?.units.has(unit)) return;
+  const top = y - looksOf(unit).body - (statusesOf(unit).length || unit.guard ? 16 : 2);
+  const bounce = Math.sin(now / 150) * 3;
+  const targeted = pick && (pick.all ? pick.units.has(unit) : focus === unit);
+  if (targeted) {
+    const friendly = pick.tone === 'friendly';
+    arrow(ctx, v.x, top - 4 + bounce, 11, friendly ? '#62d65a' : '#ec4a3c', friendly ? 'rgba(98,214,90,.9)' : 'rgba(236,74,60,.9)');
+  } else if (cb.acting?.unit === unit && !pick) {
+    arrow(ctx, v.x, top - 4 + bounce, 10, '#ffd35a', 'rgba(255,211,90,.9)');
+  }
 }
 
 // Décor de la sous-zone en cours (ui/battleBacks.js), sinon un fond neutre.
 function drawBackground(ctx, now) {
   const exp = state.expedition;
-  const back = exp ? battleBack(exp.dungeonKey, exp.floor) : null;
+  const back = exp ? battleBack(exp.dungeonKey, exp.floor, W) : null;
   if (back) {
     drawBattleBack(ctx, back, W, H, now);
     return;
@@ -314,7 +470,9 @@ function drawUnit(ctx, unit, v, y, now) {
     ctx.fill();
   }
   if (pick?.units.has(unit)) {
-    ctx.strokeStyle = `rgba(255,210,90,${0.55 + 0.45 * Math.sin(now / 140)})`;
+    const rgb = pick.tone === 'friendly' ? '98,214,90' : '236,74,60';
+    const strong = pick.all || focus === unit;
+    ctx.strokeStyle = `rgba(${rgb},${strong ? 0.6 + 0.4 * Math.sin(now / 140) : 0.35})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.ellipse(x, y, rx + 5, (rx + 5) * 0.38, 0, 0, Math.PI * 2);
@@ -347,20 +505,11 @@ function drawUnit(ctx, unit, v, y, now) {
     if (k === null) continue;
     if (f.type === 'cast') drawCastHalo(ctx, x, y, top, k, f.color, scale);
     if (f.type === 'sparkle') drawSparkles(ctx, x, y, top, k, f.color);
-    if (f.type === 'slash') drawSlash(ctx, v.x, y - body / 2, k, -facing);
-  }
-  if (active && unit.alive) {
-    const ay = top - 8 + Math.sin(now / 160) * 3;
-    ctx.fillStyle = '#ffd35a';
-    ctx.strokeStyle = '#3a2410';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x - 6, ay - 7);
-    ctx.lineTo(x + 6, ay - 7);
-    ctx.lineTo(x, ay);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    if (f.type === 'slash') drawSlash(ctx, v.x, y - body / 2, k, -facing, f.color);
+    if (f.type === 'heal') drawHealFx(ctx, x, y, top, k, f.color);
+    if (f.type === 'shield') drawShieldFx(ctx, x, y, top, k, f.color);
+    if (f.type === 'buff') drawBuffFx(ctx, x, y, top, k, f.color);
+    if (f.type === 'curse') drawCurseFx(ctx, x, y, top, k, f.color);
   }
 }
 
@@ -450,11 +599,11 @@ function drawSparkles(ctx, x, y, top, k, color) {
   ctx.restore();
 }
 
-// Coup d'arme : trois traits blancs en diagonale sur la cible.
-function drawSlash(ctx, x, y, k, dir) {
+// Coup d'arme : trois traits en diagonale sur la cible (blancs, ou teintés : sang, poison…).
+function drawSlash(ctx, x, y, k, dir, color = '#fff') {
   ctx.save();
   ctx.globalAlpha = 1 - k;
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = color;
   ctx.lineWidth = 3;
   const len = 20 + k * 14;
   for (let i = -1; i <= 1; i++) {
@@ -464,6 +613,122 @@ function drawSlash(ctx, x, y, k, dir) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+// Soin : anneau lumineux qui s'élargit au sol, colonne de lumière et croix qui montent.
+function drawHealFx(ctx, x, y, top, k, color) {
+  ctx.save();
+  ctx.globalAlpha = (1 - k) * 0.95;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  const r = 12 + k * 26;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.36, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  const g = ctx.createLinearGradient(0, top - 10, 0, y);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(1, color);
+  ctx.globalAlpha = (1 - k) * 0.6;
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 14, top - 10, 28, y - top + 10);
+  ctx.globalAlpha = 1 - k;
+  ctx.fillStyle = color;
+  for (let i = 0; i < 4; i++) {
+    const px = x + Math.sin(i * 2.1) * 14;
+    const py = y - (y - top) * ((k * 1.2 + i * 0.22) % 1);
+    ctx.fillRect(Math.round(px) - 1, Math.round(py) - 4, 3, 9);
+    ctx.fillRect(Math.round(px) - 4, Math.round(py) - 1, 9, 3);
+  }
+  ctx.restore();
+}
+
+// Bouclier : bulle translucide autour du personnage, reflet qui tourne.
+function drawShieldFx(ctx, x, y, top, k, color) {
+  ctx.save();
+  const a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8;
+  const cy = (y + top) / 2;
+  const rx = 22;
+  const ry = (y - top) / 2 + 8;
+  ctx.globalAlpha = a * 0.25;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(x, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = a * 0.9;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(x, cy, rx - 4, ry - 4, 0, -2.4 + k * 2, -1.6 + k * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Bénédiction : chevrons qui montent autour du personnage.
+function drawBuffFx(ctx, x, y, top, k, color) {
+  ctx.save();
+  ctx.globalAlpha = 1 - k;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    const px = x + (i - 1) * 14;
+    const py = y - 6 - (y - top) * ((k + i * 0.3) % 1);
+    ctx.beginPath();
+    ctx.moveTo(px - 4, py + 3);
+    ctx.lineTo(px, py - 1);
+    ctx.lineTo(px + 4, py + 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Malédiction : volutes sombres qui tournent autour de la cible et se resserrent.
+function drawCurseFx(ctx, x, y, top, k, color) {
+  ctx.save();
+  ctx.globalAlpha = 1 - k;
+  ctx.fillStyle = color;
+  const cy = (y + top) / 2;
+  for (let i = 0; i < 10; i++) {
+    const a = i * 0.63 + k * 7;
+    const r = (1 - k) * 26 + 6;
+    ctx.fillRect(Math.round(x + Math.cos(a) * r) - 1, Math.round(cy + Math.sin(a) * r * 0.7) - 1, 3, 3);
+  }
+  ctx.restore();
+}
+
+// Projectiles : sprite du pack (assets/fx) qui vole vers la cible en arc léger, orienté dans
+// sa direction, puis son animation d'impact (3 images).
+function drawShots(ctx, now) {
+  shots = shots.filter((s) => now < s.t0 + s.dur + 260);
+  for (const s of shots) {
+    const k = (now - s.t0) / s.dur;
+    if (k < 0) continue;
+    if (k < 1) {
+      const img = image(`fx/${s.key}`);
+      if (!isReady(img)) continue;
+      const x = s.x0 + (s.x1 - s.x0) * k;
+      const y = s.y0 + (s.y1 - s.y0) * k - Math.sin(Math.PI * k) * 18;
+      const dx = s.x1 - s.x0;
+      const dy = s.y1 - s.y0 - Math.cos(Math.PI * k) * 18 * Math.PI;
+      ctx.save();
+      ctx.translate(Math.round(x), Math.round(y));
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.drawImage(img, -img.width * 1.5, -img.height * 1.5, img.width * 3, img.height * 3);
+      ctx.restore();
+    } else {
+      const img = image(`fx/${s.key}_impact`);
+      if (!isReady(img)) continue;
+      const fw = img.width / 3;
+      const frame = Math.min(2, Math.floor((now - s.t0 - s.dur) / 85));
+      const flip = s.x1 < s.x0;
+      ctx.save();
+      ctx.translate(Math.round(s.x1), Math.round(s.y1));
+      if (flip) ctx.scale(-1, 1);
+      ctx.drawImage(img, frame * fw, 0, fw, img.height, -fw * 1.5, -img.height * 1.5, fw * 3, img.height * 3);
+      ctx.restore();
+    }
+  }
 }
 
 // Barres de vie sous les pieds.
@@ -488,13 +753,13 @@ function drawBars(ctx, unit, v, y) {
   ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(0,0,0,.85)';
   if (enemy) {
-    ctx.font = 'bold 8px sans-serif';
+    ctx.font = 'bold 8px sans-serif'; // chiffres : police simple, lisible en petit
     const hp = `${Math.max(0, Math.round(unit.hp))}/${max}`;
     ctx.strokeText(hp, v.x, by + 1);
     ctx.fillStyle = '#fff';
     ctx.fillText(hp, v.x, by + 1);
     // Nom sous la barre.
-    ctx.font = 'bold 9px sans-serif';
+    ctx.font = 'bold 10px Almendra, serif';
     ctx.strokeText(unit.name, v.x, by + h + 2);
     ctx.fillStyle = unit.boss ? '#ffb0a0' : '#f0e6d2';
     ctx.fillText(unit.name, v.x, by + h + 2);
@@ -521,7 +786,7 @@ function drawPopups(ctx, now) {
     if (!v) continue;
     const y = Math.max(18 + p.stack * 16, slotOf(p.unit).y - looksOf(p.unit).body - Math.min(1, k * 3) * 14 - k * 10 - p.stack * 16);
     ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-    ctx.font = p.small ? 'bold 11px sans-serif' : `bold ${p.big ? 20 : 16}px sans-serif`;
+    ctx.font = p.small ? 'bold 12px Almendra, serif' : `bold ${p.big ? 20 : 16}px sans-serif`;
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#1a0f06';
     ctx.strokeText(p.text, v.x, y);
@@ -556,7 +821,17 @@ function onClick(ev) {
   if (u && pick.units.has(u)) pick.onPick(u);
 }
 
+// Manette / clavier : la flèche passe à la cible suivante (dir = 1) ou précédente (-1).
+export function cycleStageFocus(dir) {
+  if (!pick || pick.all) return null;
+  const list = [...pick.units];
+  const i = list.indexOf(focus);
+  focus = list[(i + dir + list.length) % list.length] ?? null;
+  return focus;
+}
+
 function onHover(ev) {
   const u = pick ? unitAt(ev) : null;
   canvas.style.cursor = u && pick.units.has(u) ? 'pointer' : '';
+  if (u && pick && !pick.all) setStageFocus(u);
 }

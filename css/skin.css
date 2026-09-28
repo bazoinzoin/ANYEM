@@ -13,11 +13,11 @@
 .ic.eq { background-image: var(--ui-equip-icons); background-size: calc(var(--is) * 6) auto; }
 
 /* Titres en police pixel (tailles multiples de 17 pour rester nettes) */
-/* (h3 et petits titres gardent la police de texte : la police pixel n'est lisible qu'en grand) */
+/* (h3 et petits titres : police médiévale Almendra, la police pixel n'est lisible qu'en grand) */
 h1, h2 { font-family: var(--font-pixel); font-weight: normal; letter-spacing: 0; }
 .hero h1 { font-size: 51px; text-shadow: 0 3px 0 #3a2208; color: #f3d58c; }
 h2 { font-size: 34px; }
-h3 { font-family: var(--font-body); font-weight: 700; }
+h3 { font-family: var(--font-title); font-weight: 700; }
 
 /* Fenêtres : cadre bleu nuit à bordure pixel */
 .card, .win {
@@ -30,7 +30,7 @@ h3 { font-family: var(--font-body); font-weight: 700; }
 button {
   border: 6px solid transparent; border-radius: 0; background: none; color: #fff3e2; text-shadow: 0 1px 0 #4a2224;
   border-image: var(--ui-btn) 3 fill / 6px stretch; image-rendering: pixelated;
-  font-family: var(--font-body); font-weight: 600; font-size: 16px; padding: 3px 12px;
+  font-family: var(--font-title); font-weight: 700; font-size: 16px; padding: 3px 12px;
 }
 button:hover:not(:disabled) { background: none; border-image-source: var(--ui-btn-hover); }
 button:active:not(:disabled) { border-image-source: var(--ui-btn-down); }

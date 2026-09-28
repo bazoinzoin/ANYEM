@@ -58,7 +58,7 @@ function applyDamage(unit, amount) {
       unit.alive = false;
       unit.statuses = [];
       fell = true;
-      if (isHero(unit) && usesSouls(getClass(unit))) unit.res = 0; // ses âmes s'échappent
+      if (isHero(unit) && usesSouls(getClass(unit))) unit.souls = 0; // ses âmes s'échappent
     }
   }
   return { taken, absorbed, fell, ...(revived ? { revived } : {}) };

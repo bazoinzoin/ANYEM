@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
-import { createParty, getStats, getSkills, soulsOf, gainSouls, restoreFully, starterSpares } from '../src/game/party.js';
+import { createParty, getStats, getSkills, soulsOf, gainSouls, restoreFully, starterSpares, getClass } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, canUseSkill, effectiveSkill } from '../src/game/combat.js';
 import { damage } from '../src/game/units.js';
 import { backlashPct, soulBacklash } from '../src/game/souls.js';
@@ -68,14 +68,14 @@ test('Macabre : chaque âme renforce le Soldat décharné (puissance physique, c
 });
 
 test('Macabre : contrecoup de plus en plus fort (âmes², temps au maximum) ; au maximum, les alliés en souffrent sans en mourir', () => {
-  const stats = { resMax: 3 };
+  const stats = { soulMax: 3 };
   assert.deepEqual(backlashPct(stats, 0), { self: 0, allies: 0 });
   assert.equal(backlashPct(stats, 1).self, SOULS.drain);
   assert.equal(backlashPct(stats, 2).self, SOULS.drain * 4);
   assert.equal(backlashPct(stats, 2).allies, 0, 'pas de débordement sous le maximum');
   assert.equal(backlashPct(stats, 3).allies, SOULS.spill);
   assert.ok(backlashPct(stats, 3, 2).self > backlashPct(stats, 3, 0).self, 'garder le maximum coûte de plus en plus');
-  assert.ok(backlashPct({ resMax: 3, soulWard: 30 }, 3).self < backlashPct(stats, 3).self, 'le Mur d\'os en souffre moins');
+  assert.ok(backlashPct({ soulMax: 3, soulWard: 30 }, 3).self < backlashPct(stats, 3).self, 'le Mur d\'os en souffre moins');
 
   const { cb, hero, party } = setup('soldat', 2);
   gainSouls(hero, 3);
@@ -108,20 +108,20 @@ test('Macabre : Déchaînement dépense toutes les âmes, puissance par âme ; i
   assert.ok(canUseSkill(cb, hero, base));
   const s = effectiveSkill(hero, base);
   assert.equal(s.power, +(base.power * 3).toFixed(3));
-  assert.equal(s.cost, 3);
+  assert.equal(s.soulCost, 3);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'dechainement'), target: 0 }));
   assert.equal(soulsOf(hero), 0);
   assert.ok(cb.log.some((l) => /libère 3 âmes/.test(l.text)));
 });
 
-test('Macabre : Frappe d\'outre-tombe coûte une âme ; les coups de base sont gratuits', () => {
+test('Macabre : Frappe d\'outre-tombe coûte une âme ; les coups de base aucune', () => {
   const { cb, hero } = setup('soldat', 8);
   Object.assign(cb.enemies[0], { hp: 1e7 });
   gainSouls(hero, 2);
   assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'frappe-d-outre-tombe'), target: 0 }));
   assert.equal(soulsOf(hero), 1);
   const free = getSkills(hero).find((s) => s.id === 'coup-decharne');
-  assert.equal(free.cost, 0);
+  assert.equal(free.soulCost, undefined, 'coup de base : sans âme');
 });
 
 test("Macabre : l'orientation impose armes et armure ; sans point, tout l'équipement de la classe", () => {
@@ -160,8 +160,20 @@ test("Macabre : l'orientation impose armes et armure ; sans point, tout l'équip
   assert.equal(learn(fresh, 'depart-necro'), false);
 });
 
-test("Macabre : pas d'élixir de ressource (ses âmes ne viennent que des morts)", () => {
-  const [hero, warrior] = createParty(['Os', 'W'], ['macabre', 'guerrier']);
-  assert.equal(isValidTarget('elixir', hero), false);
-  assert.equal(isValidTarget('elixir', warrior), true);
+test("Macabre : classe à Mana, les âmes sont une jauge à part ; certaines compétences coûtent Mana et âmes", () => {
+  const { cb, hero } = setup('soldat', 8);
+  Object.assign(cb.enemies[0], { hp: 1e7 });
+  assert.equal(getClass(hero).resource.name, 'Mana');
+  assert.equal(hero.res, getStats(hero).resMax, 'Mana plein');
+  gainSouls(hero, 1);
+  const strike = getSkills(hero).find((s) => s.id === 'frappe-d-outre-tombe');
+  const mana = hero.res;
+  assert.ok(heroAct(cb, { type: 'skill', skill: skillIndex(hero, 'frappe-d-outre-tombe'), target: 0 }));
+  assert.equal(soulsOf(hero), 0, 'une âme dépensée');
+  assert.equal(hero.res, mana - strike.cost, 'et son Mana');
+  hero.res = 0;
+  assert.equal(canUseSkill(cb, hero, getSkills(hero).find((s) => s.id === 'coup-decharne')), false, 'sans Mana');
+  const [w, mac] = createParty(['W', 'M'], ['guerrier', 'macabre']);
+  assert.equal(isValidTarget('elixir', mac), true, "l'élixir lui rend du Mana");
+  assert.ok(w);
 });

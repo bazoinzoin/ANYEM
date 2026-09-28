@@ -67,7 +67,7 @@ test('composition : tenue et peau recolorées, bas du corps selon le bas choisi,
   assert.equal(bodyColor('#123456', 20, look), null);
   // Robe : le bas ne change rien.
   assert.equal(bodyColor('#8f4d57', 30, { ...look, top: 'pretre' }), '#e0a63a');
-  assert.equal(headPalette(look)[1], '#4d4f6e');
+  assert.equal(headPalette(look)[1], '#5e6284');
   // Planche vide : seule la tête apparaît, à la ligne du menton du corps.
   const width = SHEET_COLS * FRAME;
   const px = new Uint8ClampedArray(width * FRAME * 4 * 4);

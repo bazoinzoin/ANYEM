@@ -65,3 +65,24 @@ test('gestes : bond pour une attaque ou un coup d’arme, sort sinon', () => {
   assert.equal(enemyGesture({}, { changes: [{ side: 'enemy', delta: 6, added: [] }] }), 'cast');
   assert.equal(enemyGesture({}, { changes: [] }), 'lunge', 'coup esquivé : bond quand même');
 });
+
+test('effets visuels : projectile selon l\'élément, flèche à l\'arc, entaille au corps à corps, soin et bouclier', async () => {
+  const { actionFx, enemyFx } = await import('../src/ui/battleDiff.js');
+  const bow = { equipment: { mainDroite: { weaponType: 'arc' } } };
+  const sword = { equipment: { mainDroite: { weaponType: 'epee' } } };
+  const skill = (name, extra = {}) => ({ name, kind: 'damage', target: 'enemy', magic: true, ...extra });
+  const act = { type: 'skill', skill: 0 };
+  assert.equal(actionFx(sword, skill('Boule de Feu'), act).projectile, 'Fireball');
+  assert.equal(actionFx(sword, skill('Trait de givre'), act).projectile, 'IceShard');
+  assert.equal(actionFx(sword, skill('Éclair'), act).projectile, 'LightningBolt');
+  assert.equal(actionFx(sword, skill("Explosion d'âme"), act).projectile, 'DeathCoil');
+  assert.equal(actionFx(sword, skill('Rayon inconnu'), act).projectile, 'MagicMissile');
+  assert.equal(actionFx(bow, null, { type: 'attack' }).projectile, 'Arrow');
+  assert.equal(actionFx(sword, null, { type: 'attack' }).style, 'slash');
+  assert.equal(actionFx(sword, skill('Entaille rituelle', { magic: false }), act).tint, '#e0424f', 'entaille teintée de sang');
+  assert.equal(actionFx(sword, { name: 'Soin Majeur', kind: 'heal', target: 'ally' }, act).style, 'heal');
+  assert.equal(actionFx(sword, { name: 'Rempart', kind: 'support', target: 'self', selfEffects: [{ id: 'bouclier', turns: 2 }] }, act).style, 'shield');
+  assert.equal(enemyFx({ magic: true }, null).projectile, 'DarkOrb');
+  assert.equal(enemyFx({ ranged: true }, null).projectile, 'Arrow');
+  assert.equal(enemyFx({}, null).style, 'slash');
+});
