@@ -59,6 +59,13 @@ export function branchGearLine(classKey, branch) {
   return `${g.stat} · ${g.armor} · ${g.weapons}${g.offHand ? ` + ${g.offHand}` : ''}`;
 }
 
+// Arme demandée par une compétence : « Arme : dague ou épée », « Neutre : n'importe quelle arme ».
+export function skillGearText(skill) {
+  const shield = skill.needsShield ? ' + bouclier' : '';
+  if (!skill.weapons) return `Neutre : se lance avec n'importe quelle arme${shield}`;
+  return `Arme : ${weaponsText(skill.weapons)}${shield}`;
+}
+
 // Stat conseillée du héros : celle de son orientation principale (sinon celle de la classe).
 export function preferredStat(hero) {
   return mainBranch(hero)?.gear?.stat ?? CLASSES[hero.classKey].mainStat;

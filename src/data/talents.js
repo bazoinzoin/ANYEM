@@ -21,6 +21,8 @@
 // stat principale conseillée (affichée aux menus Personnage et Création) ; armor / weapons /
 // offHand, s'ils sont donnés, limitent ce que porte le héros quand c'est son orientation
 // principale (celle qui a le plus de points, voir allowedGear dans game/equipment.js).
+// Ses compétences à l'arme (coups, sorts, soins) demandent une de ses armes en main droite
+// (isWeaponSkill, `weapons` ajouté en bas du fichier) ; buffs, provocations, pièges sont neutres.
 //   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, 2 au choix parmi 3
 //        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
 //        'passive'   gros palier : nouveau passif ou amélioration de compétence
@@ -102,7 +104,7 @@ const starter = (id, name, classKey, ids) => ({
   skills: ids.map((sid) => {
     const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
     if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
-    return skill;
+    return { ...skill };
   }),
 });
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
@@ -110,7 +112,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 export const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'] }, icon: '🛡️',
+      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'], weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -136,7 +138,7 @@ export const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', needsShield: true, cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -156,7 +158,7 @@ export const TALENTS = {
           minor('protecteur', 'Protecteur', { passive: { shieldPct: 8 } }),
         ]),
         skill(10, {
-          id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
+          id: 'mur-de-boucliers', name: 'Mur de boucliers', needsShield: true, cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.9)],
           desc: 'Bouclier sur toute l\'équipe pendant 2 tours',
         }),
@@ -180,7 +182,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'] }, icon: '🪓',
+      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'], weapons: ['epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -248,7 +250,7 @@ export const TALENTS = {
   ],
   voleur: [
     {
-      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite' }, icon: '🗡️',
+      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite', weapons: ['dague'], offHand: ['dague'] }, icon: '🗡️',
       desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
@@ -314,7 +316,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite' }, icon: '🧪',
+      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite', weapons: ['dague', 'epee'], offHand: ['dague', 'epee'] }, icon: '🧪',
       desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
@@ -388,7 +390,7 @@ export const TALENTS = {
   ],
   pretre: [
     {
-      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence' }, icon: '✨',
+      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
@@ -454,7 +456,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence' }, icon: '📖',
+      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
@@ -523,7 +525,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'profane', name: 'Profane', gear: { stat: 'intelligence' }, icon: '🌑',
+      key: 'profane', name: 'Profane', gear: { stat: 'intelligence', weapons: ['dague', 'baton'] }, icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
         starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
@@ -594,7 +596,7 @@ export const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Feu', gear: { stat: 'intelligence' }, icon: '🔥',
+      key: 'feu', name: 'Feu', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -662,7 +664,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Glace', gear: { stat: 'intelligence' }, icon: '❄️',
+      key: 'glace', name: 'Glace', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -730,7 +732,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence' }, icon: '⚡',
+      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -799,7 +801,7 @@ export const TALENTS = {
   ],
   chasseur: [
     {
-      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite' }, icon: '🦅',
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🦅',
       desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
@@ -863,7 +865,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite' }, icon: '🐾',
+      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
@@ -934,7 +936,7 @@ export const TALENTS = {
   ],
   paladin: [
     {
-      key: 'templier', name: 'Templier', gear: { stat: 'force' }, icon: '🛡️',
+      key: 'templier', name: 'Templier', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
@@ -1004,7 +1006,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence' }, icon: '☀️',
+      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence', weapons: ['masse', 'masse2m'], offHand: ['bouclier'] }, icon: '☀️',
       desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : garde l\'armure lourde, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
@@ -1073,7 +1075,7 @@ export const TALENTS = {
   ],
   scarifie: [
     {
-      key: 'acharne', name: 'Acharné', gear: { stat: 'force' }, icon: '🩸',
+      key: 'acharne', name: 'Acharné', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🩸',
       desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
       nodes: [
         starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
@@ -1141,7 +1143,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'violent', name: 'Violent', gear: { stat: 'force' }, icon: '💥',
+      key: 'violent', name: 'Violent', gear: { stat: 'force', weapons: ['arc'] }, icon: '💥',
       desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
       nodes: [
         starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
@@ -1202,7 +1204,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence' }, icon: '❤️',
+      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '❤️',
       desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
       nodes: [
         starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
@@ -1469,6 +1471,24 @@ export const TALENTS = {
     },
   ],
 };
+
+// Compétence « à l'arme » : un coup ou un sort (dégâts, soin). Elle ne part qu'avec une arme de
+// son orientation en main (`weapons`, ajouté ci-dessous) ; les autres (buffs, provocation,
+// pièges, résurrection…) sont neutres. `needsShield: true` : demande en plus un bouclier.
+export function isWeaponSkill(skill) {
+  return skill.kind === 'damage' || skill.kind === 'heal';
+}
+
+// Chaque compétence à l'arme reçoit les armes de son orientation (sauf `weapons` déjà donné).
+for (const branches of Object.values(TALENTS)) {
+  for (const branch of branches) {
+    for (const node of branch.nodes) {
+      for (const sk of node.skills ?? (node.skill ? [node.skill] : [])) {
+        if (isWeaponSkill(sk) && branch.gear?.weapons && !sk.weapons) sk.weapons = branch.gear.weapons;
+      }
+    }
+  }
+}
 
 // Compétences accordées par un nœud (champ `skill` ou `skills`).
 export function nodeSkills(node) {

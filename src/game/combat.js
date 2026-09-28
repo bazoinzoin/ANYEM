@@ -20,7 +20,7 @@ import { createEnemies } from './enemies.js';
 import { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill, soulsOf } from './party.js';
 import { absorbSoul, soulBacklash, atSouls, isSoulBearer } from './souls.js';
 import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
-import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
+import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight, skillWeaponProblem } from './position.js';
 import {
   rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor,
   BASIC_ATTACK, ENEMY_ATTACK,
@@ -264,7 +264,7 @@ export function canUseSkill(cb, hero, skill) {
   if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.allSouls && soulsOf(hero) < 1) return false; // au moins une âme à libérer
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
-  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
+  if (skillWeaponProblem(hero, skill)) return false; // arme de l'orientation, bouclier, portée
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }

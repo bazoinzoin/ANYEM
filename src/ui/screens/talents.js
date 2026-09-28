@@ -2,6 +2,7 @@
 
 import { returnForbiddenGear, refillGear } from '../../game/equipment.js';
 import { itemName } from '../items.js';
+import { skillGearText } from '../gearGuide.js';
 import { state } from '../../state.js';
 import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import {
@@ -152,7 +153,7 @@ function nodeDetail(hero, branch, node) {
   const reason = cannotLearnReason(hero, node.id);
   const skills = nodeSkills(node);
   const body = skills.length
-    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
+    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small><br><small class="hint">${esc(skillGearText(sk))}.</small></p>`).join('')
     : `<p>${esc(node.desc)}</p>`;
   const action = rank >= node.ranks ? '<p class="tal-maxed">Maîtrisé.</p>'
     : reason ? `<p class="warning">${esc(reason)}</p>`

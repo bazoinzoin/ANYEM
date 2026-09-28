@@ -2,6 +2,7 @@
 
 import { branchesOf, learn, tiersOf } from '../src/game/talents.js';
 import { nodeSkills, CHOICE_PICKS, SIGNATURE_TIER } from '../src/data/talents.js';
+import { generateItem, isTwoHanded } from '../src/game/items.js';
 
 // Donne à chaque héros les sorts de départ de toutes ses orientations (palier 0),
 // sans dépenser de points : l'ordre des compétences reproduit celui des anciennes
@@ -30,7 +31,23 @@ export function learnPath(hero, branchKey, { upTo = SIGNATURE_TIER, pick = [] } 
     for (const node of chosen) while (learn(hero, node.id));
   }
   hero.level = level;
+  armFor(hero, branch);
   return hero;
+}
+
+// Met en main l'arme de l'orientation (et son bouclier) si le héros n'en tient pas une :
+// ses compétences à l'arme en ont besoin (voir skillWeaponProblem, game/position.js).
+export function armFor(hero, branch) {
+  const gear = branch.gear ?? {};
+  const main = hero.equipment.mainDroite;
+  if (gear.weapons && !(main && gear.weapons.includes(main.weaponType))) {
+    const primary = gear.stat ?? 'force';
+    hero.equipment.mainDroite = generateItem({ level: 1, rarity: 'commun', slotType: 'arme', weaponType: gear.weapons[0], primary });
+    if (isTwoHanded(hero.equipment.mainDroite)) delete hero.equipment.mainGauche;
+  }
+  if (gear.offHand?.includes('bouclier') && !hero.equipment.mainGauche && !isTwoHanded(hero.equipment.mainDroite)) {
+    hero.equipment.mainGauche = generateItem({ level: 1, rarity: 'commun', slotType: 'bouclier', primary: gear.stat ?? 'force' });
+  }
 }
 
 // ---- Expédition sur carte (voir game/dungeon.js) ----

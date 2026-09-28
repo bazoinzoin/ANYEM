@@ -27,8 +27,9 @@
 //   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
 //               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
-// starterSpares équipement commun rangé dans le sac à la création (classe dont l'orientation
-//             impose ses armes : de quoi s'équiper quelle que soit la première choisie)
+// starterSpares équipement commun rangé dans le sac à la création ou au recrutement : de quoi
+//             s'équiper quelle que soit la première orientation choisie (chaque orientation
+//             impose ses armes, voir `gear` dans data/talents.js)
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
 // starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
@@ -82,6 +83,10 @@ export const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
     starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.7, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
@@ -101,8 +106,8 @@ export const CLASSES = {
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
     comboMax: 5,
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'dague'],
-      offHand: ['epee', 'hache', 'masse', 'dague'],
+      weapons: ['epee', 'dague'],
+      offHand: ['epee', 'dague'],
       armor: ['moyenne'],
     },
     starterKit: [
@@ -208,7 +213,7 @@ export const CLASSES = {
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
+      weapons: ['epee', 'hache', 'masse', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde'],
     },
@@ -242,6 +247,10 @@ export const CLASSES = {
     starterKit: [
       { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'arc', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
     ],
     starterSkills: [
       { id: 'entaille-rituelle', name: 'Entaille rituelle', cost: 6, kind: 'damage', target: 'enemy', power: 1.6, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Coup qui ouvre une plaie : saignement sur 3 tours' },

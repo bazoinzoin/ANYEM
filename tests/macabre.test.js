@@ -128,7 +128,9 @@ test("Macabre : l'orientation principale impose armes et armure ; à égalité, 
   const [hero] = createParty(['Os'], ['macabre']);
   hero.level = 50;
   assert.deepEqual(allowedGear(hero).armor, ['lourde', 'moyenne', 'legere']);
+  const starterGear = { ...hero.equipment };
   learnPath(hero, 'necromancien', { upTo: 2 });
+  hero.equipment = starterGear; // équipement de départ (hache à deux mains, armure moyenne)
   assert.deepEqual(allowedGear(hero), { armor: ['legere'], weapons: ['baton'], offHand: [] });
   const axe = generateItem({ level: 10, rarity: 'commun', slotType: 'arme', weaponType: 'hache2m', primary: 'force' });
   assert.match(cannotEquipReason(hero, axe), /Nécromancien/);

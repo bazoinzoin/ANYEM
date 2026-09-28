@@ -2961,8 +2961,9 @@ __modules["src/data/classes.js"] = (() => {
 //   armor       types d'armure (bijoux : toujours autorisés) ; un type ne donne pas accès aux plus
 //               légers : chaque classe porte le sien (l'Impassible : lourd en tank, moyen en dégâts)
 // starterKit  équipement commun de niveau 1 donné à la création
-// starterSpares équipement commun rangé dans le sac à la création (classe dont l'orientation
-//             impose ses armes : de quoi s'équiper quelle que soit la première choisie)
+// starterSpares équipement commun rangé dans le sac à la création ou au recrutement : de quoi
+//             s'équiper quelle que soit la première orientation choisie (chaque orientation
+//             impose ses armes, voir `gear` dans data/talents.js)
 // growth      stats gagnées à chaque niveau au-delà du premier
 //
 // starterSkills[] : sorts de départ de la classe. Un héros commence SANS sort : ils
@@ -3016,6 +3017,10 @@ const CLASSES = {
       { slotType: 'arme', weaponType: 'epee', primary: 'force' },
       { slotType: 'plastron', armorType: 'lourde', primary: 'force' },
     ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
     starterSkills: [
       { id: 'frappe-brutale', name: 'Frappe Brutale', cost: 30, kind: 'damage', target: 'enemy', power: 2.7, desc: 'Coup lourd sur un ennemi' },
       { id: 'cri-de-guerre', name: 'Cri de Guerre', cost: 55, kind: 'damage', target: 'allEnemies', power: 1.1, desc: 'Frappe tous les ennemis' },
@@ -3035,8 +3040,8 @@ const CLASSES = {
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
     comboMax: 5,
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'dague'],
-      offHand: ['epee', 'hache', 'masse', 'dague'],
+      weapons: ['epee', 'dague'],
+      offHand: ['epee', 'dague'],
       armor: ['moyenne'],
     },
     starterKit: [
@@ -3142,7 +3147,7 @@ const CLASSES = {
     growth: { pv: 11, force: 1, intelligence: 1 },
     resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
     gear: {
-      weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'],
+      weapons: ['epee', 'hache', 'masse', 'masse2m'],
       offHand: ['bouclier'],
       armor: ['lourde'],
     },
@@ -3176,6 +3181,10 @@ const CLASSES = {
     starterKit: [
       { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
       { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    starterSpares: [
+      { slotType: 'arme', weaponType: 'arc', primary: 'force' },
+      { slotType: 'arme', weaponType: 'baton', primary: 'intelligence' },
     ],
     starterSkills: [
       { id: 'entaille-rituelle', name: 'Entaille rituelle', cost: 6, kind: 'damage', target: 'enemy', power: 1.6, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Coup qui ouvre une plaie : saignement sur 3 tours' },
@@ -3298,6 +3307,8 @@ const { CLASSES } = __modules["src/data/classes.js"];
 // stat principale conseillée (affichée aux menus Personnage et Création) ; armor / weapons /
 // offHand, s'ils sont donnés, limitent ce que porte le héros quand c'est son orientation
 // principale (celle qui a le plus de points, voir allowedGear dans game/equipment.js).
+// Ses compétences à l'arme (coups, sorts, soins) demandent une de ses armes en main droite
+// (isWeaponSkill, `weapons` ajouté en bas du fichier) ; buffs, provocations, pièges sont neutres.
 //   kind 'minor'     petit palier : bonus de stats, plusieurs rangs, 2 au choix parmi 3
 //        'skill'     gros palier : nouvelle compétence (champ `skill`, ou `skills` au palier 0)
 //        'passive'   gros palier : nouveau passif ou amélioration de compétence
@@ -3379,7 +3390,7 @@ const starter = (id, name, classKey, ids) => ({
   skills: ids.map((sid) => {
     const skill = CLASSES[classKey].starterSkills.find((sk) => sk.id === sid);
     if (!skill) throw new Error(`Sort de départ inconnu : ${sid}`);
-    return skill;
+    return { ...skill };
   }),
 });
 const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, turns, power });
@@ -3387,7 +3398,7 @@ const fx = (id, turns, power) => (power === undefined ? { id, turns } : { id, tu
 const TALENTS = {
   guerrier: [
     {
-      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'] }, icon: '🛡️',
+      key: 'gardien', name: 'Gardien', gear: { stat: 'force', armor: ['lourde'], weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank : boucliers, armure, provocation. Épée et bouclier, armure lourde.',
       nodes: [
         starter('depart-gardien', 'Cri de guerre', 'guerrier', ['cri-de-guerre']),
@@ -3413,7 +3424,7 @@ const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', needsShield: true, cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -3433,7 +3444,7 @@ const TALENTS = {
           minor('protecteur', 'Protecteur', { passive: { shieldPct: 8 } }),
         ]),
         skill(10, {
-          id: 'mur-de-boucliers', name: 'Mur de boucliers', cost: 45, kind: 'support', target: 'allAllies',
+          id: 'mur-de-boucliers', name: 'Mur de boucliers', needsShield: true, cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.9)],
           desc: 'Bouclier sur toute l\'équipe pendant 2 tours',
         }),
@@ -3457,7 +3468,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'] }, icon: '🪓',
+      key: 'berserker', name: 'Berserker', gear: { stat: 'force', armor: ['moyenne'], weapons: ['epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🪓',
       desc: 'Dégâts : plus il est blessé, plus il frappe fort. Arme à deux mains, armure moyenne.',
       nodes: [
         starter('depart-berserker', 'Frappe brutale', 'guerrier', ['frappe-brutale']),
@@ -3525,7 +3536,7 @@ const TALENTS = {
   ],
   voleur: [
     {
-      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite' }, icon: '🗡️',
+      key: 'assassin', name: 'Assassin', gear: { stat: 'agilite', weapons: ['dague'], offHand: ['dague'] }, icon: '🗡️',
       desc: 'Plus d\'Énergie donc plus d\'actions par tour, coups critiques et points de combo en rafale. Dagues, armure moyenne.',
       nodes: [
         starter('depart-assassin', 'Lames jumelles', 'voleur', ['coup-vicieux', 'evisceration']),
@@ -3591,7 +3602,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite' }, icon: '🧪',
+      key: 'empoisonneur', name: 'Empoisonneur', gear: { stat: 'agilite', weapons: ['dague', 'epee'], offHand: ['dague', 'epee'] }, icon: '🧪',
       desc: 'Moins d\'actions mais des poisons puissants : dégâts physiques sur la durée et affaiblissements. Dagues, armure moyenne.',
       nodes: [
         starter('depart-empoisonneur', 'Lames sales', 'voleur', ['coup-vicieux', 'laceration']),
@@ -3665,7 +3676,7 @@ const TALENTS = {
   ],
   pretre: [
     {
-      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence' }, icon: '✨',
+      key: 'clerc', name: 'Clerc', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '✨',
       desc: 'Soins puissants : soins de groupe, purification et résurrection. Bâton, armure légère.',
       nodes: [
         starter('depart-clerc', 'Soin majeur', 'pretre', ['soin-majeur']),
@@ -3731,7 +3742,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence' }, icon: '📖',
+      key: 'precheur', name: 'Prêcheur', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '📖',
       desc: 'Hybride : soins sur la durée, boucliers, bénédictions et lumière. Bâton, armure légère.',
       nodes: [
         starter('depart-precheur', 'Soin et lumière', 'pretre', ['soin-majeur', 'eclat-de-lumiere']),
@@ -3800,7 +3811,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'profane', name: 'Profane', gear: { stat: 'intelligence' }, icon: '🌑',
+      key: 'profane', name: 'Profane', gear: { stat: 'intelligence', weapons: ['dague', 'baton'] }, icon: '🌑',
       desc: 'Ténèbres : dégâts magiques sur la durée, confusion et terreur. Bâton, armure légère.',
       nodes: [
         starter('depart-profane', 'Trait d\'ombre', 'pretre', ['trait-d-ombre']),
@@ -3871,7 +3882,7 @@ const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Feu', gear: { stat: 'intelligence' }, icon: '🔥',
+      key: 'feu', name: 'Feu', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -3939,7 +3950,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Glace', gear: { stat: 'intelligence' }, icon: '❄️',
+      key: 'glace', name: 'Glace', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -4007,7 +4018,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence' }, icon: '⚡',
+      key: 'foudre', name: 'Foudre', gear: { stat: 'intelligence', weapons: ['baton'] }, icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -4076,7 +4087,7 @@ const TALENTS = {
   ],
   chasseur: [
     {
-      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite' }, icon: '🦅',
+      key: 'oeilDeFaucon', name: 'Œil de Faucon', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🦅',
       desc: 'Dégâts explosifs : tirs très coûteux en Énergie mais dévastateurs. Arc, armure moyenne.',
       nodes: [
         starter('depart-oeil', 'Tir visé', 'chasseur', ['tir-vise']),
@@ -4140,7 +4151,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite' }, icon: '🐾',
+      key: 'traqueur', name: 'Traqueur', gear: { stat: 'agilite', weapons: ['arc'] }, icon: '🐾',
       desc: 'Petits tirs peu coûteux, ralentissements et pièges : beaucoup d\'actions et beaucoup de contrôle. Arc, armure moyenne.',
       nodes: [
         starter('depart-traqueur', 'Tir rapide', 'chasseur', ['tir-rapide']),
@@ -4211,7 +4222,7 @@ const TALENTS = {
   ],
   paladin: [
     {
-      key: 'templier', name: 'Templier', gear: { stat: 'force' }, icon: '🛡️',
+      key: 'templier', name: 'Templier', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse'], offHand: ['bouclier'] }, icon: '🛡️',
       desc: 'Tank au Mana : se soigne lui-même et encaisse les dégâts de ses alliés. Monte la Force : armure lourde, armes et bouclier de Force.',
       nodes: [
         starter('depart-templier', 'Frappe du croisé', 'paladin', ['frappe-du-croise']),
@@ -4281,7 +4292,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence' }, icon: '☀️',
+      key: 'lumiere', name: 'Lumière', gear: { stat: 'intelligence', weapons: ['masse', 'masse2m'], offHand: ['bouclier'] }, icon: '☀️',
       desc: 'Soigneur : soins de groupe et guérison des effets négatifs. Monte l\'Intelligence : garde l\'armure lourde, armes d\'Intelligence.',
       nodes: [
         starter('depart-lumiere', 'Lumière sacrée', 'paladin', ['lumiere-sacree']),
@@ -4350,7 +4361,7 @@ const TALENTS = {
   ],
   scarifie: [
     {
-      key: 'acharne', name: 'Acharné', gear: { stat: 'force' }, icon: '🩸',
+      key: 'acharne', name: 'Acharné', gear: { stat: 'force', weapons: ['epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m'], offHand: [] }, icon: '🩸',
       desc: 'Corps à corps : il paie de son sang des entailles qui font saigner, et des coups de boucher. Force, armure moyenne.',
       nodes: [
         starter('depart-acharne', 'Entaille rituelle', 'scarifie', ['entaille-rituelle']),
@@ -4418,7 +4429,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'violent', name: 'Violent', gear: { stat: 'force' }, icon: '💥',
+      key: 'violent', name: 'Violent', gear: { stat: 'force', weapons: ['arc'] }, icon: '💥',
       desc: 'Distance : il vide ses veines dans des tirs dévastateurs, plus coûteux en PV que ceux de l\'Acharné. Force, arc.',
       nodes: [
         starter('depart-violent', 'Décharge sanglante', 'scarifie', ['decharge-sanglante']),
@@ -4479,7 +4490,7 @@ const TALENTS = {
       ],
     },
     {
-      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence' }, icon: '❤️',
+      key: 'liensDuSang', name: 'Liens du sang', gear: { stat: 'intelligence', weapons: ['baton', 'dague'] }, icon: '❤️',
       desc: 'Soins : il sacrifie ses PV pour soigner ses alliés et leur donner du vol de vie, et peut les empêcher de mourir. Seule orientation à l\'Intelligence, armure moyenne.',
       nodes: [
         starter('depart-liens', 'Transfusion', 'scarifie', ['transfusion']),
@@ -4747,12 +4758,30 @@ const TALENTS = {
   ],
 };
 
+// Compétence « à l'arme » : un coup ou un sort (dégâts, soin). Elle ne part qu'avec une arme de
+// son orientation en main (`weapons`, ajouté ci-dessous) ; les autres (buffs, provocation,
+// pièges, résurrection…) sont neutres. `needsShield: true` : demande en plus un bouclier.
+function isWeaponSkill(skill) {
+  return skill.kind === 'damage' || skill.kind === 'heal';
+}
+
+// Chaque compétence à l'arme reçoit les armes de son orientation (sauf `weapons` déjà donné).
+for (const branches of Object.values(TALENTS)) {
+  for (const branch of branches) {
+    for (const node of branch.nodes) {
+      for (const sk of node.skills ?? (node.skill ? [node.skill] : [])) {
+        if (isWeaponSkill(sk) && branch.gear?.weapons && !sk.weapons) sk.weapons = branch.gear.weapons;
+      }
+    }
+  }
+}
+
 // Compétences accordées par un nœud (champ `skill` ou `skills`).
 function nodeSkills(node) {
   return node.skills ?? (node.skill ? [node.skill] : []);
 }
 
-return { CHOICE_RANKS, CHOICE_PICKS, SIGNATURE_TIER, describeEffect, TALENTS, nodeSkills };
+return { CHOICE_RANKS, CHOICE_PICKS, SIGNATURE_TIER, describeEffect, TALENTS, isWeaponSkill, nodeSkills };
 })();
 
 // ---- src/game/talents.js
@@ -12592,7 +12621,10 @@ const { isMultiAction } = __modules["src/game/combo.js"];
 // - Les ennemis ont leur position dans le bestiaire (`ranged`).
 // - Une unité au corps à corps a plus de chances d'être ciblée (COMBAT.meleeTargetWeight).
 // - Une arme ne sert que depuis sa position (WEAPON_TYPES[].range) : attaque simple et
-//   compétences physiques (« à l'arme ») ; sorts, soins, pièges et objets restent possibles.
+//   compétences physiques ; sorts, soins, pièges et objets restent possibles.
+// - Une compétence à l'arme (coup, sort, soin) demande une arme de son orientation en main
+//   (`weapons`, data/talents.js) : un arc pour les tirs, un bâton pour les sorts du mage…
+//   Les compétences neutres (buffs, provocations, pièges) se lancent avec n'importe quelle arme.
 // - Riposte : une unité au corps à corps attaquée au corps à corps peut riposter
 //   (chance = stat Riposte), en infligeant une part de sa puissance physique.
 
@@ -12631,6 +12663,32 @@ function weaponBlockedReason(hero) {
     : 'Arme de corps à corps : impossible de frapper à distance. Changez de position.';
 }
 
+// Liste lisible d'armes : « dague ou épée ».
+function weaponNames(types) {
+  const names = types.map((t) => WEAPON_TYPES[t].name.toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} ou ${names[names.length - 1]}` : names[0];
+}
+
+/**
+ * Pourquoi le héros ne peut pas lancer cette compétence avec ses armes (texte), ou null :
+ * compétence à l'arme (`weapons` : armes de son orientation) sans une de ces armes en main
+ * droite ; `needsShield` sans bouclier en main gauche ; coup physique dont l'arme n'a pas la
+ * portée de la position (un arc au corps à corps, une hache à distance).
+ */
+function skillWeaponProblem(hero, skill) {
+  return skillGearProblem(hero, skill) ?? (usesWeapon(skill) && !canUseWeapon(hero) ? weaponBlockedReason(hero) : null);
+}
+
+// Même chose sans la portée (hors combat, où la position ne compte pas).
+function skillGearProblem(hero, skill) {
+  const main = hero.equipment?.mainDroite;
+  if (skill.weapons && !(main?.slotType === 'arme' && skill.weapons.includes(main.weaponType))) {
+    return `Arme requise : ${weaponNames(skill.weapons)}.`;
+  }
+  if (skill.needsShield && hero.equipment?.mainGauche?.slotType !== 'bouclier') return 'Demande un bouclier en main gauche.';
+  return null;
+}
+
 // Changer de position : toujours possible pour une classe à une action ; une
 // classe à Énergie ne peut plus le faire après avoir agi ce tour.
 function canChangePosition(hero) {
@@ -12653,7 +12711,7 @@ function setPosition(hero, position) {
   return true;
 }
 
-return { POSITIONS, defaultPosition, weaponRange, usesWeapon, canUseWeapon, weaponBlockedReason, canChangePosition, otherRow, targetWeight, setPosition };
+return { POSITIONS, defaultPosition, weaponRange, usesWeapon, canUseWeapon, weaponBlockedReason, skillWeaponProblem, skillGearProblem, canChangePosition, otherRow, targetWeight, setPosition };
 })();
 
 // ---- src/game/formulas.js
@@ -12816,7 +12874,7 @@ const { createEnemies } = __modules["src/game/enemies.js"];
 const { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill, soulsOf } = __modules["src/game/party.js"];
 const { absorbSoul, soulBacklash, atSouls, isSoulBearer } = __modules["src/game/souls.js"];
 const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __modules["src/game/combo.js"];
-const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } = __modules["src/game/position.js"];
+const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight, skillWeaponProblem } = __modules["src/game/position.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
 const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } = __modules["src/game/statuses.js"];
@@ -13087,7 +13145,7 @@ function canUseSkill(cb, hero, skill) {
   if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.allSouls && soulsOf(hero) < 1) return false; // au moins une âme à libérer
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
-  if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
+  if (skillWeaponProblem(hero, skill)) return false; // arme de l'orientation, bouclier, portée
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
   return true;
 }
@@ -15563,6 +15621,13 @@ function branchGearLine(classKey, branch) {
   return `${g.stat} · ${g.armor} · ${g.weapons}${g.offHand ? ` + ${g.offHand}` : ''}`;
 }
 
+// Arme demandée par une compétence : « Arme : dague ou épée », « Neutre : n'importe quelle arme ».
+function skillGearText(skill) {
+  const shield = skill.needsShield ? ' + bouclier' : '';
+  if (!skill.weapons) return `Neutre : se lance avec n'importe quelle arme${shield}`;
+  return `Arme : ${weaponsText(skill.weapons)}${shield}`;
+}
+
 // Stat conseillée du héros : celle de son orientation principale (sinon celle de la classe).
 function preferredStat(hero) {
   return mainBranch(hero)?.gear?.stat ?? CLASSES[hero.classKey].mainStat;
@@ -15587,7 +15652,7 @@ function gearGuideHtml(hero) {
     </div>`;
 }
 
-return { weaponsText, branchGear, branchGearLine, preferredStat, gearGuideHtml };
+return { weaponsText, branchGear, branchGearLine, skillGearText, preferredStat, gearGuideHtml };
 })();
 
 // ---- src/ui/screens/create.js
@@ -15951,6 +16016,7 @@ return { logLines, lastCombatLog, victorySummary };
 __modules["src/ui/screens/talents.js"] = (() => {
 const { returnForbiddenGear, refillGear } = __modules["src/game/equipment.js"];
 const { itemName } = __modules["src/ui/items.js"];
+const { skillGearText } = __modules["src/ui/gearGuide.js"];
 const { state } = __modules["src/state.js"];
 const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { branchesOf, rankOf, pointsAvailable, pointsTotal, pointsInBranch, tierRequirement, cannotLearnReason, learn, resetTalents, resetCost, pointsSpent, tiersOf, tierOpen, excludedInTier } = __modules["src/game/talents.js"];
@@ -15961,6 +16027,7 @@ const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { XP } = __modules["src/config.js"];
 const { iconHtml, branchIcon, talentNodeIcon, skillIconIndex, CLASS_ICONS } = __modules["src/ui/icons.js"];
 // Maître des compétences : arbres de talents de chaque héros.
+
 
 
 
@@ -16111,7 +16178,7 @@ function nodeDetail(hero, branch, node) {
   const reason = cannotLearnReason(hero, node.id);
   const skills = nodeSkills(node);
   const body = skills.length
-    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small></p>`).join('')
+    ? skills.map((sk) => `<p><b>${iconHtml(skillIconIndex(sk), 16)} ${esc(sk.name)}</b> — ${esc(skillCostLabel(getClass(hero), sk, hero))}<br>${esc(sk.desc)}.<br><small>${esc(skillEffectLabel(getStats(hero), sk))}</small><br><small class="hint">${esc(skillGearText(sk))}.</small></p>`).join('')
     : `<p>${esc(node.desc)}</p>`;
   const action = rank >= node.ranks ? '<p class="tal-maxed">Maîtrisé.</p>'
     : reason ? `<p class="warning">${esc(reason)}</p>`
@@ -17640,10 +17707,12 @@ const { getSkills, canPaySkill, paySkill, usesHp, getClass } = __modules["src/ga
 const { statsOf, heal } = __modules["src/game/units.js"];
 const { healAmount } = __modules["src/game/formulas.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
+const { skillGearProblem } = __modules["src/game/position.js"];
 // Soins hors combat (entre deux combats d'une expédition) : les héros peuvent
 // lancer leurs compétences de soin et de purification. Les autres effets (buffs,
 // boucliers, soins sur la durée) ne s'appliquent pas hors combat, pour éviter de
 // se sur-préparer avant une rencontre.
+
 
 
 
@@ -17675,6 +17744,8 @@ function cannotCastReason(game, casterIndex, skill) {
   if (!game.expedition) return 'Uniquement pendant une expédition.';
   if (!caster?.alive) return 'Ce héros est tombé.';
   if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
+  const gear = skillGearProblem(caster, skill);
+  if (gear) return gear;
   if (!canPaySkill(caster, skill)) return usesHp(getClass(caster)) ? 'Pas assez de PV (le dernier ne se sacrifie pas).' : 'Pas assez de ressource.';
   return null;
 }
@@ -18550,7 +18621,7 @@ const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
 const { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove, effectiveSkill } = __modules["src/game/combat.js"];
 const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src/game/combo.js"];
-const { usesWeapon, canUseWeapon, weaponBlockedReason } = __modules["src/game/position.js"];
+const { usesWeapon, weaponBlockedReason, skillWeaponProblem } = __modules["src/game/position.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { esc, range, resourceKind } = __modules["src/ui/html.js"];
@@ -18696,7 +18767,8 @@ function skillButtons(hero) {
     const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
     const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`)
       : cls.resource.souls ? (s.cost ? `${s.cost} âme${s.cost > 1 ? 's' : ''}` : 'gratuit') : s.cost;
-    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
+    const problem = skillWeaponProblem(hero, s);
+    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(problem ? `${s.name} : ${problem}` : s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
       <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost${usesHp(cls) ? ' hp' : ''}" title="${esc(skillCostLabel(cls, s, hero))}">${cost}</small></button>`;
   }).join('');
@@ -18779,7 +18851,8 @@ function helpFor(hero, el) {
   if (el.dataset.skill !== undefined) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
     const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
+    const problem = skillWeaponProblem(hero, s);
+    const weapon = problem ? ` ${problem}` : s.weapons ? (usesWeapon(s) ? " Frappe avec l'arme." : ' Sort lancé avec son arme.') : '';
     return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${esc(skillCostLabel(cls, s, hero))}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
   if (el.dataset.item) {

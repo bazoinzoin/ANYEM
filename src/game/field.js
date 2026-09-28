@@ -7,6 +7,7 @@ import { getSkills, canPaySkill, paySkill, usesHp, getClass } from './party.js';
 import { statsOf, heal } from './units.js';
 import { healAmount } from './formulas.js';
 import { statusesOf } from './statuses.js';
+import { skillGearProblem } from './position.js';
 
 // Compétence utilisable hors combat : un soin direct ou une purification.
 export function isFieldSkill(skill) {
@@ -33,6 +34,8 @@ export function cannotCastReason(game, casterIndex, skill) {
   if (!game.expedition) return 'Uniquement pendant une expédition.';
   if (!caster?.alive) return 'Ce héros est tombé.';
   if (!isFieldSkill(skill)) return 'Utilisable seulement en combat.';
+  const gear = skillGearProblem(caster, skill);
+  if (gear) return gear;
   if (!canPaySkill(caster, skill)) return usesHp(getClass(caster)) ? 'Pas assez de PV (le dernier ne se sacrifie pas).' : 'Pas assez de ressource.';
   return null;
 }

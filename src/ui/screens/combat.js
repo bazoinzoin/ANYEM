@@ -16,7 +16,7 @@ import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
 import { targetsFor, canUseSkill, canUseItem, canDoAction, canMove, hasFreeMove, effectiveSkill } from '../../game/combat.js';
 import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../game/combo.js';
-import { usesWeapon, canUseWeapon, weaponBlockedReason } from '../../game/position.js';
+import { usesWeapon, weaponBlockedReason, skillWeaponProblem } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { esc, range, resourceKind } from '../html.js';
@@ -134,7 +134,8 @@ function skillButtons(hero) {
     const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
     const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`)
       : cls.resource.souls ? (s.cost ? `${s.cost} âme${s.cost > 1 ? 's' : ''}` : 'gratuit') : s.cost;
-    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(s.name)}">
+    const problem = skillWeaponProblem(hero, s);
+    return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(problem ? `${s.name} : ${problem}` : s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>
       <small class="est">${esc(skillShortEstimate(stats, s))}</small><small class="cost${usesHp(cls) ? ' hp' : ''}" title="${esc(skillCostLabel(cls, s, hero))}">${cost}</small></button>`;
   }).join('');
@@ -217,7 +218,8 @@ function helpFor(hero, el) {
   if (el.dataset.skill !== undefined) {
     const base = getSkills(hero)[Number(el.dataset.skill)];
     const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const weapon = usesWeapon(s) ? (canUseWeapon(hero) ? " Frappe avec l'arme." : ` ${weaponBlockedReason(hero)}`) : '';
+    const problem = skillWeaponProblem(hero, s);
+    const weapon = problem ? ` ${problem}` : s.weapons ? (usesWeapon(s) ? " Frappe avec l'arme." : ' Sort lancé avec son arme.') : '';
     return `<b>${skillIcon(s, 16)} ${esc(s.name)}</b> — ${esc(skillCostLabel(cls, s, hero))}${s.comboGain ? ` · +${s.comboGain} combo` : ''}${s.finisher ? ` · ${comboOf(hero)} combo` : ''}<br>${esc(s.desc)}. ${esc(skillEffectLabel(stats, s))}.${s.boosted ? ' ★ Renforcée.' : ''}${s.finisher && !comboOf(hero) ? ' Demande au moins 1 point de combo.' : ''}${esc(weapon)}`;
   }
   if (el.dataset.item) {
