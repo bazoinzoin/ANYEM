@@ -176,7 +176,7 @@ function wireEffectTips(app) {
 function commands(hero) {
   const cb = state.combat;
   if (ui.mode === 'skills') return subMenu(skillButtons(hero));
-  if (ui.mode === 'items') return subMenu(itemButtons());
+  if (ui.mode === 'items') return subMenu(itemButtons(), 'item-grid');
   if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? 'Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
   const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
   const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
@@ -195,8 +195,8 @@ function commands(hero) {
     </div>`;
 }
 
-function subMenu(content) {
-  return `<div class="sub-list">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
+function subMenu(content, cls = '') {
+  return `<div class="sub-list ${cls}">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
 }
 
 function skillButtons(hero) {
@@ -218,7 +218,9 @@ function itemButtons() {
   const cb = state.combat;
   return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
     const c = CONSUMABLES[k];
-    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${itemIc(k)}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+    // Inutilisable : grisé mais survolable (aria-disabled plutôt que disabled) pour lire son effet.
+    const off = canUseItem(cb, k) ? '' : ' off" aria-disabled="true';
+    return `<button class="cmd item-cell${off}" data-item="${k}" aria-label="${esc(c.name)}"><span class="ico">${itemIc(k, 24)}</span><small class="qty">×${countOf(cb.consumables, k)}</small></button>`;
   }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
 }
 
@@ -240,7 +242,7 @@ function info(hero) {
   return `
     <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
-    <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
+    <p class="bs-help" id="bsHelp">${ui.mode === 'items' ? 'Survolez un objet pour voir son effet.' : 'Survolez une commande pour voir son effet.'}</p>`;
 }
 
 function targetInfo(hero) {
@@ -297,7 +299,9 @@ function helpFor(hero, el) {
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];
-    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+    const n = countOf(state.combat.consumables, el.dataset.item);
+    const why = canUseItem(state.combat, el.dataset.item) ? '' : ' <i>Personne n\'en a besoin pour l\'instant.</i>';
+    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b> <small>×${n}</small><br>${esc(c.desc)}${takesTurn}${why}`;
   }
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
@@ -427,7 +431,7 @@ function wire(app, hero) {
   on('actBack', back);
   on('actConfirm', () => act(ui.action));
   app.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => choose({ type: 'skill', skill: Number(b.dataset.skill) }); });
-  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => choose({ type: 'item', item: b.dataset.item }); });
+  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => { if (!b.classList.contains('off')) choose({ type: 'item', item: b.dataset.item }); }; });
   app.querySelectorAll('[data-target]').forEach((b) => { b.onclick = () => act({ ...ui.action, target: Number(b.dataset.target) }); });
 }
 

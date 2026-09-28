@@ -61,6 +61,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .cmd small, .target small { color: #f3dcb8; }
 .cmd .est, .target .est { color: #c9f5a6; }
 .cmd .cost { color: #bfe0ff; }
+.cmd.item-cell { border-width: 3px; border-image-width: 3px; }
 .bs-status .st { display: inline-flex; align-items: flex-end; }
 .bs-logbtn { padding: 0 4px; line-height: 0; }
 

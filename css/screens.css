@@ -127,6 +127,12 @@
 .cmd .cost { min-width: 24px; text-align: right; color: #8ec5ff; }
 .cmd.skill .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd.back { flex: none; justify-content: center; }
+/* Objets : grille d'icônes (quantité en bas à droite), nom et effet au survol dans la fenêtre d'infos. */
+.sub-list.item-grid { grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); grid-auto-rows: 34px; gap: 3px; }
+.sub-list.item-grid .cmd.item-cell { position: relative; justify-content: center; padding: 0; }
+.cmd.item-cell .ico { width: auto; }
+.cmd.item-cell .qty { position: absolute; right: 1px; bottom: -1px; margin: 0; font-size: 10px; text-shadow: 0 1px 0 #000, 0 0 2px #000; }
+.cmd.off { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
 .bs-pick { grid-column: 1 / -1; margin: 6px; color: #f3d58c; font-family: var(--font-title); }
 .bs-wait { margin: auto; font-family: var(--font-title); color: #f3d58c; font-size: 17px; text-align: center; }
 

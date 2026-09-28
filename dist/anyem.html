@@ -269,6 +269,12 @@ button.full { width: 100%; margin-top: 12px; }
 .cmd .cost { min-width: 24px; text-align: right; color: #8ec5ff; }
 .cmd.skill .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd.back { flex: none; justify-content: center; }
+/* Objets : grille d'icônes (quantité en bas à droite), nom et effet au survol dans la fenêtre d'infos. */
+.sub-list.item-grid { grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); grid-auto-rows: 34px; gap: 3px; }
+.sub-list.item-grid .cmd.item-cell { position: relative; justify-content: center; padding: 0; }
+.cmd.item-cell .ico { width: auto; }
+.cmd.item-cell .qty { position: absolute; right: 1px; bottom: -1px; margin: 0; font-size: 10px; text-shadow: 0 1px 0 #000, 0 0 2px #000; }
+.cmd.off { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
 .bs-pick { grid-column: 1 / -1; margin: 6px; color: #f3d58c; font-family: var(--font-title); }
 .bs-wait { margin: auto; font-family: var(--font-title); color: #f3d58c; font-size: 17px; text-align: center; }
 
@@ -640,6 +646,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .cmd small, .target small { color: #f3dcb8; }
 .cmd .est, .target .est { color: #c9f5a6; }
 .cmd .cost { color: #bfe0ff; }
+.cmd.item-cell { border-width: 3px; border-image-width: 3px; }
 .bs-status .st { display: inline-flex; align-items: flex-end; }
 .bs-logbtn { padding: 0 4px; line-height: 0; }
 
@@ -19604,7 +19611,7 @@ function wireEffectTips(app) {
 function commands(hero) {
   const cb = state.combat;
   if (ui.mode === 'skills') return subMenu(skillButtons(hero));
-  if (ui.mode === 'items') return subMenu(itemButtons());
+  if (ui.mode === 'items') return subMenu(itemButtons(), 'item-grid');
   if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? 'Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
   const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
   const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
@@ -19623,8 +19630,8 @@ function commands(hero) {
     </div>`;
 }
 
-function subMenu(content) {
-  return `<div class="sub-list">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
+function subMenu(content, cls = '') {
+  return `<div class="sub-list ${cls}">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
 }
 
 function skillButtons(hero) {
@@ -19646,7 +19653,9 @@ function itemButtons() {
   const cb = state.combat;
   return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
     const c = CONSUMABLES[k];
-    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${itemIc(k)}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+    // Inutilisable : grisé mais survolable (aria-disabled plutôt que disabled) pour lire son effet.
+    const off = canUseItem(cb, k) ? '' : ' off" aria-disabled="true';
+    return `<button class="cmd item-cell${off}" data-item="${k}" aria-label="${esc(c.name)}"><span class="ico">${itemIc(k, 24)}</span><small class="qty">×${countOf(cb.consumables, k)}</small></button>`;
   }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
 }
 
@@ -19668,7 +19677,7 @@ function info(hero) {
   return `
     <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
-    <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
+    <p class="bs-help" id="bsHelp">${ui.mode === 'items' ? 'Survolez un objet pour voir son effet.' : 'Survolez une commande pour voir son effet.'}</p>`;
 }
 
 function targetInfo(hero) {
@@ -19725,7 +19734,9 @@ function helpFor(hero, el) {
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];
-    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+    const n = countOf(state.combat.consumables, el.dataset.item);
+    const why = canUseItem(state.combat, el.dataset.item) ? '' : ' <i>Personne n\'en a besoin pour l\'instant.</i>';
+    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b> <small>×${n}</small><br>${esc(c.desc)}${takesTurn}${why}`;
   }
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
@@ -19855,7 +19866,7 @@ function wire(app, hero) {
   on('actBack', back);
   on('actConfirm', () => act(ui.action));
   app.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => choose({ type: 'skill', skill: Number(b.dataset.skill) }); });
-  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => choose({ type: 'item', item: b.dataset.item }); });
+  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => { if (!b.classList.contains('off')) choose({ type: 'item', item: b.dataset.item }); }; });
   app.querySelectorAll('[data-target]').forEach((b) => { b.onclick = () => act({ ...ui.action, target: Number(b.dataset.target) }); });
 }
 
