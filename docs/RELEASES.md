@@ -9,7 +9,7 @@ automatiquement par GitHub à partir de `dist/anyem.html`. Chaque version est ar
 - **Journal** : `CHANGELOG.md`, une section `## [X.Y.Z] - date` par version, en français, du
   point de vue du joueur.
 - **Archive** : une étiquette Git `vX.Y.Z` sur `main` et une page GitHub « Releases » avec le
-  `.exe`, le zip, `anyem.html` et l'icône. Les anciennes versions restent téléchargeables.
+  `.exe` et `anyem.html` (rien d'autre : l'icône est dans le `.exe`). Les anciennes versions restent téléchargeables.
 
 Numérotation : `X` grande refonte, `Y` nouvelle version jouable (nouveautés), `Z` corrections.
 Tant que `X` vaut 0, le jeu est en **bêta** : la page GitHub est une « pré-version » intitulée

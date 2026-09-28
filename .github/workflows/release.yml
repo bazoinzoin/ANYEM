@@ -1,6 +1,6 @@
 # Version officielle d'Anyem : à chaque étiquette vX.Y.Z poussée sur GitHub, fabrique le jeu
 # Windows (Electron, sur une machine Windows) et publie une page de téléchargement (Release)
-# avec Anyem-X.Y.Z.exe, le zip et anyem.html, et la section de CHANGELOG.md de la version.
+# avec Anyem-X.Y.Z.exe et anyem.html, et la section de CHANGELOG.md de la version.
 # Lancé à la main (onglet Actions, « Run workflow ») : fabrique le .exe à tester (artefacts de
 # l'exécution) ; avec « publier » coché, publie aussi la version de package.json (l'étiquette
 # vX.Y.Z est alors créée par GitHub sur le commit lancé).
@@ -60,7 +60,6 @@ jobs:
           name: anyem-windows
           path: |
             desktop/release/*.exe
-            desktop/release/*.zip
             dist/anyem.html
       - name: Publier la version
         if: startsWith(github.ref, 'refs/tags/v') || inputs.publier
@@ -73,6 +72,4 @@ jobs:
           body_path: release-notes.md
           files: |
             desktop/release/*.exe
-            desktop/release/*.zip
             dist/anyem.html
-            dist/anyem.ico
