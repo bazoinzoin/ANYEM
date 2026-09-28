@@ -177,3 +177,17 @@ test("Macabre : classe à Mana, les âmes sont une jauge à part ; certaines com
   assert.equal(isValidTarget('elixir', mac), true, "l'élixir lui rend du Mana");
   assert.ok(w);
 });
+
+test('Macabre : Libération des âmes, apprise avec le premier point de chaque orientation, relâche toutes les âmes sans autre effet', () => {
+  for (const branch of ['soldat', 'murDOs', 'necromancien']) {
+    const { cb, hero } = setup(branch, 0);
+    const i = skillIndex(hero, 'liberation-des-ames');
+    assert.ok(i >= 0, `${branch} : appris au palier 0`);
+    assert.equal(canUseSkill(cb, hero, getSkills(hero)[i]), false, 'sans âme : rien à libérer');
+    gainSouls(hero, 3);
+    const hp = cb.enemies.map((e) => e.hp);
+    assert.ok(heroAct(cb, { type: 'skill', skill: i }));
+    assert.equal(soulsOf(hero), 0);
+    assert.deepEqual(cb.enemies.map((e) => e.hp), hp, 'aucun dégât');
+  }
+});

@@ -74,6 +74,7 @@ export function effectIcon(key) {
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
   // Macabre : crânes, os, spectres.
+  [/libération des âmes/i, 1053],
   [/déchaînement/i, 863],
   [/outre-tombe|décharné/i, 861],
   [/hécatombe|citadelle des damnés/i, 1297],

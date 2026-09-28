@@ -13,6 +13,7 @@ import { heroSprite } from './heroSprite.js';
 import { enemySprite, mobScale } from './mobSprites.js';
 import { ENEMIES } from '../data/enemies.js';
 import { statsOf } from '../game/units.js';
+import { soulsOf } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
 import { image, isReady } from './sprites.js';
 import { effectIcon, COMMAND_ICONS } from './icons.js';
@@ -765,7 +766,9 @@ function drawBars(ctx, unit, v, y) {
     ctx.fillText(unit.name, v.x, by + h + 2);
   }
   // Effets en cours au-dessus de la tête.
-  const icons = [...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
+  // Âmes du Macabre : un crâne parmi ses effets (voir l'écran de combat).
+  const souls = sideOf(unit) === 'hero' && soulsOf(unit) > 0 ? [862] : [];
+  const icons = [...souls, ...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
   const sheet = image('icons/raven16');
   if (icons.length && isReady(sheet)) {
     const size = 12;

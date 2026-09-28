@@ -1278,8 +1278,8 @@ export const TALENTS = {
       key: 'soldat', name: 'Soldat décharné', gear: { stat: 'force', armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] }, icon: '💀',
       desc: 'Dégâts au corps à corps : chaque âme le rend bien plus fort, mais le ronge. Il frappe fort tant qu\'il les garde, puis les libère d\'un coup. Force, hache ou masse à deux mains, armure moyenne.',
       nodes: [
-        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne']), passive: { soulPhys: 10, soulCrit: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
+        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne', 'liberation-des-ames']), passive: { soulPhys: 10, soulCrit: 2 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
         ...choice(1, [
           minor('mc-os-durs', 'Os durs', { pct: { physPower: 2.5 } }),
           minor('mc-rictus', 'Rictus', { flat: { critDmg: 4 } }),
@@ -1340,8 +1340,8 @@ export const TALENTS = {
       key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
       desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
       nodes: [
-        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os']), passive: { soulDef: 8, soulBlock: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
         ...choice(1, [
           minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
           minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
@@ -1410,8 +1410,8 @@ export const TALENTS = {
       key: 'necromancien', name: 'Nécromancien', gear: { stat: 'intelligence', armor: ['legere'], weapons: ['baton'], offHand: [] }, icon: '🕯️',
       desc: 'Dégâts magiques à distance : chaque âme renforce ses sorts, mais le ronge ; il les libère en explosions d\'âmes. Seule orientation à l\'Intelligence : bâton, armure légère.',
       nodes: [
-        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste']), passive: { soulMag: 10, soulCrit: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
+        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste', 'liberation-des-ames']), passive: { soulMag: 10, soulCrit: 2 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
         ...choice(1, [
           minor('mc-encre-noire', 'Encre noire', { pct: { magPower: 2.5 } }),
           minor('mc-glas', 'Glas', { flat: { critDmg: 4 } }),

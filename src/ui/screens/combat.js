@@ -20,6 +20,7 @@ import { usesWeapon, weaponBlockedReason, skillWeaponProblem } from '../../game/
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
 import { EFFECTS } from '../../data/effects.js';
+import { backlashPct } from '../../game/souls.js';
 import { esc, range, resourceKind } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } from '../format.js';
 import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
@@ -69,9 +70,10 @@ function heroRow(hero, i, active) {
   const stats = statsOf(hero);
   const max = comboMax(hero);
   const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
-  // Âmes du Macabre : pastilles pâles (jauge à part du Mana).
-  const souls = usesSouls(cls) && hero.alive
-    ? `<span class="bs-combo bs-souls" title="Âmes absorbées (${soulsOf(hero)}/${stats.soulMax}) : chaque âme le renforce, mais le ronge à la fin de ses tours">${'●'.repeat(soulsOf(hero))}${'○'.repeat(Math.max(0, stats.soulMax - soulsOf(hero)))}</span>` : '';
+  // Âmes du Macabre : une icône parmi ses effets (nombre d'âmes en indice), effet actuel
+  // (bonus de son orientation, contrecoup) détaillé au survol ; rouge au maximum.
+  const souls = usesSouls(cls) && hero.alive && soulsOf(hero) > 0
+    ? `<span class="st souls ${soulsOf(hero) >= stats.soulMax ? 'full' : ''}" data-fx-tip="${esc(soulTip(hero, stats))}">${iconHtml(SOUL_ICON, 20)}<sub>${soulsOf(hero)}</sub></span>` : '';
   return `
     <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
@@ -79,7 +81,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${souls}<span class="bs-effects">${statusIcons(hero)}</span></span>
+      <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
     </button>`;
 }
 
@@ -87,6 +89,34 @@ function meter(value, max, kind, label = 'PV') {
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   const low = kind === 'hp' && pct <= 25 ? 'low' : '';
   return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
+}
+
+const SOUL_ICON = 862; // crâne (planche d'icônes)
+
+// Fiche des âmes du Macabre : bonus actuels (selon son orientation) et contrecoup à venir.
+function soulTip(hero, stats) {
+  const n = soulsOf(hero);
+  const lines = [`Âmes : ${n} / ${stats.soulMax}`];
+  if (!n) {
+    lines.push("Aucune âme : ni bonus, ni contrecoup. Il absorbe l'âme de chaque ennemi qui meurt.");
+    return lines.join('\n');
+  }
+  const pct = (v) => String(+(v * n).toFixed(1)).replace('.', ',');
+  const bonus = [
+    stats.soulPhys ? `+${pct(stats.soulPhys)} % de puissance physique` : '',
+    stats.soulMag ? `+${pct(stats.soulMag)} % de puissance magique` : '',
+    stats.soulDef ? `+${pct(stats.soulDef)} % de Défense et Défense magique` : '',
+    stats.soulCrit ? `+${pct(stats.soulCrit)} % de Coup critique` : '',
+    stats.soulBlock ? `+${pct(stats.soulBlock)} % de Blocage` : '',
+    stats.soulLifesteal ? `${pct(stats.soulLifesteal)} % de vol de vie` : '',
+  ].filter(Boolean);
+  lines.push(bonus.length ? `Bonus actuel : ${bonus.join(', ')}.` : 'Aucun bonus (pas encore de talent qui en donne).');
+  const back = backlashPct(stats, n, n >= stats.soulMax ? hero.soulHeld ?? 0 : 0);
+  const fmt = (v) => String(v).replace('.', ',');
+  lines.push(`Contrecoup à la fin de son tour : −${fmt(back.self)} % de ses PV max (≈ ${Math.round(stats.pv * back.self / 100)} PV).`);
+  if (back.allies) lines.push(`Au maximum : ses alliés perdent aussi ${fmt(back.allies)} % de leurs PV (sans en mourir), et le contrecoup augmente à chaque tour.`);
+  lines.push('Libération des âmes les relâche toutes, sans autre effet.');
+  return lines.join('\n');
 }
 
 // Fiche détaillée d'un effet (bulle au survol) : nom, description, valeur, durée, lanceur.
