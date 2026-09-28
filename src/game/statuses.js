@@ -27,6 +27,7 @@ export function makeStatus(id, turns, value) {
   for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
   if (def.redirect) status.redirect = def.redirect;
   if (def.value) status[def.value] = value;
+  if (def.stacks) status.doses = [value]; // effet cumulable (poison) : une entrée par dose
   return status;
 }
 
@@ -39,7 +40,27 @@ export function addStatus(unit, status) {
   const list = statusesOf(unit);
   const i = list.findIndex((s) => s.key === status.key);
   if (i === -1) list.push({ ...status });
+  else if (EFFECTS[status.key]?.stacks && list[i].doses && status.doses) list[i] = stackDoses(list[i], status);
   else list[i] = { ...status };
+}
+
+// Effet cumulable (poison) : la nouvelle dose s'ajoute ; au-delà du maximum, on garde les
+// plus fortes. Dégâts par tour = somme des doses ; durée = la plus longue des deux.
+function stackDoses(current, added) {
+  const max = EFFECTS[added.key].stacks;
+  const doses = [...current.doses, ...added.doses].sort((a, b) => b - a).slice(0, max);
+  return { ...added, doses, dot: doses.reduce((sum, d) => sum + d, 0), turns: Math.max(current.turns, added.turns), fresh: current.fresh && added.fresh };
+}
+
+/**
+ * Fait agir d'un coup tout un effet de dégâts sur la durée (ex. le poison) : retire l'effet
+ * et retourne les dégâts qu'il aurait encore infligés (dégâts par tour × tours restants).
+ */
+export function detonateStatus(unit, key) {
+  const status = statusesOf(unit).find((s) => s.key === key && s.dot);
+  if (!status) return 0;
+  unit.statuses = statusesOf(unit).filter((s) => s !== status);
+  return status.dot * status.turns;
 }
 
 export function hasStatus(unit, flag) {

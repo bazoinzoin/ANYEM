@@ -13,7 +13,7 @@ function newGame() {
 
 test('les noms saisis sont appliqués, un nom vide garde le nom de classe', () => {
   const party = createParty(['  Arthas ', '', undefined]);
-  assert.deepEqual(party.map((h) => h.name), ['Arthas', 'Voleur', 'Prêtre', 'Mage']);
+  assert.deepEqual(party.map((h) => h.name), ['Arthas', 'Dissimulé', 'Dévot', 'Élémentaliste']);
 });
 
 test("l'auberge soigne et relève les héros tombés", () => {

@@ -10,7 +10,7 @@ import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES } from '../../data/items.js';
 import { TALENTS, nodeSkills } from '../../data/talents.js';
-import { createParty, createHero, getStats } from '../../game/party.js';
+import { createParty, createHero, getStats, classTitle, hasFeminine } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { generateItem, possibleSecondaries } from '../../game/items.js';
 import { esc } from '../html.js';
@@ -28,7 +28,10 @@ import { drawActor } from '../actors.js';
 
 // Choix en cours (classes et noms), conservés quand on change une classe.
 // Détails ouverts : { tab: 'classes' | 'legendaries', classKey } ou null.
-const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), looks: PARTY_ORDER.map(defaultLook), details: null };
+// feminine : forme féminine du nom de classe (« La Dissimulée »), par héros.
+const draft = { classes: [...PARTY_ORDER], names: PARTY_ORDER.map((k) => CLASSES[k].name), feminine: PARTY_ORDER.map(() => false), looks: PARTY_ORDER.map(defaultLook), details: null };
+// Nom proposé par défaut : le nom de la classe, accordé.
+const defaultName = (key, feminine) => (feminine ? CLASSES[key].nameF : CLASSES[key].name);
 
 // Parties de l'apparence, dans l'ordre de l'écran.
 const PART_LABELS = { hair: 'Coupe', hairColor: 'Cheveux', eyes: 'Yeux', skin: 'Peau', top: 'Haut', bottom: 'Bas' };
@@ -54,10 +57,19 @@ export function renderCreate(app) {
     btn.onclick = rerender(() => {
       const i = Number(btn.dataset.classSlot);
       // Nom par défaut (celui de la classe) : il suit la nouvelle classe.
-      if (draft.names[i] === CLASSES[draft.classes[i]].name) draft.names[i] = CLASSES[btn.dataset.class].name;
+      if (draft.names[i] === defaultName(draft.classes[i], draft.feminine[i])) draft.names[i] = defaultName(btn.dataset.class, draft.feminine[i]);
       // Apparence encore celle de l'ancienne classe : elle suit aussi.
       if (lookKey(draft.looks[i]) === lookKey(defaultLook(draft.classes[i]))) draft.looks[i] = defaultLook(btn.dataset.class);
       draft.classes[i] = btn.dataset.class;
+    });
+  });
+  app.querySelectorAll('[data-feminine]').forEach((btn) => {
+    btn.onclick = rerender(() => {
+      const i = Number(btn.dataset.feminine);
+      const key = draft.classes[i];
+      const wasDefault = draft.names[i] === defaultName(key, draft.feminine[i]);
+      draft.feminine[i] = !draft.feminine[i];
+      if (wasDefault) draft.names[i] = defaultName(key, draft.feminine[i]);
     });
   });
   app.querySelectorAll('[data-look]').forEach((btn) => {
@@ -87,7 +99,7 @@ export function renderCreate(app) {
   app.querySelector('#startBtn').onclick = () => {
     readNames(app);
     draft.details = null;
-    state.party = createParty(draft.names, draft.classes, draft.looks);
+    state.party = createParty(draft.names, draft.classes, draft.looks, draft.classes.map((k, i) => hasFeminine(k) && draft.feminine[i]));
     saveGame(); // l'aventure occupe son emplacement dès le départ
     goTo('hub');
   };
@@ -102,11 +114,11 @@ function heroColumn(key, i) {
   const look = draft.looks[i];
   return `
     <section class="win create-hero" style="--c:${cls.color}">
-      <h3>Héros ${i + 1} · ${esc(cls.name)}</h3>
+      <h3 title="Héros ${i + 1}">${esc(classTitle(key, draft.feminine[i]))}${hasFeminine(key) ? ` <button class="gender-pick" data-feminine="${i}" title="Nom de classe au ${draft.feminine[i] ? 'masculin' : 'féminin'} : ${esc(classTitle(key, !draft.feminine[i]))}" aria-label="Changer la forme du nom de classe">⇄</button>` : ''}</h3>
       <div class="create-portrait"><canvas data-preview="${i}" width="120" height="130" class="portrait"></canvas></div>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
-        ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(CLASSES[k].name)}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
+        ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
       <p class="create-meta" title="${esc(cls.desc)}">${esc(cls.resource.name)} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
@@ -178,11 +190,11 @@ function classesTab() {
       : `${r.name} : ${r.max} au maximum, +${r.regen} au début de chaque tour.`;
   return `
     <div class="create-classes details">
-      ${CLASS_ORDER.map((k) => `<button data-details-class="${k}" class="choice ${k === key ? 'selected' : ''}">${iconHtml(CLASS_ICONS[k], 32)}<span>${esc(CLASSES[k].name)}</span></button>`).join('')}
+      ${CLASS_ORDER.map((k) => `<button data-details-class="${k}" class="choice ${k === key ? 'selected' : ''}">${iconHtml(CLASS_ICONS[k], 32)}<span>${esc(CLASSES[k].title)}</span></button>`).join('')}
     </div>
     <div class="details-body">
       <div class="details-col">
-        <div class="beast-head">${portrait(`classe:${key}`, 3)}<div><h3>${esc(cls.name)}</h3><p class="hint">${esc(cls.desc)}</p></div></div>
+        <div class="beast-head">${portrait(`classe:${key}`, 3)}<div><h3>${esc(hasFeminine(key) ? `${cls.title} · ${cls.titleF}` : cls.title)}</h3><p class="hint">${esc(cls.desc)}</p></div></div>
         <div class="stats sheet stats-cols">${statsList(hero)}</div>
       </div>
       <div class="details-col">
@@ -212,7 +224,7 @@ function legendariesTab() {
     <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec ${RARITIES.legendaire.secondaries} stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
     <div class="details-body">
       <div class="details-col leg-groups">${groups.map(([classKey, list]) => `
-        <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].name)}` : 'Toutes classes'}</span>
+        <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].title)}` : 'Toutes classes'}</span>
           <div class="cells">${list.map((k) => `<div class="bag-cell pick" data-legendary="${k}" style="--rc:${RARITIES.legendaire.color}">${iconHtml(itemIcon(sample(k)), 32)}</div>`).join('')}</div>
         </div>`).join('')}
       </div>
@@ -239,7 +251,7 @@ function legendaryDetail(key) {
     return `<li>${def.label} <b>+${lo} à ${hi}${def.suffix ? ` ${def.suffix}` : ''}</b></li>`;
   });
   return `${itemDetail(item)}
-    <p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
+    <p class="hint">${cls ? `Réservé aux ${esc(cls.plural)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
     <div class="leg-secondaries"><b>Stats secondaires possibles</b> <small>(en jeu, ${count} tirées au hasard parmi celles-ci)</small>
       <ul>${lines.join('')}</ul></div>`;
 }

@@ -40,12 +40,18 @@ export function weaponSpeedOf(hero) {
   return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
 }
 
+// La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
+export function usesMana(cls) {
+  return cls.resource.name === 'Mana';
+}
+
 /**
  * Stats finales du héros (base de classe + équipement), plus :
  *   physPower  puissance physique = Attaque + stat physique de la classe × facteur
  *              (attaque de base et compétences non magiques)
  *   magPower   puissance magique = Intelligence × facteur (sorts et soins)
- *   resMax     maximum de la ressource de classe
+ *   resMax     maximum de la ressource de classe = base de la classe + talents et légendaires
+ *              (resMaxTalents) + Mana des objets pour une classe à Mana (resMaxItems)
  *   vit        Vitesse × coefficient de vitesse des armes (vitBase : avant arme)
  */
 export function getStats(hero) {
@@ -81,7 +87,10 @@ export function getStats(hero) {
     physPower: total.atq + physFromStat,
     physFromStat,
     magPower: Math.round(total.intelligence * COMBAT.magicPerInt),
-    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0),
+    resMax: cls.resource.max + (fx.passive.resMaxBonus ?? 0) + (usesMana(cls) ? total.mana : 0),
+    resMaxBase: cls.resource.max,
+    resMaxTalents: fx.passive.resMaxBonus ?? 0,
+    resMaxItems: usesMana(cls) ? total.mana : 0,
     // Passifs des talents (berserk, healPct, dotPct, resRegen, vsDebuffedPct, guardShieldPct, critCombo…).
     ...fx.passive,
   };
@@ -151,11 +160,30 @@ export function gainXp(hero, amount) {
   return levels;
 }
 
-export function createHero(classKey, name, look = null) {
+// Nom de classe accordé : titre des menus avec son article (« La Dissimulée ») ou nom seul
+// pour les phrases (« Dissimulée ») ; au féminin si le héros l'a choisi à sa création.
+export function classTitle(classKey, feminine = false) {
+  const cls = CLASSES[classKey];
+  return feminine ? cls.titleF : cls.title;
+}
+export function heroClassTitle(hero) {
+  return classTitle(hero.classKey, hero.feminine);
+}
+export function heroClassName(hero) {
+  const cls = CLASSES[hero.classKey];
+  return hero.feminine ? cls.nameF : cls.name;
+}
+// La classe a-t-elle une forme féminine distincte (Le Dissimulé / La Dissimulée) ?
+export function hasFeminine(classKey) {
+  return CLASSES[classKey].titleF !== CLASSES[classKey].title;
+}
+
+export function createHero(classKey, name, look = null, feminine = false) {
   const cls = CLASSES[classKey];
   const hero = {
     classKey,
-    name: name || cls.name,
+    name: name || (feminine ? cls.nameF : cls.name),
+    feminine: !!feminine, // forme féminine du nom de classe (choisie à la création)
     hp: 0,
     res: cls.resource.start,
     level: 1,
@@ -177,9 +205,10 @@ export function createHero(classKey, name, look = null) {
 }
 
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
-// `looks` : apparences choisies à la création (défaut : celle de chaque classe).
-export function createParty(names = [], classes = PARTY_ORDER, looks = []) {
-  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i]));
+// `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
+// `feminine` : forme féminine du nom de classe, par héros.
+export function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = []) {
+  return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i], feminine[i]));
 }
 
 export function gainResource(hero, amount) {

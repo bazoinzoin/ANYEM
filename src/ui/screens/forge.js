@@ -302,7 +302,7 @@ function divineBody() {
     </section>
     <section class="win detail-panel" id="divineDetail">
       ${divine ? itemDetail(divine) : '<p class="hint">Choisissez un objet divin.</p>'}
-      ${leg ? `<div class="forge-section"><h4>${iconHtml(itemIcon(leg), 16)} <span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${esc(cls.name)})</small>` : ''}</h4><p>${esc(leg.legendary.desc)}</p></div>` : ''}
+      ${leg ? `<div class="forge-section"><h4>${iconHtml(itemIcon(leg), 16)} <span class="rarity-text" style="--rc:${RARITIES.legendaire.color}">${esc(itemName(leg))}</span>${cls ? ` <small>(${esc(cls.title)})</small>` : ''}</h4><p>${esc(leg.legendary.desc)}</p></div>` : ''}
       ${divine?.absorbed && leg ? `<p class="hint">Le pouvoir actuel (${esc(divine.absorbed.name)}) sera remplacé.</p>` : ''}
       <div class="actions"><button id="absorbBtn" class="${confirming ? 'btn-primary' : 'gold'}" ${problem ? 'disabled' : ''}>${confirming ? `Confirmer : détruire ${esc(itemName(leg))}` : 'Absorber le pouvoir'}</button></div>
     </section>`;

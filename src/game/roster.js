@@ -26,9 +26,9 @@ export function rosterLockedReason(game) {
  * de l'équipe ; le héros remplacé part à l'auberge. Retourne le nouveau héros, ou
  * null si c'est impossible.
  */
-export function recruit(game, classKey, name, replaceIndex) {
+export function recruit(game, classKey, name, replaceIndex, feminine = false) {
   if (recruitProblem(game) || !CLASSES[classKey] || !game.party[replaceIndex]) return null;
-  const hero = createHero(classKey, name?.trim());
+  const hero = createHero(classKey, name?.trim(), null, feminine);
   const [leaving] = game.party.splice(replaceIndex, 1, hero);
   restoreFully(leaving);
   reserveOf(game).push(leaving);

@@ -1,5 +1,9 @@
 // Définition des classes jouables. Données pures : aucune logique ici.
 //
+// name        nom de la classe dans les phrases, accordé comme un nom ordinaire (« l'Impassible
+//             cède à la rage », « réservé aux Vénateurs ») ; nameF : au féminin ; plural : pluriel
+// title       nom de la classe dans les menus, avec son article (« Le Dissimulé ») ; titleF :
+//             au féminin (« La Dissimulée »), identique quand la classe n'a pas de forme féminine
 // position    position de combat par défaut : 'melee' (corps à corps) ou 'ranged'
 //             (distance), modifiable au village (écran Stratégie)
 // mainStat    stat principale de la classe (affichage, orientation de l'équipement)
@@ -55,7 +59,8 @@
 
 export const CLASSES = {
   guerrier: {
-    name: 'Guerrier',
+    name: 'Impassible', nameF: 'Impassible', plural: 'Impassibles',
+    title: 'L\'Impassible', titleF: 'L\'Impassible',
     icon: '⚔️',
     color: 'var(--guerrier)',
     position: 'melee',
@@ -80,7 +85,8 @@ export const CLASSES = {
     ],
   },
   voleur: {
-    name: 'Voleur',
+    name: 'Dissimulé', nameF: 'Dissimulée', plural: 'Dissimulés',
+    title: 'Le Dissimulé', titleF: 'La Dissimulée',
     icon: '🗡️',
     color: 'var(--voleur)',
     position: 'melee',
@@ -103,11 +109,12 @@ export const CLASSES = {
     starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Lacération', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'saignement', turns: 4, power: 0.1 }], desc: 'Finisher : saignement sur 4 tours, à pleine puissance dès 3 points de combo' },
+      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
   pretre: {
-    name: 'Prêtre',
+    name: 'Dévot', nameF: 'Dévote', plural: 'Dévots',
+    title: 'Le Dévot', titleF: 'La Dévote',
     icon: '✨',
     color: 'var(--pretre)',
     position: 'ranged',
@@ -133,7 +140,8 @@ export const CLASSES = {
     ],
   },
   mage: {
-    name: 'Mage',
+    name: 'Élémentaliste', nameF: 'Élémentaliste', plural: 'Élémentalistes',
+    title: 'L\'Élémentaliste', titleF: 'L\'Élémentaliste',
     icon: '🔥',
     color: 'var(--mage)',
     position: 'ranged',
@@ -159,13 +167,14 @@ export const CLASSES = {
     ],
   },
   chasseur: {
-    name: 'Chasseur',
+    name: 'Vénateur', nameF: 'Vénatrice', plural: 'Vénateurs',
+    title: 'Le Vénateur', titleF: 'La Vénatrice',
     icon: '🏹',
     color: 'var(--chasseur)',
     position: 'ranged',
     mainStat: 'agilite',
     physStat: 'agilite',
-    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Voleur, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
+    desc: "Tireur à l'arc, dégâts physiques à distance. Comme le Dissimulé, son Énergie lui permet d'agir plusieurs fois par tour : gros tirs coûteux ou petites flèches rapides, et des pièges pour contrôler l'ennemi.",
     base: { pv: 100, atq: 6, vit: 13, force: 2, agilite: 6, intelligence: 1, critChance: 8, critDmg: 50, esquive: 4 },
     growth: { pv: 9, agilite: 1 },
     resource: { name: 'Énergie', max: 100, start: 100, regen: 45, multiAction: true, actionCosts: { attack: 35, defend: 20, item: 20 } },
@@ -184,7 +193,8 @@ export const CLASSES = {
     ],
   },
   paladin: {
-    name: 'Paladin',
+    name: 'Lumineux', nameF: 'Lumineuse', plural: 'Lumineux',
+    title: 'Le Lumineux', titleF: 'La Lumineuse',
     icon: '⚜️',
     color: 'var(--paladin)',
     position: 'melee',

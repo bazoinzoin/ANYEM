@@ -112,7 +112,7 @@ export const TALENTS = {
         skill(2, {
           id: 'provocation', name: 'Provocation', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
-          desc: 'Force les ennemis à attaquer le Guerrier pendant 2 tours (+30 % Défense)',
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours (+30 % Défense)',
         }),
         ...choice(3, [
           minor('maitrise-bouclier', 'Maîtrise du bouclier', { flat: { blocage: 2.5 } }),
@@ -126,7 +126,7 @@ export const TALENTS = {
           minor('tenacite', 'Ténacité', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.7,
+          id: 'coup-de-bouclier', name: 'Coup de bouclier', cost: 25, kind: 'damage', target: 'enemy', power: 1.85,
           effects: [fx('etourdi', 1)],
           desc: 'Frappe du bouclier : la cible perd son prochain tour',
         }),
@@ -165,7 +165,7 @@ export const TALENTS = {
           id: 'dernier-rempart', name: 'Dernier rempart', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 3, 1.6), fx('protection', 3)],
           selfEffects: [fx('provocation', 3)],
-          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; le Guerrier provoque les ennemis',
+          desc: 'Énorme Bouclier et Protection sur toute l\'équipe pendant 3 tours ; provoque aussi les ennemis',
         }),
       ],
     },
@@ -180,7 +180,7 @@ export const TALENTS = {
           minor('fureur', 'Fureur', { passive: { resOnAttack: 2 } }),
         ]),
         skill(2, {
-          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.6, critBonus: 25,
+          id: 'frappe-sauvage', name: 'Frappe sauvage', cost: 25, kind: 'damage', target: 'enemy', power: 2.9, critBonus: 25,
           desc: 'Coup violent, +25 % de chance de critique',
         }),
         ...choice(3, [
@@ -197,7 +197,7 @@ export const TALENTS = {
         skill(6, {
           id: 'rage-aveugle', name: 'Rage aveugle', cost: 15, kind: 'support', target: 'self',
           selfEffects: [fx('enrage', 3)],
-          desc: 'Le Guerrier cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
+          desc: 'Cède à la rage : Enragé pendant 3 tours (+30 % de puissance physique, −20 % de Défense)',
         }),
         ...choice(7, [
           minor('frenesie', 'Frénésie', { passive: { resOnAttack: 2 } }),
@@ -222,7 +222,7 @@ export const TALENTS = {
           minor('sang-bouillant', 'Sang bouillant', { flat: { critDmg: 8 } }),
           minor('festin-de-sang', 'Festin de sang', { passive: { lifestealPct: 1.5 } }),
         ]),
-        passive('soif-de-carnage', 'Soif de carnage', 12, '+12 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 12 }, passive: { lifestealPct: 8 } }),
+        passive('soif-de-carnage', 'Soif de carnage', 12, '+22 % de puissance physique ; vol de vie : 8 % des dégâts directs infligés rendus en PV.', { pct: { physPower: 22 }, passive: { lifestealPct: 8 } }),
         ...choice(13, [
           minor('soif-de-combat', 'Soif de combat', { pct: { physPower: 4.5 } }),
           minor('sauvagerie-sanglante', 'Sauvagerie sanglante', { flat: { critDmg: 6.5 } }),
@@ -315,15 +315,15 @@ export const TALENTS = {
         ]),
         skill(2, {
           id: 'lame-empoisonnee', name: 'Lame empoisonnée', cost: 45, kind: 'damage', target: 'enemy', power: 0.5, comboGain: 2,
-          effects: [fx('poison', 4, 0.45)],
-          desc: 'Empoisonne la cible pendant 4 tours et donne 2 points de combo',
+          effects: [fx('poison', 6, 0.28)],
+          desc: 'Une dose de poison sur 6 tours (cumulable) et 2 points de combo',
         }),
         ...choice(3, [
           minor('anatomie', 'Anatomie', { flat: { critChance: 1 } }),
           minor('toxicite', 'Toxicité', { passive: { dotPct: 3.5 } }),
           minor('sang-froid', 'Sang-froid', { pct: { pv: 2.5 } }),
         ]),
-        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +50 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 50, addEffects: [fx('affaibli', 4)] } }),
+        passive('venin-virulent', 'Venin virulent', 4, 'Lame empoisonnée : poison +40 % et rend la cible Affaiblie (−20 % puissance physique et magique, 4 tours).', { skillMod: { skill: 'lame-empoisonnee', dotPowerPct: 40, addEffects: [fx('affaibli', 4)] } }),
         ...choice(5, [
           minor('distillation', 'Distillation', { passive: { dotPct: 5 } }),
           minor('patience', 'Patience', { passive: { resRegen: 3 } }),
@@ -331,8 +331,8 @@ export const TALENTS = {
         ]),
         skill(6, {
           id: 'poison-paralysant', name: 'Poison paralysant', cost: 35, kind: 'damage', target: 'enemy', power: 0.4, comboGain: 1,
-          effects: [fx('poison', 3, 0.3), fx('ralenti', 3)],
-          desc: 'Entaille enduite de venin : poison sur 3 tours, cible Ralentie 3 tours, 1 point de combo',
+          effects: [fx('poison', 5, 0.099), fx('ralenti', 3)],
+          desc: 'Entaille enduite de venin : une dose de poison sur 5 tours, cible Ralentie 3 tours, 1 point de combo',
         }),
         ...choice(7, [
           minor('venin-epais', 'Venin épais', { passive: { dotPct: 5 } }),
@@ -341,8 +341,8 @@ export const TALENTS = {
         ]),
         skill(8, {
           id: 'gaz-nauseabond', name: 'Gaz nauséabond', cost: 40, kind: 'support', target: 'allEnemies', comboGain: 1,
-          effects: [fx('poison', 3, 0.25), fx('affaibli', 3)],
-          desc: 'Empoisonne et affaiblit tous les ennemis pendant 3 tours, donne 1 point de combo',
+          effects: [fx('poison', 5, 0.083), fx('affaibli', 3)],
+          desc: 'Une dose de poison sur 5 tours à tous les ennemis, affaiblis 3 tours ; 1 point de combo',
         }),
         ...choice(9, [
           minor('pestilence', 'Pestilence', { passive: { dotPct: 4 } }),
@@ -351,15 +351,18 @@ export const TALENTS = {
         ]),
         skill(10, {
           id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
-          effects: [fx('poison', 4, 0.14)],
-          desc: 'Finisher : empoisonne tous les ennemis pendant 4 tours, à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.05)],
+          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance dès 3 points de combo',
         }),
         ...choice(11, [
           minor('alchimie-noire', 'Alchimie noire', { passive: { dotPct: 6.5 } }),
           minor('main-sure', 'Main sûre', { flat: { critChance: 1.5 } }),
           minor('recuperation', 'Récupération', { passive: { resRegen: 3 } }),
         ]),
-        passive('maitre-des-toxines', 'Maître des toxines', 12, '+20 % de dégâts sur la durée et +8 % de dégâts contre une cible qui subit un effet négatif.', { passive: { dotPct: 20, vsDebuffedPct: 8 } }),
+        skill(12, {
+          id: 'poison-foudroyant', name: 'Poison foudroyant', cost: 55, kind: 'damage', target: 'enemy', power: 0.4, detonate: 'poison',
+          desc: 'Fait agir d\'un coup tout le poison de la cible : elle subit sur-le-champ les dégâts de toutes ses doses pour les tours restants, et le poison disparaît',
+        }),
         ...choice(13, [
           minor('venin-concentre', 'Venin concentré', { passive: { dotPct: 4.5 } }),
           minor('dose-mortelle', 'Dose mortelle', { passive: { finisherRefund: 2 } }),
@@ -367,8 +370,8 @@ export const TALENTS = {
         ]),
         signature({
           id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
-          effects: [fx('poison', 5, 0.35), fx('terreur', 3)],
-          desc: 'Finisher : poison foudroyant sur 5 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
+          effects: [fx('poison', 6, 0.07), fx('terreur', 3)],
+          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
         }),
       ],
     },
@@ -538,7 +541,7 @@ export const TALENTS = {
         skill(6, {
           id: 'siphon-d-ame', name: 'Siphon d\'âme', cost: 30, kind: 'damage', target: 'enemy', power: 1.2, magic: true,
           selfEffects: [fx('regeneration', 3, 0.25)],
-          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le Prêtre se régénère pendant 3 tours',
+          desc: 'Aspire l\'âme de la cible : dégâts d\'ombre, et le lanceur se régénère pendant 3 tours',
         }),
         ...choice(7, [
           minor('murmures', 'Murmures', { passive: { vsDebuffedPct: 3.5 } }),
@@ -581,7 +584,7 @@ export const TALENTS = {
   ],
   mage: [
     {
-      key: 'feu', name: 'Mage de feu', icon: '🔥',
+      key: 'feu', name: 'Feu', icon: '🔥',
       desc: 'Dégâts sur la durée : brûlures sur une cible ou sur tous les ennemis.',
       nodes: [
         starter('depart-feu', 'Boule de feu', 'mage', ['boule-de-feu']),
@@ -649,7 +652,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'glace', name: 'Mage de glace', icon: '❄️',
+      key: 'glace', name: 'Glace', icon: '❄️',
       desc: 'Bons dégâts directs et ralentissements ; plus de dégâts contre les cibles affaiblies.',
       nodes: [
         starter('depart-glace', 'Trait de givre', 'mage', ['trait-de-givre']),
@@ -687,7 +690,7 @@ export const TALENTS = {
         skill(8, {
           id: 'armure-de-glace', name: 'Armure de glace', cost: 30, kind: 'support', target: 'self', magic: true,
           selfEffects: [fx('bouclier', 3, 1.2), fx('protection', 2)],
-          desc: 'Le Mage se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
+          desc: 'Se couvre de glace : Bouclier pendant 3 tours et Protection pendant 2 tours',
         }),
         ...choice(9, [
           minor('zero-absolu', 'Zéro absolu', { pct: { magPower: 4 } }),
@@ -717,7 +720,7 @@ export const TALENTS = {
       ],
     },
     {
-      key: 'foudre', name: 'Mage de foudre', icon: '⚡',
+      key: 'foudre', name: 'Foudre', icon: '⚡',
       desc: 'Dégâts directs très élevés, critiques, et un sort qui étourdit.',
       nodes: [
         starter('depart-foudre', 'Éclair', 'mage', ['eclair']),
@@ -754,7 +757,7 @@ export const TALENTS = {
         skill(8, {
           id: 'canalisation', name: 'Canalisation', cost: 10, kind: 'support', target: 'self', resourceGain: 30, oncePerCombat: true,
           selfEffects: [fx('hate', 2)],
-          desc: 'Une fois par combat : le Mage canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
+          desc: 'Une fois par combat : canalise l\'orage, regagne 30 Mana et gagne Hâte pendant 2 tours',
         }),
         ...choice(9, [
           minor('foudroiement', 'Foudroiement', { flat: { critDmg: 6 } }),
@@ -877,7 +880,7 @@ export const TALENTS = {
         ]),
         skill(6, {
           id: 'fleche-empoisonnee', name: 'Flèche empoisonnée', cost: 30, kind: 'damage', target: 'enemy', power: 0.8,
-          effects: [fx('poison', 4, 0.4)],
+          effects: [fx('poison', 6, 0.27)],
           desc: 'Flèche trempée dans le venin : poison sur 4 tours',
         }),
         ...choice(7, [
@@ -933,7 +936,7 @@ export const TALENTS = {
         skill(2, {
           id: 'intercession', name: 'Intercession', cost: 20, kind: 'support', target: 'ally',
           effects: [fx('intercession', 3)],
-          desc: 'Le Paladin encaisse la moitié des dégâts subis par un allié pendant 3 tours',
+          desc: 'Encaisse la moitié des dégâts subis par un allié pendant 3 tours',
         }),
         ...choice(3, [
           minor('foi-inebranlable', 'Foi inébranlable', { pct: { defMag: 3.5 } }),
@@ -943,7 +946,7 @@ export const TALENTS = {
         skill(4, {
           id: 'sceau-de-vie', name: 'Sceau de vie', cost: 30, kind: 'heal', target: 'self', power: 1, physHeal: true,
           effects: [fx('regeneration', 3, 0.25)],
-          desc: 'Le Paladin se soigne et se régénère pendant 3 tours (soins sur la Force)',
+          desc: 'Se soigne et se régénère pendant 3 tours (soins sur la Force)',
         }),
         ...choice(5, [
           minor('consecration', 'Consécration', { pct: { def: 3 } }),
@@ -969,7 +972,7 @@ export const TALENTS = {
         skill(10, {
           id: 'aura-de-protection', name: 'Aura de protection', cost: 45, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 2), fx('bouclier', 2, 0.6)],
-          desc: 'Bouclier sur toute l\'équipe ; le Paladin encaisse la moitié des dégâts de ses alliés pendant 2 tours',
+          desc: 'Bouclier sur toute l\'équipe ; encaisse aussi la moitié des dégâts de ses alliés pendant 2 tours',
         }),
         ...choice(11, [
           minor('chatiment', 'Châtiment', { flat: { riposte: 5 } }),
@@ -986,7 +989,7 @@ export const TALENTS = {
           id: 'sacrifice-divin', name: 'Sacrifice divin', cost: 70, kind: 'support', target: 'allAllies',
           effects: [fx('intercession', 3)],
           selfEffects: [fx('bouclier', 3, 2), fx('protection', 3), fx('provocation', 3)],
-          desc: 'Le Paladin attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
+          desc: 'Attire les ennemis et encaisse la moitié des dégâts de toute l\'équipe, protégé par un énorme Bouclier et Protection (3 tours)',
         }),
       ],
     },

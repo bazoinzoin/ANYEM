@@ -2,7 +2,8 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { setRandomSource } from '../src/game/rng.js';
-import { createParty, getStats, getSkills } from '../src/game/party.js';
+import { createParty, getStats, getSkills, classTitle, heroClassTitle, heroClassName, hasFeminine } from '../src/game/party.js';
+import { CLASSES } from '../src/data/classes.js';
 import { learnPath } from './helpers.js';
 import { createCombat, nextTurn, heroAct, enemyAct } from '../src/game/combat.js';
 import { statsOf, damage } from '../src/game/units.js';
@@ -38,7 +39,7 @@ test("l'équipe se compose librement parmi les 6 classes", () => {
   const party = createParty(['A', 'B'], ['chasseur', 'paladin', 'paladin', 'mage']);
   assert.deepEqual(party.map((h) => h.classKey), ['chasseur', 'paladin', 'paladin', 'mage']);
   assert.equal(party[0].name, 'A');
-  assert.equal(party[2].name, 'Paladin');
+  assert.equal(party[2].name, 'Lumineux');
 });
 
 test("Chasseur : classe à Énergie à l'arc, dégâts physiques sur l'Agilité, sans points de combo", () => {
@@ -106,4 +107,19 @@ test("Œil de Faucon : Tir fatal est un critique garanti ; l'Énergie limite les
   assert.equal(hero.res, 10);
   assert.equal(cb.acting, null, "plus assez d'Énergie : fin du tour");
   assert.match(cb.log[0].text, /plus assez d'Énergie/);
+});
+
+test('noms de classe : titre des menus avec article, forme féminine choisie à la création', () => {
+  assert.equal(classTitle('voleur'), 'Le Dissimulé');
+  assert.equal(classTitle('voleur', true), 'La Dissimulée');
+  assert.equal(hasFeminine('guerrier'), false, "L'Impassible n'a pas de forme féminine distincte");
+  const [a, b] = createParty(['', 'Lise'], ['chasseur', 'chasseur'], [], [true, false]);
+  assert.equal(a.name, 'Vénatrice', 'nom par défaut accordé');
+  assert.equal(heroClassTitle(a), 'La Vénatrice');
+  assert.equal(heroClassName(a), 'Vénatrice');
+  assert.equal(heroClassTitle(b), 'Le Vénateur');
+  for (const cls of Object.values(CLASSES)) {
+    for (const k of ['name', 'nameF', 'plural', 'title', 'titleF']) assert.ok(cls[k], `${cls.name} : ${k}`);
+    assert.ok(cls.title.endsWith(cls.name) && cls.titleF.endsWith(cls.nameF), `${cls.name} : titre = article + nom`);
+  }
 });

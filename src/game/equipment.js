@@ -12,10 +12,10 @@ import { getClass, clampToStats } from './party.js';
 export function cannotEquipReason(hero, item) {
   const cls = getClass(hero);
   if (item.legendary?.classKey && item.legendary.classKey !== hero.classKey) return 'Objet légendaire réservé à une autre classe';
-  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `${cls.name} ne porte pas ce type d'armure`;
-  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `${cls.name} ne manie pas le bouclier`;
+  if (item.armorType && !cls.gear.armor.includes(item.armorType)) return `Les ${cls.plural} ne portent pas ce type d'armure`;
+  if (item.slotType === 'bouclier' && !cls.gear.offHand.includes('bouclier')) return `Les ${cls.plural} ne manient pas le bouclier`;
   if (item.slotType === 'arme' && !cls.gear.weapons.includes(item.weaponType) && !cls.gear.offHand.includes(item.weaponType)) {
-    return `${cls.name} ne manie pas ce type d'arme`;
+    return `Les ${cls.plural} ne manient pas ce type d'arme`;
   }
   return null;
 }

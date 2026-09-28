@@ -115,10 +115,10 @@ test('un légendaire porté modifie la compétence visée (talent compris)', () 
   for (const id of ['depart-empoisonneur', 'toxines', 'toxines', 'opportuniste', 'opportuniste', 'lame-empoisonnee']) assert.ok(learn(voleur, id), id);
   const croc = generateItem({ legendary: 'fleursDuMal' });
   const lame0 = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
-  assert.equal(lame0.effects[0].turns, 4);
+  assert.equal(lame0.effects[0].turns, 6);
   equip(voleur, [croc], croc, 'mainDroite');
   const lame = getSkills(voleur).find((s) => s.id === 'lame-empoisonnee');
-  assert.equal(lame.effects[0].turns, 6);
+  assert.equal(lame.effects[0].turns, 8);
   assert.equal(lame.boosted, true);
   // Un pouvoir qui renforce un passif ne fait rien sans ce passif.
   const arsenic = generateItem({ legendary: 'arsenicDEmma' });
@@ -199,5 +199,24 @@ test("un légendaire sans classe (neutre) est équipable par toutes les classes"
     ring.rarity = 'legendaire';
     ring.legendary = { key: 'neutre', desc: 'Effet neutre' };
     assert.equal(cannotEquipReason(hero, ring), null, hero.classKey);
+  }
+});
+
+test('secondaire Mana : augmente la Mana maximum des classes à Mana, sans effet sur les autres', () => {
+  const [mage, guerrier] = createParty(['M', 'G'], ['mage', 'guerrier']);
+  for (const hero of [mage, guerrier]) {
+    const before = getStats(hero);
+    const ring = { ...generateItem({ level: 20, rarity: 'rare', slotType: 'anneau' }), bonus: { mana: 12 } };
+    const bag = [ring];
+    equip(hero, bag, ring, 'anneau1');
+    const after = getStats(hero);
+    if (hero === mage) {
+      assert.equal(after.resMax, before.resMax + 12);
+      assert.equal(after.resMaxItems, 12);
+      assert.equal(after.resMaxBase, CLASSES.mage.resource.max);
+    } else {
+      assert.equal(after.resMax, before.resMax, 'la Rage ne change pas');
+      assert.equal(after.resMaxItems, 0);
+    }
   }
 });

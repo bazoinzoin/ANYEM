@@ -2,7 +2,7 @@
 
 import { STATS, STAT_ORDER } from '../data/stats.js';
 import { COMBAT } from '../config.js';
-import { getClass, getStats } from '../game/party.js';
+import { getClass, getStats, usesMana } from '../game/party.js';
 import { tip } from './html.js';
 
 const STAT_TIPS = {
@@ -37,6 +37,16 @@ function row(label, value, tipText) {
   return `<div class="stat-row"><span>${labelHtml}</span><span>${value}</span></div>`;
 }
 
+// Détail du maximum de ressource : base de la classe, talents et légendaires, objets (Mana).
+function resourceTip(cls, stats) {
+  const name = cls.resource.name;
+  const parts = [`${name} de base : ${stats.resMaxBase}`];
+  if (stats.resMaxTalents) parts.push(`talents et légendaires : +${stats.resMaxTalents}`);
+  if (usesMana(cls)) parts.push(`Mana des objets : +${stats.resMaxItems}`);
+  const note = usesMana(cls) ? '' : ' La stat Mana des objets ne sert pas à cette classe.';
+  return `${name} maximum ${stats.resMax} = ${parts.join(' ; ')}.${note}`;
+}
+
 export function statsList(hero) {
   const cls = getClass(hero);
   const stats = getStats(hero);
@@ -53,7 +63,7 @@ export function statsList(hero) {
       `Dégâts de l'attaque de base et des compétences physiques : Attaque des armes + ${String(COMBAT.physStatFactor[cls.physStat]).replace('.', ',')} × ${phys}.`),
     row('Puissance magique', `${stats.magPower} <small>(Intelligence × ${COMBAT.magicPerInt})</small>`,
       'Dégâts des sorts et puissance des soins. Ne compte pas pour les attaques à l\'arme.'));
-  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`));
+  rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, row(cls.resource.name, `${hero.res}/${stats.resMax}`, resourceTip(cls, stats)));
   // Bonus des talents (n'apparaissent que s'ils existent).
   for (const [key, label, suffix, tipText] of BONUS_ROWS) {
     if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));

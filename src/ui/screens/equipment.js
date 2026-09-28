@@ -11,7 +11,7 @@ import { isTwoHanded } from '../../game/items.js';
 import { SLOT_ORDER, RARITIES, MATERIA_KINDS, MATERIA_RARITIES } from '../../data/items.js';
 import { STATS, STAT_ORDER } from '../../data/stats.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
-import { getClass, getStats, xpToNext } from '../../game/party.js';
+import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
 import { esc } from '../html.js';
 import { itemCard, slotLabel } from '../items.js';
@@ -48,7 +48,7 @@ export function renderEquipment(app) {
       <header class="inv-top">
         <div class="inv-tabs">${state.party.map((h, i) => `
           <button class="inv-hero ${i === view.heroIndex ? 'current' : ''}" data-hero="${i}" style="--c:${getClass(h).color}">
-            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${getClass(h).name} · niv. ${h.level}</small></span>
+            ${iconHtml(CLASS_ICONS[h.classKey], 32)}<span><b>${esc(h.name)}</b><small>${esc(heroClassTitle(h))} · niv. ${h.level}</small></span>
           </button>`).join('')}
         </div>
         <span class="inv-gold">${iconHtml(GOLD_ICON, 32)} ${state.gold.toLocaleString('fr-FR')}</span>
@@ -56,7 +56,7 @@ export function renderEquipment(app) {
         <button id="backHub">${esc(backLabel())}</button>
       </header>
       <section class="win inv-stats" style="--c:${cls.color}">
-        <h3>${esc(hero.name)} <small>${cls.name} · niveau ${hero.level}</small></h3>
+        <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
         <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
         <div class="stat-grid" id="statGrid">${statGrid(hero, null)}</div>
       </section>

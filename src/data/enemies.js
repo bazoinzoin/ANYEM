@@ -18,8 +18,10 @@
 //              `selfEffects`, effets du catalogue data/effects.js.
 
 // Raccourcis vers les effets du catalogue (data/effects.js).
-const bleed = (power, turns = 3) => ({ id: 'saignement', turns, power });
-const poison = (power, turns = 3) => ({ id: 'poison', turns, power });
+// Saignement : court et fort (2 tours, dégâts par tour ×1,5) ; poison : long et faible
+// (5 tours, dégâts par tour ×0,5, cumulable). `power` = valeur de référence sur 3 tours.
+const bleed = (power, turns = 2) => ({ id: 'saignement', turns, power: +(power * 1.5).toFixed(3) });
+const poison = (power, turns = 5) => ({ id: 'poison', turns, power: +(power * 0.5).toFixed(3) });
 const slow = (turns = 2) => ({ id: 'ralenti', turns });
 const confus = (turns = 2) => ({ id: 'confus', turns });
 const stun = { id: 'etourdi', turns: 1 };

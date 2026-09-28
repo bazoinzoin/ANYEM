@@ -10,7 +10,7 @@
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { getClass, getSkills } from '../../game/party.js';
+import { getClass, getSkills, heroClassTitle } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
@@ -92,7 +92,8 @@ function statusIcons(unit) {
   for (const s of statusesOf(unit)) {
     const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
     const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
+    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
 }
@@ -161,7 +162,7 @@ function info(hero) {
   const cls = getClass(hero);
   const multi = isMultiAction(hero);
   return `
-    <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${cls.name} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
+    <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
     <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
 }
@@ -243,7 +244,7 @@ function overlay() {
   const hero = cb.party[ui.overlay.hero];
   if (!hero) return '';
   const cls = getClass(hero);
-  return `<div class="bs-modal"><div class="win"><h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${cls.name} · niv. ${hero.level}</small></h3>
+  return `<div class="bs-modal"><div class="win"><h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small></h3>
     <div class="stat-list">${statsList(hero)}</div>
     <div class="bs-status big">${statusIcons(hero)}</div>
     <button id="closeOverlay">Fermer <small>Échap</small></button></div></div>`;

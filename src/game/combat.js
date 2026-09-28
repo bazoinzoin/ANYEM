@@ -25,7 +25,7 @@ import {
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf } from './statuses.js';
+import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } from './statuses.js';
 import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { EFFECTS } from '../data/effects.js';
@@ -528,6 +528,16 @@ function useSkill(cb, caster, skill, targets) {
         if (r.fell) logFall(cb, target);
       }
       parts.push(`${target.name} : ${hitsText(hits)}`);
+      // Compétence « detonate » (Poison foudroyant) : tout l'effet agit d'un coup.
+      if (skill.detonate && target.alive) {
+        const burst = detonateStatus(target, skill.detonate);
+        if (burst) {
+          const { taken, fell } = hurt(cb, target, burst);
+          dealt += taken;
+          parts.push(`${target.name} : ${EFFECTS[skill.detonate].name} foudroyant, -${taken} PV`);
+          if (fell) logFall(cb, target);
+        }
+      }
     } else if (skill.kind === 'heal') {
       const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
       parts.push(`${target.name} : +${healed} PV`);

@@ -15,6 +15,11 @@
 //             'hot'    soins à chaque fin de tour (puissance magique)
 //             'shield' points de bouclier, absorbés avant les PV
 //             'trap'   dégâts du piège quand il se déclenche
+//   turns   [min, max] : durée permise pour cet effet, quelle que soit la source (un test le
+//           vérifie) ; c'est ce qui distingue le poison (long, faible) du saignement (court, fort)
+//   stacks  cumulable : chaque nouvelle dose s'ajoute (dégâts par tour additionnés, durée
+//           ramenée à la plus longue), jusqu'à `stacks` doses ; sinon la nouvelle application
+//           remplace l'ancienne
 //   stun    la cible perd ses prochains tours (turns = nombre de tours perdus)
 //   taunt   les ennemis doivent attaquer cette unité
 //   confuse l'unité peut frapper ses propres alliés
@@ -36,8 +41,16 @@ export const EFFECTS = {
   intercession: { name: 'Intercession', icon: '🤝', kind: 'buff', redirect: 50, desc: 'La moitié des dégâts subis est encaissée par le protecteur.' },
 
   // ---- Debuffs ----
-  poison: { name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', desc: 'Dégâts de poison à chaque fin de tour.' },
-  saignement: { name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', desc: 'Dégâts de saignement à chaque fin de tour.' },
+  // Poison : long (5 tours et plus) et faible, mais cumulable (3 doses au plus).
+  poison: {
+    name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', turns: [5, 8], stacks: 3,
+    desc: 'Dégâts de poison à chaque fin de tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
+  },
+  // Saignement : court (2 ou 3 tours) et fort ; une nouvelle entaille remplace l'ancienne.
+  saignement: {
+    name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', turns: [2, 3],
+    desc: 'Dégâts de saignement à chaque fin de tour : courte durée, gros dégâts, ne se cumule pas.',
+  },
   brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
   tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
   ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },

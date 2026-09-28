@@ -4,7 +4,7 @@
 import { state } from '../../state.js';
 import { COMBAT } from '../../config.js';
 import { WEAPON_TYPES, RANGE_LABELS } from '../../data/items.js';
-import { getClass, getStats } from '../../game/party.js';
+import { getClass, getStats, heroClassTitle } from '../../game/party.js';
 import { setPosition, weaponRange, POSITIONS } from '../../game/position.js';
 import { esc } from '../html.js';
 import { goTo } from '../router.js';
@@ -43,7 +43,7 @@ function heroColumn(hero, i) {
     : '';
   return `
     <section class="win strat-hero" style="--c:${getClass(hero).color}">
-      <h3>${esc(hero.name)} <small>${esc(cls.name)} · niv. ${hero.level}</small></h3>
+      <h3>${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niv. ${hero.level}</small></h3>
       <div class="strat-portrait ${hero.position}">${heroPortrait(hero, 5)}</div>
       <p class="strat-weapon">${weapon ? iconHtml(itemIcon(weapon), 32) : ''} ${esc(weaponName)} <small>(${RANGE_LABELS[range].toLowerCase()}) · Riposte ${getStats(hero).riposte} %</small></p>
       <div class="strat-choice">

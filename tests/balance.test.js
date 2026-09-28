@@ -42,7 +42,9 @@ function makeHero(key, level) {
   hero.equipment = {};
   const [primary, armorType, weapons] = GEAR[key];
   const bag = [];
-  const put = (opts, slot) => { const it = generateItem({ level, rarity: 'rare', primary, ...opts }); bag.push(it); equip(hero, bag, it, slot); };
+  // Objets rares sans secondaires : les secondaires, tirées au hasard, ne doivent pas
+  // décider de l'équilibrage (on compare les kits de compétences, pas la chance au butin).
+  const put = (opts, slot) => { const it = { ...generateItem({ level, rarity: 'rare', primary, ...opts }), bonus: {} }; bag.push(it); equip(hero, bag, it, slot); };
   for (const slot of ['casque', 'epaulieres', 'plastron', 'gants', 'bottes']) put({ slotType: slot, armorType }, slot);
   put({ slotType: 'collier' }, 'collier');
   put({ slotType: 'anneau' }, 'anneau1');
@@ -65,7 +67,15 @@ function value(cb, hero, skill, target) {
     const kind = EFFECTS[e.id]?.value;
     if (kind !== 'dot' && kind !== 'trap') continue;
     const has = target.statuses.find((x) => x.key === e.id);
-    v += (effectValue(st, s, e) ?? 0) * (kind === 'dot' ? e.turns : 1) * (has ? Math.max(0, e.turns - has.turns) / e.turns : 1);
+    // Effet cumulable (poison) : une dose de plus compte en entier tant qu'il reste de la place.
+    const stacking = has && EFFECTS[e.id].stacks && (has.doses?.length ?? 1) < EFFECTS[e.id].stacks;
+    v += (effectValue(st, s, e) ?? 0) * (kind === 'dot' ? e.turns : 1) * (has && !stacking ? Math.max(0, e.turns - has.turns) / e.turns : 1);
+  }
+  // Poison foudroyant : les dégâts arrivent plus tôt ; intéressant quand toutes les doses sont
+  // posées (on peut en reposer ensuite).
+  if (s.detonate) {
+    const has = target.statuses.find((x) => x.key === s.detonate);
+    if (has && (has.doses?.length ?? 1) >= (EFFECTS[s.detonate].stacks ?? 1)) v += has.dot * has.turns * 0.5;
   }
   return v;
 }
