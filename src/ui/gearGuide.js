@@ -1,6 +1,6 @@
 // Guide d'équipement : ce que porte chaque orientation (stat conseillée, armure, armes), pour
 // les écrans Personnage et Création. Les limites viennent de la classe (`gear`) et, quand elle
-// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation principale).
+// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation du héros).
 
 import { CLASSES } from '../data/classes.js';
 import { TALENTS } from '../data/talents.js';
@@ -80,12 +80,12 @@ export function gearGuideHtml(hero) {
   const main = mainBranch(hero);
   const anyLimit = branches.some((b) => branchGear(hero.classKey, b).limited);
   const head = main
-    ? `<b>${esc(main.name)}</b> (orientation principale) : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
-    : `Pas encore d'orientation principale${anyLimit ? ' : tout l\'équipement de la classe est permis' : ''}.`;
+    ? `<b>${esc(main.name)}</b> : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
+    : "Pas encore d'orientation (aucun point de talent) : tout l'équipement de la classe est permis.";
   return `
     <div class="gear-guide">
       <p>${head}</p>
       <ul>${branches.map((b) => `<li class="${b === main ? 'current' : ''}"><b>${esc(b.name)}</b> — ${esc(branchGearLine(hero.classKey, b))}</li>`).join('')}</ul>
-      ${anyLimit ? '<p class="hint">L\'orientation principale (la plus investie en talents) décide des armes et de l\'armure.</p>' : ''}
+      <p class="hint">Un héros ne suit qu'une orientation : elle décide de ses armes${anyLimit ? ' et de son armure' : ''}.</p>
     </div>`;
 }

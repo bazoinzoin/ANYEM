@@ -211,14 +211,14 @@ function classesTab() {
       </div>
       <div class="details-col">
         <p class="hint">${esc(resourceText)} Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'}. Par niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
-        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 14</small></h4>
+        <h4>Orientations <small class="hint">— un héros n'en suit qu'une : son premier point de talent la choisit et apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au 50e point</small></h4>
         <div class="skill-list">${TALENTS[key].map((b) => {
           const starterNode = b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
           const starter = starterNode ? nodeSkills(starterNode)[0] : null;
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
-              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}${branchGear(key, b).limited ? ' (imposé quand c\'est l\'orientation principale)' : ''}</small><br>
+              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}</small><br>
               ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>

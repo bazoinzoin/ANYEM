@@ -150,10 +150,10 @@ test('équilibrage : au niveau 50, les orientations de dégâts restent à ±20 
   const d = Object.fromEntries(DPS.map((k) => [k, dps(k, 50)]));
   const m = median(Object.values(d));
   for (const [k, v] of Object.entries(d)) assert.ok(v > m * 0.8 && v < m * 1.2, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
-  // Hybrides et tanks : moins de dégâts, mais pas négligeables.
+  // Hybrides et tanks : moins de dégâts, mais pas négligeables (leurs petits paliers sont défensifs).
   for (const k of ['precheur', 'templier', 'gardien', 'murDOs']) {
     const v = dps(k, 50);
-    assert.ok(v < m && v > m * 0.25, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
+    assert.ok(v < m && v > m * 0.2, `${k} : ${Math.round(v)} (médiane ${Math.round(m)})`);
   }
 });
 

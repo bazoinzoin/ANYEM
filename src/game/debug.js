@@ -9,10 +9,8 @@ import { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } from '../config.js
 import { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } from '../data/items.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
-import { nodeSkills } from '../data/talents.js';
 import { createParty, createHero, getStats } from './party.js';
 import { generateItem, primaryOptions } from './items.js';
-import { branchesOf, learn } from './talents.js';
 import { progressOf } from './dungeon.js';
 import { emptyMateria } from './forge.js';
 import { medalDifficulties } from './medals.js';
@@ -27,14 +25,11 @@ export function itemBases() {
   ];
 }
 
-// Héros au niveau maximum, sorts de départ de ses orientations appris (1 point chacun).
+// Héros au niveau maximum, sans talent : ses 50 points restent à placer dans l'orientation
+// de son choix (un héros n'en suit qu'une).
 export function maxedHero(hero) {
   hero.level = XP.maxLevel;
   hero.xp = 0;
-  for (const branch of branchesOf(hero)) {
-    const node = branch.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
-    if (node) learn(hero, node.id);
-  }
   hero.hp = getStats(hero).pv;
   return hero;
 }

@@ -22,6 +22,8 @@ export function learnStarters(heroes) {
 // par les premiers des trois) jusqu'à CHOICE_PICKS, à leur rang maximum.
 export function learnPath(hero, branchKey, { upTo = SIGNATURE_TIER, pick = [] } = {}) {
   const branch = branchesOf(hero).find((b) => b.key === branchKey);
+  // Une seule orientation par héros : les points posés ailleurs (learnStarters…) sont retirés.
+  for (const other of branchesOf(hero).filter((b) => b !== branch)) for (const n of other.nodes) delete hero.talents?.[n.id];
   const level = hero.level;
   hero.level = 999;
   for (const tier of tiersOf(branch).filter((t) => t <= upTo)) {

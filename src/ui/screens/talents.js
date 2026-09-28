@@ -82,12 +82,12 @@ export function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
-// L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
+// L'orientation a pu changer (armes et armure permises) : ce qui n'est plus portable va au sac.
 function gearNote(hero) {
   const removed = returnForbiddenGear(hero, state.bag);
   if (!removed.length) return '';
   const added = refillGear(hero, state.bag);
-  return ` Nouvelle orientation principale : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
+  return ` Nouvelle orientation : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
 }
 
 function doLearn(hero, node) {
@@ -122,9 +122,11 @@ function branchColumn(hero, branch) {
     return `<div class="tal-tier ${big ? 'big' : 'pick'} ${locked ? 'locked' : ''}" title="${big ? `Gros palier ${tier} (obligatoire)` : `Petit palier ${tier} : ${CHOICE_PICKS} bonus au choix parmi les trois`}">
       ${big ? '' : `<span class="tal-req">${CHOICE_PICKS}/3</span>`}${nodes.map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
   };
+  // Un héros ne suit qu'une orientation : les autres se ferment dès le premier point.
+  const closed = !invested && branchesOf(hero).some((b) => b !== branch && pointsInBranch(hero, b) > 0);
   return `
-    <section class="win tal-branch">
-      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} / ${max} pts</small></h3>
+    <section class="win tal-branch ${closed ? 'closed' : ''}" ${closed ? 'title="Un héros ne suit qu\'une orientation : réinitialisez ses talents pour en changer."' : ''}>
+      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${closed ? 'fermée' : `${invested} / ${max} pts`}</small></h3>
       <span class="meter xp tal-progress"><span class="fill" style="width:${Math.min(100, (invested / Math.max(1, max)) * 100)}%"></span></span>
       <div class="tal-tiers">
         ${rows.map((row) => `<div class="tal-row">${row.map(group).join('')}</div>`).join('')}
@@ -144,7 +146,7 @@ function nodeIcon(hero, branch, node) {
 function introDetail(hero, cls) {
   return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
-    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
+    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature. <b>Un héros ne suit qu'une orientation</b> : le premier point la choisit (armes, armure), la réinitialisation permet d'en changer.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
 }
 

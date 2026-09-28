@@ -124,7 +124,7 @@ test('Macabre : Frappe d\'outre-tombe coûte une âme ; les coups de base sont g
   assert.equal(free.cost, 0);
 });
 
-test("Macabre : l'orientation principale impose armes et armure ; à égalité, tout l'équipement de la classe", () => {
+test("Macabre : l'orientation impose armes et armure ; sans point, tout l'équipement de la classe", () => {
   const [hero] = createParty(['Os'], ['macabre']);
   hero.level = 50;
   assert.deepEqual(allowedGear(hero).armor, ['lourde', 'moyenne', 'legere']);
@@ -152,12 +152,12 @@ test("Macabre : l'orientation principale impose armes et armure ; à égalité, 
   learnPath(soldier, 'soldat', { upTo: 2 });
   assert.deepEqual(allowedGear(soldier), { armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] });
   assert.equal(returnForbiddenGear(soldier, []).length, 0, 'son équipement de départ lui convient');
-  // Autant de points dans deux orientations : tout redevient permis.
-  const [tie] = createParty(['Égal'], ['macabre']);
-  tie.level = 2;
-  assert.ok(learn(tie, 'depart-soldat'));
-  assert.ok(learn(tie, 'depart-necro'));
-  assert.equal(allowedGear(tie).armor.length, 3);
+  // Aucun point : tout est permis ; un seul arbre ensuite.
+  const [fresh] = createParty(['Neuf'], ['macabre']);
+  fresh.level = 2;
+  assert.equal(allowedGear(fresh).armor.length, 3);
+  assert.ok(learn(fresh, 'depart-soldat'));
+  assert.equal(learn(fresh, 'depart-necro'), false);
 });
 
 test("Macabre : pas d'élixir de ressource (ses âmes ne viennent que des morts)", () => {

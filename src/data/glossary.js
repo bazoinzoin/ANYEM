@@ -55,8 +55,7 @@ const MANUAL = {
   contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
-  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 36 points. Chacune conseille une stat principale à chercher sur les objets.' },
-  orientationPrincipale: { terms: ['orientation principale'], desc: "L'orientation qui a le plus de points de talent. Pour l'Impassible et le Macabre, elle décide des armes et de l'armure permises ; à égalité, tout l'équipement de la classe est permis." },
+  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },
   grosPalier: { terms: ['gros palier', 'gros paliers'], desc: 'Palier obligatoire : sort de départ, nouvelle compétence, passif important ou signature.' },
   petitPalier: { terms: ['petit palier', 'petits paliers'], desc: 'Trois bonus de stats au choix : on n\'en prend qu\'un, à tous ses rangs.' },
   signature: { terms: ['signature'], desc: "Compétence ultime d'une orientation, au dernier palier." },

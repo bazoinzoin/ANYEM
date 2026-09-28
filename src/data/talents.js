@@ -10,8 +10,9 @@
 //   palier 14                  gros : compétence signature
 // Un palier s'ouvre quand tous les précédents sont complets (gros appris, petit : deux bonus
 // au rang maximum) : on passe forcément par chaque gros palier, et on choisit ses petits.
-// Une orientation complète coûte 36 points (8 gros + 7 petits × 2 bonus × 2 rangs) : au niveau
-// maximum (50 points), une orientation entière et une bonne partie d'une autre.
+// Une orientation complète coûte 50 points (8 gros + 7 petits × 2 bonus × 3 rangs) : tous les
+// points du niveau maximum. Un héros ne suit qu'UNE orientation (voir cannotLearnReason) ;
+// la signature est son 50e point.
 // Les effets des gros paliers suivent la logique de l'orientation (un bonus aux dégâts sur la
 // durée ne vient qu'après le premier sort qui en inflige). Les légendaires renforcent les
 // compétences et passifs des gros paliers.
@@ -59,7 +60,7 @@
 import { CLASSES } from './classes.js';
 
 // Rangs des petits paliers (chaque bonus choisi se prend autant de fois).
-export const CHOICE_RANKS = { 1: 2, 3: 2, 5: 2, 7: 2, 9: 2, 11: 2, 13: 2 };
+export const CHOICE_RANKS = { 1: 3, 3: 3, 5: 3, 7: 3, 9: 3, 11: 3, 13: 3 };
 // Bonus à prendre dans chaque petit palier (parmi trois).
 export const CHOICE_PICKS = 2;
 export const SIGNATURE_TIER = 14;
@@ -260,7 +261,7 @@ export const TALENTS = {
           minor('lames-aiguisees', 'Lames aiguisées', { flat: { critDmg: 4 } }),
         ]),
         skill(2, {
-          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.65, comboGain: 1,
+          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1,
           effects: [fx('ralenti', 2)],
           desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
         }),

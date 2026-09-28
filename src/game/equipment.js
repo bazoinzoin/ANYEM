@@ -9,9 +9,9 @@ import { getClass, clampToStats } from './party.js';
 import { mainBranch } from './talents.js';
 
 /**
- * Équipement permis : celui de la classe, restreint par l'orientation principale si elle en
+ * Équipement permis : celui de la classe, restreint par l'orientation du héros (une seule, voir mainBranch) si elle en
  * fixe (`gear` de data/talents.js : Impassible Gardien = armure lourde, Berserker = moyenne ;
- * Macabre : armes et armure de chaque orientation). À égalité de points, rien n'est restreint.
+ * Macabre : armes et armure de chaque orientation). Sans point de talent, rien n'est restreint.
  * Retourne { armor, weapons, offHand }.
  */
 export function allowedGear(hero) {

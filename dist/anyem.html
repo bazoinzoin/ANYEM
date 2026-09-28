@@ -724,6 +724,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-branch { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .tal-branch h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 17px; }
 .tal-branch h3 small { margin-left: auto; color: #f3d58c; font-weight: 400; }
+.tal-branch.closed { opacity: .45; filter: grayscale(.7); } /* une seule orientation par héros */
 .tal-progress { margin: 4px 0 6px; height: 7px; }
 .tal-tiers { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
 .tal-row { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; position: relative; }
@@ -3067,8 +3068,8 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'moyenne', primary: 'agilite' },
     ],
     starterSkills: [
-      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.7, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
-      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.45, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
+      { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
+      { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.55, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
       { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
     ],
   },
@@ -3314,8 +3315,9 @@ const { CLASSES } = __modules["src/data/classes.js"];
 //   palier 14                  gros : compétence signature
 // Un palier s'ouvre quand tous les précédents sont complets (gros appris, petit : deux bonus
 // au rang maximum) : on passe forcément par chaque gros palier, et on choisit ses petits.
-// Une orientation complète coûte 36 points (8 gros + 7 petits × 2 bonus × 2 rangs) : au niveau
-// maximum (50 points), une orientation entière et une bonne partie d'une autre.
+// Une orientation complète coûte 50 points (8 gros + 7 petits × 2 bonus × 3 rangs) : tous les
+// points du niveau maximum. Un héros ne suit qu'UNE orientation (voir cannotLearnReason) ;
+// la signature est son 50e point.
 // Les effets des gros paliers suivent la logique de l'orientation (un bonus aux dégâts sur la
 // durée ne vient qu'après le premier sort qui en inflige). Les légendaires renforcent les
 // compétences et passifs des gros paliers.
@@ -3363,7 +3365,7 @@ const { CLASSES } = __modules["src/data/classes.js"];
 
 
 // Rangs des petits paliers (chaque bonus choisi se prend autant de fois).
-const CHOICE_RANKS = { 1: 2, 3: 2, 5: 2, 7: 2, 9: 2, 11: 2, 13: 2 };
+const CHOICE_RANKS = { 1: 3, 3: 3, 5: 3, 7: 3, 9: 3, 11: 3, 13: 3 };
 // Bonus à prendre dans chaque petit palier (parmi trois).
 const CHOICE_PICKS = 2;
 const SIGNATURE_TIER = 14;
@@ -3564,7 +3566,7 @@ const TALENTS = {
           minor('lames-aiguisees', 'Lames aiguisées', { flat: { critDmg: 4 } }),
         ]),
         skill(2, {
-          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.65, comboGain: 1,
+          id: 'taillade', name: 'Taillade', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1,
           effects: [fx('ralenti', 2)],
           desc: 'Coup rapide qui ralentit la cible (−30 % Vitesse, 2 tours) et donne 1 point de combo',
         }),
@@ -4849,8 +4851,8 @@ function pointsInBranch(hero, branch) {
 }
 
 /**
- * Orientation principale : celle qui a le plus de points de talent, ou null à égalité
- * (aucun point dépensé, ou autant dans deux orientations).
+ * Orientation principale : celle qui a des points de talent (un héros n'en suit qu'une), ou
+ * null tant qu'aucun point n'est dépensé (ou à égalité, pour d'anciennes données).
  */
 function mainBranch(hero) {
   const scored = branchesOf(hero).map((b) => [b, pointsInBranch(hero, b)]).sort((a, b) => b[1] - a[1]);
@@ -4914,6 +4916,8 @@ function cannotLearnReason(hero, nodeId) {
     const gate = branch.nodes.filter((n) => n.tier === missing);
     return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (${CHOICE_PICKS} bonus au choix, ${tierMax(branch, missing)} rangs)`;
   }
+  const other = branchesOf(hero).find((b) => b !== branch && pointsInBranch(hero, b) > 0);
+  if (other) return `Une seule orientation par héros (${other.name}) : réinitialisez ses talents pour en changer`;
   if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
   return null;
 }
@@ -4938,7 +4942,7 @@ function resetTalents(game, hero) {
 }
 
 // Talents d'une ancienne sauvegarde (arbres modifiés depuis) : retire les nœuds inconnus,
-// ramène chaque rang au maximum du nœud ; si l'arbre n'est plus cohérent (palier appris
+// ramène chaque rang au maximum du nœud, ne garde que l'orientation la plus investie ; si l'arbre n'est plus cohérent (palier appris
 // sans ses prédécesseurs, trop de bonus dans un petit palier), les points sont rendus.
 // Retourne vrai si les talents ont été réinitialisés.
 function sanitizeTalents(hero) {
@@ -4949,6 +4953,11 @@ function sanitizeTalents(hero) {
     if (node && rank > 0) talents[id] = Math.min(rank, node.ranks);
   }
   hero.talents = talents;
+  // Une seule orientation : les points d'une ancienne sauvegarde répartis sur plusieurs arbres
+  // ne gardent que l'orientation la plus investie (les autres points sont rendus).
+  const invested = branchesOf(hero).filter((b) => pointsInBranch(hero, b) > 0)
+    .sort((a, b) => pointsInBranch(hero, b) - pointsInBranch(hero, a));
+  for (const extra of invested.slice(1)) for (const n of extra.nodes) delete hero.talents[n.id];
   const broken = branchesOf(hero).some((branch) => branch.nodes.some((n) => rankOf(hero, n.id) > 0 && (!tierOpen(hero, branch, n.tier)
     || (n.kind === 'minor' && chosenInTier(hero, branch, n.tier).length > CHOICE_PICKS))));
   if (broken) hero.talents = {};
@@ -11779,9 +11788,9 @@ const { mainBranch } = __modules["src/game/talents.js"];
 
 
 /**
- * Équipement permis : celui de la classe, restreint par l'orientation principale si elle en
+ * Équipement permis : celui de la classe, restreint par l'orientation du héros (une seule, voir mainBranch) si elle en
  * fixe (`gear` de data/talents.js : Impassible Gardien = armure lourde, Berserker = moyenne ;
- * Macabre : armes et armure de chaque orientation). À égalité de points, rien n'est restreint.
+ * Macabre : armes et armure de chaque orientation). Sans point de talent, rien n'est restreint.
  * Retourne { armor, weapons, offHand }.
  */
 function allowedGear(hero) {
@@ -14943,10 +14952,8 @@ const { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } = __modules["src/co
 const { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } = __modules["src/data/items.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
-const { nodeSkills } = __modules["src/data/talents.js"];
 const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { generateItem, primaryOptions } = __modules["src/game/items.js"];
-const { branchesOf, learn } = __modules["src/game/talents.js"];
 const { progressOf } = __modules["src/game/dungeon.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
 const { medalDifficulties } = __modules["src/game/medals.js"];
@@ -14956,8 +14963,6 @@ const { medalDifficulties } = __modules["src/game/medals.js"];
 // points de départ ouverts, toutes les médailles des 3 premières zones) ; dans le sac, chaque base d'objet au niveau maximum, dans
 // chacune de ses stats principales, en Divin, Épique, Rare et Peu commun (pour les
 // comparer), plus tous les légendaires.
-
-
 
 
 
@@ -14979,14 +14984,11 @@ function itemBases() {
   ];
 }
 
-// Héros au niveau maximum, sorts de départ de ses orientations appris (1 point chacun).
+// Héros au niveau maximum, sans talent : ses 50 points restent à placer dans l'orientation
+// de son choix (un héros n'en suit qu'une).
 function maxedHero(hero) {
   hero.level = XP.maxLevel;
   hero.xp = 0;
-  for (const branch of branchesOf(hero)) {
-    const node = branch.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
-    if (node) learn(hero, node.id);
-  }
   hero.hp = getStats(hero).pv;
   return hero;
 }
@@ -15581,7 +15583,7 @@ const { mainBranch } = __modules["src/game/talents.js"];
 const { esc } = __modules["src/ui/html.js"];
 // Guide d'équipement : ce que porte chaque orientation (stat conseillée, armure, armes), pour
 // les écrans Personnage et Création. Les limites viennent de la classe (`gear`) et, quand elle
-// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation principale).
+// en fixe, de l'orientation (`gear` de data/talents.js, appliqué à l'orientation du héros).
 
 
 
@@ -15661,13 +15663,13 @@ function gearGuideHtml(hero) {
   const main = mainBranch(hero);
   const anyLimit = branches.some((b) => branchGear(hero.classKey, b).limited);
   const head = main
-    ? `<b>${esc(main.name)}</b> (orientation principale) : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
-    : `Pas encore d'orientation principale${anyLimit ? ' : tout l\'équipement de la classe est permis' : ''}.`;
+    ? `<b>${esc(main.name)}</b> : cherchez la <b>${esc(branchGear(hero.classKey, main).stat)}</b>.`
+    : "Pas encore d'orientation (aucun point de talent) : tout l'équipement de la classe est permis.";
   return `
     <div class="gear-guide">
       <p>${head}</p>
       <ul>${branches.map((b) => `<li class="${b === main ? 'current' : ''}"><b>${esc(b.name)}</b> — ${esc(branchGearLine(hero.classKey, b))}</li>`).join('')}</ul>
-      ${anyLimit ? '<p class="hint">L\'orientation principale (la plus investie en talents) décide des armes et de l\'armure.</p>' : ''}
+      <p class="hint">Un héros ne suit qu'une orientation : elle décide de ses armes${anyLimit ? ' et de son armure' : ''}.</p>
     </div>`;
 }
 
@@ -15911,14 +15913,14 @@ function classesTab() {
       </div>
       <div class="details-col">
         <p class="hint">${esc(resourceText)} Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'}. Par niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
-        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 14</small></h4>
+        <h4>Orientations <small class="hint">— un héros n'en suit qu'une : son premier point de talent la choisit et apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au 50e point</small></h4>
         <div class="skill-list">${TALENTS[key].map((b) => {
           const starterNode = b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
           const starter = starterNode ? nodeSkills(starterNode)[0] : null;
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
-              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}${branchGear(key, b).limited ? ' (imposé quand c\'est l\'orientation principale)' : ''}</small><br>
+              <small class="gear-line">Équipement : ${esc(branchGearLine(key, b))}</small><br>
               ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>
@@ -16126,12 +16128,12 @@ function renderTalents(app) {
   app.querySelector('#backHub').onclick = () => goBack();
 }
 
-// L'orientation principale a pu changer (armure permise) : ce qui n'est plus portable va au sac.
+// L'orientation a pu changer (armes et armure permises) : ce qui n'est plus portable va au sac.
 function gearNote(hero) {
   const removed = returnForbiddenGear(hero, state.bag);
   if (!removed.length) return '';
   const added = refillGear(hero, state.bag);
-  return ` Nouvelle orientation principale : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
+  return ` Nouvelle orientation : ${removed.map((it) => itemName(it)).join(', ')} retourne${removed.length > 1 ? 'nt' : ''} au sac${added.length ? ` ; équipé à la place : ${added.map((it) => itemName(it)).join(', ')}` : ''}.`;
 }
 
 function doLearn(hero, node) {
@@ -16166,9 +16168,11 @@ function branchColumn(hero, branch) {
     return `<div class="tal-tier ${big ? 'big' : 'pick'} ${locked ? 'locked' : ''}" title="${big ? `Gros palier ${tier} (obligatoire)` : `Petit palier ${tier} : ${CHOICE_PICKS} bonus au choix parmi les trois`}">
       ${big ? '' : `<span class="tal-req">${CHOICE_PICKS}/3</span>`}${nodes.map((n) => nodeIcon(hero, branch, n)).join('')}</div>`;
   };
+  // Un héros ne suit qu'une orientation : les autres se ferment dès le premier point.
+  const closed = !invested && branchesOf(hero).some((b) => b !== branch && pointsInBranch(hero, b) > 0);
   return `
-    <section class="win tal-branch">
-      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${invested} / ${max} pts</small></h3>
+    <section class="win tal-branch ${closed ? 'closed' : ''}" ${closed ? 'title="Un héros ne suit qu\'une orientation : réinitialisez ses talents pour en changer."' : ''}>
+      <h3>${iconHtml(branchIcon(branch), 32)} ${esc(branch.name)} <small>${closed ? 'fermée' : `${invested} / ${max} pts`}</small></h3>
       <span class="meter xp tal-progress"><span class="fill" style="width:${Math.min(100, (invested / Math.max(1, max)) * 100)}%"></span></span>
       <div class="tal-tiers">
         ${rows.map((row) => `<div class="tal-row">${row.map(group).join('')}</div>`).join('')}
@@ -16188,7 +16192,7 @@ function nodeIcon(hero, branch, node) {
 function introDetail(hero, cls) {
   return `<h3>${iconHtml(CLASS_ICONS[hero.classKey], 32)} ${esc(hero.name)} <small>${esc(heroClassTitle(hero))} · niveau ${hero.level}</small></h3>
     <div class="xp"><small>XP ${hero.xp} / ${xpToNext(hero.level)}</small><span class="meter xp"><span class="fill" style="width:${Math.min(100, (hero.xp / xpToNext(hero.level)) * 100)}%"></span></span></div>
-    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature.</p>
+    <p class="hint">Chaque niveau rapporte 1 point (${XP.maxLevel} au niveau ${XP.maxLevel}). Une orientation alterne <b>gros paliers</b> ◆ (sort de départ, nouvelle compétence ou passif important : obligatoires) et <b>petits paliers</b> ${CHOICE_PICKS}/3 (trois bonus de stats : on en prend ${CHOICE_PICKS}, à tous leurs rangs). Un palier s'ouvre quand les précédents sont complets ; une orientation entière coûte ${tierRequirement(branchesOf(hero)[0], 99)} points, jusqu'à la compétence signature. <b>Un héros ne suit qu'une orientation</b> : le premier point la choisit (armes, armure), la réinitialisation permet d'en changer.</p>
     <p class="hint">Survolez un talent pour voir son effet ; cliquez pour le choisir, double-cliquez pour l'apprendre.</p>`;
 }
 
@@ -19854,8 +19858,7 @@ const MANUAL = {
   contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
-  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 36 points. Chacune conseille une stat principale à chercher sur les objets.' },
-  orientationPrincipale: { terms: ['orientation principale'], desc: "L'orientation qui a le plus de points de talent. Pour l'Impassible et le Macabre, elle décide des armes et de l'armure permises ; à égalité, tout l'équipement de la classe est permis." },
+  orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },
   grosPalier: { terms: ['gros palier', 'gros paliers'], desc: 'Palier obligatoire : sort de départ, nouvelle compétence, passif important ou signature.' },
   petitPalier: { terms: ['petit palier', 'petits paliers'], desc: 'Trois bonus de stats au choix : on n\'en prend qu\'un, à tous ses rangs.' },
   signature: { terms: ['signature'], desc: "Compétence ultime d'une orientation, au dernier palier." },

@@ -41,8 +41,8 @@ export function pointsInBranch(hero, branch) {
 }
 
 /**
- * Orientation principale : celle qui a le plus de points de talent, ou null à égalité
- * (aucun point dépensé, ou autant dans deux orientations).
+ * Orientation principale : celle qui a des points de talent (un héros n'en suit qu'une), ou
+ * null tant qu'aucun point n'est dépensé (ou à égalité, pour d'anciennes données).
  */
 export function mainBranch(hero) {
   const scored = branchesOf(hero).map((b) => [b, pointsInBranch(hero, b)]).sort((a, b) => b[1] - a[1]);
@@ -106,6 +106,8 @@ export function cannotLearnReason(hero, nodeId) {
     const gate = branch.nodes.filter((n) => n.tier === missing);
     return gate.length === 1 ? `Apprenez d'abord ${gate[0].name}` : `Terminez d'abord le palier ${missing} (${CHOICE_PICKS} bonus au choix, ${tierMax(branch, missing)} rangs)`;
   }
+  const other = branchesOf(hero).find((b) => b !== branch && pointsInBranch(hero, b) > 0);
+  if (other) return `Une seule orientation par héros (${other.name}) : réinitialisez ses talents pour en changer`;
   if (pointsAvailable(hero) <= 0) return 'Aucun point disponible';
   return null;
 }
@@ -130,7 +132,7 @@ export function resetTalents(game, hero) {
 }
 
 // Talents d'une ancienne sauvegarde (arbres modifiés depuis) : retire les nœuds inconnus,
-// ramène chaque rang au maximum du nœud ; si l'arbre n'est plus cohérent (palier appris
+// ramène chaque rang au maximum du nœud, ne garde que l'orientation la plus investie ; si l'arbre n'est plus cohérent (palier appris
 // sans ses prédécesseurs, trop de bonus dans un petit palier), les points sont rendus.
 // Retourne vrai si les talents ont été réinitialisés.
 export function sanitizeTalents(hero) {
@@ -141,6 +143,11 @@ export function sanitizeTalents(hero) {
     if (node && rank > 0) talents[id] = Math.min(rank, node.ranks);
   }
   hero.talents = talents;
+  // Une seule orientation : les points d'une ancienne sauvegarde répartis sur plusieurs arbres
+  // ne gardent que l'orientation la plus investie (les autres points sont rendus).
+  const invested = branchesOf(hero).filter((b) => pointsInBranch(hero, b) > 0)
+    .sort((a, b) => pointsInBranch(hero, b) - pointsInBranch(hero, a));
+  for (const extra of invested.slice(1)) for (const n of extra.nodes) delete hero.talents[n.id];
   const broken = branchesOf(hero).some((branch) => branch.nodes.some((n) => rankOf(hero, n.id) > 0 && (!tierOpen(hero, branch, n.tier)
     || (n.kind === 'minor' && chosenInTier(hero, branch, n.tier).length > CHOICE_PICKS))));
   if (broken) hero.talents = {};

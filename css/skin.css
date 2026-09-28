@@ -159,6 +159,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .tal-branch { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .tal-branch h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 17px; }
 .tal-branch h3 small { margin-left: auto; color: #f3d58c; font-weight: 400; }
+.tal-branch.closed { opacity: .45; filter: grayscale(.7); } /* une seule orientation par héros */
 .tal-progress { margin: 4px 0 6px; height: 7px; }
 .tal-tiers { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
 .tal-row { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; position: relative; }
