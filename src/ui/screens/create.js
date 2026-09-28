@@ -10,12 +10,12 @@ import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES } from '../../data/items.js';
 import { TALENTS, nodeSkills } from '../../data/talents.js';
-import { createParty, createHero, getStats, classTitle, hasFeminine } from '../../game/party.js';
+import { createParty, createHero, getStats, classTitle, hasFeminine, usesHp } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { generateItem, possibleSecondaries } from '../../game/items.js';
 import { esc } from '../html.js';
 import { statsList } from '../heroStats.js';
-import { skillEffectLabel } from '../format.js';
+import { skillEffectLabel, skillCostLabel } from '../format.js';
 import { goTo } from '../router.js';
 import { saveGame } from '../saves.js';
 import { iconHtml, itemIcon, branchIcon, skillIconIndex, CLASS_ICONS } from '../icons.js';
@@ -120,7 +120,7 @@ function heroColumn(key, i) {
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">
         ${CLASS_ORDER.map((k) => `<button data-class-slot="${i}" data-class="${k}" class="class-pick ${k === key ? 'selected' : ''}" style="--c:${CLASSES[k].color}" title="${esc(classTitle(k, draft.feminine[i]))}">${iconHtml(CLASS_ICONS[k], 32)}</button>`).join('')}
       </div>
-      <p class="create-meta" title="${esc(cls.desc)}">${esc(cls.resource.name)} · ${STATS[cls.mainStat].label}${key === 'paladin' ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
+      <p class="create-meta" title="${esc(cls.desc)}">${esc(usesHp(cls) ? 'Sang (PV)' : cls.resource.name)} · ${STATS[cls.mainStat].label}${['paladin', 'scarifie'].includes(key) ? ' ou Intelligence' : ''} · ${TALENTS[key].map((b) => iconHtml(branchIcon(b), 16, '', esc(b.name))).join('')}</p>
       <div class="look-rows">${Object.entries(PART_LABELS).map(([part, label]) => lookRow(i, look, part, label)).join('')}</div>
       <div class="look-actions"><button data-random="${i}">Au hasard</button><button data-reset="${i}">Tenue de la classe</button></div>
     </section>`;
@@ -183,7 +183,9 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.multiAction
+  const resourceText = r.hp
+    ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
+    : r.multiAction
     ? `${r.name} : ${r.max} au maximum, pleine au début de chaque combat, +${r.regen} par tour. Chaque action en coûte (Attaquer ${r.actionCosts.attack}, Défendre ${r.actionCosts.defend}, Objet ${r.actionCosts.item}) : plusieurs actions par tour.`
     : r.onHitTaken
       ? `${r.name} : ${r.max} au maximum, commence à ${r.start}. +${r.regen} par tour, +${r.onAttack} par attaque simple, +${r.onHitTaken} par coup encaissé.`
@@ -199,14 +201,14 @@ function classesTab() {
       </div>
       <div class="details-col">
         <p class="hint">${esc(resourceText)} Position de départ : ${cls.position === 'ranged' ? 'distance' : 'corps à corps'}. Par niveau : ${Object.entries(cls.growth).map(([k, v]) => `+${v} ${STATS[k].label}`).join(', ')}.</p>
-        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 10</small></h4>
+        <h4>Orientations <small class="hint">— le premier point dans une orientation apprend son sort de départ ; gros paliers obligatoires, petits paliers au choix, signature au palier 14</small></h4>
         <div class="skill-list">${TALENTS[key].map((b) => {
           const starterNode = b.nodes.find((n) => n.tier === 0 && nodeSkills(n).length);
           const starter = starterNode ? nodeSkills(starterNode)[0] : null;
           const sig = b.nodes.find((n) => n.kind === 'signature');
           return `
             <div class="skill-item">${iconHtml(branchIcon(b), 32)}<div><b>${esc(b.name)}</b> <small class="hint">${esc(b.desc)}</small><br>
-              ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${starter.cost} ${esc(r.name)}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
+              ${starter ? `<small>${iconHtml(skillIconIndex(starter), 16)} <b>${esc(starter.name)}</b> (${esc(skillCostLabel(cls, starter))}) : ${esc(skillEffectLabel(stats, starter))}</small><br>` : ''}
               ${sig ? `<small>${iconHtml(skillIconIndex(sig.skill), 16)} Signature : <b>${esc(sig.name)}</b></small>` : ''}</div></div>`;
         }).join('')}</div>
         <h4>Équipement de départ</h4>

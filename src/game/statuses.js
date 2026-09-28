@@ -26,6 +26,7 @@ export function makeStatus(id, turns, value) {
   if (def.mods) status.mods = def.mods;
   for (const flag of ['stun', 'taunt', 'confuse']) if (def[flag]) status[flag] = true;
   if (def.redirect) status.redirect = def.redirect;
+  for (const field of ['bonus', 'revive', 'lasting']) if (def[field]) status[field] = def[field];
   if (def.value) status[def.value] = value;
   if (def.stacks) status.doses = [value]; // effet cumulable (poison) : une entrée par dose
   return status;
@@ -71,6 +72,15 @@ export function isDebuffed(unit) {
   return statusesOf(unit).some((s) => s.kind === 'debuff');
 }
 
+// Somme des bonus fixes par stat (ex. vol de vie donné par Sang partagé).
+export function statusBonus(unit) {
+  const bonus = {};
+  for (const s of statusesOf(unit)) {
+    for (const [stat, v] of Object.entries(s.bonus ?? {})) bonus[stat] = (bonus[stat] ?? 0) + v;
+  }
+  return bonus;
+}
+
 // Somme des modificateurs en % par stat.
 export function statusMods(unit) {
   const mods = {};
@@ -110,7 +120,7 @@ export function tickStatuses(unit) {
   const due = statusesOf(unit).filter((s) => !s.fresh);
   for (const s of statusesOf(unit)) delete s.fresh;
   const ticks = due.filter((s) => s.dot || s.hot).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
-  for (const s of due) if (!s.stun) s.turns--;
+  for (const s of due) if (!s.stun && !s.lasting) s.turns--;
   unit.statuses = statusesOf(unit).filter((s) => s.stun || s.turns > 0);
   return ticks;
 }

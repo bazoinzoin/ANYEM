@@ -1,7 +1,8 @@
 // Icônes du jeu : planche Raven Fantasy Icons (assets/icons/raven16.png, 16 × 137 icônes de
-// 16 px, numérotées ligne par ligne). Un objet, un consommable, une matéria, un effet, une
-// compétence ou une orientation reçoit une icône choisie par sa nature ; la rareté change la
-// teinte des armes et des armures quand la planche en propose plusieurs.
+// 16 px, numérotées ligne par ligne, plus une ligne de variantes dorées : GOLD_ICONS). Un
+// objet, un consommable, une matéria, un effet, une compétence ou une orientation reçoit une
+// icône choisie par sa nature ; la rareté change la teinte des armes et des armures quand la
+// planche en propose plusieurs.
 
 import { CONSUMABLES } from '../data/consumables.js';
 
@@ -56,9 +57,13 @@ export function consumableIcon(key) {
 export const MATERIA_ICONS = { arme: 162, armure: 160, bijou: 165 };
 export const GOLD_ICON = 130;
 
+// Variantes dorées ajoutées en bas de la planche (tools/recolor_icons.py) : les soins des
+// autres classes sont lumineux, le rouge (sang) est réservé au Scarifié.
+export const GOLD_ICONS = { soin: 2192, coeur: 2193, livre: 2194 };
+
 // Effets (buffs / debuffs).
 const EFFECT_ICONS = {
-  bouclier: 663, regeneration: 658, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
+  bouclier: 663, regeneration: GOLD_ICONS.coeur, 'sang-partage': 1063, 'pacte-de-sang': 1180, puissance: 600, hate: 648, protection: 612, provocation: 662, enrage: 694,
   intercession: 669, poison: 674, saignement: 676, brulure: 692, tenebres: 750, ralenti: 649, etourdi: 687,
   confus: 699, affaibli: 616, terreur: 672, piege: 127, piegeDeGivre: 1008,
 };
@@ -68,13 +73,19 @@ export function effectIcon(key) {
 
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
+  // Scarifié : sang, plaies, sacrifice (icônes rouges).
+  [/pacte/i, 1180],
+  [/dernier souffle/i, 1230],
+  [/transfusion|pluie de sang|lien vital|communion sanglante/i, 658],
+  [/entaille|lacération|hémorragie|saignée|moisson rouge|boucher/i, 743],
+  [/décharge sanglante|flèche de sang|salve écarlate|transpercement|fièvre rouge/i, 1225],
   [/feu|flamme|brasier|immolation|météore/i, 992],
   [/glace|givre|blizzard|gel/i, 1008],
   [/foudre|éclair|choc|tempête|céleste|orage/i, 1040],
   [/poison|peste|nauséabond|empoisonn/i, 674],
   [/ombre|douleur|fléau|apocalypse|profane|confusion|mort lente/i, 750],
   [/résurrection|sacrifice/i, 669],
-  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, 1057],
+  [/soin|prière|rénovation|miracle|sceau de vie|purification|épuration/i, GOLD_ICONS.soin],
   [/bouclier|rempart|protection|aura|intercession|sceau de protection/i, 663],
   [/lumière|jugement|hymne|sacré|divin|croisé|aube/i, 1055],
   [/piège|terrain/i, 127],
@@ -85,7 +96,7 @@ const SKILL_RULES = [
 ];
 export function skillIconIndex(skill) {
   for (const [re, index] of SKILL_RULES) if (re.test(skill.name)) return index;
-  if (skill.kind === 'heal') return 1057;
+  if (skill.kind === 'heal') return GOLD_ICONS.soin;
   if (skill.kind === 'revive') return 669;
   if (skill.magic) return 1000;
   return 726;
@@ -93,14 +104,15 @@ export function skillIconIndex(skill) {
 
 // Orientations de talents et classes.
 const BRANCH_ICONS = {
-  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': 96, Profane: 750,
+  Gardien: 663, Berserker: 1465, Assassin: 1443, Empoisonneur: 674, Clerc: 669, 'Prêcheur': GOLD_ICONS.livre, Profane: 750,
   Feu: 992, Glace: 1008, Foudre: 1040, 'Œil de Faucon': 1482, Traqueur: 127,
   Templier: 1810, 'Lumière': 1055,
+  'Acharné': 1227, Violent: 1225, 'Liens du sang': 1092,
 };
 export function branchIcon(branch) {
   return BRANCH_ICONS[branch.name] ?? 1000;
 }
-export const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471 };
+export const CLASS_ICONS = { guerrier: 720, voleur: 1443, pretre: 669, mage: 1491, chasseur: 1482, paladin: 1471, scarifie: 1182 };
 
 // Commandes de combat.
 export const COMMAND_ICONS = { attack: 726, skills: 96, items: 276, defend: 663, move: 648, end: 686 };
@@ -111,7 +123,7 @@ const TALENT_STAT_ICONS = {
   pv: 610, def: 612, defMag: 613, blocage: 663, physPower: 608, magPower: 609, critDmg: 671, critChance: 670,
   esquive: 666, vit: 648, resOnHitTaken: 694, guardShieldPct: 664, shieldPct: 663, guardBonus: 663, berserk: 694,
   lifestealPct: 676, executePct: 745, resMaxBonus: 611, resRegen: 611, critCombo: 682, finisherRefund: 745,
-  dotPct: 674, vsDebuffedPct: 616, healPct: 1057, aoePct: 724, trapPct: 127,
+  dotPct: 674, vsDebuffedPct: 616, healPct: GOLD_ICONS.soin, selfRevive: 1180, aoePct: 724, trapPct: 127,
 };
 export function talentNodeIcon(node, skills = []) {
   if (skills.length) return skillIconIndex(skills[0]);

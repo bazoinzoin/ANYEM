@@ -4,11 +4,11 @@
 import { state } from '../../state.js';
 import { STATS } from '../../data/stats.js';
 import { RARITIES } from '../../data/items.js';
-import { getClass, getStats, getSkills, xpToNext, heroClassTitle } from '../../game/party.js';
+import { getClass, getStats, getSkills, xpToNext, heroClassTitle, usesHp } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
 import { pointsAvailable } from '../../game/talents.js';
 import { esc } from '../html.js';
-import { skillEffectLabel } from '../format.js';
+import { skillEffectLabel, skillCostLabel } from '../format.js';
 import { itemName } from '../items.js';
 import { statsList } from '../heroStats.js';
 import { goTo } from '../router.js';
@@ -43,10 +43,10 @@ export function renderStats(app) {
         <div class="stats sheet stats-cols">${statsList(hero)}</div>
       </section>
       <section class="win">
-        <h3>${iconHtml(96, 16)} Compétences <small>${cls.resource.name}</small></h3>
+        <h3>${iconHtml(96, 16)} Compétences <small>${usesHp(cls) ? 'payées en PV' : cls.resource.name}</small></h3>
         <div class="skill-list">${getSkills(hero).map((s) => `
           <div class="skill-item">${iconHtml(skillIconIndex(s), 32)}
-            <div><b>${esc(s.name)}</b>${s.boosted ? ' <span class="boosted">★ renforcée</span>' : ''} <small class="cost">${s.cost} ${esc(cls.resource.name)}</small><br><small>${skillEffectLabel(stats, s)}</small></div>
+            <div><b>${esc(s.name)}</b>${s.boosted ? ' <span class="boosted">★ renforcée</span>' : ''} <small class="cost">${esc(skillCostLabel(cls, s, hero))}</small><br><small>${skillEffectLabel(stats, s)}</small></div>
           </div>`).join('') || '<p class="hint">Aucune compétence : apprenez-en dans les talents.</p>'}</div>
       </section>
       <section class="win">

@@ -218,4 +218,32 @@ export const CLASSES = {
       { id: 'lumiere-sacree', name: 'Lumière sacrée', cost: 30, kind: 'heal', target: 'ally', power: 0.9, desc: 'Soigne un allié (Intelligence)' },
     ],
   },
+  scarifie: {
+    name: 'Scarifié', nameF: 'Scarifiée', plural: 'Scarifiés',
+    title: 'Le Scarifié', titleF: 'La Scarifiée',
+    icon: '🩸',
+    color: 'var(--scarifie)',
+    position: 'melee',
+    mainStat: 'force',
+    physStat: 'force',
+    desc: "Sans Mana, sans Rage : il paie chaque sort de son propre sang. En Acharné, il taille les chairs au corps à corps et fait saigner ; en Violent, il vide ses veines dans des tirs dévastateurs ; en Liens du sang, seule voie à l'Intelligence, il offre son sang pour soigner ses alliés. Il sait aussi se relever quand il tombe.",
+    base: { pv: 140, atq: 6, vit: 9, force: 5, agilite: 2, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, riposte: 3 },
+    growth: { pv: 14, force: 1, intelligence: 1 },
+    // Pas de ressource : le coût d'une compétence (`cost`) est un % de ses PV max.
+    resource: { name: 'PV', hp: true, max: 0, start: 0, regen: 0 },
+    gear: {
+      weapons: ['dague', 'epee', 'hache', 'masse', 'epee2m', 'hache2m', 'masse2m', 'baton', 'arc'],
+      offHand: [],
+      armor: ['moyenne'],
+    },
+    starterKit: [
+      { slotType: 'arme', weaponType: 'hache2m', primary: 'force' },
+      { slotType: 'plastron', armorType: 'moyenne', primary: 'force' },
+    ],
+    starterSkills: [
+      { id: 'entaille-rituelle', name: 'Entaille rituelle', cost: 6, kind: 'damage', target: 'enemy', power: 1.6, effects: [{ id: 'saignement', turns: 3, power: 0.35 }], desc: 'Coup qui ouvre une plaie : saignement sur 3 tours' },
+      { id: 'decharge-sanglante', name: 'Décharge sanglante', cost: 10, kind: 'damage', target: 'enemy', power: 1.6, desc: 'Frappe de toute la force de son sang versé (dégâts physiques, Force)' },
+      { id: 'transfusion', name: 'Transfusion', cost: 8, kind: 'heal', target: 'ally', power: 1.0, effects: [{ id: 'sang-partage', turns: 2 }], desc: 'Donne de son sang pour soigner un allié (Intelligence), qui gagne Sang partagé (vol de vie) 2 tours' },
+    ],
+  },
 };

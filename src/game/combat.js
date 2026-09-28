@@ -17,7 +17,7 @@
 import { COMBAT } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
 import { createEnemies } from './enemies.js';
-import { getClass, getSkills, getStats, gainResource, legendaryPowers } from './party.js';
+import { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill } from './party.js';
 import { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } from './combo.js';
 import { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } from './position.js';
 import {
@@ -46,6 +46,7 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
+    hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
@@ -235,7 +236,7 @@ export function canUseItem(cb, key) {
 // Une compétence est-elle utilisable maintenant (ressource, cible possible, points
 // de combo pour un finisher) ?
 export function canUseSkill(cb, hero, skill) {
-  if (hero.res < skill.cost) return false;
+  if (!canPaySkill(hero, skill)) return false; // ressource, ou PV (jamais le dernier)
   if (skill.finisher && comboOf(hero) < 1) return false;
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
   if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
@@ -336,10 +337,11 @@ export function heroAct(cb, action) {
   } else if (action.type === 'skill') {
     const base = getSkills(hero)[action.skill];
     if (!base || !canUseSkill(cb, hero, base)) return false;
-    const skill = atCombo(base, comboOf(hero));
+    const skill = effectiveSkill(hero, base);
     const targets = skillTargets(cb, hero, skill, action.target);
     if (!targets) return false;
-    hero.res -= skill.cost;
+    const paid = paySkill(hero, skill);
+    if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
@@ -369,6 +371,18 @@ export function heroAct(cb, action) {
   }
   endTurn(cb);
   return true;
+}
+
+/**
+ * Compétence telle qu'elle partira maintenant : puissance selon les points de combo
+ * (finisher) ; sacrifice (Scarifié) : puissance augmentée selon la part des PV max
+ * sacrifiés (tous les PV sauf un). Sert aussi aux estimations affichées.
+ */
+export function effectiveSkill(hero, base) {
+  const skill = atCombo(base, comboOf(hero));
+  if (!skill.sacrifice) return skill;
+  const share = Math.max(0, hero.hp - 1) / Math.max(1, getStats(hero).pv);
+  return { ...skill, power: +(skill.power + skill.sacrifice * share).toFixed(3) };
 }
 
 // Le héros peut-il changer de position maintenant ? (gratuit avec « Plume légère »)
@@ -436,6 +450,9 @@ function strikeNotes(r) {
 function hurt(cb, unit, amount) {
   const r = damage(unit, amount);
   if (r.protector?.fell) logFall(cb, r.protector.unit);
+  for (const [who, rev] of [[unit, r.revived], [r.protector?.unit, r.protector?.revived]]) {
+    if (rev) log(cb, `${who.name} refuse de mourir et se relève avec ${who.hp} PV${rev.source === 'passif' ? '' : ` (${rev.source})`}${hasStatus(who, 'stun') ? ', mais perd son prochain tour' : ''} !`, true);
+  }
   return r;
 }
 

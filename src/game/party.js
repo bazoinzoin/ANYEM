@@ -40,6 +40,37 @@ export function weaponSpeedOf(hero) {
   return +(weapons.reduce((sum, it) => sum + WEAPON_TYPES[it.weaponType].speed, 0) / weapons.length).toFixed(3);
 }
 
+// Classe sans ressource (Scarifié) : ses compétences se paient en PV.
+export function usesHp(cls) {
+  return !!cls.resource.hp;
+}
+
+/**
+ * Coût en PV d'une compétence pour une classe qui paie en PV : `cost` = % des PV max
+ * (au moins 1). Une compétence `sacrifice` coûte tous les PV sauf un.
+ */
+export function hpCost(hero, skill) {
+  if (skill.sacrifice) return Math.max(0, hero.hp - 1);
+  return Math.max(1, Math.round(getStats(hero).pv * skill.cost / 100));
+}
+
+// Le héros peut-il payer cette compétence ? En PV (Scarifié) : jamais le dernier.
+export function canPaySkill(hero, skill) {
+  if (!usesHp(getClass(hero))) return hero.res >= skill.cost;
+  return skill.sacrifice ? hero.hp > 1 : hpCost(hero, skill) < hero.hp;
+}
+
+// Paie une compétence (ressource ou PV). Retourne les PV sacrifiés (0 pour une ressource).
+export function paySkill(hero, skill) {
+  if (!usesHp(getClass(hero))) {
+    hero.res -= skill.cost;
+    return 0;
+  }
+  const paid = hpCost(hero, skill);
+  hero.hp -= paid;
+  return paid;
+}
+
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
 export function usesMana(cls) {
   return cls.resource.name === 'Mana';

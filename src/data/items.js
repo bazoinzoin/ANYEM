@@ -416,6 +416,63 @@ export const LEGENDARIES = {
     desc: 'Lumière — Sceau de protection dure 1 tour de plus ; son Bouclier et sa Régénération valent 30 % de plus.',
     quote: 'Nathanaël, je t\'enseignerai la ferveur.',
   },
+  // ---- Scarifié · Acharné ----
+  clefTachee: {
+    name: 'Clef tachée', classKey: 'scarifie', branch: 'acharne', slotType: 'collier', primary: 'force',
+    power: { skillMod: { skill: 'hemorragie', dotPowerPct: 35, powerPct: 15 } },
+    desc: 'Acharné — Hémorragie frappe 15 % plus fort et fait saigner 35 % plus fort.',
+    quote: 'Le sang ne partait pas : quand on l\'ôtait d\'un côté, il revenait de l\'autre.',
+  },
+  masqueEcarlate: {
+    name: 'Masque écarlate', classKey: 'scarifie', branch: 'acharne', slotType: 'casque', armorType: 'moyenne', primary: 'force',
+    power: { requires: 'sang-appelle-sang', passive: { vsDebuffedPct: 8, lifestealPct: 3 } },
+    desc: 'Acharné — Le sang appelle le sang : +8 % de dégâts contre une cible affaiblie et 3 % de vol de vie en plus.',
+    quote: 'Et le Sang était son avatar et son sceau.',
+  },
+  hacheDeLille: {
+    name: 'Hache de Lille', classKey: 'scarifie', branch: 'acharne', slotType: 'arme', weaponType: 'hache2m', primary: 'force',
+    power: { skillMod: { skill: 'coup-du-boucher', powerPct: 25, costDelta: -3 } },
+    desc: 'Acharné — Coup du boucher coûte 3 % de PV de moins et frappe 25 % plus fort.',
+    quote: 'Le bourreau ne manqua pas son coup.',
+  },
+  // ---- Scarifié · Violent ----
+  arcDIthaque: {
+    name: "Arc d'Ithaque", classKey: 'scarifie', branch: 'violent', slotType: 'arme', weaponType: 'arc', primary: 'force',
+    power: { skillMod: { skill: 'fleche-de-sang', powerPct: 25, critBonus: 10 } },
+    desc: 'Violent — Flèche de sang frappe 25 % plus fort, avec +10 % de chance de critique.',
+    quote: 'Nul autre que lui ne pouvait en tendre la corde.',
+  },
+  gantsDeSedan: {
+    name: 'Gants de Sedan', classKey: 'scarifie', branch: 'violent', slotType: 'gants', armorType: 'moyenne', primary: 'force',
+    power: { skillMod: { skill: 'salve-ecarlate', powerPct: 25, costDelta: -3 } },
+    desc: 'Violent — Salve écarlate coûte 3 % de PV de moins et frappe 25 % plus fort.',
+    quote: 'Il pleuvait du fer, et la plaine buvait.',
+  },
+  suaireDeLazare: {
+    name: 'Suaire de Lazare', classKey: 'scarifie', branch: 'violent', slotType: 'plastron', armorType: 'moyenne', primary: 'force',
+    power: { requires: 'revenant', passive: { selfRevive: 20 } },
+    desc: 'Violent — Revenant : se relève avec 20 % de PV en plus (50 % au lieu de 30 %).',
+    quote: 'Lazare, sors !',
+  },
+  // ---- Scarifié · Liens du sang ----
+  philtreDIseut: {
+    name: "Philtre d'Iseut", classKey: 'scarifie', branch: 'liensDuSang', slotType: 'collier', primary: 'intelligence',
+    power: { skillMod: { skill: 'pluie-de-sang', powerPct: 25, addEffects: [fx('sang-partage', 2)] } },
+    desc: 'Liens du sang — Pluie de sang soigne 25 % de plus et donne Sang partagé (vol de vie) 2 tours.',
+    quote: 'Ni vous sans moi, ni moi sans vous.',
+  },
+  parcheminSigne: {
+    name: 'Parchemin signé', classKey: 'scarifie', branch: 'liensDuSang', slotType: 'anneau', primary: 'intelligence',
+    power: { skillMod: { skill: 'pacte-de-sang', costDelta: -8, addEffects: [fx('regeneration', 3, 0.3)] } },
+    desc: 'Liens du sang — Pacte de sang coûte 8 % de PV de moins et donne aussi une Régénération (3 tours).',
+    quote: 'Le sang est un suc tout particulier.',
+  },
+  batonDeStyrie: {
+    name: 'Bâton de Styrie', classKey: 'scarifie', branch: 'liensDuSang', slotType: 'arme', weaponType: 'baton', primary: 'intelligence',
+    power: { skillMod: { skill: 'lien-vital', costDelta: -3, effectPowerPct: 40 } },
+    desc: 'Liens du sang — Lien vital coûte 3 % de PV de moins ; sa Régénération soigne 40 % de plus.',
+    quote: 'Ce qui coule en toi coule aussi en moi.',
+  },
   // ---- Communs à toutes les classes ----
   plumeLegere: {
     name: 'Plume légère', slotType: 'bottes', armorType: 'legere', primary: 'intelligence',
