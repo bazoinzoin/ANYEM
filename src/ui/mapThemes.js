@@ -187,6 +187,9 @@ const U = {
   brazier: o('underworld_obj', 0, 288, 16, 32),
 };
 
+// Catalogues d'objets, repris par les fonds de combat (ui/battleBacks.js).
+export const PROPS = { forest: F, dungeon: D, cave: C, winter: W, abyss: U };
+
 // ---- Thèmes ----
 // Un thème :
 //   base      tuiles posées partout, sous le reste : { sheet, tiles: [[col, ligne], …] }

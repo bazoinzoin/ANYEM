@@ -1,5 +1,5 @@
 // Scène de combat : l'équipe à gauche (tournée vers la droite), les monstres à droite
-// (tournés vers la gauche), sur fond neutre. Sprites du pack Franuka : héros personnalisés
+// (tournés vers la gauche), devant le décor de la zone (ui/battleBacks.js). Sprites du pack Franuka : héros personnalisés
 // (ui/heroSprite.js) et monstres (ui/mobSprites.js, plus grands pour les élites et les
 // boss), avec leurs animations (attente, marche, attaque, sort, dégâts, mort) et des effets
 // ajoutés par le code : bond, halo de sort, recul et éclair blanc à l'impact, chiffres de
@@ -17,6 +17,8 @@ import { statusesOf } from '../game/statuses.js';
 import { image, isReady } from './sprites.js';
 import { effectIcon, COMMAND_ICONS } from './icons.js';
 import { diffBattle } from './battleDiff.js';
+import { battleBack, drawBattleBack } from './battleBacks.js';
+import { state } from '../state.js';
 
 const W = 640;             // taille du canvas (pixels ; affiché agrandi, net)
 const H = 360;
@@ -192,7 +194,7 @@ function draw(now) {
   last = now;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  drawBackground(ctx);
+  drawBackground(ctx, now);
 
   const units = [...cb.party, ...cb.enemies];
   const placed = units.map((u) => {
@@ -210,7 +212,14 @@ function draw(now) {
   drawPopups(ctx, now);
 }
 
-function drawBackground(ctx) {
+// Décor de la sous-zone en cours (ui/battleBacks.js), sinon un fond neutre.
+function drawBackground(ctx, now) {
+  const exp = state.expedition;
+  const back = exp ? battleBack(exp.dungeonKey, exp.floor) : null;
+  if (back) {
+    drawBattleBack(ctx, back, W, H, now);
+    return;
+  }
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2a2119');
   g.addColorStop(0.42, '#3a2e22');
