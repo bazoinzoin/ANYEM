@@ -45,6 +45,9 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     // Les effets négatifs restent d'un combat à l'autre (jusqu'au village ou à un
     // remède) ; les effets positifs disparaissent.
     hero.statuses = (hero.statuses ?? []).filter((s) => s.kind === 'debuff');
+    // Bénédictions d'un événement d'expédition : posées au début de ce combat.
+    for (const e of hero.pendingEffects ?? []) if (hero.alive) addStatus(hero, makeStatus(e.id, e.turns));
+    hero.pendingEffects = [];
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat

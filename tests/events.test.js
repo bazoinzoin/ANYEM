@@ -141,3 +141,58 @@ test('Dépouille d\'aventurier : la maladie affaiblit un héros (effet qui reste
   assert.ok(r.ok);
   assert.ok(game.party.some((h) => h.statuses.some((s) => s.key === 'affaibli')));
 });
+
+test('chaque événement (hors marchand) est un dilemme : au moins deux choix ; bénédictions et malédictions viennent du catalogue', async () => {
+  const { EFFECTS } = await import('../src/data/effects.js');
+  for (const [key, e] of Object.entries(EVENTS)) {
+    if (e.kind === 'merchant') continue;
+    assert.ok(e.choices.length >= 2, `${key} : un seul choix`);
+    for (const c of e.choices) {
+      for (const o of c.outcomes) {
+        for (const b of o.effects.blessAll ?? []) assert.ok(EFFECTS[b.id]?.kind === 'buff' && !EFFECTS[b.id].value, `${key} : bénédiction ${b.id}`);
+        for (const curse of [o.effects.curseAll, o.effects.curseRandom].filter(Boolean)) assert.equal(EFFECTS[curse.id]?.kind, 'debuff', `${key} : ${curse.id}`);
+      }
+    }
+  }
+});
+
+test('coûts en PV, en matéria et en objet du sac ; bénédiction posée au prochain combat ; XP et purification', () => {
+  const game = withEvent(inDungeon(), 'autel');
+  game.party.forEach((h) => { h.hp = getStats(h).pv; });
+  // Offrir son sang : chaque héros perd 20 % de ses PV max, une matéria rare.
+  assert.ok(chooseEvent(game, 1).ok);
+  game.party.forEach((h) => assert.equal(h.hp, getStats(h).pv - Math.round(getStats(h).pv * 0.2)));
+  assert.equal(Object.values(game.materia).reduce((s, m) => s + m.rare, 0), 1);
+
+  // Forgeron : 3 matéria peu communes, sinon impossible.
+  withEvent(game, 'forgeron');
+  assert.match(cannotChooseReason(game, 0), /matéria/);
+  game.materia.arme.peuCommun = 2;
+  game.materia.armure.peuCommun = 1;
+  assert.ok(chooseEvent(game, 0).ok);
+  assert.equal(game.materia.arme.peuCommun + game.materia.armure.peuCommun, 0);
+  assert.equal(game.bag.length, 1, 'une pièce forgée');
+
+  // Gouffre : un objet du sac au hasard.
+  withEvent(game, 'gouffre');
+  game.bag = [];
+  assert.match(cannotChooseReason(game, 0), /sac/);
+
+  // Sépulture : Protection posée au début du prochain combat, puis consommée.
+  withEvent(game, 'cadavre');
+  assert.ok(chooseEvent(game, 1).ok);
+  const cb = createCombat({ party: game.party, enemies: ['gobelin'], level: 1 });
+  assert.ok(game.party.every((h) => h.statuses.some((s) => s.key === 'protection')));
+  assert.ok(game.party.every((h) => !h.pendingEffects.length));
+  assert.ok(cb);
+
+  // Grimoire : de l'XP, mais toute l'équipe est confuse ; le brûler purifie.
+  withEvent(game, 'grimoire');
+  const xp = game.party.map((h) => h.xp + h.level * 1e6);
+  assert.ok(chooseEvent(game, 0).ok);
+  game.party.forEach((h, i) => assert.ok(h.xp + h.level * 1e6 > xp[i]));
+  assert.ok(game.party.every((h) => h.statuses.some((s) => s.key === 'confus')));
+  withEvent(game, 'grimoire');
+  assert.ok(chooseEvent(game, 1).ok);
+  assert.ok(game.party.every((h) => !h.statuses.some((s) => s.kind === 'debuff')));
+});

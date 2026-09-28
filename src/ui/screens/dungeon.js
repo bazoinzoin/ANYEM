@@ -18,6 +18,7 @@ import {
 } from '../../game/events.js';
 import { EVENTS } from '../../data/events.js';
 import { RARITIES } from '../../data/items.js';
+import { EFFECTS } from '../../data/effects.js';
 import { MERCHANT } from '../../config.js';
 import { esc, tip } from '../html.js';
 import { itemChip, itemName, itemMeta, itemTooltipText } from '../items.js';
@@ -279,7 +280,14 @@ function outcomeText(outcome, level) {
   if (e.restoreAll) parts.push(`+${e.restoreAll} % de PV et de ressource à l'équipe`);
   if (e.hurtRandom) parts.push(`${e.hurtRandom.count} héros au hasard perd${e.hurtRandom.count > 1 ? 'ent' : ''} ${e.hurtRandom.pct} % de ${e.hurtRandom.count > 1 ? 'leurs' : 'ses'} PV max`);
   if (e.hurtAll) parts.push(`chaque héros perd ${e.hurtAll} % de ses PV max`);
-  return `${outcome.chance} % : ${parts.length ? parts.join(', ') : 'rien'}`;
+  if (e.curseRandom) parts.push(`un héros au hasard subit ${EFFECTS[e.curseRandom.id].name} (${e.curseRandom.turns} tours)`);
+  if (e.curseAll) parts.push(`toute l'équipe subit ${EFFECTS[e.curseAll.id].name} (${e.curseAll.turns} tours)`);
+  if (e.blessAll) parts.push(`${e.blessAll.map((b) => `${EFFECTS[b.id].name} (${b.turns} tours)`).join(' et ')} au prochain combat`);
+  if (e.xpPct) parts.push(`+${e.xpPct} % d'un niveau d'XP à chaque héros`);
+  if (e.cleanseAll) parts.push("retire les effets négatifs de l'équipe");
+  if (e.consumables) parts.push(`${e.consumables} consommables au hasard`);
+  const chance = outcome.chance === 100 ? '' : `${outcome.chance} % : `;
+  return `${chance}${parts.length ? parts.join(', ') : 'rien'}`;
 }
 
 function eventPanel(event) {
@@ -288,11 +296,17 @@ function eventPanel(event) {
     <div class="event-choices">
       ${def.choices.map((c, i) => {
         const cost = choiceCost(c, event.level);
-        const costText = [cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : ''].filter(Boolean).join(', ');
+        const costText = [
+          cost.gold ? `${cost.gold} or` : '', cost.consumable ? `1 ${CONSUMABLES[cost.consumable].name}` : '',
+          cost.hpPct ? `${cost.hpPct} % des PV de chaque héros` : '',
+          cost.materia ? `${cost.materia.amount} matéria ${RARITIES[cost.materia.rarity].label.toLowerCase()}` : '',
+          cost.bagItem ? 'un objet du sac au hasard' : '',
+        ].filter(Boolean).join(', ');
         const reason = cannotChooseReason(state, i);
         return `
           <div class="event-choice">
-            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}${costText ? ` (coût : ${costText})` : ''}</button>
+            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}</button>
+            ${costText ? `<p class="event-cost">Coût : ${esc(costText)}</p>` : ''}
             <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
           </div>`;
       }).join('')}

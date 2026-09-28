@@ -449,6 +449,7 @@ button.hud-hero.dead canvas { filter: grayscale(1) brightness(.5); }
 .hud-modal p { margin: 0; }
 .hud-modal .event-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px; }
 .hud-modal .event-choice ul { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
+.hud-modal .event-cost { margin: 3px 0 0; font-size: 12px; color: #f3d58c; }
 .hud-modal .event-stock { display: flex; flex-direction: column; gap: 3px; }
 .hud-modal .event-stock .bag-row { display: flex; align-items: center; gap: 6px; padding: 2px 6px; }
 .hud-modal .event-stock .bag-row button { margin-left: auto; font-size: 12px; padding: 0 8px; }
