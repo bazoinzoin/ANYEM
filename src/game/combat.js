@@ -51,6 +51,8 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
+    // Efficacité au combat (XP, voir combatEfficiency dans game/progression.js).
+    hero.fight = { dealt: 0, healed: 0, shielded: 0, taken: 0, turns: 0 };
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
@@ -70,6 +72,11 @@ export function createCombat({ party, enemies, level, consumables = {}, title = 
     }
   }
   return cb;
+}
+
+// Crédite une part d'efficacité à un héros (dégâts infligés, soins, boucliers, dégâts encaissés).
+function credit(unit, field, amount) {
+  if (unit && amount > 0 && unit.fight && isHero(unit)) unit.fight[field] += amount;
 }
 
 // Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
@@ -131,6 +138,7 @@ function triggerTraps(cb, unit) {
   for (const trap of statusesOf(unit).filter((s) => s.trap)) {
     unit.statuses = statusesOf(unit).filter((s) => s !== trap);
     const { taken, fell } = hurt(cb, unit, trap.trap);
+    credit(trap.source, 'dealt', taken);
     log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
     if (fell) {
       logFall(cb, unit);
@@ -161,11 +169,13 @@ function endUnitTurn(cb, unit) {
       if (!unit.alive) break;
       if (tick.dot) {
         const { taken, fell } = hurt(cb, unit, tick.dot);
+        if (tick.status.source !== unit) credit(tick.status.source, 'dealt', taken);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
       if (tick.hot) {
         const healed = heal(unit, tick.hot);
+        credit(tick.status.source, 'healed', healed);
         log(cb, `${unit.name} est soigné par ${tick.status.name} (+${healed} PV).`, true);
       }
     }
@@ -392,6 +402,7 @@ export function heroAct(cb, action) {
     return false;
   }
 
+  if (!hero.actedThisTurn && hero.fight) hero.fight.turns++;
   hero.actedThisTurn = true;
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
@@ -464,6 +475,8 @@ function strike(cb, attacker, target, opts) {
     notes.push(`en garde → ${dmg}`);
   }
   const r = hurt(cb, target, dmg);
+  credit(attacker, 'dealt', r.taken);
+  credit(target, 'taken', r.taken + r.absorbed);
   if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
   if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
   if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
@@ -499,6 +512,7 @@ function riposte(cb, attacker, defender) {
   if (random() >= chance(stats, 'riposte')) return;
   const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
   const { taken, fell } = hurt(cb, attacker, amount);
+  credit(defender, 'dealt', taken);
   log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
   if (fell) logFall(cb, attacker);
 }
@@ -508,6 +522,7 @@ function lifesteal(cb, hero, dealt) {
   const pct = statsOf(hero).lifestealPct;
   if (!pct || !dealt || !hero.alive) return;
   const healed = heal(hero, Math.round(dealt * pct / 100));
+  credit(hero, 'healed', healed);
   if (healed) log(cb, `${hero.name} vole ${healed} PV.`);
 }
 
@@ -579,6 +594,7 @@ function useSkill(cb, caster, skill, targets) {
         const burst = detonateStatus(target, skill.detonate);
         if (burst) {
           const { taken, fell } = hurt(cb, target, burst);
+          credit(caster, 'dealt', taken);
           dealt += taken;
           parts.push(`${target.name} : ${EFFECTS[skill.detonate].name} foudroyant, -${taken} PV`);
           if (fell) logFall(cb, target);
@@ -586,6 +602,7 @@ function useSkill(cb, caster, skill, targets) {
       }
     } else if (skill.kind === 'heal') {
       const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
+      credit(caster, 'healed', healed);
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -602,15 +619,19 @@ function useSkill(cb, caster, skill, targets) {
     }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
-      if (status.redirect) {
-        if (target === caster) continue; // on ne s'intercède pas pour soi-même
-        status.source = caster;
-      }
+      if (status.redirect && target === caster) continue; // on ne s'intercède pas pour soi-même
+      status.source = caster; // Intercession, et crédit des dégâts ou soins sur la durée
       applyStatus(cb, target, status);
+      credit(caster, 'shielded', status.shield ?? 0);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) {
+    const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+    status.source = caster;
+    applyStatus(cb, caster, status);
+    credit(caster, 'shielded', status.shield ?? 0);
+  }
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);

@@ -148,6 +148,10 @@ export function renderDungeon(app) {
     goTo('dungeon');
   });
   app.querySelectorAll('[data-map-item]').forEach((btn) => {
+    const show = () => { const d = app.querySelector('#mapItemDesc'); if (d) d.innerHTML = mapItemDesc(btn.dataset.mapItem); };
+    btn.addEventListener('mouseenter', show);
+    btn.addEventListener('focus', show);
+    btn.addEventListener('mouseleave', () => { const d = app.querySelector('#mapItemDesc'); if (d && view.pendingItem) d.innerHTML = mapItemDesc(view.pendingItem); });
     btn.onclick = () => {
       const key = btn.dataset.mapItem;
       if (isUntargeted(key) && view.pendingItem !== key) view.pendingItem = key; // demande confirmation
@@ -193,7 +197,7 @@ function castSpell(skillIndex, targetIndex) {
 function spellPanel() {
   const heroes = state.party.map((h, i) => {
     const usable = h.alive && fieldSkills(h).length > 0;
-    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${iconHtml(CLASS_ICONS[h.classKey], 16)} ${esc(h.name)}</button>`;
+    return `<button data-caster="${i}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.', view.caster === i ? 'selected' : '')}>${iconHtml(CLASS_ICONS[h.classKey], 16)} ${esc(h.name)}</button>`;
   }).join('');
   let spells = '';
   if (view.caster !== null) {
@@ -204,7 +208,7 @@ function spellPanel() {
       const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
         .filter(Boolean).join(', ');
       const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
-      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skillCostLabel(getClass(caster), skill, caster)} · ${effect}${who}</button>`;
+      return `<button data-spell="${index}" ${reason ? `disabled ${tip(reason)}` : `class="${view.pendingSpell === index ? 'selected' : ''}"`}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skillCostLabel(getClass(caster), skill, caster)} · ${effect}${who}</button>`;
     }).join('');
     const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
     if (pending?.target === 'ally') {
@@ -228,6 +232,13 @@ function useItem(key, targetIndex) {
   goTo('dungeon');
 }
 
+// Description d'un objet (survol ou objet choisi) dans le panneau des objets.
+function mapItemDesc(key) {
+  const c = CONSUMABLES[key];
+  const used = usedThisTier(state, key) ? ' <i>Déjà utilisée dans ce palier.</i>' : '';
+  return `<b>${iconHtml(consumableIcon(key), 16)} ${esc(c.name)}</b> ×${countOf(state.consumables, key)} — ${esc(c.desc)}${used}`;
+}
+
 // Objets utilisables pendant l'exploration (soins, plume, tente).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
@@ -246,8 +257,9 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${usedThisTier(state, k) ? 'disabled' : ''}>${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
+      <p class="map-item-desc" id="mapItemDesc">${pending ? mapItemDesc(pending) : 'Survolez un objet pour voir son effet.'}</p>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;
 }
@@ -305,7 +317,7 @@ function eventPanel(event) {
         const reason = cannotChooseReason(state, i);
         return `
           <div class="event-choice">
-            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}</button>
+            <button data-event-choice="${i}" ${reason ? `disabled ${tip(reason, 'btn-primary')}` : 'class="btn-primary"'}>${esc(c.label)}</button>
             ${costText ? `<p class="event-cost">Coût : ${esc(costText)}</p>` : ''}
             <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
           </div>`;
@@ -325,7 +337,7 @@ function merchantBody(event) {
   const items = event.stock.length ? event.stock.map((item) => {
     const price = eventItemPrice(item);
     return `
-      <div class="bag-row" ${tip(itemTooltipText(item))}>
+      <div ${tip(itemTooltipText(item), 'bag-row')}>
         <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>
         <small>${itemMeta(item)}</small>
         <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>

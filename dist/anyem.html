@@ -195,12 +195,12 @@ button.full { width: 100%; margin-top: 12px; }
 .bs-commands, .bs-info { overflow: hidden; }
 .cmd { min-width: 0; overflow: hidden; }
 .bs-stage canvas { display: block; box-sizing: border-box; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
-.bs-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; height: 212px; }
+.bs-bottom { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; height: 212px; }
 
 /* Équipe */
 .bs-party { display: flex; flex-direction: column; gap: 3px; padding: 5px; }
 .bs-hero {
-  flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 6px;
+  flex: 1; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 1.2fr); align-items: center; gap: 8px;
   background: rgba(0,0,0,.18); border: 1px solid transparent; border-left: 3px solid var(--c); border-radius: 4px;
   padding: 2px 6px; text-align: left; color: inherit; font-size: 14px; min-height: 0;
 }
@@ -220,12 +220,25 @@ button.full { width: 100%; margin-top: 12px; }
 .meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
 .meter.res.souls .fill { background: linear-gradient(#d9f2ee, #6fa8a0); } /* âmes du Macabre : pâles, spectrales */
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
-.bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
-.bs-status .st { position: relative; cursor: help; }
-.bs-status .st sub { font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
+.bs-status { display: flex; gap: 3px; align-items: center; font-size: 14px; min-width: 0; }
+/* Effets en cours, à droite des barres : icônes lisibles, sur deux lignes au besoin ; fiche au survol. */
+.bs-effects { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; min-width: 0; }
+.bs-status .st { position: relative; cursor: help; border-radius: 3px; padding: 1px; }
+.bs-status .st.buff { box-shadow: inset 0 0 0 1px rgba(126,224,126,.55); }
+.bs-status .st.debuff { box-shadow: inset 0 0 0 1px rgba(230,110,100,.7); }
+.bs-status .st:hover, .bs-status .st.pad-focus { background: rgba(255,255,255,.14); }
+.bs-status .st sub { position: absolute; right: 0; bottom: -1px; font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.fx-tip { position: fixed; z-index: 3000; max-width: 280px; padding: 7px 10px; pointer-events: none;
+  background: #1b1622; border: 2px solid #d8b56a; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  color: #ece6d8; font-size: 13px; line-height: 1.35; display: flex; flex-direction: column; gap: 2px; }
+.fx-tip[hidden] { display: none; }
+.fx-tip b { font-family: var(--font-title); font-size: 15px; }
+.fx-tip b.buff { color: #9fe08f; }
+.fx-tip b.debuff { color: #ff9a8a; }
 .bs-status .ko { font-size: 11px; color: #ff9a8a; font-weight: 600; }
 .bs-combo { color: #f3d58c; font-size: 11px; letter-spacing: 1px; margin-right: 3px; }
-.bs-combo.bs-souls { color: #bfe8e2; text-shadow: 0 0 4px rgba(150, 230, 220, .7); } /* âmes du Macabre */
+.bs-status .st.souls { box-shadow: inset 0 0 0 1px rgba(150, 230, 220, .8); background: rgba(40, 70, 70, .45); } /* âmes du Macabre */
+.bs-status .st.souls.full { box-shadow: inset 0 0 0 1px #ff9a8a, 0 0 6px rgba(255, 110, 100, .6); }
 
 /* Commandes */
 .bs-commands { display: flex; flex-direction: column; gap: 6px; }
@@ -256,6 +269,12 @@ button.full { width: 100%; margin-top: 12px; }
 .cmd .cost { min-width: 24px; text-align: right; color: #8ec5ff; }
 .cmd.skill .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd.back { flex: none; justify-content: center; }
+/* Objets : grille d'icônes (quantité en bas à droite), nom et effet au survol dans la fenêtre d'infos. */
+.sub-list.item-grid { grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); grid-auto-rows: 34px; gap: 3px; }
+.sub-list.item-grid .cmd.item-cell { position: relative; justify-content: center; padding: 0; }
+.cmd.item-cell .ico { width: auto; }
+.cmd.item-cell .qty { position: absolute; right: 1px; bottom: -1px; margin: 0; font-size: 10px; text-shadow: 0 1px 0 #000, 0 0 2px #000; }
+.cmd.off { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
 .bs-pick { grid-column: 1 / -1; margin: 6px; color: #f3d58c; font-family: var(--font-title); }
 .bs-wait { margin: auto; font-family: var(--font-title); color: #f3d58c; font-size: 17px; text-align: center; }
 
@@ -434,6 +453,8 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 /* ---- Objets (donjon, Marchand) ---- */
 .map-items { margin: 8px 0 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .map-items button.selected { outline: 2px solid var(--gold); }
+.map-item-desc { margin: 6px 0 0; font-size: 13px; line-height: 1.3; min-height: 2.6em; color: var(--muted, #d8cbb0); }
+.map-item-desc b { color: var(--gold, #f3d58c); }
 .shop-cat { font-family: var(--font-title); color: var(--gold); font-size: 13px; margin: 12px 0 2px; letter-spacing: .05em; text-transform: uppercase; }
 .boss-choice { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--gold); border-radius: 6px; background: #2a1f14; }
 .boss-choice p { margin: 0 0 10px; }
@@ -627,6 +648,7 @@ button.gold:hover:not(:disabled) { border-image-source: var(--ui-btn-gold-hover)
 .cmd small, .target small { color: #f3dcb8; }
 .cmd .est, .target .est { color: #c9f5a6; }
 .cmd .cost { color: #bfe0ff; }
+.cmd.item-cell { border-width: 3px; border-image-width: 3px; }
 .bs-status .st { display: inline-flex; align-items: flex-end; }
 .bs-logbtn { padding: 0 4px; line-height: 0; }
 
@@ -1338,7 +1360,9 @@ const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 //   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
 //   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
 //   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
-const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+//   bulwarkMult Mur d'os (passif soulBulwark) : ses alliés sont épargnés, il encaisse lui-même
+//               ce débordement, multiplié par bulwarkMult
+const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5, bulwarkMult: 2 };
 
 const COMBAT = {
   logMax: 40,
@@ -1507,6 +1531,18 @@ const XP = {
   maxLevel: 50,
 };
 
+// Efficacité au combat (game/progression.js, combatEfficiency) : l'XP d'une victoire est
+// multipliée, pour chaque héros, par un coefficient entre min et max. Moitié participation
+// (tours où il a agi), moitié valeur apportée (dégâts, soins, boucliers, dégâts encaissés,
+// pondérés par `weights`), chaque part rapportée au meilleur de l'équipe. Un soigneur qui agit
+// à chaque tour ne descend donc jamais sous ×1, même quand il y a peu à soigner.
+const EFFICIENCY = {
+  min: 0.8,
+  max: 1.2,
+  turnsShare: 0.5,
+  weights: { dealt: 1, healed: 1.5, shielded: 1, taken: 0.5 },
+};
+
 // Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau
 // maximum : une orientation complète coûte 45 points, voir data/talents.js).
 // Réinitialiser coûte resetCostPerLevel × niveau du héros en or.
@@ -1589,7 +1625,7 @@ const TIMING = {
   outcomeMs: 1200, // dernier coup, puis fin du combat
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, EFFICIENCY, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -3249,6 +3285,7 @@ const CLASSES = {
     starterSkills: [
       { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
       { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
+      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes)' },
       { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },
@@ -4587,8 +4624,8 @@ const TALENTS = {
       key: 'soldat', name: 'Soldat décharné', gear: { stat: 'force', armor: ['moyenne'], weapons: ['hache2m', 'masse2m'], offHand: [] }, icon: '💀',
       desc: 'Dégâts au corps à corps : chaque âme le rend bien plus fort, mais le ronge. Il frappe fort tant qu\'il les garde, puis les libère d\'un coup. Force, hache ou masse à deux mains, armure moyenne.',
       nodes: [
-        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne']), passive: { soulPhys: 10, soulCrit: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
+        { ...starter('depart-soldat', 'Coup décharné', 'macabre', ['coup-decharne', 'liberation-des-ames']), passive: { soulPhys: 10, soulCrit: 2 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +10 % de puissance physique et +2 % de Coup critique.' },
         ...choice(1, [
           minor('mc-os-durs', 'Os durs', { pct: { physPower: 2.5 } }),
           minor('mc-rictus', 'Rictus', { flat: { critDmg: 4 } }),
@@ -4649,8 +4686,8 @@ const TALENTS = {
       key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
       desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
       nodes: [
-        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os']), passive: { soulDef: 8, soulBlock: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2, soulBulwark: 1 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage. Au maximum d\'âmes, ses alliés sont épargnés : il encaisse lui-même le débordement (le double).' },
         ...choice(1, [
           minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
           minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
@@ -4719,8 +4756,8 @@ const TALENTS = {
       key: 'necromancien', name: 'Nécromancien', gear: { stat: 'intelligence', armor: ['legere'], weapons: ['baton'], offHand: [] }, icon: '🕯️',
       desc: 'Dégâts magiques à distance : chaque âme renforce ses sorts, mais le ronge ; il les libère en explosions d\'âmes. Seule orientation à l\'Intelligence : bâton, armure légère.',
       nodes: [
-        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste']), passive: { soulMag: 10, soulCrit: 2 },
-          desc: 'Sort de départ. Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
+        { ...starter('depart-necro', 'Trait funeste', 'macabre', ['trait-funeste', 'liberation-des-ames']), passive: { soulMag: 10, soulCrit: 2 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +10 % de puissance magique et +2 % de Coup critique.' },
         ...choice(1, [
           minor('mc-encre-noire', 'Encre noire', { pct: { magPower: 2.5 } }),
           minor('mc-glas', 'Glas', { flat: { critDmg: 4 } }),
@@ -8208,7 +8245,7 @@ return { ENEMIES };
 
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
-const { REWARDS, XP } = __modules["src/config.js"];
+const { REWARDS, XP, EFFICIENCY } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
@@ -8240,6 +8277,29 @@ function xpReward(level, enemies) {
   return enemies.reduce((sum, e) => sum + Math.round((XP.xpBase + XP.xpPerLevel * level) * mult(e, 'xpMult')), 0);
 }
 
+// Valeur apportée par un héros pendant le combat (hero.fight, suivi par game/combat.js).
+function fightValue(fight) {
+  if (!fight) return 0;
+  return Object.entries(EFFICIENCY.weights).reduce((sum, [k, w]) => sum + (fight[k] ?? 0) * w, 0);
+}
+
+/**
+ * Coefficient d'efficacité de chaque héros de l'équipe (même ordre), entre EFFICIENCY.min et
+ * max : participation (tours joués) et valeur apportée, rapportées au meilleur de l'équipe.
+ * Sans suivi de combat (hero.fight absent) : 1.
+ */
+function combatEfficiency(party) {
+  const fights = party.map((h) => h.fight ?? null);
+  if (fights.every((f) => !f)) return party.map(() => 1);
+  const bestTurns = Math.max(1, ...fights.map((f) => f?.turns ?? 0));
+  const bestValue = Math.max(1, ...fights.map(fightValue));
+  const { min, max, turnsShare } = EFFICIENCY;
+  return fights.map((f) => {
+    const score = turnsShare * ((f?.turns ?? 0) / bestTurns) + (1 - turnsShare) * (fightValue(f) / bestValue);
+    return +(min + (max - min) * score).toFixed(2);
+  });
+}
+
 function goldReward(level, enemies) {
   const best = Math.max(1, ...enemies.map((e) => mult(e, 'goldMult')));
   return Math.round((REWARDS.goldBase + REWARDS.goldPerLevel * level) * best);
@@ -8261,16 +8321,18 @@ function lootLevel(game, zoneLevel) {
 /**
  * Victoire contre `enemies` (unités du combat) au niveau `level` : or, butin
  * (équipement dans le sac, matéria, consommables — voir loot.js),
- * même XP pour chaque héros (tombés compris). Aucun soin : PV et ressources
+ * XP pour chaque héros (tombés compris) multipliée par son coefficient d'efficacité au combat
+ * (`efficiency`, même ordre que l'équipe ; 1 par défaut). Aucun soin : PV et ressources
  * restent tels qu'à la fin du combat.
  * Un consommable trouvé alors qu'on en porte déjà le maximum est perdu.
- * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps }.
+ * Retourne { message, loot (équipements), materia, consumables, gold, xp, levelUps, xpByHero }.
  */
-function applyVictory(game, { level, enemies, final = false }) {
+function applyVictory(game, { level, enemies, final = false, efficiency = null }) {
   const gold = goldReward(level, enemies);
   const xp = xpReward(level, enemies);
   const { items: loot, materia, consumables: found } = rollLoot(lootLevel(game, level), enemies, { final, difficulty: difficultyOf(game) });
-  const levelUps = game.party.filter((hero) => gainXp(hero, xp) > 0);
+  const xpByHero = game.party.map((hero, i) => ({ hero, coef: efficiency?.[i] ?? 1, xp: Math.round(xp * (efficiency?.[i] ?? 1)) }));
+  const levelUps = xpByHero.filter(({ hero, xp: gained }) => gainXp(hero, gained) > 0).map(({ hero }) => hero);
   game.gold += gold;
   game.bag.push(...loot);
   game.materia ??= emptyMateria();
@@ -8288,7 +8350,11 @@ function applyVictory(game, { level, enemies, final = false }) {
   const levelText = levelUps.length
     ? ` Niveau supérieur : ${levelUps.map((h) => `${h.name} (niv. ${h.level})`).join(', ')} — de nouveaux points de talent sont disponibles !`
     : '';
-  return { message: `Victoire ! ${gold} pièces d'or et ${xp} XP.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps };
+  const varies = xpByHero.some((e) => e.coef !== 1);
+  const xpText = varies
+    ? `XP selon l'efficacité : ${xpByHero.map((e) => `${e.hero.name} ${e.xp} (×${String(e.coef).replace('.', ',')})`).join(', ')}`
+    : `${xp} XP`;
+  return { message: `Victoire ! ${gold} pièces d'or ; ${xpText}.${lootText}${levelText}`, loot, materia, consumables, gold, xp, levelUps, xpByHero };
 }
 
 // Tire au hasard des éléments de `list` (chance `chance` chacun), sans jamais tous les
@@ -8340,7 +8406,7 @@ function restAtInn(game) {
   return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
 }
 
-return { xpReward, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
+return { xpReward, fightValue, combatEfficiency, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
 })();
 
 // ---- src/game/bestiary.js
@@ -8462,7 +8528,7 @@ const { generateFloorMap, reveal, moveMobs, mobAt, isFloor } = __modules["src/ga
 const { difficultyOf, enemyPower, difficultyLevel } = __modules["src/game/difficulty.js"];
 const { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } = __modules["src/data/dungeons.js"];
 const { DUNGEON } = __modules["src/config.js"];
-const { applyVictory, applyDefeat } = __modules["src/game/progression.js"];
+const { applyVictory, applyDefeat, combatEfficiency } = __modules["src/game/progression.js"];
 const { recordKills } = __modules["src/game/bestiary.js"];
 const { awardMedal } = __modules["src/game/medals.js"];
 const { restoreParty } = __modules["src/game/consumables.js"];
@@ -8685,7 +8751,7 @@ function winFight(game, combat) {
   const boss = !!mob?.boss;
   const final = boss && exp.floor === DUNGEONS[key].floors;
   recordKills(game, combat.enemies);
-  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
+  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final, efficiency: combatEfficiency(combat.party) });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
@@ -11085,6 +11151,7 @@ function effectIcon(key) {
 // Compétences : d'après leur nom (élément), puis leur nature.
 const SKILL_RULES = [
   // Macabre : crânes, os, spectres.
+  [/libération des âmes/i, 1053],
   [/déchaînement/i, 863],
   [/outre-tombe|décharné/i, 861],
   [/hécatombe|citadelle des damnés/i, 1297],
@@ -12783,7 +12850,8 @@ const { getClass, getStats, usesSouls, soulsOf, gainSouls } = __modules["src/gam
 // `allSouls` : toutes les âmes, puissance par âme).
 // Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
 // plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
-// en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
+// en souffrent aussi (sauf avec `soulBulwark`, Mur d'os : il encaisse ce débordement lui-même,
+// en plus fort). Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
 // d'un % des PV max à chaque âme absorbée.
 
 
@@ -12827,8 +12895,10 @@ function backlashPct(stats, souls, held = 0) {
   if (!souls) return { self: 0, allies: 0 };
   const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
   const atMax = souls >= stats.soulMax;
-  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
-  return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
+  // Mur d'os (soulBulwark) : le débordement ne touche pas ses alliés, il le prend pour lui (plus fort).
+  const bulwark = atMax && stats.soulBulwark ? SOULS.spill * SOULS.bulwarkMult : 0;
+  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0) + bulwark) * ward;
+  return { self: +self.toFixed(2), allies: atMax && !stats.soulBulwark ? +(SOULS.spill * ward).toFixed(2) : 0 };
 }
 
 /**
@@ -13273,6 +13343,8 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     hero.combo = 0;
     hero.usedSkills = []; // compétences « une fois par combat » déjà utilisées
     hero.selfRevived = false; // résurrection du Scarifié : une fois par combat
+    // Efficacité au combat (XP, voir combatEfficiency dans game/progression.js).
+    hero.fight = { dealt: 0, healed: 0, shielded: 0, taken: 0, turns: 0 };
     hero.row = hero.position ?? 'melee'; // position de départ (écran Stratégie)
     // L'Énergie est pleine au début de chaque combat.
     if (hero.alive && isMultiAction(hero)) hero.res = getStats(hero).resMax;
@@ -13292,6 +13364,11 @@ function createCombat({ party, enemies, level, consumables = {}, title = 'Combat
     }
   }
   return cb;
+}
+
+// Crédite une part d'efficacité à un héros (dégâts infligés, soins, boucliers, dégâts encaissés).
+function credit(unit, field, amount) {
+  if (unit && amount > 0 && unit.fight && isHero(unit)) unit.fight[field] += amount;
 }
 
 // Ligne du journal : `hit` = action marquante (en clair), `detail` = explication
@@ -13353,6 +13430,7 @@ function triggerTraps(cb, unit) {
   for (const trap of statusesOf(unit).filter((s) => s.trap)) {
     unit.statuses = statusesOf(unit).filter((s) => s !== trap);
     const { taken, fell } = hurt(cb, unit, trap.trap);
+    credit(trap.source, 'dealt', taken);
     log(cb, `${trap.name} se referme sur ${unit.name} (-${taken} PV) !`, true);
     if (fell) {
       logFall(cb, unit);
@@ -13383,11 +13461,13 @@ function endUnitTurn(cb, unit) {
       if (!unit.alive) break;
       if (tick.dot) {
         const { taken, fell } = hurt(cb, unit, tick.dot);
+        if (tick.status.source !== unit) credit(tick.status.source, 'dealt', taken);
         log(cb, `${unit.name} subit ${tick.status.name} (-${taken} PV).`, true);
         if (fell) logFall(cb, unit);
       }
       if (tick.hot) {
         const healed = heal(unit, tick.hot);
+        credit(tick.status.source, 'healed', healed);
         log(cb, `${unit.name} est soigné par ${tick.status.name} (+${healed} PV).`, true);
       }
     }
@@ -13614,6 +13694,7 @@ function heroAct(cb, action) {
     return false;
   }
 
+  if (!hero.actedThisTurn && hero.fight) hero.fight.turns++;
   hero.actedThisTurn = true;
   if (isMultiAction(hero) && !checkOutcome(cb) && hero.alive) {
     if (hasActionLeft(cb, hero)) return true; // le héros garde la main
@@ -13686,6 +13767,8 @@ function strike(cb, attacker, target, opts) {
     notes.push(`en garde → ${dmg}`);
   }
   const r = hurt(cb, target, dmg);
+  credit(attacker, 'dealt', r.taken);
+  credit(target, 'taken', r.taken + r.absorbed);
   if (r.absorbed) notes.push(`${r.absorbed} absorbés par un bouclier`);
   if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
   if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
@@ -13721,6 +13804,7 @@ function riposte(cb, attacker, defender) {
   if (random() >= chance(stats, 'riposte')) return;
   const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
   const { taken, fell } = hurt(cb, attacker, amount);
+  credit(defender, 'dealt', taken);
   log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
   if (fell) logFall(cb, attacker);
 }
@@ -13730,6 +13814,7 @@ function lifesteal(cb, hero, dealt) {
   const pct = statsOf(hero).lifestealPct;
   if (!pct || !dealt || !hero.alive) return;
   const healed = heal(hero, Math.round(dealt * pct / 100));
+  credit(hero, 'healed', healed);
   if (healed) log(cb, `${hero.name} vole ${healed} PV.`);
 }
 
@@ -13801,6 +13886,7 @@ function useSkill(cb, caster, skill, targets) {
         const burst = detonateStatus(target, skill.detonate);
         if (burst) {
           const { taken, fell } = hurt(cb, target, burst);
+          credit(caster, 'dealt', taken);
           dealt += taken;
           parts.push(`${target.name} : ${EFFECTS[skill.detonate].name} foudroyant, -${taken} PV`);
           if (fell) logFall(cb, target);
@@ -13808,6 +13894,7 @@ function useSkill(cb, caster, skill, targets) {
       }
     } else if (skill.kind === 'heal') {
       const healed = heal(target, healAmount(stats, skill.power, skill.physHeal));
+      credit(caster, 'healed', healed);
       parts.push(`${target.name} : +${healed} PV`);
     } else if (skill.kind === 'revive') {
       target.alive = true;
@@ -13824,15 +13911,19 @@ function useSkill(cb, caster, skill, targets) {
     }
     for (const entry of skill.effects ?? []) {
       const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
-      if (status.redirect) {
-        if (target === caster) continue; // on ne s'intercède pas pour soi-même
-        status.source = caster;
-      }
+      if (status.redirect && target === caster) continue; // on ne s'intercède pas pour soi-même
+      status.source = caster; // Intercession, et crédit des dégâts ou soins sur la durée
       applyStatus(cb, target, status);
+      credit(caster, 'shielded', status.shield ?? 0);
       if (status.shield) parts.push(`${target.name} : Bouclier de ${status.shield}`);
     }
   }
-  for (const entry of skill.selfEffects ?? []) applyStatus(cb, caster, makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry)));
+  for (const entry of skill.selfEffects ?? []) {
+    const status = makeStatus(entry.id, entry.turns, effectValue(stats, skill, entry));
+    status.source = caster;
+    applyStatus(cb, caster, status);
+    credit(caster, 'shielded', status.shield ?? 0);
+  }
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);
     parts.push(`+${skill.resourceGain} ${getClass(caster).resource.name}`);
@@ -14328,6 +14419,7 @@ const { heroSprite } = __modules["src/ui/heroSprite.js"];
 const { enemySprite, mobScale } = __modules["src/ui/mobSprites.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { statsOf } = __modules["src/game/units.js"];
+const { soulsOf } = __modules["src/game/party.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 const { image, isReady } = __modules["src/ui/sprites.js"];
 const { effectIcon, COMMAND_ICONS } = __modules["src/ui/icons.js"];
@@ -14343,6 +14435,7 @@ const { state } = __modules["src/state.js"];
 //
 // L'écran (ui/screens/combat.js) recrée le canvas à chaque rendu : l'état des animations
 // vit ici, par combat, et une boucle d'animation redessine le canvas courant.
+
 
 
 
@@ -15101,7 +15194,9 @@ function drawBars(ctx, unit, v, y) {
     ctx.fillText(unit.name, v.x, by + h + 2);
   }
   // Effets en cours au-dessus de la tête.
-  const icons = [...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
+  // Âmes du Macabre : un crâne parmi ses effets (voir l'écran de combat).
+  const souls = sideOf(unit) === 'hero' && soulsOf(unit) > 0 ? [862] : [];
+  const icons = [...souls, ...(unit.guard ? [COMMAND_ICONS.defend] : []), ...statusesOf(unit).map((st) => effectIcon(st.key))];
   const sheet = image('icons/raven16');
   if (icons.length && isReady(sheet)) {
     const size = 12;
@@ -15685,7 +15780,7 @@ __modules["src/version.js"] = (() => {
 
 // Version du jeu (affichée sur l'écran titre). Doit être égale à celle de package.json et
 // avoir sa section dans CHANGELOG.md (un test le vérifie). Voir docs/RELEASES.md.
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 
 return { VERSION };
 })();
@@ -19121,6 +19216,10 @@ function renderDungeon(app) {
     goTo('dungeon');
   });
   app.querySelectorAll('[data-map-item]').forEach((btn) => {
+    const show = () => { const d = app.querySelector('#mapItemDesc'); if (d) d.innerHTML = mapItemDesc(btn.dataset.mapItem); };
+    btn.addEventListener('mouseenter', show);
+    btn.addEventListener('focus', show);
+    btn.addEventListener('mouseleave', () => { const d = app.querySelector('#mapItemDesc'); if (d && view.pendingItem) d.innerHTML = mapItemDesc(view.pendingItem); });
     btn.onclick = () => {
       const key = btn.dataset.mapItem;
       if (isUntargeted(key) && view.pendingItem !== key) view.pendingItem = key; // demande confirmation
@@ -19166,7 +19265,7 @@ function castSpell(skillIndex, targetIndex) {
 function spellPanel() {
   const heroes = state.party.map((h, i) => {
     const usable = h.alive && fieldSkills(h).length > 0;
-    return `<button data-caster="${i}" class="${view.caster === i ? 'selected' : ''}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.')}>${iconHtml(CLASS_ICONS[h.classKey], 16)} ${esc(h.name)}</button>`;
+    return `<button data-caster="${i}" ${usable ? '' : 'disabled'} ${tip(usable ? 'Voir ses sorts utilisables hors combat.' : h.alive ? 'Aucun soin ni purification.' : 'Tombé au combat.', view.caster === i ? 'selected' : '')}>${iconHtml(CLASS_ICONS[h.classKey], 16)} ${esc(h.name)}</button>`;
   }).join('');
   let spells = '';
   if (view.caster !== null) {
@@ -19177,7 +19276,7 @@ function spellPanel() {
       const effect = [skill.kind === 'heal' ? `soin ~${healAmount(stats, skill.power, skill.physHeal)} PV` : '', skill.cleanse ? 'retire les effets négatifs' : '']
         .filter(Boolean).join(', ');
       const who = skill.target === 'allAllies' ? " (toute l'équipe)" : skill.target === 'self' ? ' (soi-même)' : '';
-      return `<button data-spell="${index}" class="${view.pendingSpell === index ? 'selected' : ''}" ${reason ? `disabled ${tip(reason)}` : ''}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skillCostLabel(getClass(caster), skill, caster)} · ${effect}${who}</button>`;
+      return `<button data-spell="${index}" ${reason ? `disabled ${tip(reason)}` : `class="${view.pendingSpell === index ? 'selected' : ''}"`}>${iconHtml(skillIconIndex(skill), 16)} ${esc(skill.name)} · ${skillCostLabel(getClass(caster), skill, caster)} · ${effect}${who}</button>`;
     }).join('');
     const pending = view.pendingSpell !== null ? getSkills(caster)[view.pendingSpell] : null;
     if (pending?.target === 'ally') {
@@ -19201,6 +19300,13 @@ function useItem(key, targetIndex) {
   goTo('dungeon');
 }
 
+// Description d'un objet (survol ou objet choisi) dans le panneau des objets.
+function mapItemDesc(key) {
+  const c = CONSUMABLES[key];
+  const used = usedThisTier(state, key) ? ' <i>Déjà utilisée dans ce palier.</i>' : '';
+  return `<b>${iconHtml(consumableIcon(key), 16)} ${esc(c.name)}</b> ×${countOf(state.consumables, key)} — ${esc(c.desc)}${used}`;
+}
+
 // Objets utilisables pendant l'exploration (soins, plume, tente).
 function itemPanel() {
   const keys = CONSUMABLE_ORDER.filter((k) => usableIn(k, 'map') && countOf(state.consumables, k) > 0);
@@ -19219,8 +19325,9 @@ function itemPanel() {
     <div class="map-items">
       <div class="hint">Objets utilisables ici :</div>
       <div class="actions">
-        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${tip(usedThisTier(state, k) ? `${CONSUMABLES[k].desc} Déjà utilisée dans ce palier.` : CONSUMABLES[k].desc)} ${usedThisTier(state, k) ? 'disabled' : ''}>${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)} (${countOf(state.consumables, k)})</button>`).join('')}
+        ${keys.map((k) => `<button data-map-item="${k}" class="${pending === k ? 'selected' : ''}" ${usedThisTier(state, k) ? 'disabled' : ''}>${iconHtml(consumableIcon(k), 16)} ${esc(CONSUMABLES[k].name)} (${countOf(state.consumables, k)})</button>`).join('')}
       </div>
+      <p class="map-item-desc" id="mapItemDesc">${pending ? mapItemDesc(pending) : 'Survolez un objet pour voir son effet.'}</p>
       ${targets ? `<div class="target-zone">${targets}</div>` : ''}
     </div>`;
 }
@@ -19278,7 +19385,7 @@ function eventPanel(event) {
         const reason = cannotChooseReason(state, i);
         return `
           <div class="event-choice">
-            <button data-event-choice="${i}" class="btn-primary" ${reason ? `disabled ${tip(reason)}` : ''}>${esc(c.label)}</button>
+            <button data-event-choice="${i}" ${reason ? `disabled ${tip(reason, 'btn-primary')}` : 'class="btn-primary"'}>${esc(c.label)}</button>
             ${costText ? `<p class="event-cost">Coût : ${esc(costText)}</p>` : ''}
             <ul>${c.outcomes.map((o) => `<li>${esc(outcomeText(o, event.level))}</li>`).join('')}</ul>
           </div>`;
@@ -19298,7 +19405,7 @@ function merchantBody(event) {
   const items = event.stock.length ? event.stock.map((item) => {
     const price = eventItemPrice(item);
     return `
-      <div class="bag-row" ${tip(itemTooltipText(item))}>
+      <div ${tip(itemTooltipText(item), 'bag-row')}>
         <span class="rarity-text" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>
         <small>${itemMeta(item)}</small>
         <button data-event-buy="${item.id}" ${state.gold >= price ? '' : 'disabled'}>Acheter (${price} or)</button>
@@ -19331,6 +19438,8 @@ const { isMultiAction, actionCost, comboOf, comboMax, atCombo } = __modules["src
 const { usesWeapon, weaponBlockedReason, skillWeaponProblem } = __modules["src/game/position.js"];
 const { statsOf } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
+const { EFFECTS } = __modules["src/data/effects.js"];
+const { backlashPct } = __modules["src/game/souls.js"];
 const { esc, range, resourceKind } = __modules["src/ui/html.js"];
 const { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } = __modules["src/ui/format.js"];
 const { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } = __modules["src/ui/icons.js"];
@@ -19346,6 +19455,8 @@ const { attachStage, setStagePick, setStageFocus, fitStage } = __modules["src/ui
 // compétence de zone, de groupe ou personnelle demande une confirmation.
 // Un héros à Énergie enchaîne plusieurs actions puis finit son tour ; tout héros peut
 // passer son tour. Raccourcis : 1-6 pour les commandes, Échap pour revenir.
+
+
 
 
 
@@ -19408,9 +19519,10 @@ function heroRow(hero, i, active) {
   const stats = statsOf(hero);
   const max = comboMax(hero);
   const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
-  // Âmes du Macabre : pastilles pâles (jauge à part du Mana).
-  const souls = usesSouls(cls) && hero.alive
-    ? `<span class="bs-combo bs-souls" title="Âmes absorbées (${soulsOf(hero)}/${stats.soulMax}) : chaque âme le renforce, mais le ronge à la fin de ses tours">${'●'.repeat(soulsOf(hero))}${'○'.repeat(Math.max(0, stats.soulMax - soulsOf(hero)))}</span>` : '';
+  // Âmes du Macabre : une icône parmi ses effets (nombre d'âmes en indice), effet actuel
+  // (bonus de son orientation, contrecoup) détaillé au survol ; rouge au maximum.
+  const souls = usesSouls(cls) && hero.alive && soulsOf(hero) > 0
+    ? `<span class="st souls ${soulsOf(hero) >= stats.soulMax ? 'full' : ''}" data-fx-tip="${esc(soulTip(hero, stats))}">${iconHtml(SOUL_ICON, 20)}<sub>${soulsOf(hero)}</sub></span>` : '';
   return `
     <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
@@ -19418,7 +19530,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${souls}${statusIcons(hero)}</span>
+      <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
     </button>`;
 }
 
@@ -19428,17 +19540,84 @@ function meter(value, max, kind, label = 'PV') {
   return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
 }
 
+const SOUL_ICON = 862; // crâne (planche d'icônes)
+
+// Fiche des âmes du Macabre : bonus actuels (selon son orientation) et contrecoup à venir.
+function soulTip(hero, stats) {
+  const n = soulsOf(hero);
+  const lines = [`Âmes : ${n} / ${stats.soulMax}`];
+  if (!n) {
+    lines.push("Aucune âme : ni bonus, ni contrecoup. Il absorbe l'âme de chaque ennemi qui meurt.");
+    return lines.join('\n');
+  }
+  const pct = (v) => String(+(v * n).toFixed(1)).replace('.', ',');
+  const bonus = [
+    stats.soulPhys ? `+${pct(stats.soulPhys)} % de puissance physique` : '',
+    stats.soulMag ? `+${pct(stats.soulMag)} % de puissance magique` : '',
+    stats.soulDef ? `+${pct(stats.soulDef)} % de Défense et Défense magique` : '',
+    stats.soulCrit ? `+${pct(stats.soulCrit)} % de Coup critique` : '',
+    stats.soulBlock ? `+${pct(stats.soulBlock)} % de Blocage` : '',
+    stats.soulLifesteal ? `${pct(stats.soulLifesteal)} % de vol de vie` : '',
+  ].filter(Boolean);
+  lines.push(bonus.length ? `Bonus actuel : ${bonus.join(', ')}.` : 'Aucun bonus (pas encore de talent qui en donne).');
+  const back = backlashPct(stats, n, n >= stats.soulMax ? hero.soulHeld ?? 0 : 0);
+  const fmt = (v) => String(v).replace('.', ',');
+  lines.push(`Contrecoup à la fin de son tour : −${fmt(back.self)} % de ses PV max (≈ ${Math.round(stats.pv * back.self / 100)} PV).`);
+  if (back.allies) lines.push(`Au maximum : ses alliés perdent aussi ${fmt(back.allies)} % de leurs PV (sans en mourir), et le contrecoup augmente à chaque tour.`);
+  else if (stats.soulBulwark && n >= stats.soulMax) lines.push('Au maximum : ses alliés sont épargnés, il encaisse lui-même le débordement (compris ci-dessus), et le contrecoup augmente à chaque tour.');
+  lines.push('Libération des âmes les relâche toutes, sans autre effet.');
+  return lines.join('\n');
+}
+
+// Fiche détaillée d'un effet (bulle au survol) : nom, description, valeur, durée, lanceur.
+function effectTip(unit, s) {
+  const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
+  if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
+  if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
+  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
+  lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
+  if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
+  if (s.kind === 'debuff' && state.combat?.party.includes(unit)) lines.push('Reste après le combat, jusqu\'à un remède, une purification ou le retour au village.');
+  return lines.join('\n');
+}
+
 function statusIcons(unit) {
   if (!unit.alive) return '<span class="ko">K.O.</span>';
   const icons = [];
-  if (unit.guard) icons.push(`<span class="st buff" title="En garde : dégâts réduits de moitié">${iconHtml(COMMAND_ICONS.defend, 16)}</span>`);
+  if (unit.guard) icons.push(`<span class="st buff" data-fx-tip="${esc('En garde\nDégâts subis réduits de moitié jusqu\'à son prochain tour.')}">${iconHtml(COMMAND_ICONS.defend, 20)}</span>`);
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
-    const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    icons.push(`<span class="st ${s.kind}" data-fx-tip="${esc(effectTip(unit, s))}">${iconHtml(effectIcon(s.key), 20)}${s.stun || s.lasting ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
+}
+
+// Bulle des effets (survol, curseur de la manette) : posée au-dessus de l'icône.
+function wireEffectTips(app) {
+  let bubble = document.getElementById('fxTip');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.id = 'fxTip';
+    bubble.className = 'fx-tip';
+    document.body.append(bubble);
+  }
+  bubble.hidden = true;
+  app.querySelectorAll('[data-fx-tip]').forEach((el) => {
+    const show = () => {
+      const [title, ...rest] = el.dataset.fxTip.split('\n');
+      bubble.innerHTML = `<b class="${el.classList.contains('debuff') ? 'debuff' : 'buff'}">${esc(title)}</b>${rest.map((l) => `<span>${esc(l)}</span>`).join('')}`;
+      bubble.hidden = false;
+      const r = el.getBoundingClientRect();
+      const b = bubble.getBoundingClientRect();
+      bubble.style.left = `${Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))}px`;
+      bubble.style.top = `${Math.max(6, r.top - b.height - 8)}px`;
+    };
+    el.addEventListener('mouseenter', show);
+    el.addEventListener('focus', show);
+    el.addEventListener('mouseleave', () => { bubble.hidden = true; });
+    el.addEventListener('blur', () => { bubble.hidden = true; });
+  });
 }
 
 // ---- Commandes ----
@@ -19446,7 +19625,7 @@ function statusIcons(unit) {
 function commands(hero) {
   const cb = state.combat;
   if (ui.mode === 'skills') return subMenu(skillButtons(hero));
-  if (ui.mode === 'items') return subMenu(itemButtons());
+  if (ui.mode === 'items') return subMenu(itemButtons(), 'item-grid');
   if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? 'Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
   const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
   const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
@@ -19465,8 +19644,8 @@ function commands(hero) {
     </div>`;
 }
 
-function subMenu(content) {
-  return `<div class="sub-list">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
+function subMenu(content, cls = '') {
+  return `<div class="sub-list ${cls}">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
 }
 
 function skillButtons(hero) {
@@ -19488,7 +19667,9 @@ function itemButtons() {
   const cb = state.combat;
   return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
     const c = CONSUMABLES[k];
-    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${itemIc(k)}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+    // Inutilisable : grisé mais survolable (aria-disabled plutôt que disabled) pour lire son effet.
+    const off = canUseItem(cb, k) ? '' : ' off" aria-disabled="true';
+    return `<button class="cmd item-cell${off}" data-item="${k}" aria-label="${esc(c.name)}"><span class="ico">${itemIc(k, 24)}</span><small class="qty">×${countOf(cb.consumables, k)}</small></button>`;
   }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
 }
 
@@ -19510,7 +19691,7 @@ function info(hero) {
   return `
     <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
-    <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
+    <p class="bs-help" id="bsHelp">${ui.mode === 'items' ? 'Survolez un objet pour voir son effet.' : 'Survolez une commande pour voir son effet.'}</p>`;
 }
 
 function targetInfo(hero) {
@@ -19567,7 +19748,9 @@ function helpFor(hero, el) {
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];
-    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+    const n = countOf(state.combat.consumables, el.dataset.item);
+    const why = canUseItem(state.combat, el.dataset.item) ? '' : ' <i>Personne n\'en a besoin pour l\'instant.</i>';
+    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b> <small>×${n}</small><br>${esc(c.desc)}${takesTurn}${why}`;
   }
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
@@ -19655,6 +19838,7 @@ function back() {
 }
 
 function wire(app, hero) {
+  wireEffectTips(app);
   app.querySelectorAll('[data-overlay]').forEach((b) => { b.onclick = () => { ui.overlay = b.dataset.overlay; rerender(); }; });
   app.querySelector('#closeOverlay')?.addEventListener('click', () => { ui.overlay = null; rerender(); });
   app.querySelectorAll('[data-hero]').forEach((b) => {
@@ -19696,7 +19880,7 @@ function wire(app, hero) {
   on('actBack', back);
   on('actConfirm', () => act(ui.action));
   app.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => choose({ type: 'skill', skill: Number(b.dataset.skill) }); });
-  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => choose({ type: 'item', item: b.dataset.item }); });
+  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => { if (!b.classList.contains('off')) choose({ type: 'item', item: b.dataset.item }); }; });
   app.querySelectorAll('[data-target]').forEach((b) => { b.onclick = () => act({ ...ui.action, target: Number(b.dataset.target) }); });
 }
 
@@ -20571,7 +20755,7 @@ const MANUAL = {
   boss: { terms: ['boss'], desc: "Gardien du dernier étage de chaque sous-zone : bien plus fort, bien meilleur butin. Le vaincre ouvre un point de départ." },
   elite: { terms: ['élite', 'élites'], desc: 'Monstre renforcé (plus gros, 1,5 × plus d\'XP et d\'or).' },
   ame: { terms: ['âme', 'âmes', 'Âme', 'Âmes'], desc: "Ressource du Macabre : il absorbe l'âme de chaque ennemi qui meurt (3 au plus), la garde d'un combat à l'autre et la perd au repos ou s'il tombe. Chaque âme le renforce ou se dépense dans ses compétences, mais provoque un contrecoup." },
-  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
+  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer), sauf en Mur d'os, qui encaisse lui-même ce débordement." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
   orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },

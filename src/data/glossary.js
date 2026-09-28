@@ -52,7 +52,7 @@ const MANUAL = {
   boss: { terms: ['boss'], desc: "Gardien du dernier étage de chaque sous-zone : bien plus fort, bien meilleur butin. Le vaincre ouvre un point de départ." },
   elite: { terms: ['élite', 'élites'], desc: 'Monstre renforcé (plus gros, 1,5 × plus d\'XP et d\'or).' },
   ame: { terms: ['âme', 'âmes', 'Âme', 'Âmes'], desc: "Ressource du Macabre : il absorbe l'âme de chaque ennemi qui meurt (3 au plus), la garde d'un combat à l'autre et la perd au repos ou s'il tombe. Chaque âme le renforce ou se dépense dans ses compétences, mais provoque un contrecoup." },
-  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
+  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer), sauf en Mur d'os, qui encaisse lui-même ce débordement." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
   orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },

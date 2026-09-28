@@ -19,6 +19,8 @@ import { isMultiAction, actionCost, comboOf, comboMax, atCombo } from '../../gam
 import { usesWeapon, weaponBlockedReason, skillWeaponProblem } from '../../game/position.js';
 import { statsOf } from '../../game/units.js';
 import { statusesOf } from '../../game/statuses.js';
+import { EFFECTS } from '../../data/effects.js';
+import { backlashPct } from '../../game/souls.js';
 import { esc, range, resourceKind } from '../html.js';
 import { skillEffectLabel, skillShortEstimate, consumableEstimate, skillCostLabel } from '../format.js';
 import { iconHtml, skillIconIndex, consumableIcon, effectIcon, CLASS_ICONS, COMMAND_ICONS } from '../icons.js';
@@ -68,9 +70,10 @@ function heroRow(hero, i, active) {
   const stats = statsOf(hero);
   const max = comboMax(hero);
   const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
-  // Âmes du Macabre : pastilles pâles (jauge à part du Mana).
-  const souls = usesSouls(cls) && hero.alive
-    ? `<span class="bs-combo bs-souls" title="Âmes absorbées (${soulsOf(hero)}/${stats.soulMax}) : chaque âme le renforce, mais le ronge à la fin de ses tours">${'●'.repeat(soulsOf(hero))}${'○'.repeat(Math.max(0, stats.soulMax - soulsOf(hero)))}</span>` : '';
+  // Âmes du Macabre : une icône parmi ses effets (nombre d'âmes en indice), effet actuel
+  // (bonus de son orientation, contrecoup) détaillé au survol ; rouge au maximum.
+  const souls = usesSouls(cls) && hero.alive && soulsOf(hero) > 0
+    ? `<span class="st souls ${soulsOf(hero) >= stats.soulMax ? 'full' : ''}" data-fx-tip="${esc(soulTip(hero, stats))}">${iconHtml(SOUL_ICON, 20)}<sub>${soulsOf(hero)}</sub></span>` : '';
   return `
     <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
@@ -78,7 +81,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${souls}${statusIcons(hero)}</span>
+      <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
     </button>`;
 }
 
@@ -88,17 +91,84 @@ function meter(value, max, kind, label = 'PV') {
   return `<span class="meter ${kind} ${low}"><span class="fill" style="width:${pct}%"></span><span class="txt">${label} ${value}/${max}</span></span>`;
 }
 
+const SOUL_ICON = 862; // crâne (planche d'icônes)
+
+// Fiche des âmes du Macabre : bonus actuels (selon son orientation) et contrecoup à venir.
+function soulTip(hero, stats) {
+  const n = soulsOf(hero);
+  const lines = [`Âmes : ${n} / ${stats.soulMax}`];
+  if (!n) {
+    lines.push("Aucune âme : ni bonus, ni contrecoup. Il absorbe l'âme de chaque ennemi qui meurt.");
+    return lines.join('\n');
+  }
+  const pct = (v) => String(+(v * n).toFixed(1)).replace('.', ',');
+  const bonus = [
+    stats.soulPhys ? `+${pct(stats.soulPhys)} % de puissance physique` : '',
+    stats.soulMag ? `+${pct(stats.soulMag)} % de puissance magique` : '',
+    stats.soulDef ? `+${pct(stats.soulDef)} % de Défense et Défense magique` : '',
+    stats.soulCrit ? `+${pct(stats.soulCrit)} % de Coup critique` : '',
+    stats.soulBlock ? `+${pct(stats.soulBlock)} % de Blocage` : '',
+    stats.soulLifesteal ? `${pct(stats.soulLifesteal)} % de vol de vie` : '',
+  ].filter(Boolean);
+  lines.push(bonus.length ? `Bonus actuel : ${bonus.join(', ')}.` : 'Aucun bonus (pas encore de talent qui en donne).');
+  const back = backlashPct(stats, n, n >= stats.soulMax ? hero.soulHeld ?? 0 : 0);
+  const fmt = (v) => String(v).replace('.', ',');
+  lines.push(`Contrecoup à la fin de son tour : −${fmt(back.self)} % de ses PV max (≈ ${Math.round(stats.pv * back.self / 100)} PV).`);
+  if (back.allies) lines.push(`Au maximum : ses alliés perdent aussi ${fmt(back.allies)} % de leurs PV (sans en mourir), et le contrecoup augmente à chaque tour.`);
+  else if (stats.soulBulwark && n >= stats.soulMax) lines.push('Au maximum : ses alliés sont épargnés, il encaisse lui-même le débordement (compris ci-dessus), et le contrecoup augmente à chaque tour.');
+  lines.push('Libération des âmes les relâche toutes, sans autre effet.');
+  return lines.join('\n');
+}
+
+// Fiche détaillée d'un effet (bulle au survol) : nom, description, valeur, durée, lanceur.
+function effectTip(unit, s) {
+  const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
+  if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
+  if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
+  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
+  lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
+  if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
+  if (s.kind === 'debuff' && state.combat?.party.includes(unit)) lines.push('Reste après le combat, jusqu\'à un remède, une purification ou le retour au village.');
+  return lines.join('\n');
+}
+
 function statusIcons(unit) {
   if (!unit.alive) return '<span class="ko">K.O.</span>';
   const icons = [];
-  if (unit.guard) icons.push(`<span class="st buff" title="En garde : dégâts réduits de moitié">${iconHtml(COMMAND_ICONS.defend, 16)}</span>`);
+  if (unit.guard) icons.push(`<span class="st buff" data-fx-tip="${esc('En garde\nDégâts subis réduits de moitié jusqu\'à son prochain tour.')}">${iconHtml(COMMAND_ICONS.defend, 20)}</span>`);
   for (const s of statusesOf(unit)) {
-    const value = s.shield ? ` ${s.shield}` : s.dot ? ` −${s.dot}/tour` : s.hot ? ` +${s.hot}/tour` : '';
-    const turns = s.stun ? '' : ` (${s.turns} tour${s.turns > 1 ? 's' : ''})`;
-    const doses = s.doses?.length > 1 ? ` ×${s.doses.length} doses` : '';
-    icons.push(`<span class="st ${s.kind}" title="${esc(`${s.name}${doses}${value}${turns}`)}">${iconHtml(effectIcon(s.key), 16)}${s.stun ? '' : `<sub>${s.turns}</sub>`}</span>`);
+    icons.push(`<span class="st ${s.kind}" data-fx-tip="${esc(effectTip(unit, s))}">${iconHtml(effectIcon(s.key), 20)}${s.stun || s.lasting ? '' : `<sub>${s.turns}</sub>`}</span>`);
   }
   return icons.join('');
+}
+
+// Bulle des effets (survol, curseur de la manette) : posée au-dessus de l'icône.
+function wireEffectTips(app) {
+  let bubble = document.getElementById('fxTip');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.id = 'fxTip';
+    bubble.className = 'fx-tip';
+    document.body.append(bubble);
+  }
+  bubble.hidden = true;
+  app.querySelectorAll('[data-fx-tip]').forEach((el) => {
+    const show = () => {
+      const [title, ...rest] = el.dataset.fxTip.split('\n');
+      bubble.innerHTML = `<b class="${el.classList.contains('debuff') ? 'debuff' : 'buff'}">${esc(title)}</b>${rest.map((l) => `<span>${esc(l)}</span>`).join('')}`;
+      bubble.hidden = false;
+      const r = el.getBoundingClientRect();
+      const b = bubble.getBoundingClientRect();
+      bubble.style.left = `${Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))}px`;
+      bubble.style.top = `${Math.max(6, r.top - b.height - 8)}px`;
+    };
+    el.addEventListener('mouseenter', show);
+    el.addEventListener('focus', show);
+    el.addEventListener('mouseleave', () => { bubble.hidden = true; });
+    el.addEventListener('blur', () => { bubble.hidden = true; });
+  });
 }
 
 // ---- Commandes ----
@@ -106,7 +176,7 @@ function statusIcons(unit) {
 function commands(hero) {
   const cb = state.combat;
   if (ui.mode === 'skills') return subMenu(skillButtons(hero));
-  if (ui.mode === 'items') return subMenu(itemButtons());
+  if (ui.mode === 'items') return subMenu(itemButtons(), 'item-grid');
   if (ui.mode === 'target' || ui.mode === 'confirm') return subMenu(`<p class="bs-pick">${ui.mode === 'target' ? 'Choisissez la cible' : 'Confirmez l\'action'} →</p>`);
   const cost = (type) => (actionCost(hero, type) ? `<small>${actionCost(hero, type)}</small>` : '');
   const atkEst = range(estimateHit(statsOf(hero), BASIC_ATTACK));
@@ -125,8 +195,8 @@ function commands(hero) {
     </div>`;
 }
 
-function subMenu(content) {
-  return `<div class="sub-list">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
+function subMenu(content, cls = '') {
+  return `<div class="sub-list ${cls}">${content}</div><button class="cmd back" id="actBack" data-key="Escape">◂ Retour <small>Échap</small></button>`;
 }
 
 function skillButtons(hero) {
@@ -148,7 +218,9 @@ function itemButtons() {
   const cb = state.combat;
   return CONSUMABLE_ORDER.filter((k) => countOf(cb.consumables, k) > 0 && usableIn(k, 'combat')).map((k) => {
     const c = CONSUMABLES[k];
-    return `<button class="cmd skill" data-item="${k}" ${canUseItem(cb, k) ? '' : 'disabled'}><span class="ico">${itemIc(k)}</span><span class="lbl">${esc(c.name)}</span><small class="cost">×${countOf(cb.consumables, k)}</small></button>`;
+    // Inutilisable : grisé mais survolable (aria-disabled plutôt que disabled) pour lire son effet.
+    const off = canUseItem(cb, k) ? '' : ' off" aria-disabled="true';
+    return `<button class="cmd item-cell${off}" data-item="${k}" aria-label="${esc(c.name)}"><span class="ico">${itemIc(k, 24)}</span><small class="qty">×${countOf(cb.consumables, k)}</small></button>`;
   }).join('') || '<p class="hint">Aucun objet utilisable.</p>';
 }
 
@@ -170,7 +242,7 @@ function info(hero) {
   return `
     <p class="bs-turn">Au tour de <b style="color:${cls.color}">${esc(hero.name)}</b> <small>${esc(heroClassTitle(hero))} · ${hero.row === 'melee' ? 'corps à corps' : 'distance'}</small></p>
     ${multi ? `<p class="hint">${hero.res} ${cls.resource.name} : plusieurs actions possibles ce tour-ci.</p>` : ''}
-    <p class="bs-help" id="bsHelp">Survolez une commande pour voir son effet.</p>`;
+    <p class="bs-help" id="bsHelp">${ui.mode === 'items' ? 'Survolez un objet pour voir son effet.' : 'Survolez une commande pour voir son effet.'}</p>`;
 }
 
 function targetInfo(hero) {
@@ -227,7 +299,9 @@ function helpFor(hero, el) {
   }
   if (el.dataset.item) {
     const c = CONSUMABLES[el.dataset.item];
-    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b><br>${esc(c.desc)}${takesTurn}`;
+    const n = countOf(state.combat.consumables, el.dataset.item);
+    const why = canUseItem(state.combat, el.dataset.item) ? '' : ' <i>Personne n\'en a besoin pour l\'instant.</i>';
+    return `<b>${itemIc(el.dataset.item, 16)} ${esc(c.name)}</b> <small>×${n}</small><br>${esc(c.desc)}${takesTurn}${why}`;
   }
   switch (el.id) {
     case 'actAttack': return `<b>${iconHtml(COMMAND_ICONS.attack, 16)} Attaquer</b> — ~${range(estimateHit(stats, BASIC_ATTACK))} avant défense<br>Dégâts physiques : Attaque des armes + ${STATS[cls.physStat].label}. ${crit}${weaponBlockedReason(hero) ? ` ${esc(weaponBlockedReason(hero))}` : ''}`;
@@ -315,6 +389,7 @@ function back() {
 }
 
 function wire(app, hero) {
+  wireEffectTips(app);
   app.querySelectorAll('[data-overlay]').forEach((b) => { b.onclick = () => { ui.overlay = b.dataset.overlay; rerender(); }; });
   app.querySelector('#closeOverlay')?.addEventListener('click', () => { ui.overlay = null; rerender(); });
   app.querySelectorAll('[data-hero]').forEach((b) => {
@@ -356,7 +431,7 @@ function wire(app, hero) {
   on('actBack', back);
   on('actConfirm', () => act(ui.action));
   app.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => choose({ type: 'skill', skill: Number(b.dataset.skill) }); });
-  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => choose({ type: 'item', item: b.dataset.item }); });
+  app.querySelectorAll('[data-item]').forEach((b) => { b.onclick = () => { if (!b.classList.contains('off')) choose({ type: 'item', item: b.dataset.item }); }; });
   app.querySelectorAll('[data-target]').forEach((b) => { b.onclick = () => act({ ...ui.action, target: Number(b.dataset.target) }); });
 }
 

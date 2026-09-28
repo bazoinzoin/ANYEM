@@ -14,7 +14,9 @@ export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 //   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
 //   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
 //   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
-export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+//   bulwarkMult Mur d'os (passif soulBulwark) : ses alliés sont épargnés, il encaisse lui-même
+//               ce débordement, multiplié par bulwarkMult
+export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5, bulwarkMult: 2 };
 
 export const COMBAT = {
   logMax: 40,
@@ -181,6 +183,18 @@ export const XP = {
   toNextBase: 100,
   toNextPerLevel: 70,
   maxLevel: 50,
+};
+
+// Efficacité au combat (game/progression.js, combatEfficiency) : l'XP d'une victoire est
+// multipliée, pour chaque héros, par un coefficient entre min et max. Moitié participation
+// (tours où il a agi), moitié valeur apportée (dégâts, soins, boucliers, dégâts encaissés,
+// pondérés par `weights`), chaque part rapportée au meilleur de l'équipe. Un soigneur qui agit
+// à chaque tour ne descend donc jamais sous ×1, même quand il y a peu à soigner.
+export const EFFICIENCY = {
+  min: 0.8,
+  max: 1.2,
+  turnsShare: 0.5,
+  weights: { dealt: 1, healed: 1.5, shielded: 1, taken: 0.5 },
 };
 
 // Arbres de compétences : 1 point par niveau (dès le niveau 1, donc 50 au niveau

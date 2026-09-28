@@ -294,6 +294,7 @@ export const CLASSES = {
     starterSkills: [
       { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
       { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
+      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes)' },
       { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },

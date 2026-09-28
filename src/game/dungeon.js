@@ -21,7 +21,7 @@ import { generateFloorMap, reveal, moveMobs, mobAt, isFloor } from './floorMap.j
 import { difficultyOf, enemyPower, difficultyLevel } from './difficulty.js';
 import { DUNGEONS, DUNGEON_ORDER, FLOORS_PER_SUBZONE } from '../data/dungeons.js';
 import { DUNGEON } from '../config.js';
-import { applyVictory, applyDefeat } from './progression.js';
+import { applyVictory, applyDefeat, combatEfficiency } from './progression.js';
 import { recordKills } from './bestiary.js';
 import { awardMedal } from './medals.js';
 import { restoreParty } from './consumables.js';
@@ -216,7 +216,7 @@ export function winFight(game, combat) {
   const boss = !!mob?.boss;
   const final = boss && exp.floor === DUNGEONS[key].floors;
   recordKills(game, combat.enemies);
-  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final });
+  const result = applyVictory(game, { level: combat.level, enemies: combat.enemies, final, efficiency: combatEfficiency(combat.party) });
   exp.gains.gold += result.gold;
   exp.gains.xp += result.xp;
   exp.gains.items += result.loot.length;
