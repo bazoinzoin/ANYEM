@@ -6,7 +6,7 @@ import { STATS } from '../data/stats.js';
 import { getClass, getStats, xpToNext } from '../game/party.js';
 import { statusesOf } from '../game/statuses.js';
 import { pointsAvailable } from '../game/talents.js';
-import { esc } from './html.js';
+import { esc, resourceKind } from './html.js';
 import { iconHtml, effectIcon } from './icons.js';
 import { heroPortrait } from './portraits.js';
 
@@ -32,7 +32,7 @@ export function partyHud(party, { resource = false } = {}) {
           <b>${esc(hero.name)} ${points ? `<span class="badge">${points}</span>` : ''}</b>
           <small>niv. ${hero.level}${hero.alive ? '' : ' · tombé'}</small>
           ${meter(`hp ${hero.hp < stats.pv * 0.3 ? 'low' : ''}`, hero.hp, stats.pv)}
-          ${resource ? meter('res', hero.res, stats.resMax) : meter('xp', hero.xp, xpToNext(hero.level))}
+          ${resource ? meter(`res ${resourceKind(cls.resource.name)}`, hero.res, stats.resMax) : meter('xp', hero.xp, xpToNext(hero.level))}
           <small>PV ${hero.hp}/${stats.pv}${resource ? ` · ${esc(cls.resource.name)} ${hero.res}/${stats.resMax}` : ''}</small>
           ${debuffs.length ? `<span class="hud-debuffs">${debuffs.map((st) => iconHtml(effectIcon(st.key), 16, '', esc(`${st.name} : reste jusqu'à un remède, une purification ou le retour au village`))).join('')}</span>` : ''}
         </span>

@@ -70,8 +70,12 @@
 .bs-bars { display: flex; flex-direction: column; gap: 2px; }
 .meter { position: relative; display: block; height: 13px; background: #0d0f1c; border: 1px solid #000; border-radius: 3px; overflow: hidden; }
 .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(#7fe07a, #3f9a3a); }
-.meter.hp.low .fill { background: linear-gradient(#ff8a6a, #c0392b); }
-.meter.res .fill { background: linear-gradient(#8ec5ff, #3a6fc0); }
+/* Couleurs fixes : PV verts, Mana bleue, Énergie jaune, Rage rouge. PV bas : la barre clignote. */
+.meter.hp.low .fill { animation: hp-low 1s ease-in-out infinite; }
+@keyframes hp-low { 50% { filter: brightness(1.6); } }
+.meter.res .fill, .meter.res.mana .fill { background: linear-gradient(#8ec5ff, #3a6fc0); }
+.meter.res.energy .fill { background: linear-gradient(#ffe76a, #c9a21a); }
+.meter.res.rage .fill { background: linear-gradient(#ff7a6a, #b3261e); }
 .meter .txt { position: relative; display: block; font-size: 10px; line-height: 12px; padding-left: 4px; color: #fff; text-shadow: 0 1px 1px #000; white-space: nowrap; }
 .bs-status { display: flex; gap: 1px; align-items: center; font-size: 14px; white-space: nowrap; }
 .bs-status .st { position: relative; cursor: help; }

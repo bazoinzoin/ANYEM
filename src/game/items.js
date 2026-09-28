@@ -190,3 +190,23 @@ export function generateItem(opts = {}) {
   if (legendary) item.legendary = { key: legendaryKey, classKey: legendary.classKey ?? null, branch: legendary.branch ?? null, power: legendary.power, desc: legendary.desc };
   return item;
 }
+
+/**
+ * Remet un objet légendaire (ou le pouvoir absorbé d'un objet divin) à jour du catalogue :
+ * nom, description et pouvoir ont pu changer depuis la sauvegarde. Retourne vrai si modifié.
+ */
+export function refreshLegendary(item) {
+  let changed = false;
+  const sync = (power, withName) => {
+    const def = LEGENDARIES[power?.key];
+    if (!def) return;
+    if (power.desc !== def.desc || power.power !== def.power) changed = true;
+    power.desc = def.desc;
+    power.power = def.power;
+    if (withName && power.name !== def.name) { power.name = def.name; changed = true; }
+    if (item.name !== def.name) { item.name = def.name; changed = true; }
+  };
+  sync(item.legendary, false);
+  sync(item.absorbed, true);
+  return changed;
+}

@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats, getSkills } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, canMove } from '../src/game/combat.js';
-import { generateItem } from '../src/game/items.js';
+import { generateItem, refreshLegendary } from '../src/game/items.js';
+import { LEGENDARIES } from '../src/data/items.js';
 import { equip } from '../src/game/equipment.js';
 import { statsOf } from '../src/game/units.js';
 import { estimateHit, BASIC_ATTACK } from '../src/game/formulas.js';
@@ -73,7 +74,7 @@ test('Cœur sacrifié : +15 % de dégâts, mais 10 % des PV max par attaque (jam
   }
 });
 
-test("L'Olifant de Roland : Puissance sur toute l'équipe au début du combat", () => {
+test("L'Olifant : Puissance sur toute l'équipe au début du combat", () => {
   const party = learnStarters(createParty());
   const olifant = generateItem({ legendary: 'olifantDeRoland' });
   equip(party[2], [olifant], olifant, 'collier');
@@ -82,11 +83,33 @@ test("L'Olifant de Roland : Puissance sur toute l'équipe au début du combat", 
   assert.ok(cb.log.some((l) => /Puissance sur toute l'équipe/.test(l.text)));
 });
 
-test('Les Bottes de sept lieues : +25 % de Vitesse', () => {
+test("Bottes de l'Ogre : " + '+25 % de Vitesse', () => {
   const [, voleur] = createParty();
   const vit = getStats(voleur).vit;
   const bottes = generateItem({ legendary: 'bottesDeSeptLieues' });
   equip(voleur, [bottes], bottes, 'bottes');
   assert.ok(getStats(voleur).vit >= Math.round(vit * 1.25));
   assert.ok(getSkills(voleur).length >= 0);
+});
+
+test('légendaires : noms courts et une citation pour chacun', () => {
+  for (const [key, leg] of Object.entries(LEGENDARIES)) {
+    assert.ok(leg.name.length <= 22, `${key} : nom trop long (${leg.name})`);
+    assert.ok(typeof leg.quote === 'string' && leg.quote.length > 5, `${key} : citation`);
+    assert.ok(!leg.desc.includes('«'), `${key} : la citation va dans quote, pas dans desc`);
+  }
+});
+
+test('sauvegarde ancienne : un légendaire reprend le nom et le pouvoir du catalogue', () => {
+  const item = generateItem({ level: 10, legendary: 'durandal' });
+  item.name = 'Ancien nom';
+  item.legendary.desc = 'ancienne description';
+  const divine = { id: 'it999', name: 'Vieux nom', absorbed: { ...item.legendary, name: 'Vieux nom' } };
+  assert.equal(refreshLegendary(item), true);
+  assert.equal(item.name, LEGENDARIES.durandal.name);
+  assert.equal(item.legendary.desc, LEGENDARIES.durandal.desc);
+  refreshLegendary(divine);
+  assert.equal(divine.name, LEGENDARIES.durandal.name);
+  assert.equal(divine.absorbed.name, LEGENDARIES.durandal.name);
+  assert.equal(refreshLegendary(item), false);
 });
