@@ -45,7 +45,7 @@ const MANUAL = {
   rage: { terms: ['Rage'], cs: true, desc: 'Ressource de l\'Impassible : se remplit en frappant et en encaissant des coups.' },
   energie: { terms: ['Énergie'], cs: true, desc: "Ressource du Dissimulé et du Vénateur : +45 par tour ; chaque action en coûte, on agit tant qu'on peut payer." },
   mana: { terms: ['Mana'], cs: true, desc: 'Ressource des lanceurs de sorts (Dévot, Élémentaliste, Lumineux) : +10 par tour.' },
-  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Dissimulé : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance dès 3 points." },
+  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Dissimulé : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance avec 3 points et n'en dépensent pas plus." },
   finisher: { terms: ['finisher', 'finishers', 'Finisher'], desc: 'Compétence qui dépense tous les points de combo : plus il y en a, plus elle frappe fort.' },
   corpsACorps: { terms: ['corps à corps'], desc: "Position de combat en première ligne : on est plus souvent ciblé ; seules les armes de mêlée y servent. Riposte possible." },
   distance: { terms: ['à distance'], desc: "Position de combat en retrait : moins souvent ciblé ; l'arc ne sert qu'à distance." },

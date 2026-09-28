@@ -440,3 +440,6 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .debug-pick select { flex: 1; font: inherit; padding: 2px 4px; }
 @keyframes title-cursor { from { transform: translateX(0); } to { transform: translateX(3px); } }
 button.back { margin-bottom: 8px; }
+/* Barre d'XP de l'équipe en combat : fine, sous la ressource (place gardée pour les classes sans ressource). */
+.meter.xp.thin { height: 5px; border-radius: 2px; }
+.bs-bars .meter-gap { display: block; height: 13px; }

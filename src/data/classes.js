@@ -59,7 +59,8 @@
 //   finisher    dépense tous les points de combo (au moins 1) : `power` et la
 //               valeur des effets (power) sont donnés PAR point de combo
 //   fullAt      finisher à pleine puissance (celle de 5 points) dès ce nombre de points
-//               (Empoisonneur : 3), voir comboFactor dans game/combo.js
+//               (Empoisonneur : 3) et n'en dépense pas plus, voir comboFactor dans game/combo.js
+//   free        ne prend pas le tour (le héros garde la main : Libération des âmes)
 
 export const CLASSES = {
   guerrier: {
@@ -117,7 +118,7 @@ export const CLASSES = {
     starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.55, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
+      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance avec 3 points de combo (n\'en dépense pas plus)' },
     ],
   },
   pretre: {
@@ -294,7 +295,7 @@ export const CLASSES = {
     starterSkills: [
       { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
       { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
-      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes)' },
+      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, free: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes). Ne prend pas le tour' },
       { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },

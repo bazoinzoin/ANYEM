@@ -291,6 +291,11 @@ export function starterSpares(classKey) {
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.
+// Niveau du joueur : celui du héros le plus haut de l'équipe.
+export function playerLevel(game) {
+  return Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
+}
+
 export function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = []) {
   return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i], feminine[i]));
 }

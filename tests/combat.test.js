@@ -6,6 +6,7 @@ import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { createCombat, nextTurn, heroAct, enemyAct, targetsFor } from '../src/game/combat.js';
 import { setPosition } from '../src/game/position.js';
+import { addStatus, makeStatus } from '../src/game/statuses.js';
 
 // Aléatoire déterministe : chaque jet vaut le milieu de sa fourchette.
 beforeEach(() => setRandomSource(() => 0.5));
@@ -260,6 +261,14 @@ test("les autres classes n'ont qu'une action par tour, sans coût d'Énergie, et
   assert.match(cb.log[0].text, /passe son tour/);
 });
 
+test('Empoisonneur : un finisher à pleine puissance dès 3 points ne dépense que 3 points sur 5', () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, voleur);
+  turn.unit.combo = 5;
+  assert.ok(heroAct(cb, { type: 'skill', skill: 2, target: 0 }));
+  assert.equal(turn.unit.combo, 2);
+});
+
 test("un finisher demande au moins 1 point de combo ; ses dégâts croissent avec les points", () => {
   const { cb } = newCombat();
   const turn = playUntilHero(cb, voleur);
@@ -379,4 +388,52 @@ test('Stratégie : la position choisie au village sert de départ à chaque comb
   assert.equal(party[pretre].row, 'melee', 'le combat suivant repart de la position choisie');
   assert.equal(cb.enemies[0].row, 'melee');
   assert.equal(createCombat({ enemies: ['spectre'], level: 1, party }).enemies[0].row, 'ranged');
+});
+
+test("les dégâts sur la durée frappent au début du tour de l'unité, pas à sa fin", () => {
+  const { cb } = newCombat();
+  const hero = cb.party[guerrier];
+  const turn = playUntilHero(cb, voleur);
+  assert.ok(turn);
+  addStatus(hero, { ...makeStatus('saignement', 3, 10), dot: 10 });
+  hero.hp = 100;
+  heroAct(cb, { type: 'defend' });
+  if (cb.acting) heroAct(cb, { type: 'endTurn' });
+  for (let i = 0; i < 50; i++) {
+    const t = nextTurn(cb);
+    if (t.unit === hero) break;
+    if (t.side === 'hero') { heroAct(cb, { type: 'defend' }); if (cb.acting) heroAct(cb, { type: 'endTurn' }); }
+    else { hero.hp = 100; enemyAct(cb); hero.hp = 100; }
+  }
+  assert.equal(hero.hp, 90, 'saignement appliqué dès le début de son tour');
+  const bleed = hero.statuses.find((s) => s.key === 'saignement');
+  assert.equal(bleed.turns, 3, 'la durée baisse à la fin de son tour');
+  heroAct(cb, { type: 'defend' });
+  assert.equal(hero.hp, 90, 'rien de plus à la fin du tour');
+  assert.equal(hero.statuses.find((s) => s.key === 'saignement').turns, 2);
+});
+
+test('les coups remarquables (critique, esquive, blocage, riposte) sont notés pour la scène', () => {
+  const { cb } = newCombat();
+  const turn = playUntilHero(cb, guerrier);
+  const target = cb.enemies[0];
+  cb.procs = [];
+  setRandomSource(() => 0); // tout jet réussit : critique, puis riposte (corps à corps)
+  target.row = 'melee';
+  turn.unit.row = 'melee';
+  target.hp = target.stats.pv = 1e6;
+  target.stats.esquive = 0;
+  heroAct(cb, { type: 'attack', target: 0 });
+  const kinds = cb.procs.map((p) => [p.unit, p.kind]);
+  assert.deepEqual(kinds.find((k) => k[1] === 'crit'), [target, 'crit']);
+  assert.deepEqual(kinds.at(-1), [target, 'riposte']);
+  cb.procs = [];
+  target.stats.esquive = 50;
+  const next = playUntilHero(cb, guerrier);
+  cb.procs = [];
+  setRandomSource(() => 0);
+  heroAct(cb, { type: 'attack', target: 0 });
+  assert.deepEqual(cb.procs[0], { unit: target, kind: 'dodge' });
+  assert.ok(next);
+  assert.ok(turn);
 });

@@ -189,6 +189,7 @@ test('Macabre : Libération des âmes, apprise avec le premier point de chaque o
     assert.ok(heroAct(cb, { type: 'skill', skill: i }));
     assert.equal(soulsOf(hero), 0);
     assert.deepEqual(cb.enemies.map((e) => e.hp), hp, 'aucun dégât');
+    assert.equal(cb.acting?.unit, hero, 'ne prend pas le tour');
   }
 });
 

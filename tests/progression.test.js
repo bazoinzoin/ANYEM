@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createParty, getStats } from '../src/game/party.js';
-import { applyVictory, applyDefeat, restAtInn, lootLevel } from '../src/game/progression.js';
+import { applyVictory, applyDefeat, restAtInn, innPrice, lootLevel } from '../src/game/progression.js';
 import { createEnemies } from '../src/game/enemies.js';
 import { generateItem } from '../src/game/items.js';
 import { setRandomSource } from '../src/game/rng.js';
@@ -26,6 +26,24 @@ test("l'auberge soigne et relève les héros tombés", () => {
   assert.equal(hero.alive, true);
   assert.equal(hero.hp, getStats(hero).pv);
   assert.equal(hero.res, getStats(hero).resMax);
+});
+
+test("l'auberge est payante : plus chère avec le niveau et la difficulté ; sans assez d'or, rien ne change", () => {
+  const game = newGame();
+  const base = innPrice(game);
+  assert.ok(base > 0);
+  game.party[0].level = 20;
+  assert.ok(innPrice(game) > base, 'plus cher au niveau 20');
+  const lvl20 = innPrice(game);
+  game.difficulty = 'insanie';
+  assert.ok(innPrice(game) > lvl20, 'plus cher en Insanie');
+  game.gold = innPrice(game) - 1;
+  game.party[0].hp = 1;
+  assert.equal(restAtInn(game).ok, false);
+  assert.equal(game.party[0].hp, 1);
+  game.gold += 1;
+  assert.equal(restAtInn(game).ok, true);
+  assert.equal(game.gold, 0);
 });
 
 const goblins = (n, level) => createEnemies(Array(n).fill('gobelin'), level);

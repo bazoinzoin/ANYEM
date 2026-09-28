@@ -5,7 +5,7 @@ import { state } from '../../state.js';
 import { CLASS_ORDER, INN } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { getClass, getStats, heroClassTitle, heroClassName, classTitle, hasFeminine } from '../../game/party.js';
-import { restAtInn } from '../../game/progression.js';
+import { restAtInn, innPrice } from '../../game/progression.js';
 import { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } from '../../game/roster.js';
 import { RARITIES } from '../../data/items.js';
 import { equippedItems } from '../../game/equipment.js';
@@ -41,7 +41,7 @@ export function renderInn(app) {
 
   app.innerHTML = frame({
     title: 'Auberge', icon: 93, layout: 'lay-inn',
-    extras: `<button id="rest" class="gold">${iconHtml(93, 16)} Se reposer (gratuit)</button>
+    extras: `<button id="rest" class="gold" ${state.gold >= innPrice(state) ? '' : 'disabled'} title="Soigne et relève toute l'équipe. Prix selon le niveau et la difficulté.">${iconHtml(93, 16)} Se reposer (${innPrice(state)} or)</button>
       ${flash ? `<span class="scr-flash">${esc(flash)}</span>` : ''}${locked ? `<span class="warning">${esc(locked)}</span>` : ''}`,
     body: `
       <section class="win">

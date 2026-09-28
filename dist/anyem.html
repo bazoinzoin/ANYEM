@@ -582,6 +582,9 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .debug-pick select { flex: 1; font: inherit; padding: 2px 4px; }
 @keyframes title-cursor { from { transform: translateX(0); } to { transform: translateX(3px); } }
 button.back { margin-bottom: 8px; }
+/* Barre d'XP de l'équipe en combat : fine, sous la ressource (place gardée pour les classes sans ressource). */
+.meter.xp.thin { height: 5px; border-radius: 2px; }
+.bs-bars .meter-gap { display: block; height: 13px; }
 </style>
 <style>
 /* css/skin.css */
@@ -1590,6 +1593,10 @@ const DEBUG = {
 
 const INN = {
   maxReserve: 4,
+  // Repos payant : (restBase + restPerLevel × niveau du joueur) × restDifficultyMult[difficulté].
+  restBase: 20,
+  restPerLevel: 8,
+  restDifficultyMult: { balade: 1, aventure: 1.5, guerre: 2, horreur: 3, cauchemar: 4, insanie: 5 },
 };
 
 const MERCHANT = {
@@ -1597,7 +1604,11 @@ const MERCHANT = {
   sellPerLevel: 2,
   sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16, divin: 32 },
   sellPerPlus: 0.2,
-  buyMarkup: 4,
+  buyMarkup: 6,
+  // Consommables : prix de base (data/consumables.js) × consumableMult, + consumablePerLevel
+  // par niveau du joueur au-delà du premier (les potions rendent un % des PV, qui grandissent).
+  consumableMult: 1.5,
+  consumablePerLevel: 0.12,
   stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon
   stockRarityWeights: { commun: 55, peuCommun: 35, rare: 10 },
   maxConsumable: 9,        // nombre maximum de chaque consommable transporté
@@ -2805,8 +2816,8 @@ __modules["src/data/effects.js"] = (() => {
 //   mods    { stat: % } modificateurs des stats de combat (physPower, magPower, def, vit…)
 //   value   l'effet a une valeur calculée à l'application, à partir de la puissance du
 //           lanceur × `power` (donné par la compétence) :
-//             'dot'    dégâts à chaque fin de tour (ignorent la défense)
-//             'hot'    soins à chaque fin de tour (puissance magique)
+//             'dot'    dégâts au début de chaque tour (ignorent la défense)
+//             'hot'    soins au début de chaque tour (puissance magique)
 //             'shield' points de bouclier, absorbés avant les PV
 //             'trap'   dégâts du piège quand il se déclenche
 //   turns   [min, max] : durée permise pour cet effet, quelle que soit la source (un test le
@@ -2831,7 +2842,7 @@ __modules["src/data/effects.js"] = (() => {
 const EFFECTS = {
   // ---- Buffs ----
   bouclier: { name: 'Bouclier', icon: '🛡️', kind: 'buff', value: 'shield', desc: 'Absorbe des dégâts avant les PV.' },
-  regeneration: { name: 'Régénération', icon: '💚', kind: 'buff', value: 'hot', desc: 'Soigne à chaque fin de tour.' },
+  regeneration: { name: 'Régénération', icon: '💚', kind: 'buff', value: 'hot', desc: 'Soigne au début de chaque tour.' },
   puissance: { name: 'Puissance', icon: '💪', kind: 'buff', mods: { physPower: 25, magPower: 25 }, desc: '+25 % de puissance physique et magique.' },
   hate: { name: 'Hâte', icon: '💨', kind: 'buff', mods: { vit: 25 }, desc: '+25 % de Vitesse.' },
   protection: { name: 'Protection', icon: '🔰', kind: 'buff', mods: { def: 50, defMag: 50 }, desc: '+50 % de Défense et de Défense magique.' },
@@ -2843,15 +2854,15 @@ const EFFECTS = {
   // Poison : long (5 tours et plus) et faible, mais cumulable (3 doses au plus).
   poison: {
     name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', turns: [5, 8], stacks: 3,
-    desc: 'Dégâts de poison à chaque fin de tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
+    desc: 'Dégâts de poison au début de chaque tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
   },
   // Saignement : court (2 ou 3 tours) et fort ; une nouvelle entaille remplace l'ancienne.
   saignement: {
     name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', turns: [2, 3],
-    desc: 'Dégâts de saignement à chaque fin de tour : courte durée, gros dégâts, ne se cumule pas.',
+    desc: 'Dégâts de saignement au début de chaque tour : courte durée, gros dégâts, ne se cumule pas.',
   },
-  brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
-  tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
+  brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu au début de chaque tour.' },
+  tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres au début de chaque tour.' },
   ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },
   // Scarifié (Liens du sang) : le sang donné rend ses coups voraces, ou le relève.
   'sang-partage': { name: 'Sang partagé', icon: '🩸', kind: 'buff', bonus: { lifestealPct: 25 }, desc: 'Vol de vie : 25 % des dégâts directs infligés sont rendus en PV.' },
@@ -3050,7 +3061,8 @@ __modules["src/data/classes.js"] = (() => {
 //   finisher    dépense tous les points de combo (au moins 1) : `power` et la
 //               valeur des effets (power) sont donnés PAR point de combo
 //   fullAt      finisher à pleine puissance (celle de 5 points) dès ce nombre de points
-//               (Empoisonneur : 3), voir comboFactor dans game/combo.js
+//               (Empoisonneur : 3) et n'en dépense pas plus, voir comboFactor dans game/combo.js
+//   free        ne prend pas le tour (le héros garde la main : Libération des âmes)
 
 const CLASSES = {
   guerrier: {
@@ -3108,7 +3120,7 @@ const CLASSES = {
     starterSkills: [
       { id: 'coup-vicieux', name: 'Coup Vicieux', cost: 25, kind: 'damage', target: 'enemy', power: 0.8, comboGain: 1, desc: 'Coup rapide qui donne 1 point de combo' },
       { id: 'evisceration', name: 'Éviscération', cost: 35, kind: 'damage', target: 'enemy', power: 0.55, finisher: true, desc: 'Finisher : gros dégâts, plus forts à chaque point de combo' },
-      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance dès 3 points de combo' },
+      { id: 'laceration', name: 'Entaille venimeuse', cost: 30, kind: 'damage', target: 'enemy', power: 0.1, finisher: true, fullAt: 3, effects: [{ id: 'poison', turns: 6, power: 0.07 }], desc: 'Finisher : une dose de poison sur 6 tours, à pleine puissance avec 3 points de combo (n\'en dépense pas plus)' },
     ],
   },
   pretre: {
@@ -3285,7 +3297,7 @@ const CLASSES = {
     starterSkills: [
       { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
       { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
-      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes)' },
+      { id: 'liberation-des-ames', name: 'Libération des âmes', cost: 5, allSouls: true, free: true, kind: 'support', target: 'self', desc: 'Relâche toutes ses âmes, sans autre effet : met fin au contrecoup (et aux bonus des âmes). Ne prend pas le tour' },
       { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },
@@ -3711,7 +3723,7 @@ const TALENTS = {
         skill(10, {
           id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
           effects: [fx('poison', 6, 0.05)],
-          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance dès 3 points de combo',
+          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance avec 3 points de combo (n\'en dépense pas plus)',
         }),
         ...choice(11, [
           minor('alchimie-noire', 'Alchimie noire', { passive: { dotPct: 6.5 } }),
@@ -3730,7 +3742,7 @@ const TALENTS = {
         signature({
           id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
           effects: [fx('poison', 6, 0.07), fx('terreur', 3)],
-          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
+          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance avec 3 points de combo (n\'en dépense pas plus)',
         }),
       ],
     },
@@ -3815,7 +3827,7 @@ const TALENTS = {
         skill(2, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
           effects: [fx('regeneration', 4, 0.35)],
-          desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
+          desc: 'Soigne un allié au début de chacun de ses tours pendant 4 tours',
         }),
         ...choice(3, [
           minor('serenite', 'Sérénité', { passive: { healPct: 2.5 } }),
@@ -5598,6 +5610,11 @@ function starterSpares(classKey) {
 // Équipe de héros : `classes` (clés de data/classes.js, défaut PARTY_ORDER) et noms.
 // `looks` : apparences choisies à la création (défaut : celle de chaque classe) ;
 // `feminine` : forme féminine du nom de classe, par héros.
+// Niveau du joueur : celui du héros le plus haut de l'équipe.
+function playerLevel(game) {
+  return Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
+}
+
 function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = []) {
   return classes.map((key, i) => createHero(key, names[i]?.trim(), looks[i], feminine[i]));
 }
@@ -5626,7 +5643,7 @@ function restoreFully(hero) {
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, starterSpares, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, starterSpares, playerLevel, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -5750,6 +5767,11 @@ function consumeStun(unit) {
 // Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
 // Un statut posé pendant le tour même de l'unité (`fresh`) n'est pas décompté à
 // la fin de ce tour-là : un effet de 2 tours couvre bien 2 tours de l'unité.
+// Effets sur la durée (dégâts, soins) à appliquer au début du tour de l'unité.
+function dueTicks(unit) {
+  return statusesOf(unit).filter((s) => !s.fresh && (s.dot || s.hot)).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+}
+
 function tickStatuses(unit) {
   const due = statusesOf(unit).filter((s) => !s.fresh);
   for (const s of statusesOf(unit)) delete s.fresh;
@@ -5763,7 +5785,7 @@ function clearStatuses(unit) {
   unit.statuses = [];
 }
 
-return { makeStatus, statusesOf, addStatus, detonateStatus, hasStatus, isDebuffed, statusBonus, statusMods, absorbWithShields, consumeStun, tickStatuses, clearStatuses };
+return { makeStatus, statusesOf, addStatus, detonateStatus, hasStatus, isDebuffed, statusBonus, statusMods, absorbWithShields, consumeStun, dueTicks, tickStatuses, clearStatuses };
 })();
 
 // ---- src/game/units.js
@@ -7219,8 +7241,10 @@ const { MERCHANT } = __modules["src/config.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { generateItem, weightedPick } = __modules["src/game/items.js"];
 const { addConsumable, countOf } = __modules["src/game/consumables.js"];
+const { playerLevel } = __modules["src/game/party.js"];
 // Marchand : revente du butin, achat de consommables et d'équipement.
 // Chaque fonction retourne false (sans rien modifier) si l'opération est impossible.
+
 
 
 
@@ -7268,18 +7292,27 @@ function buyItem(game, item) {
   return true;
 }
 
+// Prix d'un consommable pour un joueur de niveau `level` (voir MERCHANT, config.js).
+function consumablePriceAt(key, level) {
+  return Math.round(CONSUMABLES[key].price * MERCHANT.consumableMult * (1 + MERCHANT.consumablePerLevel * (Math.max(1, level) - 1)));
+}
+
+function consumablePrice(game, key) {
+  return consumablePriceAt(key, playerLevel(game));
+}
+
 function canBuyConsumable(game, key) {
-  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+  return game.gold >= consumablePrice(game, key) && countOf(game.consumables, key) < MERCHANT.maxConsumable;
 }
 
 function buyConsumable(game, key) {
   if (!canBuyConsumable(game, key)) return false;
+  game.gold -= consumablePrice(game, key);
   addConsumable(game.consumables, key);
-  game.gold -= CONSUMABLES[key].price;
   return true;
 }
 
-return { sellPrice, buyPrice, sell, ensureStock, buyItem, canBuyConsumable, buyConsumable };
+return { sellPrice, buyPrice, sell, ensureStock, buyItem, consumablePriceAt, consumablePrice, canBuyConsumable, buyConsumable };
 })();
 
 // ---- src/game/difficulty.js
@@ -7389,7 +7422,7 @@ const { addStatus, makeStatus } = __modules["src/game/statuses.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { RARITY_ORDER, MATERIA_KINDS, RARITIES } = __modules["src/data/items.js"];
 const { generateItem, weightedPick } = __modules["src/game/items.js"];
-const { sellPrice } = __modules["src/game/merchant.js"];
+const { sellPrice, consumablePriceAt } = __modules["src/game/merchant.js"];
 const { addConsumable, countOf, restoreParty } = __modules["src/game/consumables.js"];
 const { CONSUMABLE_DROP_WEIGHTS } = __modules["src/game/loot.js"];
 const { getStats, gainXp, xpToNext } = __modules["src/game/party.js"];
@@ -7430,7 +7463,7 @@ function rollEvent(level, key = rollEventKey()) {
       generateItem({ level, rarity: weightedPick(EVENT_RULES.merchantRarityWeights) }));
     event.consumables = Array.from({ length: EVENT_RULES.merchantConsumables }, () => {
       const k = weightedPick(CONSUMABLE_DROP_WEIGHTS);
-      return { key: k, price: Math.max(1, Math.round(CONSUMABLES[k].price * EVENT_RULES.merchantConsumablePct / 100)) };
+      return { key: k, full: consumablePriceAt(k, level), price: Math.max(1, Math.round(consumablePriceAt(k, level) * EVENT_RULES.merchantConsumablePct / 100)) };
     });
   }
   return event;
@@ -8245,9 +8278,9 @@ return { ENEMIES };
 
 // ---- src/game/progression.js
 __modules["src/game/progression.js"] = (() => {
-const { REWARDS, XP, EFFICIENCY } = __modules["src/config.js"];
+const { REWARDS, XP, EFFICIENCY, INN } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
-const { getStats, restoreFully, gainXp } = __modules["src/game/party.js"];
+const { getStats, restoreFully, gainXp, playerLevel } = __modules["src/game/party.js"];
 const { rollLoot } = __modules["src/game/loot.js"];
 const { difficultyOf, lootRules } = __modules["src/game/difficulty.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
@@ -8314,8 +8347,7 @@ function materiaText(materia) {
 // haut de l'équipe). Zone au-dessus du joueur : butin à son niveau ; zone en dessous :
 // butin au niveau de la zone.
 function lootLevel(game, zoneLevel) {
-  const player = Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
-  return Math.min(zoneLevel, player);
+  return Math.min(zoneLevel, playerLevel(game));
 }
 
 /**
@@ -8400,13 +8432,23 @@ function applyDefeat(game) {
   };
 }
 
-// Auberge : soin complet de toute l'équipe, héros tombés compris.
-function restAtInn(game) {
-  game.party.forEach(restoreFully);
-  return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
+// Prix du repos à l'auberge : croît avec le niveau du joueur et la difficulté.
+function innPrice(game) {
+  const mult = INN.restDifficultyMult[difficultyOf(game)] ?? 1;
+  return Math.round((INN.restBase + INN.restPerLevel * playerLevel(game)) * mult);
 }
 
-return { xpReward, fightValue, combatEfficiency, goldReward, lootLevel, applyVictory, applyDefeat, restAtInn };
+// Auberge (payante) : soin complet de toute l'équipe, héros tombés compris.
+// Retourne { ok, message } ; sans assez d'or, rien ne change.
+function restAtInn(game) {
+  const price = innPrice(game);
+  if ((game.gold ?? 0) < price) return { ok: false, message: `Il faut ${price} or pour se reposer.` };
+  game.gold -= price;
+  game.party.forEach(restoreFully);
+  return { ok: true, message: `Vous vous reposez à l'auberge (${price} or). Équipe entièrement soignée.` };
+}
+
+return { xpReward, fightValue, combatEfficiency, goldReward, lootLevel, applyVictory, applyDefeat, innPrice, restAtInn };
 })();
 
 // ---- src/game/bestiary.js
@@ -12954,7 +12996,7 @@ const { getClass } = __modules["src/game/party.js"];
 // son tour (ou le finit plus tôt s'il le souhaite). Voir game/combat.js.
 //
 // Points de combo : une compétence `comboGain` en donne au lanceur (plafond
-// comboMax de la classe) ; un `finisher` les dépense tous, et sa puissance comme
+// comboMax de la classe) ; un `finisher` les dépense tous (au plus `fullAt` s'il en a un), et sa puissance comme
 // la valeur de ses effets sont multipliées par le nombre de points dépensés.
 
 
@@ -13005,6 +13047,8 @@ function comboFactor(skill, points) {
  */
 function atCombo(skill, points) {
   if (!skill.finisher) return skill;
+  // `fullAt` : n'utilise (et ne dépense) pas plus de points que nécessaire.
+  if (skill.fullAt) points = Math.min(points, skill.fullAt);
   const factor = comboFactor(skill, points);
   const scale = (v) => (v === undefined ? v : +(v * factor).toFixed(3));
   return {
@@ -13288,7 +13332,7 @@ const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __mod
 const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight, skillWeaponProblem } = __modules["src/game/position.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
 const { statsOf, isHero, isAlive, damage, heal } = __modules["src/game/units.js"];
-const { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } = __modules["src/game/statuses.js"];
+const { addStatus, hasStatus, consumeStun, tickStatuses, dueTicks, makeStatus, statusesOf, detonateStatus } = __modules["src/game/statuses.js"];
 const { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } = __modules["src/game/consumables.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { EFFECTS } = __modules["src/data/effects.js"];
@@ -13402,6 +13446,7 @@ function nextTurn(cb) {
       continue;
     }
     triggerTraps(cb, turn.unit);
+    if (turn.unit.alive) applyTicks(cb, turn.unit);
     if (!turn.unit.alive) {
       cb.qIndex++;
       continue;
@@ -13452,12 +13497,10 @@ function startRound(cb) {
   cb.round++;
 }
 
-// Fin du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent,
-// puis la durée de ses statuts baisse d'un tour.
-function endUnitTurn(cb, unit) {
-  if (!unit.alive) return;
+// Début du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent.
+function applyTicks(cb, unit) {
   {
-    for (const tick of tickStatuses(unit)) {
+    for (const tick of dueTicks(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
         const { taken, fell } = hurt(cb, unit, tick.dot);
@@ -13472,6 +13515,12 @@ function endUnitTurn(cb, unit) {
       }
     }
   }
+}
+
+// Fin du tour d'une unité : la durée de ses statuts baisse d'un tour.
+function endUnitTurn(cb, unit) {
+  if (!unit.alive) return;
+  tickStatuses(unit);
   if (unit.alive && isHero(unit) && isSoulBearer(unit)) soulTorment(cb, unit);
 }
 
@@ -13673,7 +13722,8 @@ function heroAct(cb, action) {
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
     if (skill.soulCost) log(cb, `${hero.name} libère ${skill.soulCost} âme${skill.soulCost > 1 ? 's' : ''}.`);
-    if (skill.finisher) hero.combo = 0;
+    // Un finisher dépense ses points (tous, ou seulement `fullAt` pour l'Empoisonneur).
+    if (skill.finisher) hero.combo = Math.max(0, comboOf(hero) - skill.comboPoints);
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
     if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
@@ -13690,6 +13740,8 @@ function heroAct(cb, action) {
       const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
       if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
     }
+    // Compétence `free` (Libération des âmes) : ne prend pas le tour.
+    if (skill.free && hero.alive && !checkOutcome(cb)) return true;
   } else {
     return false;
   }
@@ -13752,13 +13804,16 @@ function payBloodPrice(cb, hero) {
 function strike(cb, attacker, target, opts) {
   const ts = statsOf(target);
   if (random() < chance(ts, 'esquive')) {
+    proc(cb, target, 'dodge');
     return { dodged: true, blocked: false, crit: false, taken: 0, fell: false, detail: `${target.name} esquive (${Math.round(chance(ts, 'esquive') * 100)} % de chance)` };
   }
   const hit = rollHit(statsOf(attacker), opts, ts);
   let dmg = hit.amount;
   const notes = [hit.detail];
   const blocked = random() < chance(ts, 'blocage');
+  if (hit.crit) proc(cb, target, 'crit');
   if (blocked) {
+    proc(cb, target, 'block');
     dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
     notes.push(`bloqué (−${Math.round(COMBAT.blockReduction * 100)} %) → ${dmg}`);
   }
@@ -13773,6 +13828,12 @@ function strike(cb, attacker, target, opts) {
   if (r.redirected) notes.push(`${r.redirected} encaissés par ${r.protector.unit.name}`);
   if (!r.fell && isHero(target) && !isHero(attacker)) onHitTaken(target);
   return { dodged: false, blocked, crit: hit.crit, taken: r.taken, fell: r.fell, detail: notes.join(' ; '), redirect: redirectText(r) };
+}
+
+// Coup remarquable à montrer sur la scène (ui/battleStage.js les lit puis vide la liste) :
+// 'crit' (sur la cible touchée), 'dodge', 'block', 'riposte' (sur celui qui riposte).
+function proc(cb, unit, kind) {
+  cb.procs = [...(cb.procs ?? []).slice(-20), { unit, kind }];
 }
 
 // « (critique !) (bloqué) (12 encaissés par Aldric) »
@@ -13803,6 +13864,7 @@ function riposte(cb, attacker, defender) {
   const stats = statsOf(defender);
   if (random() >= chance(stats, 'riposte')) return;
   const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
+  proc(cb, defender, 'riposte');
   const { taken, fell } = hurt(cb, attacker, amount);
   credit(defender, 'dealt', taken);
   log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
@@ -14544,7 +14606,17 @@ function setStageFocus(unit) {
 // Anime l'issue d'une action : geste de l'acteur ('lunge' | 'cast' | null), effet visuel
 // (`vfx`, voir actionFx dans ui/battleDiff.js : projectile, entaille, soin, bouclier…),
 // impacts, chiffres, effets posés, chutes et relevés.
+// Textes des coups remarquables (cb.procs, game/combat.js).
+const PROCS = {
+  crit: { text: 'Critique !', color: '#ffd34d' },
+  dodge: { text: 'Esquive', color: '#9fd8ff' },
+  block: { text: 'Bloqué', color: '#c7d0e0' },
+  riposte: { text: 'Riposte !', color: '#ffa25a' },
+};
+
 function playAction(combat, actor, before, gesture = null, vfx = null) {
+  const procs = combat.procs ?? [];
+  combat.procs = [];
   if (combat !== cb) return;
   const now = performance.now();
   const diff = diffBattle(combat, before);
@@ -14597,6 +14669,14 @@ function playAction(combat, actor, before, gesture = null, vfx = null) {
       popup(c.unit, s.name, COLORS[s.kind] ?? COLORS.buff, t0 + 160 * (i + (c.delta ? 1 : 0)), false, true);
     });
     if (c.died) v.fx.push({ type: 'die', t0: t0 + 150, dur: 1000 });
+  }
+  // Critique, esquive, blocage, riposte : écrits au-dessus du personnage concerné.
+  for (const p of procs) {
+    const def = PROCS[p.kind];
+    if (!def || !vis.get(p.unit)) continue;
+    const t0 = now + (p.kind === 'riposte' ? impact + 120 : impact);
+    popup(p.unit, def.text, def.color, t0, p.kind === 'crit', p.kind !== 'crit');
+    if (p.kind === 'dodge') visOf(p.unit).fx.push({ type: 'dodge', t0, dur: 360 });
   }
 }
 
@@ -14789,11 +14869,13 @@ function drawArrows(ctx, unit, v, y, now) {
   const top = y - looksOf(unit).body - (statusesOf(unit).length || unit.guard ? 16 : 2);
   const bounce = Math.sin(now / 150) * 3;
   const targeted = pick && (pick.all ? pick.units.has(unit) : focus === unit);
+  // La flèche dorée du tour reste affichée pendant le ciblage ; si le héros actif est
+  // lui-même ciblé, la flèche de ciblage se place au-dessus.
+  const acting = cb.acting?.unit === unit;
+  if (acting) arrow(ctx, v.x, top - 4 + bounce, 10, '#ffd35a', 'rgba(255,211,90,.9)');
   if (targeted) {
     const friendly = pick.tone === 'friendly';
-    arrow(ctx, v.x, top - 4 + bounce, 11, friendly ? '#62d65a' : '#ec4a3c', friendly ? 'rgba(98,214,90,.9)' : 'rgba(236,74,60,.9)');
-  } else if (cb.acting?.unit === unit && !pick) {
-    arrow(ctx, v.x, top - 4 + bounce, 10, '#ffd35a', 'rgba(255,211,90,.9)');
+    arrow(ctx, v.x, top - 4 - (acting ? 24 : 0) + bounce, 11, friendly ? '#62d65a' : '#ec4a3c', friendly ? 'rgba(98,214,90,.9)' : 'rgba(236,74,60,.9)');
   }
 }
 
@@ -14867,6 +14949,9 @@ function drawUnit(ctx, unit, v, y, now) {
       dy -= 4 * Math.sin(Math.PI * Math.min(1, k * 1.6));
       anim = hero ? 'cast' : sprite?.hasCast ? 'cast' : 'attack';
       animT = k;
+    }
+    if (f.type === 'dodge') {
+      dx -= facing * 14 * Math.sin(Math.PI * k); // pas de côté
     }
     if (f.type === 'hit') {
       dx -= facing * 6 * Math.sin(Math.PI * k) + Math.sin(k * 40) * 2 * (1 - k);
@@ -17830,7 +17915,7 @@ __modules["src/ui/screens/merchant.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { MERCHANT } = __modules["src/config.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
-const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } = __modules["src/game/merchant.js"];
+const { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable, consumablePrice } = __modules["src/game/merchant.js"];
 const { countOf } = __modules["src/game/consumables.js"];
 const { bagItems } = __modules["src/ui/bagView.js"];
 const { esc } = __modules["src/ui/html.js"];
@@ -17947,7 +18032,7 @@ function consumableDetail(key) {
   return `<h3>${iconHtml(consumableIcon(key), 32)} ${esc(c.name)}</h3>
     <p>${esc(c.desc)} <i>${where}</i></p>
     <p class="hint">Possédé : ${countOf(state.consumables, key)} / ${MERCHANT.maxConsumable}</p>
-    <div class="actions"><button class="gold" data-buy="consumable:${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${gold(c.price)}</button></div>`;
+    <div class="actions"><button class="gold" data-buy="consumable:${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${gold(consumablePrice(state, key))}</button></div>`;
 }
 
 function stockDetail(item) {
@@ -18092,7 +18177,7 @@ const { state } = __modules["src/state.js"];
 const { CLASS_ORDER, INN } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { getClass, getStats, heroClassTitle, heroClassName, classTitle, hasFeminine } = __modules["src/game/party.js"];
-const { restAtInn } = __modules["src/game/progression.js"];
+const { restAtInn, innPrice } = __modules["src/game/progression.js"];
 const { recruit, recruitProblem, swapWithReserve, reserveOf, rosterLockedReason, dismiss, dismissOutcome } = __modules["src/game/roster.js"];
 const { RARITIES } = __modules["src/data/items.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
@@ -18145,7 +18230,7 @@ function renderInn(app) {
 
   app.innerHTML = frame({
     title: 'Auberge', icon: 93, layout: 'lay-inn',
-    extras: `<button id="rest" class="gold">${iconHtml(93, 16)} Se reposer (gratuit)</button>
+    extras: `<button id="rest" class="gold" ${state.gold >= innPrice(state) ? '' : 'disabled'} title="Soigne et relève toute l'équipe. Prix selon le niveau et la difficulté.">${iconHtml(93, 16)} Se reposer (${innPrice(state)} or)</button>
       ${flash ? `<span class="scr-flash">${esc(flash)}</span>` : ''}${locked ? `<span class="warning">${esc(locked)}</span>` : ''}`,
     body: `
       <section class="win">
@@ -19413,7 +19498,7 @@ function merchantBody(event) {
   }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
   const consumables = event.consumables.map((o, i) => `
     <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
-      ${iconHtml(consumableIcon(o.key), 16)} ${esc(CONSUMABLES[o.key].name)} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+      ${iconHtml(consumableIcon(o.key), 16)} ${esc(CONSUMABLES[o.key].name)} (${o.price} or, au lieu de ${o.full ?? CONSUMABLES[o.key].price})
     </button>`).join('');
   return `
     <p>Or : <b>${state.gold}</b></p>
@@ -19427,9 +19512,9 @@ return { renderDungeon };
 // ---- src/ui/screens/combat.js
 __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { COMBAT } = __modules["src/config.js"];
+const { COMBAT, XP } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf } = __modules["src/game/party.js"];
+const { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf, xpToNext } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
@@ -19528,10 +19613,20 @@ function heroRow(hero, i, active) {
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
-        ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${usesHp(cls) ? '<span class="meter-gap"></span>' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${xpMeter(hero)}
       </span>
       <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
     </button>`;
+}
+
+// Barre d'expérience, fine et sans texte (détail au survol), sous la ressource.
+function xpMeter(hero) {
+  const maxed = hero.level >= XP.maxLevel;
+  const need = xpToNext(hero.level);
+  const pct = maxed ? 100 : Math.max(0, Math.min(100, (hero.xp / need) * 100));
+  const text = maxed ? `Niveau ${hero.level} (maximum)` : `Niveau ${hero.level} : ${hero.xp} / ${need} XP`;
+  return `<span class="meter xp thin" title="${esc(text)}"><span class="fill" style="width:${pct}%"></span></span>`;
 }
 
 function meter(value, max, kind, label = 'PV') {
@@ -19574,8 +19669,8 @@ function effectTip(unit, s) {
   const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
   if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
   if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
-  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
-  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.dot) lines.push(`${s.dot} dégâts au début de chaque tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV au début de chaque tour.`);
   if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
   lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
   if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
@@ -20748,7 +20843,7 @@ const MANUAL = {
   rage: { terms: ['Rage'], cs: true, desc: 'Ressource de l\'Impassible : se remplit en frappant et en encaissant des coups.' },
   energie: { terms: ['Énergie'], cs: true, desc: "Ressource du Dissimulé et du Vénateur : +45 par tour ; chaque action en coûte, on agit tant qu'on peut payer." },
   mana: { terms: ['Mana'], cs: true, desc: 'Ressource des lanceurs de sorts (Dévot, Élémentaliste, Lumineux) : +10 par tour.' },
-  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Dissimulé : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance dès 3 points." },
+  combo: { terms: ['points de combo', 'point de combo', 'combo', 'combos'], desc: "Dissimulé : les générateurs en donnent, les finishers les dépensent tous (5 au plus). Les finishers de l'Empoisonneur sont à pleine puissance avec 3 points et n'en dépensent pas plus." },
   finisher: { terms: ['finisher', 'finishers', 'Finisher'], desc: 'Compétence qui dépense tous les points de combo : plus il y en a, plus elle frappe fort.' },
   corpsACorps: { terms: ['corps à corps'], desc: "Position de combat en première ligne : on est plus souvent ciblé ; seules les armes de mêlée y servent. Riposte possible." },
   distance: { terms: ['à distance'], desc: "Position de combat en retrait : moins souvent ciblé ; l'arc ne sert qu'à distance." },

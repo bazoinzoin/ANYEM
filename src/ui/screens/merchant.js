@@ -5,7 +5,7 @@
 import { state } from '../../state.js';
 import { MERCHANT } from '../../config.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
-import { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } from '../../game/merchant.js';
+import { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable, consumablePrice } from '../../game/merchant.js';
 import { countOf } from '../../game/consumables.js';
 import { bagItems } from '../bagView.js';
 import { esc } from '../html.js';
@@ -107,7 +107,7 @@ function consumableDetail(key) {
   return `<h3>${iconHtml(consumableIcon(key), 32)} ${esc(c.name)}</h3>
     <p>${esc(c.desc)} <i>${where}</i></p>
     <p class="hint">Possédé : ${countOf(state.consumables, key)} / ${MERCHANT.maxConsumable}</p>
-    <div class="actions"><button class="gold" data-buy="consumable:${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${gold(c.price)}</button></div>`;
+    <div class="actions"><button class="gold" data-buy="consumable:${key}" ${canBuyConsumable(state, key) ? '' : 'disabled'}>Acheter · ${gold(consumablePrice(state, key))}</button></div>`;
 }
 
 function stockDetail(item) {

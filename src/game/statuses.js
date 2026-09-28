@@ -116,6 +116,11 @@ export function consumeStun(unit) {
 // Retourne [{ status, dot?, hot? }] ; l'appelant applique dégâts et soins.
 // Un statut posé pendant le tour même de l'unité (`fresh`) n'est pas décompté à
 // la fin de ce tour-là : un effet de 2 tours couvre bien 2 tours de l'unité.
+// Effets sur la durée (dégâts, soins) à appliquer au début du tour de l'unité.
+export function dueTicks(unit) {
+  return statusesOf(unit).filter((s) => !s.fresh && (s.dot || s.hot)).map((s) => ({ status: s, dot: s.dot, hot: s.hot }));
+}
+
 export function tickStatuses(unit) {
   const due = statusesOf(unit).filter((s) => !s.fresh);
   for (const s of statusesOf(unit)) delete s.fresh;

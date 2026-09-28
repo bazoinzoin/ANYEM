@@ -8,9 +8,9 @@
 // passer son tour. Raccourcis : 1-6 pour les commandes, Échap pour revenir.
 
 import { state } from '../../state.js';
-import { COMBAT } from '../../config.js';
+import { COMBAT, XP } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf } from '../../game/party.js';
+import { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf, xpToNext } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
@@ -79,10 +79,20 @@ function heroRow(hero, i, active) {
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
-        ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${usesHp(cls) ? '<span class="meter-gap"></span>' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${xpMeter(hero)}
       </span>
       <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
     </button>`;
+}
+
+// Barre d'expérience, fine et sans texte (détail au survol), sous la ressource.
+function xpMeter(hero) {
+  const maxed = hero.level >= XP.maxLevel;
+  const need = xpToNext(hero.level);
+  const pct = maxed ? 100 : Math.max(0, Math.min(100, (hero.xp / need) * 100));
+  const text = maxed ? `Niveau ${hero.level} (maximum)` : `Niveau ${hero.level} : ${hero.xp} / ${need} XP`;
+  return `<span class="meter xp thin" title="${esc(text)}"><span class="fill" style="width:${pct}%"></span></span>`;
 }
 
 function meter(value, max, kind, label = 'PV') {
@@ -125,8 +135,8 @@ function effectTip(unit, s) {
   const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
   if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
   if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
-  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
-  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.dot) lines.push(`${s.dot} dégâts au début de chaque tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV au début de chaque tour.`);
   if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
   lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
   if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);

@@ -116,7 +116,17 @@ export function setStageFocus(unit) {
 // Anime l'issue d'une action : geste de l'acteur ('lunge' | 'cast' | null), effet visuel
 // (`vfx`, voir actionFx dans ui/battleDiff.js : projectile, entaille, soin, bouclier…),
 // impacts, chiffres, effets posés, chutes et relevés.
+// Textes des coups remarquables (cb.procs, game/combat.js).
+const PROCS = {
+  crit: { text: 'Critique !', color: '#ffd34d' },
+  dodge: { text: 'Esquive', color: '#9fd8ff' },
+  block: { text: 'Bloqué', color: '#c7d0e0' },
+  riposte: { text: 'Riposte !', color: '#ffa25a' },
+};
+
 export function playAction(combat, actor, before, gesture = null, vfx = null) {
+  const procs = combat.procs ?? [];
+  combat.procs = [];
   if (combat !== cb) return;
   const now = performance.now();
   const diff = diffBattle(combat, before);
@@ -169,6 +179,14 @@ export function playAction(combat, actor, before, gesture = null, vfx = null) {
       popup(c.unit, s.name, COLORS[s.kind] ?? COLORS.buff, t0 + 160 * (i + (c.delta ? 1 : 0)), false, true);
     });
     if (c.died) v.fx.push({ type: 'die', t0: t0 + 150, dur: 1000 });
+  }
+  // Critique, esquive, blocage, riposte : écrits au-dessus du personnage concerné.
+  for (const p of procs) {
+    const def = PROCS[p.kind];
+    if (!def || !vis.get(p.unit)) continue;
+    const t0 = now + (p.kind === 'riposte' ? impact + 120 : impact);
+    popup(p.unit, def.text, def.color, t0, p.kind === 'crit', p.kind !== 'crit');
+    if (p.kind === 'dodge') visOf(p.unit).fx.push({ type: 'dodge', t0, dur: 360 });
   }
 }
 
@@ -361,11 +379,13 @@ function drawArrows(ctx, unit, v, y, now) {
   const top = y - looksOf(unit).body - (statusesOf(unit).length || unit.guard ? 16 : 2);
   const bounce = Math.sin(now / 150) * 3;
   const targeted = pick && (pick.all ? pick.units.has(unit) : focus === unit);
+  // La flèche dorée du tour reste affichée pendant le ciblage ; si le héros actif est
+  // lui-même ciblé, la flèche de ciblage se place au-dessus.
+  const acting = cb.acting?.unit === unit;
+  if (acting) arrow(ctx, v.x, top - 4 + bounce, 10, '#ffd35a', 'rgba(255,211,90,.9)');
   if (targeted) {
     const friendly = pick.tone === 'friendly';
-    arrow(ctx, v.x, top - 4 + bounce, 11, friendly ? '#62d65a' : '#ec4a3c', friendly ? 'rgba(98,214,90,.9)' : 'rgba(236,74,60,.9)');
-  } else if (cb.acting?.unit === unit && !pick) {
-    arrow(ctx, v.x, top - 4 + bounce, 10, '#ffd35a', 'rgba(255,211,90,.9)');
+    arrow(ctx, v.x, top - 4 - (acting ? 24 : 0) + bounce, 11, friendly ? '#62d65a' : '#ec4a3c', friendly ? 'rgba(98,214,90,.9)' : 'rgba(236,74,60,.9)');
   }
 }
 
@@ -439,6 +459,9 @@ function drawUnit(ctx, unit, v, y, now) {
       dy -= 4 * Math.sin(Math.PI * Math.min(1, k * 1.6));
       anim = hero ? 'cast' : sprite?.hasCast ? 'cast' : 'attack';
       animT = k;
+    }
+    if (f.type === 'dodge') {
+      dx -= facing * 14 * Math.sin(Math.PI * k); // pas de côté
     }
     if (f.type === 'hit') {
       dx -= facing * 6 * Math.sin(Math.PI * k) + Math.sin(k * 40) * 2 * (1 - k);

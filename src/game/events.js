@@ -12,7 +12,7 @@ import { addStatus, makeStatus } from './statuses.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { RARITY_ORDER, MATERIA_KINDS, RARITIES } from '../data/items.js';
 import { generateItem, weightedPick } from './items.js';
-import { sellPrice } from './merchant.js';
+import { sellPrice, consumablePriceAt } from './merchant.js';
 import { addConsumable, countOf, restoreParty } from './consumables.js';
 import { CONSUMABLE_DROP_WEIGHTS } from './loot.js';
 import { getStats, gainXp, xpToNext } from './party.js';
@@ -34,7 +34,7 @@ export function rollEvent(level, key = rollEventKey()) {
       generateItem({ level, rarity: weightedPick(EVENT_RULES.merchantRarityWeights) }));
     event.consumables = Array.from({ length: EVENT_RULES.merchantConsumables }, () => {
       const k = weightedPick(CONSUMABLE_DROP_WEIGHTS);
-      return { key: k, price: Math.max(1, Math.round(CONSUMABLES[k].price * EVENT_RULES.merchantConsumablePct / 100)) };
+      return { key: k, full: consumablePriceAt(k, level), price: Math.max(1, Math.round(consumablePriceAt(k, level) * EVENT_RULES.merchantConsumablePct / 100)) };
     });
   }
   return event;

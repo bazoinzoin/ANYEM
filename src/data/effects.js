@@ -11,8 +11,8 @@
 //   mods    { stat: % } modificateurs des stats de combat (physPower, magPower, def, vit…)
 //   value   l'effet a une valeur calculée à l'application, à partir de la puissance du
 //           lanceur × `power` (donné par la compétence) :
-//             'dot'    dégâts à chaque fin de tour (ignorent la défense)
-//             'hot'    soins à chaque fin de tour (puissance magique)
+//             'dot'    dégâts au début de chaque tour (ignorent la défense)
+//             'hot'    soins au début de chaque tour (puissance magique)
 //             'shield' points de bouclier, absorbés avant les PV
 //             'trap'   dégâts du piège quand il se déclenche
 //   turns   [min, max] : durée permise pour cet effet, quelle que soit la source (un test le
@@ -37,7 +37,7 @@
 export const EFFECTS = {
   // ---- Buffs ----
   bouclier: { name: 'Bouclier', icon: '🛡️', kind: 'buff', value: 'shield', desc: 'Absorbe des dégâts avant les PV.' },
-  regeneration: { name: 'Régénération', icon: '💚', kind: 'buff', value: 'hot', desc: 'Soigne à chaque fin de tour.' },
+  regeneration: { name: 'Régénération', icon: '💚', kind: 'buff', value: 'hot', desc: 'Soigne au début de chaque tour.' },
   puissance: { name: 'Puissance', icon: '💪', kind: 'buff', mods: { physPower: 25, magPower: 25 }, desc: '+25 % de puissance physique et magique.' },
   hate: { name: 'Hâte', icon: '💨', kind: 'buff', mods: { vit: 25 }, desc: '+25 % de Vitesse.' },
   protection: { name: 'Protection', icon: '🔰', kind: 'buff', mods: { def: 50, defMag: 50 }, desc: '+50 % de Défense et de Défense magique.' },
@@ -49,15 +49,15 @@ export const EFFECTS = {
   // Poison : long (5 tours et plus) et faible, mais cumulable (3 doses au plus).
   poison: {
     name: 'Poison', icon: '🧪', kind: 'debuff', value: 'dot', turns: [5, 8], stacks: 3,
-    desc: 'Dégâts de poison à chaque fin de tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
+    desc: 'Dégâts de poison au début de chaque tour : longue durée, faibles dégâts, cumulable jusqu\'à 3 doses.',
   },
   // Saignement : court (2 ou 3 tours) et fort ; une nouvelle entaille remplace l'ancienne.
   saignement: {
     name: 'Saignement', icon: '🩸', kind: 'debuff', value: 'dot', turns: [2, 3],
-    desc: 'Dégâts de saignement à chaque fin de tour : courte durée, gros dégâts, ne se cumule pas.',
+    desc: 'Dégâts de saignement au début de chaque tour : courte durée, gros dégâts, ne se cumule pas.',
   },
-  brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu à chaque fin de tour.' },
-  tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres à chaque fin de tour.' },
+  brulure: { name: 'Brûlure', icon: '🔥', kind: 'debuff', value: 'dot', desc: 'Dégâts de feu au début de chaque tour.' },
+  tenebres: { name: 'Ténèbres', icon: '🌑', kind: 'debuff', value: 'dot', desc: 'Dégâts de ténèbres au début de chaque tour.' },
   ralenti: { name: 'Ralenti', icon: '🐌', kind: 'debuff', mods: { vit: -30 }, desc: '−30 % de Vitesse.' },
   // Scarifié (Liens du sang) : le sang donné rend ses coups voraces, ou le relève.
   'sang-partage': { name: 'Sang partagé', icon: '🩸', kind: 'buff', bonus: { lifestealPct: 25 }, desc: 'Vol de vie : 25 % des dégâts directs infligés sont rendus en PV.' },
