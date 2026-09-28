@@ -6,7 +6,7 @@ import { state } from '../state.js';
 import { RARITIES, MATERIA_KINDS, MATERIA_RARITIES } from '../data/items.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { esc } from './html.js';
-import { itemCard } from './items.js';
+import { itemCard, rarityClass } from './items.js';
 import { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, CLASS_ICONS } from './icons.js';
 import { paginate } from './bagView.js';
 import { getClass, heroClassTitle } from '../game/party.js';
@@ -58,7 +58,7 @@ export function itemGrid(id, items, opts = {}) {
   const { items: shown, page, pages } = paginate(items, st.page, st.perPage);
   st.page = page;
   const cells = shown.map((item) => `
-    <div class="bag-cell ${opts.dim?.(item) ? 'unusable' : ''} ${opts.selectedId === item.id ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}"
+    <div class="bag-cell ${rarityClass(item)} ${opts.dim?.(item) ? 'unusable' : ''} ${opts.selectedId === item.id ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}"
       style="--rc:${RARITIES[item.rarity].color}" ${opts.drag ? 'draggable="true"' : ''}>
       ${iconHtml(itemIcon(item), 32)}${opts.badge ? `<sup>${opts.badge(item)}</sup>` : item.plus ? `<sup>+${item.plus}</sup>` : ''}
     </div>`);
@@ -139,7 +139,7 @@ export function wornRows(id, filter = () => true, selectedId = null) {
     return `
       <div class="forge-hero" style="--c:${getClass(hero).color}">
         <span class="forge-hero-name">${iconHtml(CLASS_ICONS[hero.classKey] ?? 720, 16)} ${esc(hero.name)}</span>
-        <div class="cells">${items.map((item) => `<div class="bag-cell ${item.id === selectedId ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`).join('') || '<span class="hint">Rien</span>'}</div>
+        <div class="cells">${items.map((item) => `<div class="bag-cell ${rarityClass(item)} ${item.id === selectedId ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`).join('') || '<span class="hint">Rien</span>'}</div>
       </div>`;
   }).join('')}</div>`;
 }

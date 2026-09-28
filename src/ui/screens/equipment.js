@@ -14,7 +14,7 @@ import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { getClass, getStats, xpToNext, heroClassTitle } from '../../game/party.js';
 import { equip, unequip, slotsFor, cannotEquipReason, previewEquip } from '../../game/equipment.js';
 import { esc } from '../html.js';
-import { itemCard, slotLabel } from '../items.js';
+import { itemCard, slotLabel, rarityClass } from '../items.js';
 import { goTo, goBack, backLabel } from '../router.js';
 import { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, CLASS_ICONS, GOLD_ICON } from '../icons.js';
 import { SLOT_ART, assetUrl } from '../skin.js';
@@ -105,7 +105,7 @@ function slotCell(hero, slot, col, row) {
   const shown = item ?? (twoHand ? hero.equipment.mainDroite : null);
   const selected = view.selected?.from === 'slot' && view.selected.slot === slot ? 'selected' : '';
   return `
-    <div class="eq-slot ${shown ? 'filled' : ''} ${twoHand ? 'ghost' : ''} ${selected}" data-slot="${slot}" style="grid-column:${col}; grid-row:${row}; --slot-art:${assetUrl(SLOT_ART[slot])}${shown ? `; --rc:${RARITIES[shown.rarity].color}` : ''}"
+    <div class="eq-slot ${shown ? `filled ${rarityClass(shown)}` : ''} ${twoHand ? 'ghost' : ''} ${selected}" data-slot="${slot}" style="grid-column:${col}; grid-row:${row}; --slot-art:${assetUrl(SLOT_ART[slot])}${shown ? `; --rc:${RARITIES[shown.rarity].color}` : ''}"
       title="${esc(slotLabel(slot))}${twoHand ? ' (arme à deux mains)' : ''}" ${item ? 'draggable="true"' : ''}>
       ${shown ? `${iconHtml(itemIcon(shown), 32)}${shown.plus ? `<sup>+${shown.plus}</sup>` : ''}` : ''}
     </div>`;
@@ -142,7 +142,7 @@ function bagContent(hero) {
   const cells = items.map((item) => {
     const usable = !cannotEquipReason(hero, item);
     const selected = view.selected?.from === 'bag' && view.selected.id === item.id ? 'selected' : '';
-    return `<div class="bag-cell ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}" draggable="true" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`;
+    return `<div class="bag-cell ${rarityClass(item)} ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}" draggable="true" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`;
   });
   for (let i = items.length; i < view.perPage; i++) cells.push('<div class="bag-cell empty"></div>');
   return `${cells.join('')}
