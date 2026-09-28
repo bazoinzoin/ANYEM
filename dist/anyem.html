@@ -1322,6 +1322,13 @@ const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stock du Ma
 const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
 const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
+// Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre
+// (le repos à l'auberge les libère). Contrecoup à la fin de chacun de ses tours :
+//   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
+//   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
+//   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
+const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+
 const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
@@ -1570,7 +1577,7 @@ const TIMING = {
   outcomeMs: 1200, // dernier coup, puis fin du combat
 };
 
-return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
+return { START_GOLD, START_DUNGEON_LEVEL, CLASS_ORDER, PARTY_ORDER, SOULS, COMBAT, ITEM, LOOT, DIFFICULTIES, DIFFICULTY_ORDER, MEDALS, DUNGEON, MAP, EVENT_RULES, XP, TALENT_RULES, FORGE, RUNES, DEBUG, INN, MERCHANT, VARIANCE, REWARDS, TIMING };
 })();
 
 // ---- src/data/items.js
@@ -4957,6 +4964,25 @@ function paySkill(hero, skill) {
   return paid;
 }
 
+// Classe à âmes (Macabre) : sa ressource est le nombre d'âmes absorbées (0 à resMax), gagnées
+// à la mort des ennemis seulement (voir game/souls.js), jamais par régénération.
+function usesSouls(cls) {
+  return !!cls.resource.souls;
+}
+
+// Âmes absorbées par le héros (0 pour les autres classes).
+function soulsOf(hero) {
+  return usesSouls(getClass(hero)) ? Math.max(0, hero.res ?? 0) : 0;
+}
+
+// Ajoute des âmes (plafond : resMax). Retourne le nombre d'âmes réellement gagnées.
+function gainSouls(hero, amount) {
+  if (!usesSouls(getClass(hero))) return 0;
+  const before = soulsOf(hero);
+  hero.res = Math.min(getStats(hero).resMax, before + amount);
+  return hero.res - before;
+}
+
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
 function usesMana(cls) {
   return cls.resource.name === 'Mana';
@@ -5012,7 +5038,28 @@ function getStats(hero) {
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
+  if (usesSouls(cls)) applySoulBonuses(stats, Math.min(Math.max(0, hero.res ?? 0), stats.resMax));
   return stats;
+}
+
+/**
+ * Macabre : bonus par âme absorbée (passifs des orientations, des talents et des légendaires) :
+ *   soulPhys / soulMag  +% puissance physique / magique par âme
+ *   soulDef             +% Défense et Défense magique par âme
+ *   soulCrit / soulBlock  + % Coup critique / Blocage par âme
+ *   soulLifesteal       + % de vol de vie par âme
+ */
+function applySoulBonuses(stats, souls) {
+  stats.souls = souls;
+  if (!souls) return;
+  const pct = (stat, per) => { if (per) stats[stat] = Math.round(stats[stat] * (1 + (per * souls) / 100)); };
+  pct('physPower', stats.soulPhys);
+  pct('magPower', stats.soulMag);
+  pct('def', stats.soulDef);
+  pct('defMag', stats.soulDef);
+  if (stats.soulCrit) stats.critChance += stats.soulCrit * souls;
+  if (stats.soulBlock) stats.blocage += stats.soulBlock * souls;
+  if (stats.soulLifesteal) stats.lifestealPct = (stats.lifestealPct ?? 0) + stats.soulLifesteal * souls;
 }
 
 /**
@@ -5129,7 +5176,7 @@ function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = [
 }
 
 function gainResource(hero, amount) {
-  if (!amount) return;
+  if (!amount || usesSouls(getClass(hero))) return; // les âmes ne viennent que des morts
   hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
 }
 
@@ -5145,12 +5192,13 @@ function restoreFully(hero) {
   const stats = getStats(hero);
   hero.alive = true;
   hero.hp = stats.pv;
-  hero.res = stats.resMax;
+  hero.res = usesSouls(getClass(hero)) ? 0 : stats.resMax; // le repos libère les âmes
+  hero.soulHeld = 0;
   hero.guard = false;
   hero.statuses = [];
 }
 
-return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, createParty, gainResource, clampToStats, restoreFully };
+return { getClass, legendaryPowers, weaponSpeedOf, usesHp, hpCost, canPaySkill, paySkill, usesSouls, soulsOf, gainSouls, usesMana, getStats, getSkills, xpToNext, gainXp, classTitle, heroClassTitle, heroClassName, hasFeminine, createHero, createParty, gainResource, clampToStats, restoreFully };
 })();
 
 // ---- src/game/statuses.js
@@ -5292,7 +5340,7 @@ return { makeStatus, statusesOf, addStatus, detonateStatus, hasStatus, isDebuffe
 
 // ---- src/game/units.js
 __modules["src/game/units.js"] = (() => {
-const { getStats } = __modules["src/game/party.js"];
+const { getStats, getClass, usesSouls } = __modules["src/game/party.js"];
 const { statusMods, statusBonus, isDebuffed, absorbWithShields, statusesOf, addStatus, makeStatus } = __modules["src/game/statuses.js"];
 // Opérations communes aux héros et aux ennemis (les « unités » d'un combat).
 
@@ -5354,6 +5402,7 @@ function applyDamage(unit, amount) {
       unit.alive = false;
       unit.statuses = [];
       fell = true;
+      if (isHero(unit) && usesSouls(getClass(unit))) unit.res = 0; // ses âmes s'échappent
     }
   }
   return { taken, absorbed, fell, ...(revived ? { revived } : {}) };
@@ -5399,7 +5448,7 @@ __modules["src/game/consumables.js"] = (() => {
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MERCHANT } = __modules["src/config.js"];
-const { getStats, gainResource } = __modules["src/game/party.js"];
+const { getStats, gainResource, getClass, usesSouls } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
@@ -5449,6 +5498,8 @@ function isValidTarget(key, target) {
   if (def.target === 'deadAlly') return !target.alive;
   if (def.target !== 'ally' || !target.alive) return false;
   if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
+  // Les âmes du Macabre ne viennent que des morts : pas d'élixir de ressource pour lui.
+  if (def.effect.resourcePct && !def.effect.healPct && usesSouls(getClass(target))) return false;
   return true;
 }
 
@@ -5486,7 +5537,7 @@ function restoreParty(party, pct) {
   for (const hero of party.filter((h) => h.alive)) {
     const stats = getStats(hero);
     hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
-    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+    if (!usesSouls(getClass(hero))) hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
   }
 }
 
@@ -11970,6 +12021,108 @@ function createEnemies(keys, level, power = 1) {
 return { enemyStats, createEnemy, createEnemies };
 })();
 
+// ---- src/game/souls.js
+__modules["src/game/souls.js"] = (() => {
+const { SOULS } = __modules["src/config.js"];
+const { getClass, getStats, usesSouls, soulsOf, gainSouls } = __modules["src/game/party.js"];
+// Âmes du Macabre. Quand un ennemi meurt, chaque Macabre en vie absorbe son âme (1 âme,
+// jusqu'à son maximum : 3 de base, `resMaxBonus` en plus). Les âmes sont sa ressource
+// (hero.res) : gardées d'un combat à l'autre, libérées au repos (restoreFully) ou s'il tombe.
+// Selon l'orientation, chaque âme donne des bonus (getStats, applySoulBonuses) ou se dépense
+// dans des compétences (`cost` en âmes ; `allSouls` : toutes les âmes, puissance par âme).
+// Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
+// plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
+// en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
+// d'un % des PV max à chaque âme absorbée.
+
+
+
+
+function isSoulBearer(hero) {
+  return usesSouls(getClass(hero));
+}
+
+function soulMax(hero) {
+  return getStats(hero).resMax;
+}
+
+/**
+ * Un ennemi vient de mourir : chaque Macabre en vie de l'équipe absorbe son âme.
+ * Retourne [{ hero, gained, healed }] pour ceux qui en ont gagné une.
+ */
+function absorbSoul(party) {
+  const out = [];
+  for (const hero of party.filter((h) => h.alive && isSoulBearer(h))) {
+    const gained = gainSouls(hero, 1);
+    if (!gained) continue;
+    const stats = getStats(hero);
+    let healed = 0;
+    if (stats.soulHeal) {
+      const before = hero.hp;
+      hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * stats.soulHeal / 100));
+      healed = hero.hp - before;
+    }
+    out.push({ hero, gained, healed });
+  }
+  return out;
+}
+
+/**
+ * Contrecoup pour `souls` âmes (sans rien modifier) : % des PV max perdus par le Macabre
+ * (`self`) et par chacun de ses alliés (`allies`, au maximum d'âmes seulement).
+ * `held` = tours déjà passés au maximum (le premier ne coûte rien de plus).
+ */
+function backlashPct(stats, souls, held = 0) {
+  if (!souls) return { self: 0, allies: 0 };
+  const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
+  const atMax = souls >= stats.resMax;
+  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
+  return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
+}
+
+/**
+ * Fin d'un tour du Macabre : calcule le contrecoup et met à jour le compteur de tours passés
+ * au maximum (hero.soulHeld). Retourne { self, allies } en PV (le combat les inflige).
+ */
+function soulBacklash(hero, party) {
+  const souls = soulsOf(hero);
+  const stats = getStats(hero);
+  if (!souls) {
+    hero.soulHeld = 0;
+    return { self: 0, allies: [] };
+  }
+  const atMax = souls >= stats.resMax;
+  const held = atMax ? hero.soulHeld ?? 0 : 0;
+  hero.soulHeld = atMax ? held + 1 : 0;
+  const pct = backlashPct(stats, souls, held);
+  const self = Math.max(1, Math.round(stats.pv * pct.self / 100));
+  const allies = pct.allies
+    ? party.filter((h) => h.alive && h !== hero).map((ally) => ({ ally, amount: Math.round(getStats(ally).pv * pct.allies / 100) }))
+    : [];
+  return { self, allies };
+}
+
+/**
+ * Compétence `allSouls` telle qu'elle partira : dépense toutes les âmes (au moins une),
+ * puissance et valeur des effets multipliées par le nombre d'âmes (soulsSpent).
+ */
+function atSouls(skill, souls) {
+  if (!skill.allSouls) return skill;
+  const n = Math.max(1, souls);
+  const scale = (v) => (v === undefined ? v : +(v * n).toFixed(3));
+  return {
+    ...skill,
+    power: scale(skill.power),
+    effects: (skill.effects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
+    selfEffects: (skill.selfEffects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
+    cost: n,
+    soulsSpent: n,
+  };
+}
+
+return { isSoulBearer, soulMax, absorbSoul, backlashPct, soulBacklash, atSouls };
+})();
+
 // ---- src/game/combo.js
 __modules["src/game/combo.js"] = (() => {
 const { getClass } = __modules["src/game/party.js"];
@@ -12279,7 +12432,8 @@ __modules["src/game/combat.js"] = (() => {
 const { COMBAT } = __modules["src/config.js"];
 const { ENEMIES } = __modules["src/data/enemies.js"];
 const { createEnemies } = __modules["src/game/enemies.js"];
-const { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill } = __modules["src/game/party.js"];
+const { getClass, getSkills, getStats, gainResource, legendaryPowers, canPaySkill, paySkill, soulsOf } = __modules["src/game/party.js"];
+const { absorbSoul, soulBacklash, atSouls, isSoulBearer } = __modules["src/game/souls.js"];
 const { isMultiAction, actionCost, canPay, comboOf, gainCombo, atCombo } = __modules["src/game/combo.js"];
 const { canUseWeapon, usesWeapon, canChangePosition, otherRow, targetWeight } = __modules["src/game/position.js"];
 const { rollHit, healAmount, skillHitOptions, chance, effectValue, defenseFactor, BASIC_ATTACK, ENEMY_ATTACK } = __modules["src/game/formulas.js"];
@@ -12304,6 +12458,7 @@ const { pick, random } = __modules["src/game/rng.js"];
 // (cb.acting inchangé) tant qu'il peut payer une autre action ; l'action
 // { type: 'endTurn' } finit son tour. Les autres classes n'ont qu'une action par
 // tour, mais peuvent aussi passer leur tour.
+
 
 
 
@@ -12454,6 +12609,23 @@ function endUnitTurn(cb, unit) {
       }
     }
   }
+  if (unit.alive && isHero(unit) && isSoulBearer(unit)) soulTorment(cb, unit);
+}
+
+// Macabre : les âmes gardées le rongent (et, au maximum, rongent ses alliés).
+function soulTorment(cb, hero) {
+  const souls = soulsOf(hero);
+  const { self, allies } = soulBacklash(hero, cb.party);
+  if (!self) return;
+  const { taken, fell } = hurt(cb, hero, self);
+  log(cb, `${souls} âme${souls > 1 ? 's' : ''} rongent ${hero.name} (-${taken} PV).`, true);
+  if (fell) logFall(cb, hero);
+  for (const { ally, amount } of allies) {
+    const lost = Math.min(ally.hp - 1, amount);
+    if (lost <= 0) continue;
+    ally.hp -= lost;
+    log(cb, `Les âmes débordent de ${hero.name} : ${ally.name} perd ${lost} PV.`, true);
+  }
 }
 
 // Héros confus : une chance sur deux de frapper un allié au lieu de jouer.
@@ -12488,6 +12660,12 @@ function applyStatus(cb, unit, status) {
 
 function logFall(cb, unit) {
   log(cb, isHero(unit) ? `${unit.name} s'effondre !` : `${unit.name} est vaincu !`, true);
+  if (isHero(unit)) return;
+  // Macabre : l'âme de l'ennemi mort est absorbée.
+  for (const { hero, healed } of absorbSoul(cb.party)) {
+    const n = soulsOf(hero);
+    log(cb, `${hero.name} absorbe l'âme de ${unit.name} (${n} âme${n > 1 ? 's' : ''})${healed ? ` et récupère ${healed} PV` : ''}.`, true);
+  }
 }
 
 function aliveAt(list, index) {
@@ -12526,6 +12704,7 @@ function canUseItem(cb, key) {
 function canUseSkill(cb, hero, skill) {
   if (!canPaySkill(hero, skill)) return false; // ressource, ou PV (jamais le dernier)
   if (skill.finisher && comboOf(hero) < 1) return false;
+  if (skill.allSouls && soulsOf(hero) < 1) return false; // au moins une âme à libérer
   if (skill.oncePerCombat && hero.usedSkills?.includes(skill.id)) return false;
   if (usesWeapon(skill) && !canUseWeapon(hero)) return false; // arme inutilisable depuis cette position
   if (skill.target === 'deadAlly') return cb.party.some((h) => !h.alive);
@@ -12630,6 +12809,7 @@ function heroAct(cb, action) {
     if (!targets) return false;
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
+    if (isSoulBearer(hero) && skill.cost > 0) log(cb, `${hero.name} libère ${skill.cost} âme${skill.cost > 1 ? 's' : ''}.`);
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
@@ -12664,10 +12844,10 @@ function heroAct(cb, action) {
 /**
  * Compétence telle qu'elle partira maintenant : puissance selon les points de combo
  * (finisher) ; sacrifice (Scarifié) : puissance augmentée selon la part des PV max
- * sacrifiés (tous les PV sauf un). Sert aussi aux estimations affichées.
+ * sacrifiés (tous les PV sauf un) ; `allSouls` (Macabre) : toutes les âmes, puissance par âme. Sert aussi aux estimations affichées.
  */
 function effectiveSkill(hero, base) {
-  const skill = atCombo(base, comboOf(hero));
+  const skill = atSouls(atCombo(base, comboOf(hero)), soulsOf(hero));
   if (!skill.sacrifice) return skill;
   const share = Math.max(0, hero.hp - 1) / Math.max(1, getStats(hero).pv);
   return { ...skill, power: +(skill.power + skill.sacrifice * share).toFixed(3) };

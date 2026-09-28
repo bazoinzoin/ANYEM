@@ -9,6 +9,13 @@ export const START_DUNGEON_LEVEL = 1; // plus haut niveau d'étage atteint (stoc
 export const CLASS_ORDER = ['guerrier', 'voleur', 'pretre', 'mage', 'chasseur', 'paladin', 'scarifie'];
 export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 
+// Âmes du Macabre (game/souls.js) : 1 âme par ennemi mort, gardées d'un combat à l'autre
+// (le repos à l'auberge les libère). Contrecoup à la fin de chacun de ses tours :
+//   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
+//   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
+//   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
+export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+
 export const COMBAT = {
   logMax: 40,
   guardFactor: 0.5,       // Défendre : dégâts subis multipliés par ce facteur
