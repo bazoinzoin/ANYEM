@@ -9,7 +9,7 @@ export const STATS = {
   // Secondaires offensives
   atq: { label: 'Attaque' },            // dégâts des armes (stat d'objet)
   vit: { label: 'Vitesse' },
-  critChance: { label: 'Taux critique', suffix: '%' },
+  critChance: { label: 'Coup critique', suffix: '%' },
   critDmg: { label: 'Dégâts critiques', suffix: '%' },
   // Stat obligatoire des armures et boucliers : compte à la fois comme Défense et
   // comme Défense magique (voir getStats).

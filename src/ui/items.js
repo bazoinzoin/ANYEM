@@ -7,7 +7,7 @@ import { itemTypeLabel, itemStatLines } from '../game/items.js';
 import { esc, tip } from './html.js';
 import { iconHtml, itemIcon } from './icons.js';
 
-// « +5 Défense », « -1 Vitesse », « +2 % Taux critique ».
+// « +5 Défense », « -1 Vitesse », « +2 % Coup critique ».
 export function formatStat(key, value, { sign = true } = {}) {
   const def = STATS[key];
   const prefix = sign && value >= 0 ? '+' : '';

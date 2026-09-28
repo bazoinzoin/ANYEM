@@ -57,7 +57,7 @@ export const SIGNATURE_TIER = 14;
 
 // Libellés des effets, pour décrire un petit palier (« +3 % PV par rang »).
 const EFFECT_LABELS = {
-  flat: { critChance: ' % Taux critique', critDmg: ' % Dégâts critiques', esquive: ' % Esquive', blocage: ' % Blocage', riposte: ' % Riposte', vit: ' Vitesse' },
+  flat: { critChance: ' % Coup critique', critDmg: ' % Dégâts critiques', esquive: ' % Esquive', blocage: ' % Blocage', riposte: ' % Riposte', vit: ' Vitesse' },
   pct: { pv: ' % PV', def: ' % Défense', defMag: ' % Défense magique', physPower: ' % Puissance physique', magPower: ' % Puissance magique' },
   passive: {
     dotPct: ' % de dégâts sur la durée', healPct: ' % de soins', shieldPct: ' % de valeur des boucliers donnés',
