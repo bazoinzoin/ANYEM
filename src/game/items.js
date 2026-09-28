@@ -148,6 +148,23 @@ export function secondaryRange(stat, level, range) {
   return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
+// Stats secondaires qu'un objet peut recevoir : toutes, sauf celles qu'il porte déjà
+// (exception : le Blocage d'un bouclier).
+function secondaryPool(base, stats) {
+  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  return Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+}
+
+/**
+ * Toutes les stats secondaires possibles pour cet objet (sa base, son niveau, sa rareté),
+ * avec leur fourchette : [{ stat, lo, hi }]. Un objet n'en reçoit que `RARITIES[r].secondaries`.
+ */
+export function possibleSecondaries(item) {
+  const range = RARITIES[item.rarity].range;
+  if (!RARITIES[item.rarity].secondaries) return [];
+  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range) }));
+}
+
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
  * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
@@ -174,8 +191,7 @@ export function generateItem(opts = {}) {
 
   // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet
   // (sauf exception : le Blocage d'un bouclier).
-  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
-  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+  const pool = secondaryPool(base, stats);
   const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];

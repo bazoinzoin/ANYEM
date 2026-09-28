@@ -5,14 +5,14 @@
 // orientations) et tous les légendaires en icônes.
 
 import { state } from '../../state.js';
-import { PARTY_ORDER, CLASS_ORDER } from '../../config.js';
+import { PARTY_ORDER, CLASS_ORDER, XP } from '../../config.js';
 import { CLASSES } from '../../data/classes.js';
 import { STATS } from '../../data/stats.js';
 import { LEGENDARIES, RARITIES } from '../../data/items.js';
 import { TALENTS, nodeSkills } from '../../data/talents.js';
 import { createParty, createHero, getStats } from '../../game/party.js';
 import { equippedItems } from '../../game/equipment.js';
-import { generateItem } from '../../game/items.js';
+import { generateItem, possibleSecondaries } from '../../game/items.js';
 import { esc } from '../html.js';
 import { statsList } from '../heroStats.js';
 import { skillEffectLabel } from '../format.js';
@@ -209,7 +209,7 @@ function legendariesTab() {
   const keys = Object.keys(LEGENDARIES).sort((a, b) => order(a) - order(b));
   const groups = [...CLASS_ORDER, null].map((classKey) => [classKey, keys.filter((k) => (LEGENDARIES[k].classKey ?? null) === classKey)]).filter(([, list]) => list.length);
   return `
-    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec ${RARITIES.legendaire.secondaries} stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
     <div class="details-body">
       <div class="details-col leg-groups">${groups.map(([classKey, list]) => `
         <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].name)}` : 'Toutes classes'}</span>
@@ -220,15 +220,26 @@ function legendariesTab() {
     </div>`;
 }
 
-// Exemplaire de démonstration d'un légendaire (niveau 10, tiré une fois par session).
+// Exemplaire de démonstration d'un légendaire au niveau maximum, sans secondaires : elles
+// sont listées à part, toutes, avec leur fourchette.
+const SAMPLE_LEVEL = XP.maxLevel;
 const samples = new Map();
 function sample(key) {
-  if (!samples.has(key)) samples.set(key, generateItem({ level: 10, legendary: key }));
+  if (!samples.has(key)) samples.set(key, { ...generateItem({ level: SAMPLE_LEVEL, legendary: key }), bonus: {} });
   return samples.get(key);
 }
 
 function legendaryDetail(key) {
   const leg = LEGENDARIES[key];
   const cls = leg.classKey ? CLASSES[leg.classKey] : null;
-  return `${itemDetail(sample(key))}<p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats données pour un exemplaire de niveau 10 ; les secondaires sont tirées au hasard.</p>`;
+  const item = sample(key);
+  const count = RARITIES[item.rarity].secondaries;
+  const lines = possibleSecondaries(item).map(({ stat, lo, hi }) => {
+    const def = STATS[stat];
+    return `<li>${def.label} <b>+${lo} à ${hi}${def.suffix ? ` ${def.suffix}` : ''}</b></li>`;
+  });
+  return `${itemDetail(item)}
+    <p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
+    <div class="leg-secondaries"><b>Stats secondaires possibles</b> <small>(en jeu, ${count} tirées au hasard parmi celles-ci)</small>
+      <ul>${lines.join('')}</ul></div>`;
 }

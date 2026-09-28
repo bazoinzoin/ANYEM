@@ -921,6 +921,11 @@ button.class-pick.selected { border-color: var(--c); box-shadow: inset 0 0 12px 
 .details-col { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .details-col h4 { margin: 2px 0; }
 .leg-groups { gap: 4px; }
+.leg-secondaries { font-size: 12px; margin-top: 4px; }
+.leg-secondaries small { opacity: .75; }
+.leg-secondaries ul { list-style: none; margin: 4px 0 0; padding: 0; columns: 2; column-gap: 12px; }
+.leg-secondaries li { color: #8fd08a; line-height: 1.35; break-inside: avoid; }
+.leg-secondaries li b { color: #d8f0c8; font-weight: normal; }
 .leg-group { display: flex; align-items: center; gap: 6px; }
 .leg-class { width: 110px; flex: none; display: flex; align-items: center; gap: 4px; font-size: 13px; }
 .create-modal .hint { font-size: 13px; margin: 0; }
@@ -2043,6 +2048,23 @@ function secondaryRange(stat, level, range) {
   return { lo: Math.max(1, Math.round(unit * range[0])), hi: Math.max(1, Math.round(unit * range[1])) };
 }
 
+// Stats secondaires qu'un objet peut recevoir : toutes, sauf celles qu'il porte déjà
+// (exception : le Blocage d'un bouclier).
+function secondaryPool(base, stats) {
+  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
+  return Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+}
+
+/**
+ * Toutes les stats secondaires possibles pour cet objet (sa base, son niveau, sa rareté),
+ * avec leur fourchette : [{ stat, lo, hi }]. Un objet n'en reçoit que `RARITIES[r].secondaries`.
+ */
+function possibleSecondaries(item) {
+  const range = RARITIES[item.rarity].range;
+  if (!RARITIES[item.rarity].secondaries) return [];
+  return secondaryPool(item, item.stats).map((stat) => ({ stat, ...secondaryRange(stat, item.level, range) }));
+}
+
 /**
  * Crée un objet. Tout paramètre omis est tiré au hasard.
  * opts : { level, rarity, slotType, weaponType, armorType, primary, legendary (clé LEGENDARIES) }
@@ -2069,8 +2091,7 @@ function generateItem(opts = {}) {
 
   // Stats secondaires distinctes, jamais une stat déjà présente sur l'objet
   // (sauf exception : le Blocage d'un bouclier).
-  const repeatable = base.slotType === 'bouclier' ? SHIELD.repeatableSecondaries : [];
-  const pool = Object.keys(SECONDARY_STATS).filter((k) => !(k in stats) || repeatable.includes(k));
+  const pool = secondaryPool(base, stats);
   const bonus = {};
   for (let i = 0; i < r.secondaries && pool.length; i++) {
     const stat = pool.splice(Math.floor(random() * pool.length), 1)[0];
@@ -2106,7 +2127,7 @@ function refreshLegendary(item) {
   return changed;
 }
 
-return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, generateItem, refreshLegendary };
+return { reserveItemIds, budget, itemStatLines, itemStats, isWeapon, isTwoHanded, itemTypeLabel, weightedPick, rollRarity, rollBase, primaryOptions, secondaryValue, secondaryRange, possibleSecondaries, generateItem, refreshLegendary };
 })();
 
 // ---- src/game/forge.js
@@ -14144,14 +14165,14 @@ return { skillEffectLabel, skillShortEstimate, consumableEstimate };
 // ---- src/ui/screens/create.js
 __modules["src/ui/screens/create.js"] = (() => {
 const { state } = __modules["src/state.js"];
-const { PARTY_ORDER, CLASS_ORDER } = __modules["src/config.js"];
+const { PARTY_ORDER, CLASS_ORDER, XP } = __modules["src/config.js"];
 const { CLASSES } = __modules["src/data/classes.js"];
 const { STATS } = __modules["src/data/stats.js"];
 const { LEGENDARIES, RARITIES } = __modules["src/data/items.js"];
 const { TALENTS, nodeSkills } = __modules["src/data/talents.js"];
 const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { equippedItems } = __modules["src/game/equipment.js"];
-const { generateItem } = __modules["src/game/items.js"];
+const { generateItem, possibleSecondaries } = __modules["src/game/items.js"];
 const { esc } = __modules["src/ui/html.js"];
 const { statsList } = __modules["src/ui/heroStats.js"];
 const { skillEffectLabel } = __modules["src/ui/format.js"];
@@ -14375,7 +14396,7 @@ function legendariesTab() {
   const keys = Object.keys(LEGENDARIES).sort((a, b) => order(a) - order(b));
   const groups = [...CLASS_ORDER, null].map((classKey) => [classKey, keys.filter((k) => (LEGENDARIES[k].classKey ?? null) === classKey)]).filter(([, list]) => list.length);
   return `
-    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec 4 stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
+    <p class="hint">Un légendaire tombe rarement (plus souvent sur les boss), au niveau du donjon, avec ${RARITIES.legendaire.secondaries} stats secondaires aléatoires. Trois par orientation (chacun renforce une compétence ou un passif de ses gros paliers, qu'il faut avoir appris) et quelques-uns pour toutes les classes. Un objet divin peut absorber le pouvoir (et le nom) d'un légendaire à la Forge.</p>
     <div class="details-body">
       <div class="details-col leg-groups">${groups.map(([classKey, list]) => `
         <div class="leg-group"><span class="leg-class">${classKey ? `${iconHtml(CLASS_ICONS[classKey], 16)} ${esc(CLASSES[classKey].name)}` : 'Toutes classes'}</span>
@@ -14386,17 +14407,28 @@ function legendariesTab() {
     </div>`;
 }
 
-// Exemplaire de démonstration d'un légendaire (niveau 10, tiré une fois par session).
+// Exemplaire de démonstration d'un légendaire au niveau maximum, sans secondaires : elles
+// sont listées à part, toutes, avec leur fourchette.
+const SAMPLE_LEVEL = XP.maxLevel;
 const samples = new Map();
 function sample(key) {
-  if (!samples.has(key)) samples.set(key, generateItem({ level: 10, legendary: key }));
+  if (!samples.has(key)) samples.set(key, { ...generateItem({ level: SAMPLE_LEVEL, legendary: key }), bonus: {} });
   return samples.get(key);
 }
 
 function legendaryDetail(key) {
   const leg = LEGENDARIES[key];
   const cls = leg.classKey ? CLASSES[leg.classKey] : null;
-  return `${itemDetail(sample(key))}<p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats données pour un exemplaire de niveau 10 ; les secondaires sont tirées au hasard.</p>`;
+  const item = sample(key);
+  const count = RARITIES[item.rarity].secondaries;
+  const lines = possibleSecondaries(item).map(({ stat, lo, hi }) => {
+    const def = STATS[stat];
+    return `<li>${def.label} <b>+${lo} à ${hi}${def.suffix ? ` ${def.suffix}` : ''}</b></li>`;
+  });
+  return `${itemDetail(item)}
+    <p class="hint">${cls ? `Réservé au ${esc(cls.name)}.` : 'Utilisable par toutes les classes.'} Stats pour un exemplaire de niveau ${SAMPLE_LEVEL}.</p>
+    <div class="leg-secondaries"><b>Stats secondaires possibles</b> <small>(en jeu, ${count} tirées au hasard parmi celles-ci)</small>
+      <ul>${lines.join('')}</ul></div>`;
 }
 
 return { renderCreate };
