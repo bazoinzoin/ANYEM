@@ -32,7 +32,9 @@ export function statsOf(unit) {
  * reportée sur un protecteur, voir l'effet Intercession).
  * Retourne { taken, absorbed, fell, redirected?, protector? } ; fell = l'unité vient de tomber.
  */
-export function damage(unit, amount) {
+// `pierce` : perte de PV qui ignore boucliers et Intercession (contrecoup des âmes du Macabre).
+export function damage(unit, amount, { pierce = false } = {}) {
+  if (pierce) return applyDamage(unit, amount, true);
   // Intercession : une part des dégâts est encaissée par le protecteur.
   const guard = statusesOf(unit).find((s) => s.redirect && s.source && s.source !== unit && s.source.alive);
   if (guard && amount > 0) {
@@ -46,8 +48,8 @@ export function damage(unit, amount) {
 }
 
 // Dégâts sans report : boucliers, puis PV.
-function applyDamage(unit, amount) {
-  const absorbed = absorbWithShields(unit, amount);
+function applyDamage(unit, amount, pierce = false) {
+  const absorbed = pierce ? 0 : absorbWithShields(unit, amount);
   const taken = amount - absorbed;
   unit.hp = Math.max(0, unit.hp - taken);
   let fell = false;

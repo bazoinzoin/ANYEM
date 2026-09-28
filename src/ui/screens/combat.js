@@ -8,9 +8,9 @@
 // passer son tour. Raccourcis : 1-6 pour les commandes, Échap pour revenir.
 
 import { state } from '../../state.js';
-import { COMBAT } from '../../config.js';
+import { COMBAT, XP } from '../../config.js';
 import { STATS } from '../../data/stats.js';
-import { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf } from '../../game/party.js';
+import { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf, xpToNext } from '../../game/party.js';
 import { CONSUMABLES, CONSUMABLE_ORDER } from '../../data/consumables.js';
 import { countOf, usableIn } from '../../game/consumables.js';
 import { estimateHit, BASIC_ATTACK } from '../../game/formulas.js';
@@ -30,7 +30,7 @@ const itemIc = (k, size = 32) => iconHtml(consumableIcon(k), size);
 import { statsList } from '../heroStats.js';
 import { playerAction } from '../encounter.js';
 import { logLines } from '../combatLog.js';
-import { attachStage, setStagePick, setStageFocus, fitStage } from '../battleStage.js';
+import { attachStage, setStagePick, setStageFocus, fitStage, setStageHover } from '../battleStage.js';
 
 // État de l'interface (pas du combat) : menu ouvert pour le héros actif, action en cours
 // de ciblage, fenêtre superposée (journal ou fiche d'un héros).
@@ -59,6 +59,7 @@ export function renderCombat(app) {
     </div>`;
 
   attachStage(app.querySelector('#battleStage'), cb);
+  setStageHover(stageTip);
   fitStage();
   wire(app, hero);
 }
@@ -69,7 +70,9 @@ function heroRow(hero, i, active) {
   const cls = getClass(hero);
   const stats = statsOf(hero);
   const max = comboMax(hero);
-  const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
+  // Points de combo du Dissimulé : une icône parmi ses effets (nombre en indice), détail au survol.
+  const combo = max && hero.alive && comboOf(hero) > 0
+    ? `<span class="st combo ${comboOf(hero) >= max ? 'full' : ''}" data-fx-tip="${esc(comboTip(hero, max))}">${iconHtml(COMBO_ICON, 20)}<sub>${comboOf(hero)}</sub></span>` : '';
   // Âmes du Macabre : une icône parmi ses effets (nombre d'âmes en indice), effet actuel
   // (bonus de son orientation, contrecoup) détaillé au survol ; rouge au maximum.
   const souls = usesSouls(cls) && hero.alive && soulsOf(hero) > 0
@@ -79,10 +82,20 @@ function heroRow(hero, i, active) {
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
       <span class="bs-bars">
         ${meter(hero.hp, stats.pv, 'hp')}
-        ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${usesHp(cls) ? '<span class="meter-gap"></span>' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
+        ${xpMeter(hero)}
       </span>
-      <span class="bs-status">${combo}<span class="bs-effects">${souls}${statusIcons(hero)}</span></span>
+      <span class="bs-status"><span class="bs-effects">${combo}${souls}${statusIcons(hero)}</span></span>
     </button>`;
+}
+
+// Barre d'expérience, fine et sans texte (détail au survol), sous la ressource.
+function xpMeter(hero) {
+  const maxed = hero.level >= XP.maxLevel;
+  const need = xpToNext(hero.level);
+  const pct = maxed ? 100 : Math.max(0, Math.min(100, (hero.xp / need) * 100));
+  const text = maxed ? `Niveau ${hero.level} (maximum)` : `Niveau ${hero.level} : ${hero.xp} / ${need} XP`;
+  return `<span class="meter xp thin" title="${esc(text)}"><span class="fill" style="width:${pct}%"></span></span>`;
 }
 
 function meter(value, max, kind, label = 'PV') {
@@ -92,6 +105,37 @@ function meter(value, max, kind, label = 'PV') {
 }
 
 const SOUL_ICON = 862; // crâne (planche d'icônes)
+const COMBO_ICON = 682; // étoile (planche d'icônes)
+
+// Fiche des points de combo : nombre, rôle des générateurs et des finishers.
+function comboTip(hero, max) {
+  const n = comboOf(hero);
+  const lines = [`Points de combo : ${n} / ${max}`,
+    'Les générateurs en donnent ; un finisher les dépense : plus il y en a, plus il frappe fort.'];
+  const full = getSkills(hero).filter((s) => s.finisher && s.fullAt);
+  if (full.length) lines.push(`${full.map((s) => s.name).join(', ')} : pleine puissance avec ${full[0].fullAt} points, sans en dépenser plus.`);
+  if (n >= max) lines.push('Maximum atteint : un générateur ne rapporte plus rien.');
+  return lines.join('\n');
+}
+
+// Bulle des effets d'un monstre (survol de son carré doré sur la scène).
+function stageTip(unit, rect) {
+  const bubble = document.getElementById('fxTip');
+  if (!bubble) return;
+  if (!unit) { bubble.hidden = true; return; }
+  const rows = [];
+  if (unit.guard) rows.push(`<span class="fx-row buff">${iconHtml(COMMAND_ICONS.defend, 16)} <b>En garde</b> <small>jusqu'à son prochain tour</small></span>`);
+  for (const s of statusesOf(unit)) {
+    const [, ...rest] = effectTip(unit, s).split('\n');
+    rows.push(`<span class="fx-row ${s.kind}">${iconHtml(effectIcon(s.key), 16)} <b>${esc(s.name)}</b> <small>${esc(rest.join(' '))}</small></span>`);
+  }
+  bubble.innerHTML = `<b class="fx-head">${esc(unit.name)} — effets</b>${rows.join('')}`;
+  bubble.classList.add('wide');
+  bubble.hidden = false;
+  const b = bubble.getBoundingClientRect();
+  bubble.style.left = `${Math.max(6, Math.min(window.innerWidth - b.width - 6, rect.left + rect.width / 2 - b.width / 2))}px`;
+  bubble.style.top = `${rect.top - b.height - 8 >= 6 ? rect.top - b.height - 8 : rect.top + rect.height + 8}px`;
+}
 
 // Fiche des âmes du Macabre : bonus actuels (selon son orientation) et contrecoup à venir.
 function soulTip(hero, stats) {
@@ -125,8 +169,8 @@ function effectTip(unit, s) {
   const lines = [`${s.kind === 'buff' ? 'Effet positif' : 'Effet négatif'} : ${s.name}`];
   if (EFFECTS[s.key]?.desc) lines.push(EFFECTS[s.key].desc);
   if (s.shield) lines.push(`Absorbe encore ${s.shield} dégâts.`);
-  if (s.dot) lines.push(`${s.dot} dégâts à chaque fin de tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
-  if (s.hot) lines.push(`+${s.hot} PV à chaque fin de tour.`);
+  if (s.dot) lines.push(`${s.dot} dégâts au début de chaque tour${s.doses?.length > 1 ? ` (${s.doses.length} doses cumulées)` : ''}.`);
+  if (s.hot) lines.push(`+${s.hot} PV au début de chaque tour.`);
   if (s.trap) lines.push(`Se déclenche au prochain tour : ${s.trap} dégâts.`);
   lines.push(s.lasting ? "Dure jusqu'à la fin du combat." : s.stun ? 'Perd son prochain tour.' : `Encore ${s.turns} tour${s.turns > 1 ? 's' : ''}.`);
   if (s.source && s.source !== unit && s.source.name) lines.push(`Posé par ${s.source.name}.`);
@@ -156,6 +200,7 @@ function wireEffectTips(app) {
   bubble.hidden = true;
   app.querySelectorAll('[data-fx-tip]').forEach((el) => {
     const show = () => {
+      bubble.classList.remove('wide');
       const [title, ...rest] = el.dataset.fxTip.split('\n');
       bubble.innerHTML = `<b class="${el.classList.contains('debuff') ? 'debuff' : 'buff'}">${esc(title)}</b>${rest.map((l) => `<span>${esc(l)}</span>`).join('')}`;
       bubble.hidden = false;

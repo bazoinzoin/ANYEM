@@ -2,9 +2,9 @@
 // Chaque fonction modifie `game` et retourne ce qu'il faut afficher au village :
 // { message, loot? }.
 
-import { REWARDS, XP, EFFICIENCY } from '../config.js';
+import { REWARDS, XP, EFFICIENCY, INN } from '../config.js';
 import { ENEMIES } from '../data/enemies.js';
-import { getStats, restoreFully, gainXp } from './party.js';
+import { getStats, restoreFully, gainXp, playerLevel } from './party.js';
 import { rollLoot } from './loot.js';
 import { difficultyOf, lootRules } from './difficulty.js';
 import { emptyMateria } from './forge.js';
@@ -57,8 +57,7 @@ function materiaText(materia) {
 // haut de l'équipe). Zone au-dessus du joueur : butin à son niveau ; zone en dessous :
 // butin au niveau de la zone.
 export function lootLevel(game, zoneLevel) {
-  const player = Math.max(1, ...(game.party ?? []).map((h) => h.level ?? 1));
-  return Math.min(zoneLevel, player);
+  return Math.min(zoneLevel, playerLevel(game));
 }
 
 /**
@@ -143,8 +142,18 @@ export function applyDefeat(game) {
   };
 }
 
-// Auberge : soin complet de toute l'équipe, héros tombés compris.
+// Prix du repos à l'auberge : croît avec le niveau du joueur et la difficulté.
+export function innPrice(game) {
+  const mult = INN.restDifficultyMult[difficultyOf(game)] ?? 1;
+  return Math.round((INN.restBase + INN.restPerLevel * playerLevel(game)) * mult);
+}
+
+// Auberge (payante) : soin complet de toute l'équipe, héros tombés compris.
+// Retourne { ok, message } ; sans assez d'or, rien ne change.
 export function restAtInn(game) {
+  const price = innPrice(game);
+  if ((game.gold ?? 0) < price) return { ok: false, message: `Il faut ${price} or pour se reposer.` };
+  game.gold -= price;
   game.party.forEach(restoreFully);
-  return { message: "Vous vous reposez à l'auberge. Équipe entièrement soignée." };
+  return { ok: true, message: `Vous vous reposez à l'auberge (${price} or). Équipe entièrement soignée.` };
 }

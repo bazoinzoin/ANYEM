@@ -26,7 +26,7 @@ import {
   BASIC_ATTACK, ENEMY_ATTACK,
 } from './formulas.js';
 import { statsOf, isHero, isAlive, damage, heal } from './units.js';
-import { addStatus, hasStatus, consumeStun, tickStatuses, makeStatus, statusesOf, detonateStatus } from './statuses.js';
+import { addStatus, hasStatus, consumeStun, tickStatuses, dueTicks, makeStatus, statusesOf, detonateStatus } from './statuses.js';
 import { applyConsumable, countOf, isValidTarget, isUntargeted, usableIn } from './consumables.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { EFFECTS } from '../data/effects.js';
@@ -110,6 +110,7 @@ export function nextTurn(cb) {
       continue;
     }
     triggerTraps(cb, turn.unit);
+    if (turn.unit.alive) applyTicks(cb, turn.unit);
     if (!turn.unit.alive) {
       cb.qIndex++;
       continue;
@@ -160,12 +161,10 @@ function startRound(cb) {
   cb.round++;
 }
 
-// Fin du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent,
-// puis la durée de ses statuts baisse d'un tour.
-function endUnitTurn(cb, unit) {
-  if (!unit.alive) return;
+// Début du tour d'une unité : ses effets sur la durée (dégâts, soins) s'appliquent.
+function applyTicks(cb, unit) {
   {
-    for (const tick of tickStatuses(unit)) {
+    for (const tick of dueTicks(unit)) {
       if (!unit.alive) break;
       if (tick.dot) {
         const { taken, fell } = hurt(cb, unit, tick.dot);
@@ -180,6 +179,12 @@ function endUnitTurn(cb, unit) {
       }
     }
   }
+}
+
+// Fin du tour d'une unité : la durée de ses statuts baisse d'un tour.
+function endUnitTurn(cb, unit) {
+  if (!unit.alive) return;
+  tickStatuses(unit);
   if (unit.alive && isHero(unit) && isSoulBearer(unit)) soulTorment(cb, unit);
 }
 
@@ -188,7 +193,8 @@ function soulTorment(cb, hero) {
   const souls = soulsOf(hero);
   const { self, allies } = soulBacklash(hero, cb.party);
   if (!self) return;
-  const { taken, fell } = hurt(cb, hero, self);
+  // Le contrecoup ronge le Macabre lui-même : ses boucliers ne l'arrêtent pas.
+  const { taken, fell } = hurt(cb, hero, self, { pierce: true });
   log(cb, `${souls} âme${souls > 1 ? 's' : ''} rongent ${hero.name} (-${taken} PV).`, true);
   if (fell) logFall(cb, hero);
   for (const { ally, amount } of allies) {
@@ -381,7 +387,8 @@ export function heroAct(cb, action) {
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
     if (skill.soulCost) log(cb, `${hero.name} libère ${skill.soulCost} âme${skill.soulCost > 1 ? 's' : ''}.`);
-    if (skill.finisher) hero.combo = 0;
+    // Un finisher dépense ses points (tous, ou seulement `fullAt` pour l'Empoisonneur).
+    if (skill.finisher) hero.combo = Math.max(0, comboOf(hero) - skill.comboPoints);
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
     if (usesWeapon(skill) && skill.target === 'enemy' && targets[0].alive) riposte(cb, hero, targets[0]);
@@ -398,6 +405,8 @@ export function heroAct(cb, action) {
       const gained = gainCombo(hero, skill.comboGain + (crit ? statsOf(hero).critCombo ?? 0 : 0));
       if (gained) log(cb, `${hero.name} gagne ${gained} point${gained > 1 ? 's' : ''} de combo (${comboOf(hero)}).`);
     }
+    // Compétence `free` (Libération des âmes) : ne prend pas le tour.
+    if (skill.free && hero.alive && !checkOutcome(cb)) return true;
   } else {
     return false;
   }
@@ -460,13 +469,16 @@ function payBloodPrice(cb, hero) {
 function strike(cb, attacker, target, opts) {
   const ts = statsOf(target);
   if (random() < chance(ts, 'esquive')) {
+    proc(cb, target, 'dodge');
     return { dodged: true, blocked: false, crit: false, taken: 0, fell: false, detail: `${target.name} esquive (${Math.round(chance(ts, 'esquive') * 100)} % de chance)` };
   }
   const hit = rollHit(statsOf(attacker), opts, ts);
   let dmg = hit.amount;
   const notes = [hit.detail];
   const blocked = random() < chance(ts, 'blocage');
+  if (hit.crit) proc(cb, target, 'crit');
   if (blocked) {
+    proc(cb, target, 'block');
     dmg = Math.round(dmg * (1 - COMBAT.blockReduction));
     notes.push(`bloqué (−${Math.round(COMBAT.blockReduction * 100)} %) → ${dmg}`);
   }
@@ -483,14 +495,20 @@ function strike(cb, attacker, target, opts) {
   return { dodged: false, blocked, crit: hit.crit, taken: r.taken, fell: r.fell, detail: notes.join(' ; '), redirect: redirectText(r) };
 }
 
+// Coup remarquable à montrer sur la scène (ui/battleStage.js les lit puis vide la liste) :
+// 'crit' (sur la cible touchée), 'dodge', 'block', 'riposte' (sur celui qui riposte).
+function proc(cb, unit, kind) {
+  cb.procs = [...(cb.procs ?? []).slice(-20), { unit, kind }];
+}
+
 // « (critique !) (bloqué) (12 encaissés par Aldric) »
 function strikeNotes(r) {
   return `${r.crit ? ' (critique !)' : ''}${r.blocked ? ' (bloqué)' : ''}${r.redirect ?? ''}`;
 }
 
 // Inflige des dégâts à une unité ; signale la chute d'un protecteur (Intercession).
-function hurt(cb, unit, amount) {
-  const r = damage(unit, amount);
+function hurt(cb, unit, amount, opts) {
+  const r = damage(unit, amount, opts);
   if (r.protector?.fell) logFall(cb, r.protector.unit);
   for (const [who, rev] of [[unit, r.revived], [r.protector?.unit, r.protector?.revived]]) {
     if (rev) log(cb, `${who.name} refuse de mourir et se relève avec ${who.hp} PV${rev.source === 'passif' ? '' : ` (${rev.source})`}${hasStatus(who, 'stun') ? ', mais perd son prochain tour' : ''} !`, true);
@@ -511,6 +529,7 @@ function riposte(cb, attacker, defender) {
   const stats = statsOf(defender);
   if (random() >= chance(stats, 'riposte')) return;
   const amount = Math.max(1, Math.round(stats.physPower * COMBAT.ripostePower * defenseFactor(statsOf(attacker).def)));
+  proc(cb, defender, 'riposte');
   const { taken, fell } = hurt(cb, attacker, amount);
   credit(defender, 'dealt', taken);
   log(cb, `${defender.name} riposte et inflige ${taken} dégâts à ${attacker.name} !`, true);
@@ -631,6 +650,7 @@ function useSkill(cb, caster, skill, targets) {
     status.source = caster;
     applyStatus(cb, caster, status);
     credit(caster, 'shielded', status.shield ?? 0);
+    if (status.shield) parts.push(`${caster.name} : Bouclier de ${status.shield}`);
   }
   if (skill.resourceGain && isHero(caster)) {
     gainResource(caster, skill.resourceGain);

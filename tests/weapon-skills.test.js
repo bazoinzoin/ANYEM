@@ -104,3 +104,11 @@ test('Élémentaliste : ses sorts demandent un bâton, mais se lancent depuis n\
   delete hero.equipment.mainDroite;
   assert.match(skillWeaponProblem(hero, skill(hero, 'boule-de-feu')), /bâton/);
 });
+
+test('Scarifié Violent (arc seulement) : apprendre son orientation le place à distance', () => {
+  const [hero] = createParty(['V'], ['scarifie']);
+  assert.equal(hero.position, 'melee');
+  hero.level = 10;
+  learnPath(hero, 'violent', { upTo: 0 });
+  assert.equal(hero.position, 'ranged');
+});

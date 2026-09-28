@@ -189,6 +189,7 @@ test('Macabre : Libération des âmes, apprise avec le premier point de chaque o
     assert.ok(heroAct(cb, { type: 'skill', skill: i }));
     assert.equal(soulsOf(hero), 0);
     assert.deepEqual(cb.enemies.map((e) => e.hp), hp, 'aucun dégât');
+    assert.equal(cb.acting?.unit, hero, 'ne prend pas le tour');
   }
 });
 
@@ -207,4 +208,16 @@ test("Mur d'os : au maximum d'âmes, ses alliés sont épargnés, il encaisse lu
   heroAct(cb, { type: 'defend' });
   assert.equal(ally.hp, allyHp, 'allié épargné');
   assert.ok(!cb.log.some((l) => /débordent/.test(l.text)));
+});
+
+test("Mur d'os : le contrecoup des âmes ne consomme pas le bouclier de Fracas d'os", () => {
+  const { cb, hero } = setup('murDOs', 0);
+  Object.assign(cb.enemies[0], { hp: 1e7 });
+  gainSouls(hero, 3);
+  const i = skillIndex(hero, 'fracas-d-os');
+  const hp = hero.hp;
+  assert.ok(heroAct(cb, { type: 'skill', skill: i, target: 0 }));
+  const shield = hero.statuses.find((s) => s.key === 'bouclier');
+  assert.ok(shield?.shield > 0, 'bouclier toujours là');
+  assert.ok(hero.hp < hp, 'le contrecoup a pris des PV');
 });

@@ -8,6 +8,27 @@ versions sont publiées comme « pré-versions ») ; 1.0.0 sera la première ver
 versions 0.0.x sont les étapes de développement d'avant le jeu Windows (une par fusion dans `main`).
 Marche à suivre pour publier une version : `docs/RELEASES.md`.
 
+## [0.6.0] - 2026-09-28
+
+Sixième bêta.
+
+- **Combat** :
+  - les dégâts et soins sur la durée (poison, saignement, brûlure, ténèbres, régénération) agissent **au début** du tour de l'unité ;
+  - « Critique ! », « Esquive », « Bloqué » et « Riposte ! » s'écrivent au-dessus des combattants ;
+  - les effets des monstres sont résumés dans un **petit carré doré** au-dessus de leur tête, détaillés au survol ; plus rien d'autre au-dessus des têtes (ceux des héros sont à côté de leurs barres) ;
+  - les points de combo du Dissimulé deviennent une icône parmi ses effets, détaillée au survol ;
+  - une barre d'expérience fine sous la ressource de chaque héros ;
+  - la flèche dorée du tour reste visible pendant le ciblage.
+- **Dissimulé Empoisonneur** : un finisher à pleine puissance avec 3 points de combo n'en dépense plus que 3.
+- **Macabre** :
+  - Libération des âmes ne prend plus le tour ;
+  - Fracas d'os : bouclier deux fois plus fort, qui n'est plus rongé par le contrecoup des âmes.
+- Un nouveau bouclier ne remplace plus un bouclier plus gros.
+- **Scarifié Violent** (et toute orientation à l'arc) : choisir l'orientation place le héros à distance, où ses tirs fonctionnent.
+- **Auberge payante** : le repos coûte plus cher avec le niveau et la difficulté.
+- **Marchand** : consommables plus chers, de plus en plus avec le niveau ; équipement plus cher.
+- **Menu Personnage** : les matéria sont toujours visibles sous le sac, avec un tableau clair dans l'onglet Matéria.
+
 ## [0.5.0] - 2026-09-28
 
 Cinquième bêta.

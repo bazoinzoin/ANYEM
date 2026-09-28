@@ -244,6 +244,10 @@ export const DEBUG = {
 
 export const INN = {
   maxReserve: 4,
+  // Repos payant : (restBase + restPerLevel × niveau du joueur) × restDifficultyMult[difficulté].
+  restBase: 20,
+  restPerLevel: 8,
+  restDifficultyMult: { balade: 1, aventure: 1.5, guerre: 2, horreur: 3, cauchemar: 4, insanie: 5 },
 };
 
 export const MERCHANT = {
@@ -251,7 +255,11 @@ export const MERCHANT = {
   sellPerLevel: 2,
   sellRarityMult: { commun: 1, peuCommun: 2, rare: 4, epique: 8, legendaire: 16, divin: 32 },
   sellPerPlus: 0.2,
-  buyMarkup: 4,
+  buyMarkup: 6,
+  // Consommables : prix de base (data/consumables.js) × consumableMult, + consumablePerLevel
+  // par niveau du joueur au-delà du premier (les potions rendent un % des PV, qui grandissent).
+  consumableMult: 1.5,
+  consumablePerLevel: 0.12,
   stockSize: 4,            // objets d'équipement en vente, renouvelés à chaque niveau de donjon
   stockRarityWeights: { commun: 55, peuCommun: 35, rare: 10 },
   maxConsumable: 9,        // nombre maximum de chaque consommable transporté

@@ -5,6 +5,7 @@ import { MERCHANT } from '../config.js';
 import { CONSUMABLES } from '../data/consumables.js';
 import { generateItem, weightedPick } from './items.js';
 import { addConsumable, countOf } from './consumables.js';
+import { playerLevel } from './party.js';
 
 export function sellPrice(item) {
   const base = MERCHANT.sellBase + MERCHANT.sellPerLevel * item.level;
@@ -47,13 +48,22 @@ export function buyItem(game, item) {
   return true;
 }
 
+// Prix d'un consommable pour un joueur de niveau `level` (voir MERCHANT, config.js).
+export function consumablePriceAt(key, level) {
+  return Math.round(CONSUMABLES[key].price * MERCHANT.consumableMult * (1 + MERCHANT.consumablePerLevel * (Math.max(1, level) - 1)));
+}
+
+export function consumablePrice(game, key) {
+  return consumablePriceAt(key, playerLevel(game));
+}
+
 export function canBuyConsumable(game, key) {
-  return game.gold >= CONSUMABLES[key].price && countOf(game.consumables, key) < MERCHANT.maxConsumable;
+  return game.gold >= consumablePrice(game, key) && countOf(game.consumables, key) < MERCHANT.maxConsumable;
 }
 
 export function buyConsumable(game, key) {
   if (!canBuyConsumable(game, key)) return false;
+  game.gold -= consumablePrice(game, key);
   addConsumable(game.consumables, key);
-  game.gold -= CONSUMABLES[key].price;
   return true;
 }

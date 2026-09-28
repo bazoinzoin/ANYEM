@@ -345,7 +345,7 @@ function merchantBody(event) {
   }).join('') : '<p class="hint">Plus d\'équipement à vendre.</p>';
   const consumables = event.consumables.map((o, i) => `
     <button data-event-consumable="${i}" ${state.gold >= o.price && countOf(state.consumables, o.key) < MERCHANT.maxConsumable ? '' : 'disabled'} ${tip(CONSUMABLES[o.key].desc)}>
-      ${iconHtml(consumableIcon(o.key), 16)} ${esc(CONSUMABLES[o.key].name)} (${o.price} or, au lieu de ${CONSUMABLES[o.key].price})
+      ${iconHtml(consumableIcon(o.key), 16)} ${esc(CONSUMABLES[o.key].name)} (${o.price} or, au lieu de ${o.full ?? CONSUMABLES[o.key].price})
     </button>`).join('');
   return `
     <p>Or : <b>${state.gold}</b></p>

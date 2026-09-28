@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { setRandomSource } from '../src/game/rng.js';
 import { createParty, getStats } from '../src/game/party.js';
 import { generateItem } from '../src/game/items.js';
-import { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable } from '../src/game/merchant.js';
+import { sellPrice, buyPrice, sell, ensureStock, buyItem, buyConsumable, canBuyConsumable, consumablePrice } from '../src/game/merchant.js';
 import { startingConsumables } from '../src/game/consumables.js';
 import { addStatus } from '../src/game/statuses.js';
 import { createCombat, nextTurn, heroAct, enemyAct, canUseItem, targetsFor } from '../src/game/combat.js';
@@ -67,7 +67,7 @@ test('acheter des consommables : prix, et limite de stock transporté', () => {
   assert.equal(game.consumables.potion, 2, 'on part avec 2 potions');
   assert.ok(buyConsumable(game, 'potion'));
   assert.equal(game.consumables.potion, 3);
-  assert.equal(game.gold, 1000 - CONSUMABLES.potion.price);
+  assert.equal(game.gold, 1000 - consumablePrice(game, 'potion'));
   game.consumables.potion = MERCHANT.maxConsumable;
   assert.equal(canBuyConsumable(game, 'potion'), false);
   game.gold = 0;
@@ -122,4 +122,12 @@ test('combat : le remède retire les effets négatifs ; pas d\'objet = action re
   assert.deepEqual(g.statuses.map((s) => s.key), ['beni']);
   const cb2 = combatAtHero(newGame(), 1);
   assert.equal(heroAct(cb2, { type: 'item', item: 'elixir', target: 0 }), false);
+});
+
+test('les consommables coûtent plus cher que leur prix de base, et plus encore à haut niveau', () => {
+  const game = newGame();
+  const low = consumablePrice(game, 'potion');
+  assert.ok(low > CONSUMABLES.potion.price);
+  game.party.forEach((h) => { h.level = 30; });
+  assert.ok(consumablePrice(game, 'potion') > low);
 });

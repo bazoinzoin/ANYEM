@@ -365,7 +365,7 @@ export const TALENTS = {
         skill(10, {
           id: 'fiole-de-peste', name: 'Fiole de peste', cost: 50, kind: 'damage', target: 'allEnemies', power: 0.1, finisher: true, fullAt: 3,
           effects: [fx('poison', 6, 0.05)],
-          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance dès 3 points de combo',
+          desc: 'Finisher : une dose de poison sur 6 tours à tous les ennemis, à pleine puissance avec 3 points de combo (n\'en dépense pas plus)',
         }),
         ...choice(11, [
           minor('alchimie-noire', 'Alchimie noire', { passive: { dotPct: 6.5 } }),
@@ -384,7 +384,7 @@ export const TALENTS = {
         signature({
           id: 'mort-lente', name: 'Mort lente', cost: 50, kind: 'damage', target: 'enemy', power: 0.2, finisher: true, fullAt: 3,
           effects: [fx('poison', 6, 0.07), fx('terreur', 3)],
-          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance dès 3 points de combo',
+          desc: 'Finisher : forte dose de poison sur 6 tours et Terreur (−30 % Défenses, 3 tours), à pleine puissance avec 3 points de combo (n\'en dépense pas plus)',
         }),
       ],
     },
@@ -469,7 +469,7 @@ export const TALENTS = {
         skill(2, {
           id: 'renovation', name: 'Rénovation', cost: 25, kind: 'support', target: 'ally',
           effects: [fx('regeneration', 4, 0.35)],
-          desc: 'Soigne un allié à chaque fin de tour pendant 4 tours',
+          desc: 'Soigne un allié au début de chacun de ses tours pendant 4 tours',
         }),
         ...choice(3, [
           minor('serenite', 'Sérénité', { passive: { healPct: 2.5 } }),

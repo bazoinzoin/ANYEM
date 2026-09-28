@@ -5,7 +5,7 @@
 // son tour (ou le finit plus tôt s'il le souhaite). Voir game/combat.js.
 //
 // Points de combo : une compétence `comboGain` en donne au lanceur (plafond
-// comboMax de la classe) ; un `finisher` les dépense tous, et sa puissance comme
+// comboMax de la classe) ; un `finisher` les dépense tous (au plus `fullAt` s'il en a un), et sa puissance comme
 // la valeur de ses effets sont multipliées par le nombre de points dépensés.
 
 import { getClass } from './party.js';
@@ -56,6 +56,8 @@ export function comboFactor(skill, points) {
  */
 export function atCombo(skill, points) {
   if (!skill.finisher) return skill;
+  // `fullAt` : n'utilise (et ne dépense) pas plus de points que nécessaire.
+  if (skill.fullAt) points = Math.min(points, skill.fullAt);
   const factor = comboFactor(skill, points);
   const scale = (v) => (v === undefined ? v : +(v * factor).toFixed(3));
   return {

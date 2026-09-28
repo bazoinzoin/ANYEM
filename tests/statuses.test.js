@@ -331,3 +331,12 @@ test("durées : le poison dure longtemps, le saignement peu, d'où qu'ils vienne
   }
   assert.ok(checked > 10);
 });
+
+test('un nouveau bouclier ne remplace jamais un plus gros', () => {
+  const u = { statuses: [] };
+  addStatus(u, makeStatus('bouclier', 1, 60));
+  addStatus(u, makeStatus('bouclier', 2, 9));
+  assert.deepEqual([u.statuses.length, u.statuses[0].shield, u.statuses[0].turns], [1, 60, 2]);
+  addStatus(u, makeStatus('bouclier', 1, 80));
+  assert.equal(u.statuses[0].shield, 80);
+});
