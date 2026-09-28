@@ -217,6 +217,7 @@ export const DEBUG = {
   gold: 1000000,
   materia: 999,                                   // de chaque sorte et rareté
   rarities: ['divin', 'epique', 'rare', 'peuCommun'], // une pièce de chaque base par rareté
+  medalZones: 3,                                  // zones dont toutes les médailles sont déjà gagnées
 };
 
 export const INN = {

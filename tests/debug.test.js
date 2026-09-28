@@ -10,6 +10,7 @@ import { primaryOptions } from '../src/game/items.js';
 import { getSkills, getStats } from '../src/game/party.js';
 import { pointsAvailable } from '../src/game/talents.js';
 import { isUnlocked, startFloors, startExpedition } from '../src/game/dungeon.js';
+import { zoneMedals, medalDifficulties } from '../src/game/medals.js';
 
 beforeEach(() => setRandomSource(() => 0.5));
 
@@ -54,4 +55,13 @@ test('partie Debug : chaque base dans chaque stat principale et 4 raretés au ni
   const first = others[0];
   const same = others.filter((i) => i.weaponType === first.weaponType && i.slotType === first.slotType && i.primary === first.primary);
   assert.deepEqual(same.map((i) => i.rarity).sort(), [...DEBUG.rarities].sort());
+});
+
+test('partie Debug : toutes les médailles des 3 premières zones, aucune ailleurs', () => {
+  const game = setupDebugGame({});
+  const zones = DUNGEON_ORDER;
+  for (const [i, key] of zones.entries()) {
+    const won = zoneMedals(game, key).filter((m) => m.won).length;
+    assert.equal(won, i < 3 ? medalDifficulties().length : 0, key);
+  }
 });
