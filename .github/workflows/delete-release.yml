@@ -1,0 +1,27 @@
+# Retire une version publiée : supprime sa page de téléchargement (Release) et son étiquette.
+# Lancé à la main uniquement (onglet Actions, « Run workflow »), avec le nom de l'étiquette
+# (ex. v1.0.0). Sert à corriger une publication faite par erreur ; irréversible.
+name: Retirer une version
+
+on:
+  workflow_dispatch:
+    inputs:
+      etiquette:
+        description: 'Étiquette de la version à retirer (ex. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  retirer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supprimer la page de téléchargement et l'étiquette
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.etiquette }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Étiquette invalide : $TAG"; exit 1; }
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
