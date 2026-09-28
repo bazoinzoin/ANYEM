@@ -62,7 +62,7 @@ export function renderInn(app) {
         <p class="hint">${esc(CLASSES[view.recruitClass].desc)}</p>
         <div class="recruit-name">
           <input type="text" id="recruitName" placeholder="Nom du compagnon" value="${esc(view.recruitName || recruitDefaultName())}" maxlength="24">
-          ${hasFeminine(view.recruitClass) ? `<button class="gender-pick" id="recruitGender" title="Nom de classe au ${view.recruitFeminine ? 'masculin' : 'féminin'} : ${esc(classTitle(view.recruitClass, !view.recruitFeminine))}">${view.recruitFeminine ? 'Le' : 'La'}</button> <small>${esc(classTitle(view.recruitClass, view.recruitFeminine))}</small>` : ''}
+          ${hasFeminine(view.recruitClass) ? `<button class="gender-pick" id="recruitGender" title="Nom de classe au ${view.recruitFeminine ? 'masculin' : 'féminin'} : ${esc(classTitle(view.recruitClass, !view.recruitFeminine))}" aria-label="Changer la forme du nom de classe">⇄</button> <small>${esc(classTitle(view.recruitClass, view.recruitFeminine))}</small>` : ''}
         </div>
         ${cannotRecruit && !locked ? `<p class="warning">${esc(cannotRecruit)}</p>` : ''}
         <div class="actions stack">

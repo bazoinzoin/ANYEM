@@ -114,7 +114,7 @@ function heroColumn(key, i) {
   const look = draft.looks[i];
   return `
     <section class="win create-hero" style="--c:${cls.color}">
-      <h3 title="Héros ${i + 1}">${esc(classTitle(key, draft.feminine[i]))}${hasFeminine(key) ? ` <button class="gender-pick" data-feminine="${i}" title="Nom de classe au ${draft.feminine[i] ? 'masculin' : 'féminin'} : ${esc(classTitle(key, !draft.feminine[i]))}">${draft.feminine[i] ? 'Le' : 'La'}</button>` : ''}</h3>
+      <h3 title="Héros ${i + 1}">${esc(classTitle(key, draft.feminine[i]))}${hasFeminine(key) ? ` <button class="gender-pick" data-feminine="${i}" title="Nom de classe au ${draft.feminine[i] ? 'masculin' : 'féminin'} : ${esc(classTitle(key, !draft.feminine[i]))}" aria-label="Changer la forme du nom de classe">⇄</button>` : ''}</h3>
       <div class="create-portrait"><canvas data-preview="${i}" width="120" height="130" class="portrait"></canvas></div>
       <input type="text" id="name${i}" placeholder="Nom du héros" value="${esc(draft.names[i])}" maxlength="24">
       <div class="create-classes" role="group" aria-label="Classe du héros ${i + 1}">

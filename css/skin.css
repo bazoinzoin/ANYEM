@@ -581,7 +581,9 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 @media (max-height: 660px) { .title-screen > .title-panel { bottom: 4vh; } .title-screen .title-item { font-size: 18px; padding-top: 4px; padding-bottom: 4px; } }
 .title-version { position: absolute; left: 14px; bottom: 10px; font-family: var(--font-pixel); font-size: 14px; letter-spacing: .08em; color: rgba(243,213,140,.75); text-shadow: 0 2px 0 #1a0d04; pointer-events: none; }
 
-/* Forme féminine du nom de classe (création, recrutement) : petit bouton « Le / La ». */
-.gender-pick { padding: 0 8px; min-height: 0; font-size: 12px; line-height: 20px; vertical-align: middle; margin-left: 4px; }
+/* Forme féminine du nom de classe (création, recrutement) : petite flèche discrète. */
+.gender-pick, .gender-pick:hover:not(:disabled) { border: none; border-image: none; background: none; box-shadow: none; padding: 0 2px; min-height: 0; min-width: 0;
+  font-size: 13px; line-height: 1; color: var(--dim, #9a8f7a); opacity: .6; vertical-align: middle; margin-left: 3px; cursor: pointer; text-shadow: none; }
+.gender-pick:hover, .gender-pick:focus-visible, .gender-pick.pad-focus { opacity: 1; color: var(--gold, #e8c170); }
 .recruit-name { display: flex; align-items: center; gap: 6px; }
 .recruit-name input { flex: 1; }
