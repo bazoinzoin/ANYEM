@@ -18,12 +18,20 @@
     "appId": "fr.anyem.game",
     "productName": "Anyem",
     "copyright": "Anyem",
-    "directories": { "output": "release" },
-    "files": ["main.cjs", "game/**"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "game/**"
+    ],
     "win": {
       "icon": "../dist/anyem.ico",
       "artifactName": "Anyem-${version}-windows.${ext}"
     },
-    "portable": { "artifactName": "Anyem-${version}.exe" }
-  }
+    "portable": {
+      "artifactName": "Anyem-${version}.exe"
+    }
+  },
+  "repository": "https://github.com/bazoinzoin/ANYEM"
 }
