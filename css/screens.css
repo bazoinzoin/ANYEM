@@ -52,7 +52,7 @@
 .bs-stage { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
 .bs-commands, .bs-info { overflow: hidden; }
 .cmd { min-width: 0; overflow: hidden; }
-.bs-stage canvas { display: block; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
+.bs-stage canvas { display: block; box-sizing: border-box; image-rendering: pixelated; border: 2px solid #5a4630; border-radius: 6px; touch-action: manipulation; }
 .bs-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; height: 212px; }
 
 /* Équipe */

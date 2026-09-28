@@ -28,7 +28,7 @@ const itemIc = (k, size = 32) => iconHtml(consumableIcon(k), size);
 import { statsList } from '../heroStats.js';
 import { playerAction } from '../encounter.js';
 import { logLines } from '../combatLog.js';
-import { attachStage, setStagePick, fitStage } from '../battleStage.js';
+import { attachStage, setStagePick, setStageFocus, fitStage } from '../battleStage.js';
 
 // État de l'interface (pas du combat) : menu ouvert pour le héros actif, action en cours
 // de ciblage, fenêtre superposée (journal ou fiche d'un héros).
@@ -271,13 +271,37 @@ function rerender() {
 }
 
 function choose(action) {
-  const cb = state.combat;
-  const targets = targetsFor(cb, action);
+  const targets = targetsFor(state.combat, action);
   Object.assign(ui, { mode: targets ? 'target' : 'confirm', action });
   rerender();
-  if (targets) {
+}
+
+// Unités touchées par une action sans cible à choisir (zone, groupe, soi-même) : toutes
+// désignées sur la scène en attendant la confirmation. { units, tone } ou null.
+function affected(cb, hero, action) {
+  const alive = (list) => list.filter((u) => u.alive);
+  if (action.type === 'skill') {
+    const s = getSkills(hero)[action.skill];
+    if (s.target === 'allEnemies') return { units: alive(cb.enemies), tone: 'hostile' };
+    if (s.target === 'allAllies') return { units: alive(cb.party), tone: 'friendly' };
+    if (s.target === 'self') return { units: [hero], tone: 'friendly' };
+  }
+  if (action.type === 'item') return { units: alive(cb.party), tone: 'friendly' };
+  if (action.type === 'defend') return { units: [hero], tone: 'friendly' };
+  return null;
+}
+
+// Ciblage sur la scène : flèche rouge (ennemis : attaques, effets négatifs) ou verte (alliés :
+// soins, effets positifs) sur la cible désignée ; action de zone : toutes les cibles.
+function stagePick(hero) {
+  const cb = state.combat;
+  if (ui.mode === 'target') {
+    const targets = targetsFor(cb, ui.action);
     const list = targets.side === 'enemy' ? cb.enemies : cb.party;
-    setStagePick(targets.units, (u) => act({ ...action, target: list.indexOf(u) }));
+    setStagePick(targets.units, (u) => act({ ...ui.action, target: list.indexOf(u) }), { tone: targets.side === 'enemy' ? 'hostile' : 'friendly' });
+  } else if (ui.mode === 'confirm') {
+    const aff = affected(cb, hero, ui.action);
+    if (aff?.units.length) setStagePick(aff.units, () => act(ui.action), { tone: aff.tone, all: true });
   }
 }
 
@@ -306,11 +330,16 @@ function wire(app, hero) {
     };
   });
   if (!hero) return;
+  stagePick(hero);
+  // La flèche suit le bouton de cible survolé (souris) ou désigné (manette, clavier).
   if (ui.mode === 'target') {
-    const cb = state.combat;
-    const targets = targetsFor(cb, ui.action);
-    const list = targets.side === 'enemy' ? cb.enemies : cb.party;
-    setStagePick(targets.units, (u) => act({ ...ui.action, target: list.indexOf(u) }));
+    const targets = targetsFor(state.combat, ui.action);
+    const list = targets.side === 'enemy' ? state.combat.enemies : state.combat.party;
+    app.querySelectorAll('[data-target]').forEach((b) => {
+      const show = () => setStageFocus(list[Number(b.dataset.target)]);
+      b.addEventListener('mouseenter', show);
+      b.addEventListener('focus', show);
+    });
   }
   const help = app.querySelector('#bsHelp');
   app.querySelectorAll('.bs-commands .cmd').forEach((b) => {

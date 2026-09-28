@@ -22,10 +22,12 @@ import { DUNGEONS } from '../data/dungeons.js';
 import { subzoneOf } from '../game/dungeon.js';
 
 export const BACK_ZOOM = 3;          // agrandissement du décor (celui des personnages)
-const COLS = 14;
-const ROWS = 8;
-const SW = COLS * TILE;              // petit canvas : 224 × 128 px, affiché ×3
+let COLS = 14;                       // selon la largeur de la scène (voir battleBack)
+const ROWS = 9;
+let SW = COLS * TILE;                // petit canvas : COLS × 16 px de large, 144 px de haut, affiché ×3
+const BACK_TOP = -54;                // décor remonté : le fond passe au-dessus de la tête des combattants
 const SH = ROWS * TILE;
+const CENTER_W = 640 / BACK_ZOOM;    // zone des combattants (au centre) : pas d'objets au sol
 const FLOOR_ROW = 3;                 // première rangée de sol (les pieds du rang du fond y sont)
 
 const { forest: F, dungeon: D, cave: C, winter: W, abyss: U } = PROPS;
@@ -115,7 +117,9 @@ function groundTile(ctx, imgs, layer, x, y, inside) {
     drawFloorAuto(ctx, img, layer.auto, x, y, (dx, dy) => inside(x + dx, y + dy));
     return;
   }
-  const [c, r] = layer.tiles[Math.floor(hash(x, y, 7) * layer.tiles.length)];
+  // Zone des combattants : toujours la première tuile (sol uni, pas de dalles ni de touffes).
+  const plain = y >= FLOOR_ROW && Math.abs((x + 0.5) * TILE - SW / 2) < CENTER_W / 2 + TILE;
+  const [c, r] = layer.tiles[plain ? 0 : Math.floor(hash(x, y, 7) * layer.tiles.length)];
   ctx.drawImage(img, c * TILE, r * TILE, TILE, TILE, x * TILE, y * TILE, TILE, TILE);
 }
 
@@ -135,10 +139,12 @@ function row(ctx, imgs, list, { step, bottom, jitter = 3, salt = 0, from = 0 }) 
   }
 }
 
-// Dessine le décor sur un petit canvas (SW × SH) ; null tant qu'une planche charge.
-function compose(b) {
+// Dessine le décor sur un petit canvas (cols × 16 px sur SH) ; null tant qu'une planche charge.
+function compose(b, cols) {
   const imgs = Object.fromEntries(sheetsOf(b).map((n) => [n, sheet(n)]));
   if (!Object.values(imgs).every(Boolean)) return null;
+  COLS = cols;
+  SW = COLS * TILE;
   const c = document.createElement('canvas');
   c.width = SW;
   c.height = SH;
@@ -198,11 +204,14 @@ function compose(b) {
     row(ctx, imgs, b.edge, { step: 38, bottom: 58, jitter: 3, salt: 2, from: 24 });
   }
 
-  // Petits objets au sol, clairsemés (sous les combattants).
-  if (b.scatter.length) {
-    for (let i = 0; i < 9; i++) {
+  // Petits objets au sol, seulement sur les côtés : la zone des combattants reste dégagée
+  // (leurs emplacements y sont tracés au sol).
+  const side = (SW - CENTER_W) / 2;
+  if (b.scatter.length && side > 12) {
+    for (let i = 0; i < 8; i++) {
       const o = b.scatter[Math.floor(hash(i, 1, 21) * b.scatter.length)];
-      const x = 10 + hash(i, 2, 22) * (SW - 20);
+      const left = i % 2 === 0;
+      const x = left ? 6 + hash(i, 2, 22) * (side - 12) : SW - side + 6 + hash(i, 2, 22) * (side - 12);
       const y = FLOOR_ROW * TILE + 20 + hash(i, 3, 23) * (SH - FLOOR_ROW * TILE - 22);
       drawObject(ctx, imgs, o, x, y);
     }
@@ -233,22 +242,25 @@ function compose(b) {
 
 const cache = new Map();
 
-// Décor prêt à dessiner (petit canvas), ou null tant que les planches chargent.
-export function battleBack(dungeonKey, floor) {
+// Décor prêt à dessiner (petit canvas) assez large pour une scène de `width` px, ou null tant
+// que les planches chargent.
+export function battleBack(dungeonKey, floor, width = 640) {
   const b = backdropOf(dungeonKey, floor);
-  if (!cache.has(b.key)) {
-    const c = compose(b);
+  const cols = Math.ceil(width / (TILE * BACK_ZOOM)) + 2;
+  const key = `${b.key}:${cols}`;
+  if (!cache.has(key)) {
+    const c = compose(b, cols);
     if (!c) return null;
-    cache.set(b.key, { canvas: c, weather: b.weather });
+    cache.set(key, { canvas: c, weather: b.weather });
   }
-  return cache.get(b.key);
+  return cache.get(key);
 }
 
 // Dessine le décor sur le canvas de combat (w × h), centré, agrandi ×3 ; neige animée.
 export function drawBattleBack(ctx, back, w, h, now) {
-  const dw = SW * BACK_ZOOM;
-  const dh = SH * BACK_ZOOM;
-  ctx.drawImage(back.canvas, Math.round((w - dw) / 2), h - dh, dw, dh);
+  const dw = back.canvas.width * BACK_ZOOM;
+  const dh = back.canvas.height * BACK_ZOOM;
+  ctx.drawImage(back.canvas, Math.round((w - dw) / 2), BACK_TOP, dw, dh);
   if (back.weather === 'snow') {
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     for (let i = 0; i < 70; i++) {
