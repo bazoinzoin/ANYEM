@@ -1,0 +1,8 @@
+# Fins de ligne LF partout (même sur Windows, où GitHub fabrique le jeu) : le test qui vérifie
+# que dist/anyem.html et src/ui/assetData.js sont à jour compare des fichiers octet par octet.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.ttf binary
+*.zip binary
+*.exe binary
