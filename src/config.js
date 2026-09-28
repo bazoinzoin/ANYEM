@@ -14,7 +14,9 @@ export const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 //   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
 //   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
 //   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
-export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+//   bulwarkMult Mur d'os (passif soulBulwark) : ses alliés sont épargnés, il encaisse lui-même
+//               ce débordement, multiplié par bulwarkMult
+export const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5, bulwarkMult: 2 };
 
 export const COMBAT = {
   logMax: 40,

@@ -191,3 +191,20 @@ test('Macabre : Libération des âmes, apprise avec le premier point de chaque o
     assert.deepEqual(cb.enemies.map((e) => e.hp), hp, 'aucun dégât');
   }
 });
+
+test("Mur d'os : au maximum d'âmes, ses alliés sont épargnés, il encaisse lui-même le double du débordement", () => {
+  const plain = backlashPct({ soulMax: 3 }, 3);
+  const wall = backlashPct({ soulMax: 3, soulBulwark: 1 }, 3);
+  assert.equal(wall.allies, 0);
+  assert.equal(wall.self, plain.self + SOULS.spill * SOULS.bulwarkMult);
+  assert.equal(backlashPct({ soulMax: 3, soulBulwark: 1 }, 2).self, backlashPct({ soulMax: 3 }, 2).self, 'rien de plus sous le maximum');
+
+  const { cb, hero, party } = setup('murDOs', 0);
+  assert.ok(getStats(hero).soulBulwark);
+  gainSouls(hero, getStats(hero).soulMax);
+  const ally = party[1];
+  const allyHp = ally.hp;
+  heroAct(cb, { type: 'defend' });
+  assert.equal(ally.hp, allyHp, 'allié épargné');
+  assert.ok(!cb.log.some((l) => /débordent/.test(l.text)));
+});

@@ -6,7 +6,8 @@
 // `allSouls` : toutes les âmes, puissance par âme).
 // Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
 // plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
-// en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
+// en souffrent aussi (sauf avec `soulBulwark`, Mur d'os : il encaisse ce débordement lui-même,
+// en plus fort). Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
 // d'un % des PV max à chaque âme absorbée.
 
 import { SOULS } from '../config.js';
@@ -50,8 +51,10 @@ export function backlashPct(stats, souls, held = 0) {
   if (!souls) return { self: 0, allies: 0 };
   const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
   const atMax = souls >= stats.soulMax;
-  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
-  return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
+  // Mur d'os (soulBulwark) : le débordement ne touche pas ses alliés, il le prend pour lui (plus fort).
+  const bulwark = atMax && stats.soulBulwark ? SOULS.spill * SOULS.bulwarkMult : 0;
+  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0) + bulwark) * ward;
+  return { self: +self.toFixed(2), allies: atMax && !stats.soulBulwark ? +(SOULS.spill * ward).toFixed(2) : 0 };
 }
 
 /**

@@ -1340,8 +1340,8 @@ export const TALENTS = {
       key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
       desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
       nodes: [
-        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2 },
-          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2, soulBulwark: 1 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage. Au maximum d\'âmes, ses alliés sont épargnés : il encaisse lui-même le débordement (le double).' },
         ...choice(1, [
           minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
           minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),

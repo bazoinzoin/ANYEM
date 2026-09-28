@@ -1351,7 +1351,9 @@ const PARTY_ORDER = ['guerrier', 'voleur', 'pretre', 'mage'];
 //   drain       % de ses PV max perdus × (âmes)² : 1 âme = 1,5 %, 2 = 6 %, 3 = 13,5 %
 //   heldGrowth  au maximum d'âmes, +x % de plus par tour passé à les garder
 //   spill       au maximum d'âmes, ses alliés perdent aussi x % de leurs PV max (sans en mourir)
-const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5 };
+//   bulwarkMult Mur d'os (passif soulBulwark) : ses alliés sont épargnés, il encaisse lui-même
+//               ce débordement, multiplié par bulwarkMult
+const SOULS = { drain: 1.5, heldGrowth: 3, spill: 5, bulwarkMult: 2 };
 
 const COMBAT = {
   logMax: 40,
@@ -4675,8 +4677,8 @@ const TALENTS = {
       key: 'murDOs', name: 'Mur d\'os', gear: { stat: 'force', armor: ['lourde'], weapons: ['hache', 'masse'], offHand: ['bouclier'] }, icon: '🦴',
       desc: 'Tank : chaque âme durcit ses os, et il les dépense en boucliers pour lui et son équipe. Force, hache ou masse à une main et bouclier, armure lourde.',
       nodes: [
-        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2 },
-          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage.' },
+        { ...starter('depart-mur', 'Fracas d\'os', 'macabre', ['fracas-d-os', 'liberation-des-ames']), passive: { soulDef: 8, soulBlock: 2, soulBulwark: 1 },
+          desc: 'Sorts de départ (et Libération des âmes). Chaque âme gardée : +8 % de Défense et de Défense magique, +2 % de Blocage. Au maximum d\'âmes, ses alliés sont épargnés : il encaisse lui-même le débordement (le double).' },
         ...choice(1, [
           minor('mc-cotes', 'Côtes solides', { pct: { pv: 2.5 } }),
           minor('mc-cartilage', 'Cartilage', { pct: { def: 3 } }),
@@ -12839,7 +12841,8 @@ const { getClass, getStats, usesSouls, soulsOf, gainSouls } = __modules["src/gam
 // `allSouls` : toutes les âmes, puissance par âme).
 // Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
 // plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
-// en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
+// en souffrent aussi (sauf avec `soulBulwark`, Mur d'os : il encaisse ce débordement lui-même,
+// en plus fort). Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
 // d'un % des PV max à chaque âme absorbée.
 
 
@@ -12883,8 +12886,10 @@ function backlashPct(stats, souls, held = 0) {
   if (!souls) return { self: 0, allies: 0 };
   const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
   const atMax = souls >= stats.soulMax;
-  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
-  return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
+  // Mur d'os (soulBulwark) : le débordement ne touche pas ses alliés, il le prend pour lui (plus fort).
+  const bulwark = atMax && stats.soulBulwark ? SOULS.spill * SOULS.bulwarkMult : 0;
+  const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0) + bulwark) * ward;
+  return { self: +self.toFixed(2), allies: atMax && !stats.soulBulwark ? +(SOULS.spill * ward).toFixed(2) : 0 };
 }
 
 /**
@@ -19538,6 +19543,7 @@ function soulTip(hero, stats) {
   const fmt = (v) => String(v).replace('.', ',');
   lines.push(`Contrecoup à la fin de son tour : −${fmt(back.self)} % de ses PV max (≈ ${Math.round(stats.pv * back.self / 100)} PV).`);
   if (back.allies) lines.push(`Au maximum : ses alliés perdent aussi ${fmt(back.allies)} % de leurs PV (sans en mourir), et le contrecoup augmente à chaque tour.`);
+  else if (stats.soulBulwark && n >= stats.soulMax) lines.push('Au maximum : ses alliés sont épargnés, il encaisse lui-même le débordement (compris ci-dessus), et le contrecoup augmente à chaque tour.');
   lines.push('Libération des âmes les relâche toutes, sans autre effet.');
   return lines.join('\n');
 }
@@ -20724,7 +20730,7 @@ const MANUAL = {
   boss: { terms: ['boss'], desc: "Gardien du dernier étage de chaque sous-zone : bien plus fort, bien meilleur butin. Le vaincre ouvre un point de départ." },
   elite: { terms: ['élite', 'élites'], desc: 'Monstre renforcé (plus gros, 1,5 × plus d\'XP et d\'or).' },
   ame: { terms: ['âme', 'âmes', 'Âme', 'Âmes'], desc: "Ressource du Macabre : il absorbe l'âme de chaque ennemi qui meurt (3 au plus), la garde d'un combat à l'autre et la perd au repos ou s'il tombe. Chaque âme le renforce ou se dépense dans ses compétences, mais provoque un contrecoup." },
-  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer)." },
+  contrecoup: { terms: ['contrecoup'], desc: "Les âmes gardées rongent le Macabre à la fin de ses tours (de plus en plus avec leur nombre et le temps passé au maximum) ; au maximum, elles rongent aussi ses alliés (sans les tuer), sauf en Mur d'os, qui encaisse lui-même ce débordement." },
   // ---- Progression ----
   talent: { terms: ['point de talent', 'points de talent', 'talents'], desc: '1 point par niveau, à dépenser au Maître des compétences dans les orientations de la classe.' },
   orientation: { terms: ['orientation', 'orientations'], desc: 'Spécialisation de la classe (ex. Gardien ou Berserker) : un arbre de talents de 50 points (tous ceux du niveau maximum). Un héros n\'en suit qu\'une, choisie par son premier point de talent ; elle décide de ses armes et conseille une stat principale.' },

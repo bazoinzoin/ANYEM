@@ -115,6 +115,7 @@ function soulTip(hero, stats) {
   const fmt = (v) => String(v).replace('.', ',');
   lines.push(`Contrecoup à la fin de son tour : −${fmt(back.self)} % de ses PV max (≈ ${Math.round(stats.pv * back.self / 100)} PV).`);
   if (back.allies) lines.push(`Au maximum : ses alliés perdent aussi ${fmt(back.allies)} % de leurs PV (sans en mourir), et le contrecoup augmente à chaque tour.`);
+  else if (stats.soulBulwark && n >= stats.soulMax) lines.push('Au maximum : ses alliés sont épargnés, il encaisse lui-même le débordement (compris ci-dessus), et le contrecoup augmente à chaque tour.');
   lines.push('Libération des âmes les relâche toutes, sans autre effet.');
   return lines.join('\n');
 }
