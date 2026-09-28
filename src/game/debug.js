@@ -1,20 +1,21 @@
 // Partie de test (bouton « Debug » du menu principal) : l'équipe par défaut et les autres
 // classes à l'auberge, toutes au niveau maximum avec leurs sorts de départ appris ;
 // beaucoup d'or, de matéria et de consommables ; tous les donjons terminés (tous les
-// points de départ ouverts) ; dans le sac, chaque base d'objet au niveau maximum, dans
+// points de départ ouverts, toutes les médailles des 3 premières zones) ; dans le sac, chaque base d'objet au niveau maximum, dans
 // chacune de ses stats principales, en Divin, Épique, Rare et Peu commun (pour les
 // comparer), plus tous les légendaires.
 
 import { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } from '../config.js';
 import { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } from '../data/items.js';
 import { CONSUMABLES } from '../data/consumables.js';
-import { DUNGEONS } from '../data/dungeons.js';
+import { DUNGEONS, DUNGEON_ORDER } from '../data/dungeons.js';
 import { nodeSkills } from '../data/talents.js';
 import { createParty, createHero, getStats } from './party.js';
 import { generateItem, primaryOptions } from './items.js';
 import { branchesOf, learn } from './talents.js';
 import { progressOf } from './dungeon.js';
 import { emptyMateria } from './forge.js';
+import { medalDifficulties } from './medals.js';
 
 // Bases d'objets : chaque arme, le bouclier, chaque pièce d'armure de chaque type, chaque bijou.
 export function itemBases() {
@@ -46,6 +47,8 @@ export function setupDebugGame(game, names = [], classes = PARTY_ORDER) {
   for (const kind of Object.keys(game.materia)) for (const r of MATERIA_RARITIES) game.materia[kind][r] = DEBUG.materia;
   game.consumables = Object.fromEntries(Object.keys(CONSUMABLES).map((k) => [k, MERCHANT.maxConsumable]));
   for (const [key, d] of Object.entries(DUNGEONS)) Object.assign(progressOf(game, key), { checkpoint: d.floors, cleared: true });
+  // Toutes les médailles des premières zones (DEBUG.medalZones), pour voir leur affichage.
+  for (const key of DUNGEON_ORDER.slice(0, DEBUG.medalZones)) progressOf(game, key).medals = medalDifficulties();
   game.dungeonLvl = XP.maxLevel;
   const level = XP.maxLevel;
   game.bag = [

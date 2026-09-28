@@ -67,12 +67,18 @@ export function itemChip(item) {
   return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>`;
 }
 
+// Classe CSS du cadre de rareté (fiches et cases d'inventaire : css/rarity.css), de plus en
+// plus ouvragé du commun au divin.
+export function rarityClass(item) {
+  return `rar rar-${item.rarity}`;
+}
+
 // Fiche complète d'un objet.
 export function itemCard(item) {
   const statLines = itemStatLines(item).map((l) =>
     `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}${rangeText(l) ? ` <span ${tip(`Valeurs possibles pour cette stat à ce niveau et à cette rareté : de ${l.range.lo} à ${l.range.hi}. Plus la valeur est proche du maximum, meilleur est le tirage.`, 'stat-range')}>${rangeText(l).trim()}</span>` : ''}</li>`);
   return `
-    <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
+    <div class="item-card ${rarityClass(item)}" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
       <div class="item-rarity">${RARITIES[item.rarity].label}</div>
       <div class="item-meta">Niveau ${item.level} · ${item.slotType === 'arme' ? `${WEAPON_TYPES[item.weaponType].name} · ` : ''}${itemTypeLabel(item)}</div>

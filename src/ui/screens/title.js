@@ -7,7 +7,8 @@ import { state, resetGame } from '../../state.js';
 import { openSlots } from './slots.js';
 import { openOptions } from '../pause.js';
 import { isPaused } from '../pauseClock.js';
-import { CLASS_ORDER } from '../../config.js';
+import { CLASS_ORDER, PARTY_ORDER } from '../../config.js';
+import { CLASSES } from '../../data/classes.js';
 import { setupDebugGame } from '../../game/debug.js';
 import { goTo, showHub } from '../router.js';
 import { sheet, drawFloorAuto } from '../mapThemes.js';
@@ -22,11 +23,12 @@ const MENU = [
   { id: 'load', label: 'Charger', hint: 'Reprendre une aventure sauvegardée (4 emplacements).' },
   { id: 'options', label: 'Options', hint: 'Vitesse des tours ennemis…' },
   { id: 'quit', label: 'Quitter' },
-  { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer' },
+  { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer ; classes au choix' },
 ];
 
 let cursor = 0;
 let quitting = false;
+let debugPick = null; // classes choisies pour la partie Debug (panneau ouvert), ou null
 let message = null;
 
 export function renderTitle(app) {
@@ -40,6 +42,30 @@ export function renderTitle(app) {
         </div>
       </div>`;
     app.querySelector('#backTitle').onclick = () => { quitting = false; renderTitle(app); };
+    return;
+  }
+  if (debugPick) {
+    // Partie Debug : choix rapide des 4 classes (outil de test, sans fioritures).
+    app.innerHTML = `
+      <div class="title-screen">
+        <div class="title-panel quit-panel debug-pick">
+          <p><b>Partie Debug</b> : classes de l'équipe</p>
+          ${debugPick.map((key, i) => `<label>Héros ${i + 1} <select data-debug-class="${i}">${CLASS_ORDER.map((k) => `<option value="${k}" ${k === key ? 'selected' : ''}>${esc(CLASSES[k].title)}</option>`).join('')}</select></label>`).join('')}
+          <button id="debugStart" class="btn-primary">Lancer</button>
+          <button id="debugBack">◂ Retour</button>
+        </div>
+      </div>`;
+    app.querySelectorAll('[data-debug-class]').forEach((sel) => {
+      sel.onchange = () => { debugPick[Number(sel.dataset.debugClass)] = sel.value; };
+    });
+    app.querySelector('#debugBack').onclick = () => { debugPick = null; renderTitle(app); };
+    app.querySelector('#debugStart').onclick = () => {
+      const classes = debugPick;
+      debugPick = null;
+      resetGame();
+      setupDebugGame(state, [], classes);
+      showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les autres classes attendent à l\'auberge.');
+    };
     return;
   }
   app.innerHTML = `
@@ -91,9 +117,8 @@ function choose(app, i) {
   if (item.id === 'load') openSlots('load');
   if (item.id === 'options') openOptions();
   if (item.id === 'debug') {
-    resetGame();
-    setupDebugGame(state);
-    showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les deux autres classes attendent à l\'auberge.');
+    debugPick = [...PARTY_ORDER];
+    renderTitle(app);
   }
   if (item.id === 'quit') {
     window.close();
@@ -108,7 +133,7 @@ function choose(app, i) {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('keydown', (ev) => {
-    if (state.screen !== 'title' || quitting || isPaused()) return;
+    if (state.screen !== 'title' || quitting || debugPick || isPaused()) return;
     const app = document.getElementById('app');
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();

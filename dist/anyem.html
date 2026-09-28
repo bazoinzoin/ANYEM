@@ -554,6 +554,9 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .title-item:focus-visible { outline: 1px solid #d8b56a; outline-offset: -2px; }
 .title-hint { margin: 10px 8px 0; min-height: 2.6em; font-size: 14px; color: #b9b4c8; border-top: 1px solid rgba(216,181,106,.3); padding-top: 8px; }
 .quit-panel { text-align: center; padding: 22px; margin-top: 60px; }
+.debug-pick { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+.debug-pick label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.debug-pick select { flex: 1; font: inherit; padding: 2px 4px; }
 @keyframes title-cursor { from { transform: translateX(0); } to { transform: translateX(3px); } }
 button.back { margin-bottom: 8px; }
 </style>
@@ -1150,6 +1153,152 @@ body.pad-mode .pad-focus { outline: 3px solid #f3d58c; outline-offset: 2px; box-
 .recruit-name { display: flex; align-items: center; gap: 6px; }
 .recruit-name input { flex: 1; }
 </style>
+<style>
+/* css/rarity.css */
+/* Cadres de rareté : fiches d'objet (.item-card.rar) et cases d'inventaire (.bag-cell.rar,
+   .eq-slot.rar), de plus en plus ouvragés du commun au divin. Tout suit la couleur de la
+   rareté (--rc). Classes posées par rarityClass (src/ui/items.js).
+   commun      filet simple et discret
+   peu commun  filet double
+   rare        cadre plein, liseré extérieur, clous aux coins
+   épique      équerres aux coins, halo intérieur et léger rayonnement
+   légendaire  cadre double épais, grandes équerres, éclat orangé fréquent, rayonnement
+   divin       tout cela en rouge, halo qui pulse, bords irisés, nom scintillant et effet
+               « foil » (irisation holographique) quasi permanent
+   Sur une fiche, le cadre n'entoure que le texte, à côté de l'icône (display: flow-root). */
+
+/* ---- Coins : équerres et clous dessinés en dégradés (pixel art, sans image) ---- */
+.item-card.rar, .bag-cell.rar, .eq-slot.rar { position: relative; }
+.rar-rare::before, .rar-epique::before, .rar-legendaire::before, .rar-divin::before {
+  content: ''; position: absolute; pointer-events: none; z-index: 1;
+  --c: var(--rc); --l: 10px; --t: 2px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / var(--l) var(--t),
+    linear-gradient(var(--c), var(--c)) top left / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) top right / var(--l) var(--t),
+    linear-gradient(var(--c), var(--c)) top right / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) bottom left / var(--l) var(--t),
+    linear-gradient(var(--c), var(--c)) bottom left / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) bottom right / var(--l) var(--t),
+    linear-gradient(var(--c), var(--c)) bottom right / var(--t) var(--l);
+  background-repeat: no-repeat;
+}
+
+/* ================= Fiches d'objet ================= */
+.item-card.rar {
+  display: flow-root; /* le cadre entoure le texte, à côté de l'icône (jamais par-dessus) */
+  border-left: 0; margin: 4px 4px 12px; padding: 9px 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 9%, transparent), transparent 70%);
+}
+.item-card.rar-commun { border: 1px solid color-mix(in srgb, var(--rc) 45%, #1a1410); background: none; }
+.item-card.rar-peuCommun {
+  border: 2px solid color-mix(in srgb, var(--rc) 70%, #1a1410);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .45), inset 0 0 0 3px color-mix(in srgb, var(--rc) 35%, transparent);
+}
+.item-card.rar-rare {
+  border: 2px solid var(--rc);
+  outline: 1px solid color-mix(in srgb, var(--rc) 40%, transparent); outline-offset: 2px;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .5);
+}
+.item-card.rar-rare::before { inset: -5px; --l: 5px; --t: 5px; } /* clous carrés aux quatre coins */
+.item-card.rar-epique {
+  border: 2px solid var(--rc);
+  outline: 1px solid color-mix(in srgb, var(--rc) 55%, transparent); outline-offset: 3px;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .5), inset 0 0 18px color-mix(in srgb, var(--rc) 28%, transparent),
+    0 0 10px -2px color-mix(in srgb, var(--rc) 60%, transparent);
+}
+.item-card.rar-epique::before { inset: -7px; --l: 14px; --t: 3px; }
+.item-card.rar-legendaire, .item-card.rar-divin {
+  border: 4px double var(--rc); overflow: hidden;
+  outline: 2px solid color-mix(in srgb, var(--rc) 50%, #1a1410); outline-offset: 3px;
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--rc) 32%, transparent), 0 0 16px -2px color-mix(in srgb, var(--rc) 70%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 16%, transparent), transparent 75%);
+}
+/* Les équerres débordent du cadre : on les place à l'intérieur, sur le bord. */
+.item-card.rar-legendaire::before, .item-card.rar-divin::before { inset: 0; --l: 20px; --t: 4px; }
+.item-card.rar-legendaire .item-name, .item-card.rar-divin .item-name {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--rc) 70%, transparent);
+}
+.item-card.rar-legendaire { animation: rar-glow-orange 2.2s ease-in-out infinite; }
+.item-card.rar-divin {
+  border-image: linear-gradient(135deg, #fff, var(--rc), #ffb3a8, var(--rc), #fff) 1;
+  animation: rar-glow-red 1.8s ease-in-out infinite;
+}
+.item-card.rar-divin .item-name {
+  background: linear-gradient(90deg, var(--rc), #fff, #ffb3a8, var(--rc)); background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: rar-shine 2.5s linear infinite;
+}
+
+/* ---- Reflets : légendaire = éclat orangé fréquent ; divin = éclat rouge + effet « foil »
+   (irisation holographique qui ondule en permanence). Fiches et cases. ---- */
+.item-card.rar-legendaire::after, .item-card.rar-divin::after,
+.bag-cell.rar-legendaire::after, .eq-slot.rar-legendaire::after,
+.bag-cell.rar-divin::after, .eq-slot.rar-divin::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; background-repeat: no-repeat;
+}
+.item-card.rar-legendaire::after, .bag-cell.rar-legendaire::after, .eq-slot.rar-legendaire::after {
+  background-image: linear-gradient(105deg, transparent 32%, rgba(255, 140, 30, .38) 45%, rgba(255, 236, 190, .55) 50%, rgba(255, 140, 30, .38) 55%, transparent 68%);
+  background-size: 260% 100%;
+  animation: rar-sheen 2.6s ease-in-out infinite;
+}
+.item-card.rar-divin::after, .bag-cell.rar-divin::after, .eq-slot.rar-divin::after {
+  background-image:
+    linear-gradient(105deg, transparent 32%, rgba(255, 40, 40, .40) 45%, rgba(255, 225, 220, .60) 50%, rgba(255, 40, 40, .40) 55%, transparent 68%),
+    repeating-linear-gradient(115deg, rgba(255, 60, 60, .15) 0 14px, rgba(255, 170, 60, .12) 14px 28px, rgba(255, 90, 170, .13) 28px 42px, rgba(160, 60, 255, .10) 42px 56px, rgba(255, 60, 60, .15) 56px 70px);
+  background-size: 260% 100%, 200% 200%;
+  mix-blend-mode: screen;
+  animation: rar-foil 2.2s linear infinite;
+}
+.bag-cell.rar-legendaire, .eq-slot.rar-legendaire, .bag-cell.rar-divin, .eq-slot.rar-divin { overflow: hidden; }
+.item-card.rar > * { position: relative; z-index: 2; } /* texte au-dessus des reflets */
+
+/* ================= Cases d'inventaire et emplacements portés ================= */
+.bag-cell.rar-commun { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 60%, transparent); }
+.bag-cell.rar-peuCommun { box-shadow: inset 0 0 0 2px var(--rc); }
+.bag-cell.rar-rare, .eq-slot.rar-rare { box-shadow: inset 0 0 0 2px var(--rc), inset 0 0 0 3px rgba(0, 0, 0, .5); }
+.bag-cell.rar-epique, .eq-slot.rar-epique {
+  box-shadow: inset 0 0 0 2px var(--rc), inset 0 0 8px color-mix(in srgb, var(--rc) 45%, transparent), 0 0 6px -1px var(--rc);
+}
+.bag-cell.rar-legendaire, .eq-slot.rar-legendaire {
+  box-shadow: inset 0 0 0 2px var(--rc), inset 0 0 12px rgba(255, 140, 30, .6), 0 0 10px 1px rgba(255, 140, 30, .85);
+  animation: rar-cell-pulse 1.8s ease-in-out infinite;
+}
+.bag-cell.rar-divin, .eq-slot.rar-divin {
+  box-shadow: inset 0 0 0 2px var(--rc), inset 0 0 12px rgba(255, 40, 40, .65), 0 0 12px 2px rgba(255, 40, 40, .9);
+  animation: rar-cell-pulse 1.4s ease-in-out infinite;
+}
+/* Petites équerres dans les cases. */
+.bag-cell.rar-rare::before, .eq-slot.rar-rare::before { inset: 2px; --l: 3px; --t: 3px; }
+.bag-cell.rar-epique::before, .eq-slot.rar-epique::before { inset: 2px; --l: 7px; --t: 2px; }
+.bag-cell.rar-legendaire::before, .eq-slot.rar-legendaire::before,
+.bag-cell.rar-divin::before, .eq-slot.rar-divin::before { inset: 1px; --l: 10px; --t: 3px; z-index: 2; }
+.bag-cell.rar-legendaire::before, .eq-slot.rar-legendaire::before { --c: #ffe2b0; }
+.bag-cell.rar-divin::before, .eq-slot.rar-divin::before { --c: #ffe0dc; }
+.bag-cell.small.rar::before { display: none; }
+.bag-cell.rar sup, .eq-slot.rar sup { z-index: 3; }
+
+@keyframes rar-sheen { 0%, 30% { background-position: 150% 0; } 100% { background-position: -60% 0; } }
+@keyframes rar-foil {
+  0% { background-position: 150% 0, 0% 0%; filter: hue-rotate(0deg); }
+  60% { background-position: -60% 0, 60% 60%; filter: hue-rotate(-25deg); }
+  100% { background-position: -60% 0, 100% 100%; filter: hue-rotate(0deg); }
+}
+@keyframes rar-shine { to { background-position: 200% center; } }
+@keyframes rar-glow-orange {
+  0%, 100% { box-shadow: inset 0 0 22px rgba(255, 140, 30, .30), 0 0 12px -2px rgba(255, 140, 30, .6); }
+  50% { box-shadow: inset 0 0 30px rgba(255, 140, 30, .45), 0 0 24px 2px rgba(255, 150, 40, .9); }
+}
+@keyframes rar-glow-red {
+  0%, 100% { box-shadow: inset 0 0 24px rgba(255, 40, 40, .32), 0 0 14px -2px rgba(255, 40, 40, .65); }
+  50% { box-shadow: inset 0 0 32px rgba(255, 40, 40, .5), 0 0 28px 3px rgba(255, 50, 50, .95); }
+}
+@keyframes rar-cell-pulse { 50% { filter: brightness(1.3) saturate(1.2); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rar, .rar::after, .rar .item-name { animation: none !important; }
+}
+</style>
 
 </head>
 <body>
@@ -1381,6 +1530,7 @@ const DEBUG = {
   gold: 1000000,
   materia: 999,                                   // de chaque sorte et rareté
   rarities: ['divin', 'epique', 'rare', 'peuCommun'], // une pièce de chaque base par rareté
+  medalZones: 3,                                  // zones dont toutes les médailles sont déjà gagnées
 };
 
 const INN = {
@@ -11127,12 +11277,18 @@ function itemChip(item) {
   return `<span ${tip(itemTooltipText(item), 'item-chip')} style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 16)} ${esc(itemName(item))}</span>`;
 }
 
+// Classe CSS du cadre de rareté (fiches et cases d'inventaire : css/rarity.css), de plus en
+// plus ouvragé du commun au divin.
+function rarityClass(item) {
+  return `rar rar-${item.rarity}`;
+}
+
 // Fiche complète d'un objet.
 function itemCard(item) {
   const statLines = itemStatLines(item).map((l) =>
     `<li class="${l.secondary ? 'secondary' : 'main'}">${formatStat(l.stat, l.value)}${rangeText(l) ? ` <span ${tip(`Valeurs possibles pour cette stat à ce niveau et à cette rareté : de ${l.range.lo} à ${l.range.hi}. Plus la valeur est proche du maximum, meilleur est le tirage.`, 'stat-range')}>${rangeText(l).trim()}</span>` : ''}</li>`);
   return `
-    <div class="item-card" style="--rc:${RARITIES[item.rarity].color}">
+    <div class="item-card ${rarityClass(item)}" style="--rc:${RARITIES[item.rarity].color}">
       <div class="item-name">${esc(itemName(item))}</div>
       <div class="item-rarity">${RARITIES[item.rarity].label}</div>
       <div class="item-meta">Niveau ${item.level} · ${item.slotType === 'arme' ? `${WEAPON_TYPES[item.weaponType].name} · ` : ''}${itemTypeLabel(item)}</div>
@@ -11157,7 +11313,7 @@ function equipmentTooltip(hero) {
 }
 const SLOT_ORDER_FOR_TIP = Object.keys(SLOTS);
 
-return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, itemCard, slotLabel, equipmentTooltip };
+return { formatStat, itemName, weaponLine, itemMeta, itemTooltipText, itemChip, rarityClass, itemCard, slotLabel, equipmentTooltip };
 })();
 
 // ---- src/game/equipment.js
@@ -11315,7 +11471,7 @@ const { state } = __modules["src/state.js"];
 const { RARITIES, MATERIA_KINDS, MATERIA_RARITIES } = __modules["src/data/items.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { esc } = __modules["src/ui/html.js"];
-const { itemCard } = __modules["src/ui/items.js"];
+const { itemCard, rarityClass } = __modules["src/ui/items.js"];
 const { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, GOLD_ICON, CLASS_ICONS } = __modules["src/ui/icons.js"];
 const { paginate } = __modules["src/ui/bagView.js"];
 const { getClass, heroClassTitle } = __modules["src/game/party.js"];
@@ -11381,7 +11537,7 @@ function itemGrid(id, items, opts = {}) {
   const { items: shown, page, pages } = paginate(items, st.page, st.perPage);
   st.page = page;
   const cells = shown.map((item) => `
-    <div class="bag-cell ${opts.dim?.(item) ? 'unusable' : ''} ${opts.selectedId === item.id ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}"
+    <div class="bag-cell ${rarityClass(item)} ${opts.dim?.(item) ? 'unusable' : ''} ${opts.selectedId === item.id ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}"
       style="--rc:${RARITIES[item.rarity].color}" ${opts.drag ? 'draggable="true"' : ''}>
       ${iconHtml(itemIcon(item), 32)}${opts.badge ? `<sup>${opts.badge(item)}</sup>` : item.plus ? `<sup>+${item.plus}</sup>` : ''}
     </div>`);
@@ -11462,7 +11618,7 @@ function wornRows(id, filter = () => true, selectedId = null) {
     return `
       <div class="forge-hero" style="--c:${getClass(hero).color}">
         <span class="forge-hero-name">${iconHtml(CLASS_ICONS[hero.classKey] ?? 720, 16)} ${esc(hero.name)}</span>
-        <div class="cells">${items.map((item) => `<div class="bag-cell ${item.id === selectedId ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`).join('') || '<span class="hint">Rien</span>'}</div>
+        <div class="cells">${items.map((item) => `<div class="bag-cell ${rarityClass(item)} ${item.id === selectedId ? 'selected' : ''}" data-cell="${id}" data-id="${item.id}" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`).join('') || '<span class="hint">Rien</span>'}</div>
       </div>`;
   }).join('')}</div>`;
 }
@@ -14048,11 +14204,10 @@ function content() {
       <button data-pause="quitNow" class="title-item">Quitter sans sauvegarder</button>
       <button data-pause="main" class="title-item">◂ Retour</button>`;
   }
-  const slotText = state.saveSlot ? `Emplacement ${state.saveSlot}` : 'Choisir un emplacement';
   return `
     <h2>Pause</h2>
     <button data-pause="resume" class="title-item">Reprendre</button>
-    <button data-pause="save" class="title-item">Sauvegarder <small>${esc(slotText)}</small></button>
+    <button data-pause="save" class="title-item">Sauvegarder${state.saveSlot ? ` <small>${esc(`Emplacement ${state.saveSlot}`)}</small>` : ''}</button>
     <button data-pause="options" class="title-item">Options</button>
     <button data-pause="quit" class="title-item">Quitter</button>
     ${note ? `<p class="pause-note">${esc(note)}</p>` : '<p class="hint">Échap : reprendre</p>'}`;
@@ -14126,19 +14281,21 @@ __modules["src/game/debug.js"] = (() => {
 const { DEBUG, XP, PARTY_ORDER, CLASS_ORDER, INN, MERCHANT } = __modules["src/config.js"];
 const { WEAPON_TYPES, ARMOR_PIECES, ARMOR_TYPES, JEWELS, LEGENDARIES, MATERIA_RARITIES } = __modules["src/data/items.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
-const { DUNGEONS } = __modules["src/data/dungeons.js"];
+const { DUNGEONS, DUNGEON_ORDER } = __modules["src/data/dungeons.js"];
 const { nodeSkills } = __modules["src/data/talents.js"];
 const { createParty, createHero, getStats } = __modules["src/game/party.js"];
 const { generateItem, primaryOptions } = __modules["src/game/items.js"];
 const { branchesOf, learn } = __modules["src/game/talents.js"];
 const { progressOf } = __modules["src/game/dungeon.js"];
 const { emptyMateria } = __modules["src/game/forge.js"];
+const { medalDifficulties } = __modules["src/game/medals.js"];
 // Partie de test (bouton « Debug » du menu principal) : l'équipe par défaut et les autres
 // classes à l'auberge, toutes au niveau maximum avec leurs sorts de départ appris ;
 // beaucoup d'or, de matéria et de consommables ; tous les donjons terminés (tous les
-// points de départ ouverts) ; dans le sac, chaque base d'objet au niveau maximum, dans
+// points de départ ouverts, toutes les médailles des 3 premières zones) ; dans le sac, chaque base d'objet au niveau maximum, dans
 // chacune de ses stats principales, en Divin, Épique, Rare et Peu commun (pour les
 // comparer), plus tous les légendaires.
+
 
 
 
@@ -14181,6 +14338,8 @@ function setupDebugGame(game, names = [], classes = PARTY_ORDER) {
   for (const kind of Object.keys(game.materia)) for (const r of MATERIA_RARITIES) game.materia[kind][r] = DEBUG.materia;
   game.consumables = Object.fromEntries(Object.keys(CONSUMABLES).map((k) => [k, MERCHANT.maxConsumable]));
   for (const [key, d] of Object.entries(DUNGEONS)) Object.assign(progressOf(game, key), { checkpoint: d.floors, cleared: true });
+  // Toutes les médailles des premières zones (DEBUG.medalZones), pour voir leur affichage.
+  for (const key of DUNGEON_ORDER.slice(0, DEBUG.medalZones)) progressOf(game, key).medals = medalDifficulties();
   game.dungeonLvl = XP.maxLevel;
   const level = XP.maxLevel;
   game.bag = [
@@ -14211,7 +14370,8 @@ const { state, resetGame } = __modules["src/state.js"];
 const { openSlots } = __modules["src/ui/screens/slots.js"];
 const { openOptions } = __modules["src/ui/pause.js"];
 const { isPaused } = __modules["src/ui/pauseClock.js"];
-const { CLASS_ORDER } = __modules["src/config.js"];
+const { CLASS_ORDER, PARTY_ORDER } = __modules["src/config.js"];
+const { CLASSES } = __modules["src/data/classes.js"];
 const { setupDebugGame } = __modules["src/game/debug.js"];
 const { goTo, showHub } = __modules["src/ui/router.js"];
 const { sheet, drawFloorAuto } = __modules["src/ui/mapThemes.js"];
@@ -14239,16 +14399,18 @@ const { VERSION } = __modules["src/version.js"];
 
 
 
+
 const MENU = [
   { id: 'new', label: 'Nouvelle partie', hint: 'Choisir un emplacement de sauvegarde, puis créer son équipe.' },
   { id: 'load', label: 'Charger', hint: 'Reprendre une aventure sauvegardée (4 emplacements).' },
   { id: 'options', label: 'Options', hint: 'Vitesse des tours ennemis…' },
   { id: 'quit', label: 'Quitter' },
-  { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer' },
+  { id: 'debug', label: 'Debug', hint: 'Niveau 50, or et matéria à volonté, tout débloqué, équipement à comparer ; classes au choix' },
 ];
 
 let cursor = 0;
 let quitting = false;
+let debugPick = null; // classes choisies pour la partie Debug (panneau ouvert), ou null
 let message = null;
 
 function renderTitle(app) {
@@ -14262,6 +14424,30 @@ function renderTitle(app) {
         </div>
       </div>`;
     app.querySelector('#backTitle').onclick = () => { quitting = false; renderTitle(app); };
+    return;
+  }
+  if (debugPick) {
+    // Partie Debug : choix rapide des 4 classes (outil de test, sans fioritures).
+    app.innerHTML = `
+      <div class="title-screen">
+        <div class="title-panel quit-panel debug-pick">
+          <p><b>Partie Debug</b> : classes de l'équipe</p>
+          ${debugPick.map((key, i) => `<label>Héros ${i + 1} <select data-debug-class="${i}">${CLASS_ORDER.map((k) => `<option value="${k}" ${k === key ? 'selected' : ''}>${esc(CLASSES[k].title)}</option>`).join('')}</select></label>`).join('')}
+          <button id="debugStart" class="btn-primary">Lancer</button>
+          <button id="debugBack">◂ Retour</button>
+        </div>
+      </div>`;
+    app.querySelectorAll('[data-debug-class]').forEach((sel) => {
+      sel.onchange = () => { debugPick[Number(sel.dataset.debugClass)] = sel.value; };
+    });
+    app.querySelector('#debugBack').onclick = () => { debugPick = null; renderTitle(app); };
+    app.querySelector('#debugStart').onclick = () => {
+      const classes = debugPick;
+      debugPick = null;
+      resetGame();
+      setupDebugGame(state, [], classes);
+      showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les autres classes attendent à l\'auberge.');
+    };
     return;
   }
   app.innerHTML = `
@@ -14313,9 +14499,8 @@ function choose(app, i) {
   if (item.id === 'load') openSlots('load');
   if (item.id === 'options') openOptions();
   if (item.id === 'debug') {
-    resetGame();
-    setupDebugGame(state);
-    showHub('Partie Debug : héros niveau 50 (sorts de départ appris, points de talent à dépenser), 1 000 000 d\'or, 999 matéria de chaque sorte, sac de consommables plein, toutes les zones ouvertes. Dans le sac : chaque arme, armure, bouclier et bijou, dans chaque stat principale, en Divin, Épique, Rare et Peu commun, et tous les légendaires. Les deux autres classes attendent à l\'auberge.');
+    debugPick = [...PARTY_ORDER];
+    renderTitle(app);
   }
   if (item.id === 'quit') {
     window.close();
@@ -14330,7 +14515,7 @@ function choose(app, i) {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('keydown', (ev) => {
-    if (state.screen !== 'title' || quitting || isPaused()) return;
+    if (state.screen !== 'title' || quitting || debugPick || isPaused()) return;
     const app = document.getElementById('app');
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
@@ -15242,7 +15427,7 @@ const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { getClass, getStats, xpToNext, heroClassTitle } = __modules["src/game/party.js"];
 const { equip, unequip, slotsFor, cannotEquipReason, previewEquip } = __modules["src/game/equipment.js"];
 const { esc } = __modules["src/ui/html.js"];
-const { itemCard, slotLabel } = __modules["src/ui/items.js"];
+const { itemCard, slotLabel, rarityClass } = __modules["src/ui/items.js"];
 const { goTo, goBack, backLabel } = __modules["src/ui/router.js"];
 const { iconHtml, itemIcon, consumableIcon, MATERIA_ICONS, CLASS_ICONS, GOLD_ICON } = __modules["src/ui/icons.js"];
 const { SLOT_ART, assetUrl } = __modules["src/ui/skin.js"];
@@ -15357,7 +15542,7 @@ function slotCell(hero, slot, col, row) {
   const shown = item ?? (twoHand ? hero.equipment.mainDroite : null);
   const selected = view.selected?.from === 'slot' && view.selected.slot === slot ? 'selected' : '';
   return `
-    <div class="eq-slot ${shown ? 'filled' : ''} ${twoHand ? 'ghost' : ''} ${selected}" data-slot="${slot}" style="grid-column:${col}; grid-row:${row}; --slot-art:${assetUrl(SLOT_ART[slot])}${shown ? `; --rc:${RARITIES[shown.rarity].color}` : ''}"
+    <div class="eq-slot ${shown ? `filled ${rarityClass(shown)}` : ''} ${twoHand ? 'ghost' : ''} ${selected}" data-slot="${slot}" style="grid-column:${col}; grid-row:${row}; --slot-art:${assetUrl(SLOT_ART[slot])}${shown ? `; --rc:${RARITIES[shown.rarity].color}` : ''}"
       title="${esc(slotLabel(slot))}${twoHand ? ' (arme à deux mains)' : ''}" ${item ? 'draggable="true"' : ''}>
       ${shown ? `${iconHtml(itemIcon(shown), 32)}${shown.plus ? `<sup>+${shown.plus}</sup>` : ''}` : ''}
     </div>`;
@@ -15394,7 +15579,7 @@ function bagContent(hero) {
   const cells = items.map((item) => {
     const usable = !cannotEquipReason(hero, item);
     const selected = view.selected?.from === 'bag' && view.selected.id === item.id ? 'selected' : '';
-    return `<div class="bag-cell ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}" draggable="true" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`;
+    return `<div class="bag-cell ${rarityClass(item)} ${usable ? '' : 'unusable'} ${selected}" data-item="${item.id}" draggable="true" style="--rc:${RARITIES[item.rarity].color}">${iconHtml(itemIcon(item), 32)}${item.plus ? `<sup>+${item.plus}</sup>` : ''}</div>`;
   });
   for (let i = items.length; i < view.perPage; i++) cells.push('<div class="bag-cell empty"></div>');
   return `${cells.join('')}

@@ -412,5 +412,8 @@ button.danger { border-color: #e06a5a; color: #f2c4bb; background: #3a1c17; }
 .title-item:focus-visible { outline: 1px solid #d8b56a; outline-offset: -2px; }
 .title-hint { margin: 10px 8px 0; min-height: 2.6em; font-size: 14px; color: #b9b4c8; border-top: 1px solid rgba(216,181,106,.3); padding-top: 8px; }
 .quit-panel { text-align: center; padding: 22px; margin-top: 60px; }
+.debug-pick { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+.debug-pick label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.debug-pick select { flex: 1; font: inherit; padding: 2px 4px; }
 @keyframes title-cursor { from { transform: translateX(0); } to { transform: translateX(3px); } }
 button.back { margin-bottom: 8px; }
