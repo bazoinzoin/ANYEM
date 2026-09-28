@@ -8,6 +8,22 @@ versions sont publiées comme « pré-versions ») ; 1.0.0 sera la première ver
 versions 0.0.x sont les étapes de développement d'avant le jeu Windows (une par fusion dans `main`).
 Marche à suivre pour publier une version : `docs/RELEASES.md`.
 
+## [0.4.0] - 2026-09-28
+
+Quatrième bêta.
+
+- **Le Macabre utilise du Mana** : ses compétences coûtent du Mana, et ses âmes deviennent une jauge à part (pastilles pâles en combat) ; ses compétences les plus fortes dépensent des âmes en plus du Mana.
+- **Écran de combat refait** :
+  - la scène remplit toute la fenêtre, sans bandes vides ; noms, PV et chiffres sont nets ;
+  - le sol reste dégagé sous les combattants, et chacun a son emplacement tracé au sol (avant et arrière pour les héros) ;
+  - une flèche dorée montre qui joue ; au ciblage, une flèche rouge (attaque, malus) ou verte (soin, bonus) passe d'une cible à l'autre, à la souris comme à la manette ;
+  - une action de zone désigne toutes ses cibles avant la confirmation.
+- **Effets des sorts** : boules de feu, éclats de glace, éclairs, orbes d'ombre, spirales d'âmes, flèches… volent vers leurs cibles et éclatent à l'impact ; les soins, boucliers, bénédictions et malédictions ont leur effet ; les coups d'arme prennent la couleur de la compétence (sang, poison…).
+- **Police médiévale fantastique** (Almendra) pour les titres, les boutons et les noms.
+- Apparences : cheveux noirs moins sombres, cuir du Scarifié moins noir, surtout de profil.
+- Le Scarifié et le Macabre rejoignent le feu de camp de l'écran titre.
+- Les pages de téléchargement ne proposent plus que le jeu Windows (`.exe`) et le jeu dans le navigateur (`anyem.html`).
+
 ## [0.3.0] - 2026-09-28
 
 Troisième bêta.
