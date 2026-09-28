@@ -266,11 +266,13 @@ export const CLASSES = {
     position: 'melee',
     mainStat: 'force',
     physStat: 'force',
-    desc: "Il absorbe l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
+    desc: "Lanceur à Mana qui absorbe aussi l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, en plus du Mana, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
     base: { pv: 125, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 2, riposte: 3 },
     growth: { pv: 12, force: 1, intelligence: 1 },
-    // Ressource = âmes absorbées (voir game/souls.js) : `cost` = âmes dépensées (0 = gratuit).
-    resource: { name: 'Âmes', souls: true, max: 3, start: 0, regen: 0 },
+    resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
+    // Âmes absorbées (jauge à part, voir game/souls.js) : 3 au plus ; certaines compétences en
+    // dépensent en plus de leur Mana (`soulCost`, ou toutes avec `allSouls`).
+    souls: { max: 3 },
     // L'orientation principale restreint armes et armure (data/talents.js, `gear`).
     gear: {
       weapons: ['hache', 'masse', 'hache2m', 'masse2m', 'baton'],
@@ -290,9 +292,9 @@ export const CLASSES = {
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
     starterSkills: [
-      { id: 'coup-decharne', name: 'Coup décharné', cost: 0, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme (gratuit)' },
-      { id: 'fracas-d-os', name: "Fracas d'os", cost: 0, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours (gratuit)" },
-      { id: 'trait-funeste', name: 'Trait funeste', cost: 0, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques, gratuit)" },
+      { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
+      { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
+      { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },
 };

@@ -2,7 +2,7 @@
 
 import { STATS, STAT_ORDER } from '../data/stats.js';
 import { COMBAT } from '../config.js';
-import { getClass, getStats, usesMana, usesHp } from '../game/party.js';
+import { getClass, getStats, usesMana, usesHp, usesSouls, soulsOf } from '../game/party.js';
 import { tip } from './html.js';
 
 const STAT_TIPS = {
@@ -66,6 +66,10 @@ export function statsList(hero) {
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, usesHp(cls)
     ? row('Ressource', 'aucune', 'Sans ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV).')
     : row(cls.resource.name, `${hero.res}/${stats.resMax}`, resourceTip(cls, stats)));
+  if (usesSouls(cls)) {
+    rows.splice(STAT_ORDER.indexOf('pv') + 3, 0, row('Âmes', `${soulsOf(hero)}/${stats.soulMax}`,
+      "Âmes absorbées à la mort des ennemis, gardées d'un combat à l'autre : chaque âme le renforce ou se dépense dans ses compétences, mais le ronge à la fin de ses tours."));
+  }
   // Bonus des talents (n'apparaissent que s'ils existent).
   for (const [key, label, suffix, tipText] of BONUS_ROWS) {
     if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));

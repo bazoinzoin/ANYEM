@@ -225,6 +225,7 @@ button.full { width: 100%; margin-top: 12px; }
 .bs-status .st sub { font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
 .bs-status .ko { font-size: 11px; color: #ff9a8a; font-weight: 600; }
 .bs-combo { color: #f3d58c; font-size: 11px; letter-spacing: 1px; margin-right: 3px; }
+.bs-combo.bs-souls { color: #bfe8e2; text-shadow: 0 0 4px rgba(150, 230, 220, .7); } /* âmes du Macabre */
 
 /* Commandes */
 .bs-commands { display: flex; flex-direction: column; gap: 6px; }
@@ -2111,7 +2112,7 @@ const LEGENDARIES = {
   },
   masseDeSedlec: {
     name: 'Masse de Sedlec', classKey: 'macabre', branch: 'murDOs', slotType: 'arme', weaponType: 'masse', primary: 'force',
-    power: { skillMod: { skill: 'mur-des-morts', costDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
+    power: { skillMod: { skill: 'mur-des-morts', soulCostDelta: -1, addEffects: [fx('regeneration', 2, 0.25)] } },
     desc: 'Mur d\'os — Mur des morts ne libère qu\'une âme et donne aussi une Régénération (2 tours).',
     quote: 'Quarante mille os, et pas un de trop pour le lustre.',
   },
@@ -3220,11 +3221,13 @@ const CLASSES = {
     position: 'melee',
     mainStat: 'force',
     physStat: 'force',
-    desc: "Il absorbe l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
+    desc: "Lanceur à Mana qui absorbe aussi l'âme des ennemis qui meurent (3 au plus, gardées d'un combat à l'autre). Chaque âme le renforce ou se dépense dans ses compétences, en plus du Mana, mais les âmes gardées le rongent, et à leur maximum elles rongent aussi ses alliés. En Soldat décharné, il frappe à deux mains ; en Mur d'os, il encaisse derrière son bouclier ; en Nécromancien, seule voie à l'Intelligence, il lance ses sorts à distance.",
     base: { pv: 125, atq: 6, vit: 8, force: 5, agilite: 1, intelligence: 4, critChance: 5, critDmg: 50, esquive: 2, blocage: 2, riposte: 3 },
     growth: { pv: 12, force: 1, intelligence: 1 },
-    // Ressource = âmes absorbées (voir game/souls.js) : `cost` = âmes dépensées (0 = gratuit).
-    resource: { name: 'Âmes', souls: true, max: 3, start: 0, regen: 0 },
+    resource: { name: 'Mana', max: 80, start: 80, regen: 10 },
+    // Âmes absorbées (jauge à part, voir game/souls.js) : 3 au plus ; certaines compétences en
+    // dépensent en plus de leur Mana (`soulCost`, ou toutes avec `allSouls`).
+    souls: { max: 3 },
     // L'orientation principale restreint armes et armure (data/talents.js, `gear`).
     gear: {
       weapons: ['hache', 'masse', 'hache2m', 'masse2m', 'baton'],
@@ -3244,9 +3247,9 @@ const CLASSES = {
       { slotType: 'plastron', armorType: 'legere', primary: 'intelligence' },
     ],
     starterSkills: [
-      { id: 'coup-decharne', name: 'Coup décharné', cost: 0, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme (gratuit)' },
-      { id: 'fracas-d-os', name: "Fracas d'os", cost: 0, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours (gratuit)" },
-      { id: 'trait-funeste', name: 'Trait funeste', cost: 0, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques, gratuit)" },
+      { id: 'coup-decharne', name: 'Coup décharné', cost: 10, kind: 'damage', target: 'enemy', power: 2.0, desc: 'Coup de sa lourde arme' },
+      { id: 'fracas-d-os', name: "Fracas d'os", cost: 10, kind: 'damage', target: 'enemy', power: 1.0, selfEffects: [{ id: 'bouclier', turns: 2, power: 0.35 }], desc: "Coup d'arme qui fait lever des éclats d'os autour de lui : Bouclier 2 tours" },
+      { id: 'trait-funeste', name: 'Trait funeste', cost: 12, kind: 'damage', target: 'enemy', power: 0.95, magic: true, desc: "Trait d'énergie nécrotique (dégâts magiques)" },
     ],
   },
 };
@@ -3384,7 +3387,7 @@ const EFFECT_LABELS = {
     guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
     soulWard: ' % de contrecoup des âmes en moins', soulPhys: ' % de puissance physique par âme', soulMag: ' % de puissance magique par âme',
     soulDef: ' % de Défense et Défense magique par âme', soulCrit: ' % de Coup critique par âme', soulBlock: ' % de Blocage par âme',
-    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée',
+    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée', soulMax: ' âme maximum en plus',
   },
 };
 
@@ -4592,7 +4595,7 @@ const TALENTS = {
           minor('mc-carcasse', 'Carcasse', { pct: { pv: 2.5 } }),
         ]),
         skill(2, {
-          id: 'dechainement', name: 'Déchaînement', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
+          id: 'dechainement', name: 'Déchaînement', cost: 20, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
           desc: 'Libère toutes ses âmes dans un seul coup : puissance 2 par âme libérée',
         }),
         ...choice(3, [
@@ -4607,8 +4610,8 @@ const TALENTS = {
           minor('mc-achever', 'Achever', { passive: { executePct: 4 } }),
         ]),
         skill(6, {
-          id: 'fauchee', name: 'Fauchée', cost: 0, kind: 'damage', target: 'allEnemies', power: 1.2,
-          desc: 'Grand coup circulaire sur tous les ennemis (gratuit)',
+          id: 'fauchee', name: 'Fauchée', cost: 20, kind: 'damage', target: 'allEnemies', power: 1.2,
+          desc: 'Grand coup circulaire sur tous les ennemis',
         }),
         ...choice(7, [
           minor('mc-poids-mort', 'Poids mort', { pct: { physPower: 3.5 } }),
@@ -4616,7 +4619,7 @@ const TALENTS = {
           minor('mc-dents', 'Dents longues', { passive: { lifestealPct: 2 } }),
         ]),
         skill(8, {
-          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 15, soulCost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
           desc: 'Libère une âme dans un coup terrible, +20 % de chance de critique',
         }),
         ...choice(9, [
@@ -4630,14 +4633,14 @@ const TALENTS = {
           minor('mc-regard-mort', 'Regard mort', { flat: { critChance: 2 } }),
           minor('mc-habitude', 'Habitude', { passive: { soulWard: 5 } }),
         ]),
-        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { soulMax: 1 } }),
         ...choice(13, [
           minor('mc-carnage', 'Carnage', { pct: { physPower: 4.5 } }),
           minor('mc-brise-os', 'Brise-os', { flat: { critDmg: 6.5 } }),
           minor('mc-chair-dure', 'Chair dure', { pct: { pv: 4.5 } }),
         ]),
         signature({
-          id: 'hecatombe', name: 'Hécatombe', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
+          id: 'hecatombe', name: 'Hécatombe', cost: 30, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
           desc: 'Libère toutes ses âmes sur tous les ennemis : puissance 1,4 par âme libérée',
         }),
       ],
@@ -4654,9 +4657,9 @@ const TALENTS = {
           minor('mc-moelle', 'Moelle froide', { pct: { defMag: 3 } }),
         ]),
         skill(2, {
-          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 0, kind: 'support', target: 'self',
+          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 10, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
-          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense (gratuit)',
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense',
         }),
         ...choice(3, [
           minor('mc-ecu-d-os', 'Écu d\'os', { flat: { blocage: 2.5 } }),
@@ -4670,7 +4673,7 @@ const TALENTS = {
           minor('mc-crane', 'Crâne dur', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 1, allSouls: true, kind: 'support', target: 'self',
+          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 15, allSouls: true, kind: 'support', target: 'self',
           selfEffects: [fx('bouclier', 2, 0.8)],
           desc: 'Libère toutes ses âmes en une carapace d\'os : Bouclier 2 tours, de puissance 0,8 par âme libérée',
         }),
@@ -4680,9 +4683,9 @@ const TALENTS = {
           minor('mc-sang-froid', 'Sang froid', { pct: { pv: 3.5 } }),
         ]),
         skill(8, {
-          id: 'ecrasement', name: 'Écrasement', cost: 0, kind: 'damage', target: 'enemy', power: 1.6,
+          id: 'ecrasement', name: 'Écrasement', cost: 15, kind: 'damage', target: 'enemy', power: 1.6,
           effects: [fx('affaibli', 2)],
-          desc: 'Écrase la cible : Affaibli 2 tours (gratuit)',
+          desc: 'Écrase la cible : Affaibli 2 tours',
         }),
         ...choice(9, [
           minor('mc-ossuaire', 'Charnier', { pct: { pv: 4 } }),
@@ -4696,7 +4699,7 @@ const TALENTS = {
           minor('mc-patience', 'Patience', { passive: { soulWard: 6 } }),
         ]),
         skill(12, {
-          id: 'mur-des-morts', name: 'Mur des morts', cost: 2, kind: 'support', target: 'allAllies',
+          id: 'mur-des-morts', name: 'Mur des morts', cost: 25, soulCost: 2, kind: 'support', target: 'allAllies',
           effects: [fx('protection', 2)],
           desc: 'Libère 2 âmes en un mur de spectres : toute l\'équipe gagne Protection 2 tours',
         }),
@@ -4706,7 +4709,7 @@ const TALENTS = {
           minor('mc-linceul', 'Linceul', { pct: { defMag: 5.5 } }),
         ]),
         signature({
-          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 1, allSouls: true, kind: 'support', target: 'allAllies',
+          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 30, allSouls: true, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.4)], selfEffects: [fx('provocation', 2)],
           desc: 'Libère toutes ses âmes : toute l\'équipe gagne un Bouclier 2 tours (puissance 0,4 par âme) et il provoque les ennemis 2 tours',
         }),
@@ -4724,7 +4727,7 @@ const TALENTS = {
           minor('mc-suaire', 'Suaire', { pct: { pv: 2.5 } }),
         ]),
         skill(2, {
-          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
+          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 20, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
           desc: 'Libère toutes ses âmes sur une cible (dégâts magiques) : puissance 0,95 par âme libérée',
         }),
         ...choice(3, [
@@ -4739,8 +4742,8 @@ const TALENTS = {
           minor('mc-putrefaction', 'Putréfaction', { pct: { magPower: 3 } }),
         ]),
         skill(6, {
-          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 0, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
-          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques, gratuit)',
+          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 20, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
+          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques)',
         }),
         ...choice(7, [
           minor('mc-necronomie', 'Nécrologie', { pct: { magPower: 3.5 } }),
@@ -4748,7 +4751,7 @@ const TALENTS = {
           minor('mc-vampire', 'Soif', { passive: { lifestealPct: 2 } }),
         ]),
         skill(8, {
-          id: 'malediction', name: 'Malédiction', cost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
+          id: 'malediction', name: 'Malédiction', cost: 18, soulCost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
           effects: [fx('tenebres', 3, 0.25), fx('terreur', 2)],
           desc: 'Libère une âme en malédiction (dégâts magiques) : Ténèbres 3 tours et Terreur 2 tours',
         }),
@@ -4763,14 +4766,14 @@ const TALENTS = {
           minor('mc-funeste', 'Funeste', { flat: { critChance: 2 } }),
           minor('mc-detachement', 'Détachement', { passive: { soulWard: 5 } }),
         ]),
-        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { soulMax: 1 } }),
         ...choice(13, [
           minor('mc-liturgie', 'Liturgie noire', { pct: { magPower: 4.5 } }),
           minor('mc-dies-irae', 'Colère', { flat: { critDmg: 6.5 } }),
           minor('mc-pierre-tombale', 'Pierre tombale', { pct: { pv: 4.5 } }),
         ]),
         signature({
-          id: 'requiem', name: 'Requiem', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
+          id: 'requiem', name: 'Requiem', cost: 30, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
           effects: [fx('tenebres', 2, 0.1)],
           desc: 'Libère toutes ses âmes sur tous les ennemis (dégâts magiques, puissance 0,7 par âme) et les plonge dans les Ténèbres 2 tours',
         }),
@@ -5323,12 +5326,14 @@ function hpCost(hero, skill) {
 
 // Le héros peut-il payer cette compétence ? En PV (Scarifié) : jamais le dernier.
 function canPaySkill(hero, skill) {
+  if ((skill.soulCost ?? 0) > soulsOf(hero)) return false; // âmes à libérer (Macabre)
   if (!usesHp(getClass(hero))) return hero.res >= skill.cost;
   return skill.sacrifice ? hero.hp > 1 : hpCost(hero, skill) < hero.hp;
 }
 
 // Paie une compétence (ressource ou PV). Retourne les PV sacrifiés (0 pour une ressource).
 function paySkill(hero, skill) {
+  if (skill.soulCost) gainSouls(hero, -skill.soulCost);
   if (!usesHp(getClass(hero))) {
     hero.res -= skill.cost;
     return 0;
@@ -5338,23 +5343,23 @@ function paySkill(hero, skill) {
   return paid;
 }
 
-// Classe à âmes (Macabre) : sa ressource est le nombre d'âmes absorbées (0 à resMax), gagnées
-// à la mort des ennemis seulement (voir game/souls.js), jamais par régénération.
+// Classe à âmes (Macabre, qui utilise aussi du Mana) : jauge à part, `hero.souls` (0 à
+// soulMax), remplie seulement à la mort des ennemis (voir game/souls.js).
 function usesSouls(cls) {
-  return !!cls.resource.souls;
+  return !!cls.souls;
 }
 
 // Âmes absorbées par le héros (0 pour les autres classes).
 function soulsOf(hero) {
-  return usesSouls(getClass(hero)) ? Math.max(0, hero.res ?? 0) : 0;
+  return usesSouls(getClass(hero)) ? Math.max(0, hero.souls ?? 0) : 0;
 }
 
-// Ajoute des âmes (plafond : resMax). Retourne le nombre d'âmes réellement gagnées.
+// Ajoute (ou retire, amount < 0) des âmes, entre 0 et soulMax. Retourne la variation.
 function gainSouls(hero, amount) {
   if (!usesSouls(getClass(hero))) return 0;
   const before = soulsOf(hero);
-  hero.res = Math.min(getStats(hero).resMax, before + amount);
-  return hero.res - before;
+  hero.souls = Math.max(0, Math.min(getStats(hero).soulMax, before + amount));
+  return hero.souls - before;
 }
 
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
@@ -5413,7 +5418,10 @@ function getStats(hero) {
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
-  if (usesSouls(cls)) applySoulBonuses(stats, Math.min(Math.max(0, hero.res ?? 0), stats.resMax));
+  if (usesSouls(cls)) {
+    stats.soulMax = cls.souls.max + (fx.passive.soulMax ?? 0);
+    applySoulBonuses(stats, Math.min(Math.max(0, hero.souls ?? 0), stats.soulMax));
+  }
   return stats;
 }
 
@@ -5439,7 +5447,7 @@ function applySoulBonuses(stats, souls) {
 
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
- *   powerPct        +% de puissance      costDelta     ± coût
+ *   powerPct        +% de puissance      costDelta     ± coût      soulCostDelta ± âmes
  *   critBonus       + % de chance de critique
  *   dotTurnsDelta   ± tours des effets de dégâts sur la durée (poison, saignement…)
  *   dotPowerPct     +% de dégâts de ces effets
@@ -5453,6 +5461,7 @@ function applySkillMod(skill, mod) {
   const s = { ...skill, boosted: true };
   if (mod.powerPct && s.power) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
   if (mod.costDelta) s.cost = Math.max(1, s.cost + mod.costDelta);
+  if (mod.soulCostDelta && s.soulCost) s.soulCost = Math.max(1, s.soulCost + mod.soulCostDelta);
   if (mod.critBonus) s.critBonus = (s.critBonus ?? 0) + mod.critBonus;
   s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
     const dot = EFFECTS[e.id].value === 'dot';
@@ -5557,7 +5566,7 @@ function createParty(names = [], classes = PARTY_ORDER, looks = [], feminine = [
 }
 
 function gainResource(hero, amount) {
-  if (!amount || usesSouls(getClass(hero))) return; // les âmes ne viennent que des morts
+  if (!amount) return;
   hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
 }
 
@@ -5573,7 +5582,8 @@ function restoreFully(hero) {
   const stats = getStats(hero);
   hero.alive = true;
   hero.hp = stats.pv;
-  hero.res = usesSouls(getClass(hero)) ? 0 : stats.resMax; // le repos libère les âmes
+  hero.res = stats.resMax;
+  hero.souls = 0; // le repos libère les âmes (Macabre)
   hero.soulHeld = 0;
   hero.guard = false;
   hero.statuses = [];
@@ -5783,7 +5793,7 @@ function applyDamage(unit, amount) {
       unit.alive = false;
       unit.statuses = [];
       fell = true;
-      if (isHero(unit) && usesSouls(getClass(unit))) unit.res = 0; // ses âmes s'échappent
+      if (isHero(unit) && usesSouls(getClass(unit))) unit.souls = 0; // ses âmes s'échappent
     }
   }
   return { taken, absorbed, fell, ...(revived ? { revived } : {}) };
@@ -5829,7 +5839,7 @@ __modules["src/game/consumables.js"] = (() => {
 const { DUNGEONS } = __modules["src/data/dungeons.js"];
 const { CONSUMABLES } = __modules["src/data/consumables.js"];
 const { MERCHANT } = __modules["src/config.js"];
-const { getStats, gainResource, getClass, usesSouls } = __modules["src/game/party.js"];
+const { getStats, gainResource } = __modules["src/game/party.js"];
 const { heal } = __modules["src/game/units.js"];
 const { statusesOf } = __modules["src/game/statuses.js"];
 // Consommables : inventaire (game.consumables = { clé: quantité }) et effets.
@@ -5879,8 +5889,6 @@ function isValidTarget(key, target) {
   if (def.target === 'deadAlly') return !target.alive;
   if (def.target !== 'ally' || !target.alive) return false;
   if (def.effect.cure || def.effect.cleanse) return curedStatuses(key, target).length > 0;
-  // Les âmes du Macabre ne viennent que des morts : pas d'élixir de ressource pour lui.
-  if (def.effect.resourcePct && !def.effect.healPct && usesSouls(getClass(target))) return false;
   return true;
 }
 
@@ -5918,7 +5926,7 @@ function restoreParty(party, pct) {
   for (const hero of party.filter((h) => h.alive)) {
     const stats = getStats(hero);
     hero.hp = Math.min(stats.pv, hero.hp + Math.round(stats.pv * pct / 100));
-    if (!usesSouls(getClass(hero))) hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
+    hero.res = Math.min(stats.resMax, hero.res + Math.round(stats.resMax * pct / 100));
   }
 }
 
@@ -12727,11 +12735,12 @@ return { enemyStats, createEnemy, createEnemies };
 __modules["src/game/souls.js"] = (() => {
 const { SOULS } = __modules["src/config.js"];
 const { getClass, getStats, usesSouls, soulsOf, gainSouls } = __modules["src/game/party.js"];
-// Âmes du Macabre. Quand un ennemi meurt, chaque Macabre en vie absorbe son âme (1 âme,
-// jusqu'à son maximum : 3 de base, `resMaxBonus` en plus). Les âmes sont sa ressource
-// (hero.res) : gardées d'un combat à l'autre, libérées au repos (restoreFully) ou s'il tombe.
-// Selon l'orientation, chaque âme donne des bonus (getStats, applySoulBonuses) ou se dépense
-// dans des compétences (`cost` en âmes ; `allSouls` : toutes les âmes, puissance par âme).
+// Âmes du Macabre (classe à Mana). Quand un ennemi meurt, chaque Macabre en vie absorbe son
+// âme (1 âme, jusqu'à son maximum : `souls.max` de la classe, 3, plus le passif `soulMax`).
+// Jauge à part (hero.souls) : gardées d'un combat à l'autre, libérées au repos (restoreFully)
+// ou s'il tombe. Selon l'orientation, chaque âme donne des bonus (getStats, applySoulBonuses)
+// ou se dépense dans des compétences, en plus de leur coût en Mana (`soulCost` âmes ;
+// `allSouls` : toutes les âmes, puissance par âme).
 // Contrecoup (SOULS, config.js) à la fin de chacun de ses tours : il perd des PV, de plus en
 // plus vite avec le nombre d'âmes et le temps passé au maximum ; au maximum, ses alliés
 // en souffrent aussi. Un passif `soulWard` (% ) réduit ce contrecoup, `soulHeal` soigne
@@ -12745,7 +12754,7 @@ function isSoulBearer(hero) {
 }
 
 function soulMax(hero) {
-  return getStats(hero).resMax;
+  return getStats(hero).soulMax;
 }
 
 /**
@@ -12777,7 +12786,7 @@ function absorbSoul(party) {
 function backlashPct(stats, souls, held = 0) {
   if (!souls) return { self: 0, allies: 0 };
   const ward = 1 - Math.min(90, stats.soulWard ?? 0) / 100;
-  const atMax = souls >= stats.resMax;
+  const atMax = souls >= stats.soulMax;
   const self = (SOULS.drain * souls * souls + (atMax ? SOULS.heldGrowth * Math.max(0, held) : 0)) * ward;
   return { self: +self.toFixed(2), allies: atMax ? +(SOULS.spill * ward).toFixed(2) : 0 };
 }
@@ -12793,7 +12802,7 @@ function soulBacklash(hero, party) {
     hero.soulHeld = 0;
     return { self: 0, allies: [] };
   }
-  const atMax = souls >= stats.resMax;
+  const atMax = souls >= stats.soulMax;
   const held = atMax ? hero.soulHeld ?? 0 : 0;
   hero.soulHeld = atMax ? held + 1 : 0;
   const pct = backlashPct(stats, souls, held);
@@ -12817,7 +12826,7 @@ function atSouls(skill, souls) {
     power: scale(skill.power),
     effects: (skill.effects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
     selfEffects: (skill.selfEffects ?? []).map((e) => (e.power === undefined ? e : { ...e, power: scale(e.power) })),
-    cost: n,
+    soulCost: n,
     soulsSpent: n,
   };
 }
@@ -13543,7 +13552,7 @@ function heroAct(cb, action) {
     if (!targets) return false;
     const paid = paySkill(hero, skill);
     if (paid) log(cb, `${hero.name} sacrifie ${paid} PV.`);
-    if (isSoulBearer(hero) && skill.cost > 0) log(cb, `${hero.name} libère ${skill.cost} âme${skill.cost > 1 ? 's' : ''}.`);
+    if (skill.soulCost) log(cb, `${hero.name} libère ${skill.soulCost} âme${skill.soulCost > 1 ? 's' : ''}.`);
     if (skill.finisher) hero.combo = 0;
     if (skill.oncePerCombat) hero.usedSkills = [...(hero.usedSkills ?? []), skill.id];
     const { crit } = useSkill(cb, hero, skill, targets);
@@ -15494,6 +15503,7 @@ const DECOR = [
 const CAMP = [
   [CLASS_ORDER[0], 10, 9, 'right'], [CLASS_ORDER[1], 14, 9, 'left'], [CLASS_ORDER[2], 10, 11, 'right'],
   [CLASS_ORDER[3], 14, 11, 'left'], [CLASS_ORDER[4], 12, 8, 'down'], [CLASS_ORDER[5], 12, 12, 'up'],
+  [CLASS_ORDER[6], 8, 10, 'right'], [CLASS_ORDER[7], 16, 10, 'left'],
 ];
 const inClearing = (x, y) => ((x - FIRE.x) / 6.2) ** 2 + ((y - FIRE.y) / 3.8) ** 2 <= 1;
 const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -15639,7 +15649,7 @@ return { renderTitle };
 __modules["src/ui/heroStats.js"] = (() => {
 const { STATS, STAT_ORDER } = __modules["src/data/stats.js"];
 const { COMBAT } = __modules["src/config.js"];
-const { getClass, getStats, usesMana, usesHp } = __modules["src/game/party.js"];
+const { getClass, getStats, usesMana, usesHp, usesSouls, soulsOf } = __modules["src/game/party.js"];
 const { tip } = __modules["src/ui/html.js"];
 // Tableau des stats finales d'un héros (feuilles de personnage, écran d'équipement).
 
@@ -15709,6 +15719,10 @@ function statsList(hero) {
   rows.splice(STAT_ORDER.indexOf('pv') + 2, 0, usesHp(cls)
     ? row('Ressource', 'aucune', 'Sans ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV).')
     : row(cls.resource.name, `${hero.res}/${stats.resMax}`, resourceTip(cls, stats)));
+  if (usesSouls(cls)) {
+    rows.splice(STAT_ORDER.indexOf('pv') + 3, 0, row('Âmes', `${soulsOf(hero)}/${stats.soulMax}`,
+      "Âmes absorbées à la mort des ennemis, gardées d'un combat à l'autre : chaque âme le renforce ou se dépense dans ses compétences, mais le ronge à la fin de ses tours."));
+  }
   // Bonus des talents (n'apparaissent que s'ils existent).
   for (const [key, label, suffix, tipText] of BONUS_ROWS) {
     if (stats[key]) rows.push(row(label, `+${stats[key]}${suffix}`, tipText));
@@ -15828,11 +15842,12 @@ function consumableEstimate(key, hero) {
  * « 14 PV » (héros donné) / « 6 % PV » (sans héros) ; un sacrifice coûte tout sauf 1 PV.
  */
 function skillCostLabel(cls, skill, hero = null) {
-  if (cls.resource.souls) {
-    if (skill.allSouls) return skill.soulsSpent ? `toutes les âmes (${skill.soulsSpent})` : 'toutes les âmes';
-    return skill.cost ? `${skill.cost} âme${skill.cost > 1 ? 's' : ''}` : 'gratuit';
+  if (!usesHp(cls)) {
+    // Macabre : des âmes en plus du Mana.
+    const souls = skill.allSouls ? (skill.soulsSpent ? `toutes les âmes (${skill.soulsSpent})` : 'toutes les âmes')
+      : skill.soulCost ? `${skill.soulCost} âme${skill.soulCost > 1 ? 's' : ''}` : '';
+    return `${skill.cost} ${cls.resource.name}${souls ? ` + ${souls}` : ''}`;
   }
-  if (!usesHp(cls)) return `${skill.cost} ${cls.resource.name}`;
   if (skill.sacrifice) return 'tous les PV sauf 1';
   return hero ? `${hpCost(hero, skill)} PV` : `${skill.cost} % PV`;
 }
@@ -16160,8 +16175,8 @@ function classesTab() {
   const hero = createHero(key);
   const stats = getStats(hero);
   const r = cls.resource;
-  const resourceText = r.souls
-    ? `Âmes : il absorbe l'âme de chaque ennemi qui meurt (${r.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe. Ses coups de base sont gratuits, les plus forts dépensent des âmes. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
+  const resourceText = cls.souls
+    ? `${r.name} : ${r.max} au maximum, +${r.regen} au début de chaque tour. Âmes : il absorbe aussi l'âme de chaque ennemi qui meurt (${cls.souls.max} au plus), gardées d'un combat à l'autre et libérées au repos ou s'il tombe ; ses compétences les plus fortes en dépensent en plus du Mana. Contrecoup à la fin de ses tours : ${[1, 2, 3].map((n) => `${String(+(SOULS.drain * n * n).toFixed(1)).replace('.', ',')} %`).join(' / ')} de ses PV max avec 1 / 2 / 3 âmes, un peu plus à chaque tour passé au maximum ; au maximum, ses alliés perdent aussi ${SOULS.spill} % de leurs PV.`
     : r.hp
     ? 'Aucune ressource : chaque compétence coûte un pourcentage de ses PV max (jamais le dernier PV). Une fois par combat, il peut se relever quand il tombe (talents).'
     : r.multiAction
@@ -18920,7 +18935,7 @@ __modules["src/ui/screens/combat.js"] = (() => {
 const { state } = __modules["src/state.js"];
 const { COMBAT } = __modules["src/config.js"];
 const { STATS } = __modules["src/data/stats.js"];
-const { getClass, getSkills, heroClassTitle, usesHp, hpCost } = __modules["src/game/party.js"];
+const { getClass, getSkills, heroClassTitle, usesHp, hpCost, usesSouls, soulsOf } = __modules["src/game/party.js"];
 const { CONSUMABLES, CONSUMABLE_ORDER } = __modules["src/data/consumables.js"];
 const { countOf, usableIn } = __modules["src/game/consumables.js"];
 const { estimateHit, BASIC_ATTACK } = __modules["src/game/formulas.js"];
@@ -19006,6 +19021,9 @@ function heroRow(hero, i, active) {
   const stats = statsOf(hero);
   const max = comboMax(hero);
   const combo = max && hero.alive ? `<span class="bs-combo" title="Points de combo">${'●'.repeat(comboOf(hero))}${'○'.repeat(max - comboOf(hero))}</span>` : '';
+  // Âmes du Macabre : pastilles pâles (jauge à part du Mana).
+  const souls = usesSouls(cls) && hero.alive
+    ? `<span class="bs-combo bs-souls" title="Âmes absorbées (${soulsOf(hero)}/${stats.soulMax}) : chaque âme le renforce, mais le ronge à la fin de ses tours">${'●'.repeat(soulsOf(hero))}${'○'.repeat(Math.max(0, stats.soulMax - soulsOf(hero)))}</span>` : '';
   return `
     <button class="bs-hero ${active ? 'active' : ''} ${hero.alive ? '' : 'dead'}" data-hero="${i}" style="--c:${cls.color}" title="Voir les statistiques de ${esc(hero.name)}">
       <span class="bs-name">${active ? '▶ ' : ''}${iconHtml(CLASS_ICONS[hero.classKey], 16)} ${esc(hero.name)} <span class="bs-row" title="${hero.row === 'melee' ? 'Corps à corps' : 'Distance'}">${iconHtml(hero.row === 'melee' ? 720 : 1482, 16)}</span></span>
@@ -19013,7 +19031,7 @@ function heroRow(hero, i, active) {
         ${meter(hero.hp, stats.pv, 'hp')}
         ${usesHp(cls) ? '' : meter(hero.res, stats.resMax, `res ${resourceKind(cls.resource.name)}`, cls.resource.name)}
       </span>
-      <span class="bs-status">${combo}${statusIcons(hero)}</span>
+      <span class="bs-status">${combo}${souls}${statusIcons(hero)}</span>
     </button>`;
 }
 
@@ -19070,8 +19088,8 @@ function skillButtons(hero) {
   const cls = getClass(hero);
   return getSkills(hero).map((base, i) => {
     const s = base.sacrifice || base.allSouls ? effectiveSkill(hero, base) : atCombo(base, Math.max(1, comboOf(hero)));
-    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`)
-      : cls.resource.souls ? (s.cost ? `${s.cost} âme${s.cost > 1 ? 's' : ''}` : 'gratuit') : s.cost;
+    const soulsPart = s.soulCost ? ` +${s.soulCost}◈` : '';
+    const cost = usesHp(cls) ? (s.sacrifice ? 'tout' : `${hpCost(hero, s)} PV`) : `${s.cost}${soulsPart}`;
     const problem = skillWeaponProblem(hero, s);
     return `<button class="cmd skill" data-skill="${i}" ${canUseSkill(cb, hero, base) ? '' : 'disabled'} title="${esc(problem ? `${s.name} : ${problem}` : s.name)}">
       <span class="ico">${skillIcon(s)}</span><span class="lbl">${esc(s.name)}</span>

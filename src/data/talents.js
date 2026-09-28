@@ -78,7 +78,7 @@ const EFFECT_LABELS = {
     guardBonus: ' % de dégâts en moins en défendant', guardShieldPct: ' % des PV max en Bouclier en défendant',
     soulWard: ' % de contrecoup des âmes en moins', soulPhys: ' % de puissance physique par âme', soulMag: ' % de puissance magique par âme',
     soulDef: ' % de Défense et Défense magique par âme', soulCrit: ' % de Coup critique par âme', soulBlock: ' % de Blocage par âme',
-    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée',
+    soulLifesteal: ' % de vol de vie par âme', soulHeal: ' % des PV max rendus par âme absorbée', soulMax: ' âme maximum en plus',
   },
 };
 
@@ -1286,7 +1286,7 @@ export const TALENTS = {
           minor('mc-carcasse', 'Carcasse', { pct: { pv: 2.5 } }),
         ]),
         skill(2, {
-          id: 'dechainement', name: 'Déchaînement', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
+          id: 'dechainement', name: 'Déchaînement', cost: 20, allSouls: true, kind: 'damage', target: 'enemy', power: 2.0,
           desc: 'Libère toutes ses âmes dans un seul coup : puissance 2 par âme libérée',
         }),
         ...choice(3, [
@@ -1301,8 +1301,8 @@ export const TALENTS = {
           minor('mc-achever', 'Achever', { passive: { executePct: 4 } }),
         ]),
         skill(6, {
-          id: 'fauchee', name: 'Fauchée', cost: 0, kind: 'damage', target: 'allEnemies', power: 1.2,
-          desc: 'Grand coup circulaire sur tous les ennemis (gratuit)',
+          id: 'fauchee', name: 'Fauchée', cost: 20, kind: 'damage', target: 'allEnemies', power: 1.2,
+          desc: 'Grand coup circulaire sur tous les ennemis',
         }),
         ...choice(7, [
           minor('mc-poids-mort', 'Poids mort', { pct: { physPower: 3.5 } }),
@@ -1310,7 +1310,7 @@ export const TALENTS = {
           minor('mc-dents', 'Dents longues', { passive: { lifestealPct: 2 } }),
         ]),
         skill(8, {
-          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
+          id: 'frappe-d-outre-tombe', name: 'Frappe d\'outre-tombe', cost: 15, soulCost: 1, kind: 'damage', target: 'enemy', power: 3.2, critBonus: 20,
           desc: 'Libère une âme dans un coup terrible, +20 % de chance de critique',
         }),
         ...choice(9, [
@@ -1324,14 +1324,14 @@ export const TALENTS = {
           minor('mc-regard-mort', 'Regard mort', { flat: { critChance: 2 } }),
           minor('mc-habitude', 'Habitude', { passive: { soulWard: 5 } }),
         ]),
-        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        passive('trop-plein', 'Trop-plein', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { soulMax: 1 } }),
         ...choice(13, [
           minor('mc-carnage', 'Carnage', { pct: { physPower: 4.5 } }),
           minor('mc-brise-os', 'Brise-os', { flat: { critDmg: 6.5 } }),
           minor('mc-chair-dure', 'Chair dure', { pct: { pv: 4.5 } }),
         ]),
         signature({
-          id: 'hecatombe', name: 'Hécatombe', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
+          id: 'hecatombe', name: 'Hécatombe', cost: 30, allSouls: true, kind: 'damage', target: 'allEnemies', power: 1.4,
           desc: 'Libère toutes ses âmes sur tous les ennemis : puissance 1,4 par âme libérée',
         }),
       ],
@@ -1348,9 +1348,9 @@ export const TALENTS = {
           minor('mc-moelle', 'Moelle froide', { pct: { defMag: 3 } }),
         ]),
         skill(2, {
-          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 0, kind: 'support', target: 'self',
+          id: 'provocation-sepulcrale', name: 'Provocation sépulcrale', cost: 10, kind: 'support', target: 'self',
           selfEffects: [fx('provocation', 2)],
-          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense (gratuit)',
+          desc: 'Force les ennemis à l\'attaquer pendant 2 tours, +30 % Défense',
         }),
         ...choice(3, [
           minor('mc-ecu-d-os', 'Écu d\'os', { flat: { blocage: 2.5 } }),
@@ -1364,7 +1364,7 @@ export const TALENTS = {
           minor('mc-crane', 'Crâne dur', { pct: { defMag: 5 } }),
         ]),
         skill(6, {
-          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 1, allSouls: true, kind: 'support', target: 'self',
+          id: 'carapace-d-ossements', name: 'Carapace d\'ossements', cost: 15, allSouls: true, kind: 'support', target: 'self',
           selfEffects: [fx('bouclier', 2, 0.8)],
           desc: 'Libère toutes ses âmes en une carapace d\'os : Bouclier 2 tours, de puissance 0,8 par âme libérée',
         }),
@@ -1374,9 +1374,9 @@ export const TALENTS = {
           minor('mc-sang-froid', 'Sang froid', { pct: { pv: 3.5 } }),
         ]),
         skill(8, {
-          id: 'ecrasement', name: 'Écrasement', cost: 0, kind: 'damage', target: 'enemy', power: 1.6,
+          id: 'ecrasement', name: 'Écrasement', cost: 15, kind: 'damage', target: 'enemy', power: 1.6,
           effects: [fx('affaibli', 2)],
-          desc: 'Écrase la cible : Affaibli 2 tours (gratuit)',
+          desc: 'Écrase la cible : Affaibli 2 tours',
         }),
         ...choice(9, [
           minor('mc-ossuaire', 'Charnier', { pct: { pv: 4 } }),
@@ -1390,7 +1390,7 @@ export const TALENTS = {
           minor('mc-patience', 'Patience', { passive: { soulWard: 6 } }),
         ]),
         skill(12, {
-          id: 'mur-des-morts', name: 'Mur des morts', cost: 2, kind: 'support', target: 'allAllies',
+          id: 'mur-des-morts', name: 'Mur des morts', cost: 25, soulCost: 2, kind: 'support', target: 'allAllies',
           effects: [fx('protection', 2)],
           desc: 'Libère 2 âmes en un mur de spectres : toute l\'équipe gagne Protection 2 tours',
         }),
@@ -1400,7 +1400,7 @@ export const TALENTS = {
           minor('mc-linceul', 'Linceul', { pct: { defMag: 5.5 } }),
         ]),
         signature({
-          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 1, allSouls: true, kind: 'support', target: 'allAllies',
+          id: 'citadelle-des-damnes', name: 'Citadelle des damnés', cost: 30, allSouls: true, kind: 'support', target: 'allAllies',
           effects: [fx('bouclier', 2, 0.4)], selfEffects: [fx('provocation', 2)],
           desc: 'Libère toutes ses âmes : toute l\'équipe gagne un Bouclier 2 tours (puissance 0,4 par âme) et il provoque les ennemis 2 tours',
         }),
@@ -1418,7 +1418,7 @@ export const TALENTS = {
           minor('mc-suaire', 'Suaire', { pct: { pv: 2.5 } }),
         ]),
         skill(2, {
-          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 1, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
+          id: 'explosion-d-ame', name: 'Explosion d\'âme', cost: 20, allSouls: true, kind: 'damage', target: 'enemy', power: 0.95, magic: true,
           desc: 'Libère toutes ses âmes sur une cible (dégâts magiques) : puissance 0,95 par âme libérée',
         }),
         ...choice(3, [
@@ -1433,8 +1433,8 @@ export const TALENTS = {
           minor('mc-putrefaction', 'Putréfaction', { pct: { magPower: 3 } }),
         ]),
         skill(6, {
-          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 0, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
-          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques, gratuit)',
+          id: 'nuee-spectrale', name: 'Nuée spectrale', cost: 20, kind: 'damage', target: 'allEnemies', power: 0.55, magic: true,
+          desc: 'Nuée de spectres sur tous les ennemis (dégâts magiques)',
         }),
         ...choice(7, [
           minor('mc-necronomie', 'Nécrologie', { pct: { magPower: 3.5 } }),
@@ -1442,7 +1442,7 @@ export const TALENTS = {
           minor('mc-vampire', 'Soif', { passive: { lifestealPct: 2 } }),
         ]),
         skill(8, {
-          id: 'malediction', name: 'Malédiction', cost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
+          id: 'malediction', name: 'Malédiction', cost: 18, soulCost: 1, kind: 'damage', target: 'enemy', power: 1.4, magic: true,
           effects: [fx('tenebres', 3, 0.25), fx('terreur', 2)],
           desc: 'Libère une âme en malédiction (dégâts magiques) : Ténèbres 3 tours et Terreur 2 tours',
         }),
@@ -1457,14 +1457,14 @@ export const TALENTS = {
           minor('mc-funeste', 'Funeste', { flat: { critChance: 2 } }),
           minor('mc-detachement', 'Détachement', { passive: { soulWard: 5 } }),
         ]),
-        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { resMaxBonus: 1 } }),
+        passive('grimoire-des-morts', 'Grimoire des morts', 12, 'Peut garder une 4e âme : encore plus de puissance… et un contrecoup bien plus lourd.', { passive: { soulMax: 1 } }),
         ...choice(13, [
           minor('mc-liturgie', 'Liturgie noire', { pct: { magPower: 4.5 } }),
           minor('mc-dies-irae', 'Colère', { flat: { critDmg: 6.5 } }),
           minor('mc-pierre-tombale', 'Pierre tombale', { pct: { pv: 4.5 } }),
         ]),
         signature({
-          id: 'requiem', name: 'Requiem', cost: 1, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
+          id: 'requiem', name: 'Requiem', cost: 30, allSouls: true, kind: 'damage', target: 'allEnemies', power: 0.7, magic: true,
           effects: [fx('tenebres', 2, 0.1)],
           desc: 'Libère toutes ses âmes sur tous les ennemis (dégâts magiques, puissance 0,7 par âme) et les plonge dans les Ténèbres 2 tours',
         }),

@@ -104,7 +104,7 @@ function play(cb, hero) {
     const options = getSkills(hero).map((s, i) => [s, i])
       .filter(([s]) => canUseSkill(cb, hero, s) && ['enemy', 'allEnemies'].includes(s.target) && (!s.finisher || (hero.combo ?? 0) >= full(s)))
       // Macabre : il garde ses âmes (bonus) et ne les dépense qu'une fois au maximum.
-      .filter(([s]) => !isSoulBearer(hero) || !s.cost || soulsOf(hero) >= getStats(hero).resMax)
+      .filter(([s]) => !isSoulBearer(hero) || !(s.soulCost || s.allSouls) || soulsOf(hero) >= getStats(hero).soulMax)
       .map(([s, i]) => ({ act: { type: 'skill', skill: i, target: 0 }, cost: s.cost, v: value(cb, hero, s, target) + (s.comboGain ? perPoint * s.comboGain : 0) }));
     options.push({ act: { type: 'attack', target: 0 }, cost: actionCost(hero, 'attack') || 1, v: avg(estimateHit(statsOf(hero), BASIC_ATTACK, statsOf(target))) });
     options.sort((a, b) => (multi ? b.v / Math.max(10, b.cost) - a.v / Math.max(10, a.cost) : b.v - a.v));

@@ -182,6 +182,7 @@ const DECOR = [
 const CAMP = [
   [CLASS_ORDER[0], 10, 9, 'right'], [CLASS_ORDER[1], 14, 9, 'left'], [CLASS_ORDER[2], 10, 11, 'right'],
   [CLASS_ORDER[3], 14, 11, 'left'], [CLASS_ORDER[4], 12, 8, 'down'], [CLASS_ORDER[5], 12, 12, 'up'],
+  [CLASS_ORDER[6], 8, 10, 'right'], [CLASS_ORDER[7], 16, 10, 'left'],
 ];
 const inClearing = (x, y) => ((x - FIRE.x) / 6.2) ** 2 + ((y - FIRE.y) / 3.8) ** 2 <= 1;
 const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };

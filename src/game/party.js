@@ -56,12 +56,14 @@ export function hpCost(hero, skill) {
 
 // Le héros peut-il payer cette compétence ? En PV (Scarifié) : jamais le dernier.
 export function canPaySkill(hero, skill) {
+  if ((skill.soulCost ?? 0) > soulsOf(hero)) return false; // âmes à libérer (Macabre)
   if (!usesHp(getClass(hero))) return hero.res >= skill.cost;
   return skill.sacrifice ? hero.hp > 1 : hpCost(hero, skill) < hero.hp;
 }
 
 // Paie une compétence (ressource ou PV). Retourne les PV sacrifiés (0 pour une ressource).
 export function paySkill(hero, skill) {
+  if (skill.soulCost) gainSouls(hero, -skill.soulCost);
   if (!usesHp(getClass(hero))) {
     hero.res -= skill.cost;
     return 0;
@@ -71,23 +73,23 @@ export function paySkill(hero, skill) {
   return paid;
 }
 
-// Classe à âmes (Macabre) : sa ressource est le nombre d'âmes absorbées (0 à resMax), gagnées
-// à la mort des ennemis seulement (voir game/souls.js), jamais par régénération.
+// Classe à âmes (Macabre, qui utilise aussi du Mana) : jauge à part, `hero.souls` (0 à
+// soulMax), remplie seulement à la mort des ennemis (voir game/souls.js).
 export function usesSouls(cls) {
-  return !!cls.resource.souls;
+  return !!cls.souls;
 }
 
 // Âmes absorbées par le héros (0 pour les autres classes).
 export function soulsOf(hero) {
-  return usesSouls(getClass(hero)) ? Math.max(0, hero.res ?? 0) : 0;
+  return usesSouls(getClass(hero)) ? Math.max(0, hero.souls ?? 0) : 0;
 }
 
-// Ajoute des âmes (plafond : resMax). Retourne le nombre d'âmes réellement gagnées.
+// Ajoute (ou retire, amount < 0) des âmes, entre 0 et soulMax. Retourne la variation.
 export function gainSouls(hero, amount) {
   if (!usesSouls(getClass(hero))) return 0;
   const before = soulsOf(hero);
-  hero.res = Math.min(getStats(hero).resMax, before + amount);
-  return hero.res - before;
+  hero.souls = Math.max(0, Math.min(getStats(hero).soulMax, before + amount));
+  return hero.souls - before;
 }
 
 // La stat secondaire Mana des objets ne sert qu'aux classes à Mana.
@@ -146,7 +148,10 @@ export function getStats(hero) {
     ...fx.passive,
   };
   for (const [stat, pct] of Object.entries(fx.pct)) stats[stat] = Math.round(stats[stat] * (1 + pct / 100));
-  if (usesSouls(cls)) applySoulBonuses(stats, Math.min(Math.max(0, hero.res ?? 0), stats.resMax));
+  if (usesSouls(cls)) {
+    stats.soulMax = cls.souls.max + (fx.passive.soulMax ?? 0);
+    applySoulBonuses(stats, Math.min(Math.max(0, hero.souls ?? 0), stats.soulMax));
+  }
   return stats;
 }
 
@@ -172,7 +177,7 @@ function applySoulBonuses(stats, souls) {
 
 /**
  * Modificateurs de compétence (objets légendaires et talents) :
- *   powerPct        +% de puissance      costDelta     ± coût
+ *   powerPct        +% de puissance      costDelta     ± coût      soulCostDelta ± âmes
  *   critBonus       + % de chance de critique
  *   dotTurnsDelta   ± tours des effets de dégâts sur la durée (poison, saignement…)
  *   dotPowerPct     +% de dégâts de ces effets
@@ -186,6 +191,7 @@ function applySkillMod(skill, mod) {
   const s = { ...skill, boosted: true };
   if (mod.powerPct && s.power) s.power = +(s.power * (1 + mod.powerPct / 100)).toFixed(3);
   if (mod.costDelta) s.cost = Math.max(1, s.cost + mod.costDelta);
+  if (mod.soulCostDelta && s.soulCost) s.soulCost = Math.max(1, s.soulCost + mod.soulCostDelta);
   if (mod.critBonus) s.critBonus = (s.critBonus ?? 0) + mod.critBonus;
   s.effects = [...(skill.effects ?? []), ...(mod.addEffects ?? [])].map((e) => {
     const dot = EFFECTS[e.id].value === 'dot';
@@ -290,7 +296,7 @@ export function createParty(names = [], classes = PARTY_ORDER, looks = [], femin
 }
 
 export function gainResource(hero, amount) {
-  if (!amount || usesSouls(getClass(hero))) return; // les âmes ne viennent que des morts
+  if (!amount) return;
   hero.res = Math.min(getStats(hero).resMax, hero.res + amount);
 }
 
@@ -306,7 +312,8 @@ export function restoreFully(hero) {
   const stats = getStats(hero);
   hero.alive = true;
   hero.hp = stats.pv;
-  hero.res = usesSouls(getClass(hero)) ? 0 : stats.resMax; // le repos libère les âmes
+  hero.res = stats.resMax;
+  hero.souls = 0; // le repos libère les âmes (Macabre)
   hero.soulHeld = 0;
   hero.guard = false;
   hero.statuses = [];
