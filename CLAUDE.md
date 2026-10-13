@@ -1,6 +1,7 @@
 # Anyem — notes pour Claude Code
 
 RPG tour par tour roguelite, JavaScript vanilla en modules ES, sans build ni dépendance.
+Le dossier `studio/` est un projet à part (Onde Studio, logiciel de musique) : voir `studio/README.md` ; ses tests passent aussi par le `npm test` de la racine.
 Lire `docs/PROJECT_STATUS.md` (état, feuille de route) et `docs/DESIGN_DOC.md` (vision, référence de design) avant toute évolution de gameplay.
 
 ## Commandes
