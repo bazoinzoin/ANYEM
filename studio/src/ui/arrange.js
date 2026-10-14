@@ -525,6 +525,7 @@ function onPointerDown(e) {
       if (!joinSelected([...ids])) { selectOnly([region.id]); emit('ui'); }
       return;
     }
+    if (dbl) { openEditor(region.id); return; }
     if (e.shiftKey) {
       if (ui.selectedRegions.has(region.id)) ui.selectedRegions.delete(region.id); else ui.selectedRegions.add(region.id);
       emit('ui');
@@ -550,6 +551,12 @@ function onPointerDown(e) {
     emit('ui');
     return;
   }
+  if (dbl && row.track.kind !== 'audio') {
+    const bar = ticksPerBar(project());
+    const r = createRegionAt(row.track.id, snap(tick, bar, 'floor'), bar);
+    if (r) openEditor(r.id);
+    return;
+  }
   if (tool === 'pencil' && row.track.kind !== 'audio') {
     els.scroller.setPointerCapture(e.pointerId);
     const s = snap(tick, ticksPerBar(project()), 'floor');
@@ -558,7 +565,9 @@ function onPointerDown(e) {
   }
   if (!e.shiftKey) selectOnly([]);
   els.scroller.setPointerCapture(e.pointerId);
-  drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedRegions) };
+  // Au doigt, glisser dans le vide fait défiler (sélection par rectangle à la souris).
+  if (e.pointerType === 'touch') drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: els.scroller.scrollLeft, st: els.scroller.scrollTop };
+  else drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedRegions) };
   emit('ui');
 }
 
@@ -582,6 +591,11 @@ function onPointerMove(e) {
           : hit.region ? 'Glissez pour déplacer (Alt = copier). Double-clic : ouvrir dans l\'éditeur.' : null;
     if (helpText) els.scroller.dataset.help = helpText; else delete els.scroller.dataset.help;
     if ((hoverInfo && hoverInfo.region) !== id) { hoverInfo = { region: id }; dirty = true; }
+    return;
+  }
+  if (drag.type === 'pan') {
+    els.scroller.scrollLeft = drag.sl - (e.clientX - drag.cx);
+    els.scroller.scrollTop = drag.st - (e.clientY - drag.cy);
     return;
   }
   const p = project();
@@ -695,18 +709,6 @@ function onPointerUp() {
   } else if (d.type === 'autoPoint') {
     autoCommit(d);
   } else emit('ui');
-}
-
-function onDoubleClick(e) {
-  const { x, y } = localPos(e, els.scroller);
-  const hit = hitRegion(x, y);
-  if (hit.row && hit.row.inAuto) return;
-  if (hit.region) { openEditor(hit.region.id); return; }
-  if (hit.row && hit.row.track.kind !== 'audio') {
-    const bar = ticksPerBar(project());
-    const r = createRegionAt(hit.row.track.id, snap(tickOf(x), bar, 'floor'), bar);
-    if (r) openEditor(r.id);
-  }
 }
 
 // ---- Automation -------------------------------------------------------------------------------
@@ -967,7 +969,6 @@ export function initArrange(root, { onNewTrack }) {
   s.addEventListener('pointerup', onPointerUp);
   s.addEventListener('pointercancel', onPointerUp);
   s.addEventListener('pointerleave', () => { if (hoverInfo) { hoverInfo = null; dirty = true; } });
-  s.addEventListener('dblclick', onDoubleClick);
   s.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const { x, y } = localPos(e, s);

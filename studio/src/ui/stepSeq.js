@@ -185,7 +185,7 @@ function onUp() {
 }
 
 export function mountSteps(host) {
-  host.innerHTML = `<div class="pr-host"><canvas class="pr-canvas"></canvas><div class="pr-scroll" tabindex="0" data-help="Cliquez une case pour poser un coup, recliquez pour l'enlever ; glissez pour en poser plusieurs. Maj+clic : coup accentué. Clic droit : changer la force. Cliquez un nom pour l'écouter."><div class="pr-spacer"></div></div></div>`;
+  host.innerHTML = `<div class="pr-host"><canvas class="pr-canvas"></canvas><div class="pr-scroll steps" tabindex="0" data-help="Cliquez une case pour poser un coup, recliquez pour l'enlever ; glissez pour en poser plusieurs. Maj+clic : coup accentué. Clic droit : changer la force. Cliquez un nom pour l'écouter."><div class="pr-spacer"></div></div></div>`;
   els = { canvas: host.querySelector('.pr-canvas'), scroller: host.querySelector('.pr-scroll'), spacer: host.querySelector('.pr-spacer') };
   const s = els.scroller;
   s.addEventListener('pointerdown', onDown);

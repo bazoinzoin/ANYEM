@@ -19,7 +19,7 @@ import { installControls } from './controls.js';
 import { showMenu, closeMenu } from './popup.js';
 import { saveProject, importAudioPicker, importMidiPicker, pickSampleFor, openProjectFile } from './files.js';
 import { newTrackDialog, APP_NAME } from './dialogs.js';
-import { typingPanelHtml } from './musicalTyping.js';
+import { typingPanelHtml, installTypingPointer } from './musicalTyping.js';
 import { toast } from './toast.js';
 
 let root = null;
@@ -313,6 +313,7 @@ export function mountApp(el) {
   installInspector($('#inspectorPanel'), { pickSample: pickSampleFor });
   installLibrary($('#libraryPanel'), { importAudio: importAudioPicker, importMidi: importMidiPicker });
   installKeyboard();
+  installTypingPointer($('#typingHost'));
   subscribe((kind) => { schedule(kind); watchTempo(); });
   applyLayout();
   renderPanels();

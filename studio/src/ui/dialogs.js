@@ -57,7 +57,7 @@ export async function welcomeDialog({ closable = true } = {}) {
       ui.fileHandle = null;
       m.close();
       saveProject({ quiet: true });
-      if (tpl.dataset.tpl !== 'empty' && tpl.dataset.tpl !== 'voice') toast('Appuyez sur Espace pour écouter.', 'info', 3500);
+      if (tpl.dataset.tpl !== 'empty' && tpl.dataset.tpl !== 'voice') toast(matchMedia('(pointer: coarse)').matches ? 'Touchez ▶ pour écouter.' : 'Appuyez sur Espace pour écouter.', 'info', 3500);
       return;
     }
     const open = e.target.closest('[data-open]');

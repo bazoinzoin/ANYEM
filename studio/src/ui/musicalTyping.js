@@ -70,12 +70,45 @@ function highlight() {
 export function typingPanelHtml() {
   const whites = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon', 'Quote'];
   const blacks = { KeyW: 0, KeyE: 1, KeyT: 3, KeyY: 4, KeyU: 5, KeyO: 7, KeyP: 8 };
-  return `<div class="mt-panel" data-help="Clavier musical : jouez avec les touches de l'ordinateur. Ctrl+K pour le fermer.">
+  return `<div class="mt-panel" data-help="Clavier musical : touchez les notes, ou jouez avec les touches de l'ordinateur. Ctrl+K pour le fermer.">
     <div class="mt-head">${icon('keyboard', 16)} <b>Clavier musical</b>
-      <span class="muted small">Octave ${ui.octave - 1} (${esc(labels.KeyZ)} / ${esc(labels.KeyX)}) · Vélocité ${ui.velocity} (${esc(labels.KeyC)} / ${esc(labels.KeyV)})</span>
+      <span class="mt-ctl"><button class="icon-btn small" data-typing-shift="oct:-1" data-help="Octave plus grave (${esc(labels.KeyZ)})">${icon('minus', 12)}</button><span class="muted small">Octave ${ui.octave - 1}</span><button class="icon-btn small" data-typing-shift="oct:1" data-help="Octave plus aiguë (${esc(labels.KeyX)})">${icon('plus', 12)}</button></span>
+      <span class="mt-ctl"><button class="icon-btn small" data-typing-shift="vel:-1" data-help="Jouer plus doucement (${esc(labels.KeyC)})">${icon('minus', 12)}</button><span class="muted small">Force ${ui.velocity}</span><button class="icon-btn small" data-typing-shift="vel:1" data-help="Jouer plus fort (${esc(labels.KeyV)})">${icon('plus', 12)}</button></span>
       <button class="icon-btn small" data-typing-close>${icon('close', 14)}</button></div>
     <div class="mt-keys">
       ${whites.map((c) => `<div class="mt-key white" data-code="${c}"><span>${esc(labels[c] || '')}</span><small>${esc(noteName(base() + MAP[c], ui.noteNames))}</small></div>`).join('')}
       ${Object.entries(blacks).map(([c, i]) => `<div class="mt-key black" data-code="${c}" style="left:${(i + 1) * 40 - 13}px"><span>${esc(labels[c] || '')}</span></div>`).join('')}
     </div></div>`;
+}
+
+// Touches du clavier à l'écran : jouables à la souris et au doigt (téléphone, tablette).
+export function installTypingPointer(root) {
+  const touching = new Map();
+  root.addEventListener('pointerdown', (e) => {
+    const key = e.target.closest('.mt-key');
+    if (!key || !(key.dataset.code in MAP)) return;
+    e.preventDefault();
+    const pitch = Math.min(127, base() + MAP[key.dataset.code]);
+    touching.set(e.pointerId, { pitch, el: key });
+    key.classList.add('down');
+    noteOn(pitch, ui.velocity);
+  });
+  const end = (e) => {
+    const t = touching.get(e.pointerId);
+    if (!t) return;
+    touching.delete(e.pointerId);
+    t.el.classList.remove('down');
+    noteOff(t.pitch);
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('pointerleave', end, true);
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-typing-shift]');
+    if (!b) return;
+    const [what, dir] = b.dataset.typingShift.split(':');
+    if (what === 'oct') ui.octave = Math.max(0, Math.min(8, ui.octave + Number(dir)));
+    else ui.velocity = Math.max(1, Math.min(127, ui.velocity + Number(dir) * 16));
+    emit('typing');
+  });
 }

@@ -38,7 +38,7 @@
   font-size: 13px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
 body { font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 1rem; -webkit-font-smoothing: antialiased; user-select: none; }
 button { font: inherit; color: inherit; }
@@ -55,6 +55,7 @@ select, input { font: inherit; }
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) 5px var(--bottom-h) auto;
   height: 100vh;
+  height: 100dvh;
 }
 .app.no-bottom { grid-template-rows: auto auto minmax(0, 1fr) 0 0 auto; }
 .app.no-bottom .bottom, .app.no-bottom .hsplit { display: none; }
@@ -130,7 +131,7 @@ select:focus, .text-input:focus { border-color: var(--accent); }
 .btn.on { border-color: var(--accent); color: var(--accent); }
 .link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline dotted; }
 
-.main { display: grid; grid-template-columns: var(--lib-w) var(--insp-w) minmax(0, 1fr); min-height: 0; }
+.main { position: relative; display: grid; grid-template-columns: var(--lib-w) var(--insp-w) minmax(0, 1fr); min-height: 0; }
 .no-lib .main { grid-template-columns: 0 var(--insp-w) minmax(0, 1fr); }
 .no-insp .main { grid-template-columns: var(--lib-w) 0 minmax(0, 1fr); }
 .no-lib.no-insp .main { grid-template-columns: 0 0 minmax(0, 1fr); }
@@ -384,6 +385,10 @@ kbd { background: #2b323d; border: 1px solid #454e5c; border-bottom-width: 2px; 
 .mt-key.black { position: absolute; top: 0; width: 26px; height: 66px; background: #22262d; border-radius: 0 0 4px 4px; color: #d0d5dc; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 0.8rem; font-weight: 700; z-index: 1; }
 .mt-key.down.white { background: var(--accent); color: #fff; }
 .mt-key.down.black { background: var(--accent2); }
+.mt-keys { touch-action: none; cursor: pointer; }
+.mt-ctl { display: inline-flex; align-items: center; gap: 2px; }
+#arrScroll, .pr-scroll, .vel-host canvas, .ruler-wrap canvas, .hsplit, .lcd-cell.drag { touch-action: none; }
+.pr-host .pr-scroll.steps { touch-action: pan-x pan-y; }
 
 @media (max-width: 1440px) {
   .lcd-cell.tap { display: none; }
@@ -395,6 +400,61 @@ kbd { background: #2b323d; border: 1px solid #454e5c; border-bottom-width: 2px; 
   .lcd-cell { padding: 3px 7px; min-width: 50px; }
   .lcd-cell.big span { min-width: 70px; font-size: 1.3rem; }
   .tb-sep { margin: 0 2px; }
+}
+
+/* ---- Téléphone et petite tablette ------------------------------------------------------------ */
+@media (max-width: 900px) {
+  :root { --header-w: 128px; --lib-w: min(310px, 86vw); --insp-w: min(320px, 90vw); }
+  .main, .no-lib .main, .no-insp .main, .no-lib.no-insp .main { grid-template-columns: minmax(0, 1fr); }
+  .lib-panel, .insp-panel { position: absolute; top: 0; bottom: 0; left: 0; z-index: 50; box-shadow: 8px 0 30px rgba(0,0,0,0.55); }
+  .lib-panel { width: var(--lib-w); }
+  .insp-panel { width: var(--insp-w); }
+  .menubar { overflow-x: auto; scrollbar-width: none; }
+  .menubar::-webkit-scrollbar { display: none; }
+  .brand span, .save-state, .proj-name .muted { display: none; }
+  .proj-name { margin-left: 6px; white-space: nowrap; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+  .menu-btn { padding: 4px 7px; }
+  .toolbar { overflow-x: auto; gap: 6px; padding: 5px 8px; scrollbar-width: none; }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar > * { flex-shrink: 0; }
+  .tb-sep, .input-meter, .lcd-cell.tap { display: none; }
+  .lcd-cell { min-width: 0; padding: 3px 7px; }
+  .lcd-cell.big span { min-width: 58px; font-size: 1.2rem; }
+  .lcd-cell:nth-child(2) { display: none; }
+  .arr-corner .trackh { display: none; }
+  .arr-corner { padding: 0 4px; }
+  .th-main { padding: 0 4px 0 9px; gap: 4px; }
+  .th-row2 { gap: 3px; }
+  .th-meter { display: none; }
+  .tbtn { width: 22px; height: 22px; }
+  .th-auto { padding: 0 4px 0 9px; flex-wrap: wrap; }
+  .bottom-bar { flex-wrap: wrap; gap: 6px; }
+  .ed-toolbar { gap: 8px; }
+  .ed-field input[type=range] { width: 70px; }
+  .modal { padding: 16px; }
+  .welcome-cols { grid-template-columns: 1fr; }
+  .tpl-grid { grid-template-columns: 1fr 1fr; }
+  .tpl .muted { display: none; }
+  .kind-grid { grid-template-columns: 1fr; }
+  .shortcuts { grid-template-columns: 1fr; }
+  .mt-panel { left: 6px; right: 6px; bottom: 8px; padding: 8px; }
+  .mt-head { flex-wrap: wrap; }
+  .mt-keys { overflow-x: auto; }
+  #toasts { bottom: 14px; }
+}
+@media (pointer: coarse) {
+  .icon-btn { width: 36px; height: 34px; }
+  .icon-btn.small { width: 30px; height: 28px; }
+  .tp-btn { width: 40px; height: 38px; }
+  .knob-xs .knob-dial { --size: 32px; }
+  .lib-play { opacity: 1; }
+  .fx-slot { padding: 5px 6px; }
+}
+@media (max-height: 520px) {
+  .mt-keys { height: 84px; }
+  .mt-key.white { height: 84px; }
+  .mt-key.black { height: 50px; }
+  .mt-head { margin-bottom: 4px; }
 }
 </style>
 </head>
@@ -5524,6 +5584,7 @@ function onPointerDown(e) {
       if (!joinSelected([...ids])) { selectOnly([region.id]); emit('ui'); }
       return;
     }
+    if (dbl) { openEditor(region.id); return; }
     if (e.shiftKey) {
       if (ui.selectedRegions.has(region.id)) ui.selectedRegions.delete(region.id); else ui.selectedRegions.add(region.id);
       emit('ui');
@@ -5549,6 +5610,12 @@ function onPointerDown(e) {
     emit('ui');
     return;
   }
+  if (dbl && row.track.kind !== 'audio') {
+    const bar = ticksPerBar(project());
+    const r = createRegionAt(row.track.id, snap(tick, bar, 'floor'), bar);
+    if (r) openEditor(r.id);
+    return;
+  }
   if (tool === 'pencil' && row.track.kind !== 'audio') {
     els.scroller.setPointerCapture(e.pointerId);
     const s = snap(tick, ticksPerBar(project()), 'floor');
@@ -5557,7 +5624,9 @@ function onPointerDown(e) {
   }
   if (!e.shiftKey) selectOnly([]);
   els.scroller.setPointerCapture(e.pointerId);
-  drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedRegions) };
+  // Au doigt, glisser dans le vide fait défiler (sélection par rectangle à la souris).
+  if (e.pointerType === 'touch') drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: els.scroller.scrollLeft, st: els.scroller.scrollTop };
+  else drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedRegions) };
   emit('ui');
 }
 
@@ -5581,6 +5650,11 @@ function onPointerMove(e) {
           : hit.region ? 'Glissez pour déplacer (Alt = copier). Double-clic : ouvrir dans l\'éditeur.' : null;
     if (helpText) els.scroller.dataset.help = helpText; else delete els.scroller.dataset.help;
     if ((hoverInfo && hoverInfo.region) !== id) { hoverInfo = { region: id }; dirty = true; }
+    return;
+  }
+  if (drag.type === 'pan') {
+    els.scroller.scrollLeft = drag.sl - (e.clientX - drag.cx);
+    els.scroller.scrollTop = drag.st - (e.clientY - drag.cy);
     return;
   }
   const p = project();
@@ -5694,18 +5768,6 @@ function onPointerUp() {
   } else if (d.type === 'autoPoint') {
     autoCommit(d);
   } else emit('ui');
-}
-
-function onDoubleClick(e) {
-  const { x, y } = localPos(e, els.scroller);
-  const hit = hitRegion(x, y);
-  if (hit.row && hit.row.inAuto) return;
-  if (hit.region) { openEditor(hit.region.id); return; }
-  if (hit.row && hit.row.track.kind !== 'audio') {
-    const bar = ticksPerBar(project());
-    const r = createRegionAt(hit.row.track.id, snap(tickOf(x), bar, 'floor'), bar);
-    if (r) openEditor(r.id);
-  }
 }
 
 // ---- Automation -------------------------------------------------------------------------------
@@ -5966,7 +6028,6 @@ function initArrange(root, { onNewTrack }) {
   s.addEventListener('pointerup', onPointerUp);
   s.addEventListener('pointercancel', onPointerUp);
   s.addEventListener('pointerleave', () => { if (hoverInfo) { hoverInfo = null; dirty = true; } });
-  s.addEventListener('dblclick', onDoubleClick);
   s.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const { x, y } = localPos(e, s);
@@ -6435,7 +6496,9 @@ function onDown(e) {
   }
   if (!e.shiftKey) ui.selectedNotes = new Set();
   els.scroller.setPointerCapture(e.pointerId);
-  drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedNotes) };
+  // Au doigt, glisser dans le vide fait défiler ; double-tap = nouvelle note.
+  if (e.pointerType === 'touch') drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: els.scroller.scrollLeft, st: els.scroller.scrollTop };
+  else drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedNotes) };
   emit('ui');
 }
 
@@ -6447,6 +6510,11 @@ function onMove(e) {
   if (!drag) {
     const hit = x > KEY_W && y > RULER ? noteAt(er.region, x, y, G) : null;
     els.scroller.style.cursor = x < KEY_W ? 'pointer' : hit ? (hit.edge ? 'ew-resize' : ui.tool === 'eraser' ? 'not-allowed' : 'grab') : (ui.tool === 'pencil' ? 'crosshair' : 'default');
+    return;
+  }
+  if (drag.type === 'pan') {
+    els.scroller.scrollLeft = drag.sl - (e.clientX - drag.cx);
+    els.scroller.scrollTop = drag.st - (e.clientY - drag.cy);
     return;
   }
   const grid = e.shiftKey ? 1 : gridSize();
@@ -6892,7 +6960,7 @@ function onUp() {
 }
 
 function mountSteps(host) {
-  host.innerHTML = `<div class="pr-host"><canvas class="pr-canvas"></canvas><div class="pr-scroll" tabindex="0" data-help="Cliquez une case pour poser un coup, recliquez pour l'enlever ; glissez pour en poser plusieurs. Maj+clic : coup accentué. Clic droit : changer la force. Cliquez un nom pour l'écouter."><div class="pr-spacer"></div></div></div>`;
+  host.innerHTML = `<div class="pr-host"><canvas class="pr-canvas"></canvas><div class="pr-scroll steps" tabindex="0" data-help="Cliquez une case pour poser un coup, recliquez pour l'enlever ; glissez pour en poser plusieurs. Maj+clic : coup accentué. Clic droit : changer la force. Cliquez un nom pour l'écouter."><div class="pr-spacer"></div></div></div>`;
   els = { canvas: host.querySelector('.pr-canvas'), scroller: host.querySelector('.pr-scroll'), spacer: host.querySelector('.pr-spacer') };
   const s = els.scroller;
   s.addEventListener('pointerdown', onDown);
@@ -8549,7 +8617,7 @@ async function welcomeDialog({ closable = true } = {}) {
       ui.fileHandle = null;
       m.close();
       saveProject({ quiet: true });
-      if (tpl.dataset.tpl !== 'empty' && tpl.dataset.tpl !== 'voice') toast('Appuyez sur Espace pour écouter.', 'info', 3500);
+      if (tpl.dataset.tpl !== 'empty' && tpl.dataset.tpl !== 'voice') toast(matchMedia('(pointer: coarse)').matches ? 'Touchez ▶ pour écouter.' : 'Appuyez sur Espace pour écouter.', 'info', 3500);
       return;
     }
     const open = e.target.closest('[data-open]');
@@ -8792,9 +8860,10 @@ function highlight() {
 function typingPanelHtml() {
   const whites = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon', 'Quote'];
   const blacks = { KeyW: 0, KeyE: 1, KeyT: 3, KeyY: 4, KeyU: 5, KeyO: 7, KeyP: 8 };
-  return `<div class="mt-panel" data-help="Clavier musical : jouez avec les touches de l'ordinateur. Ctrl+K pour le fermer.">
+  return `<div class="mt-panel" data-help="Clavier musical : touchez les notes, ou jouez avec les touches de l'ordinateur. Ctrl+K pour le fermer.">
     <div class="mt-head">${icon('keyboard', 16)} <b>Clavier musical</b>
-      <span class="muted small">Octave ${ui.octave - 1} (${esc(labels.KeyZ)} / ${esc(labels.KeyX)}) · Vélocité ${ui.velocity} (${esc(labels.KeyC)} / ${esc(labels.KeyV)})</span>
+      <span class="mt-ctl"><button class="icon-btn small" data-typing-shift="oct:-1" data-help="Octave plus grave (${esc(labels.KeyZ)})">${icon('minus', 12)}</button><span class="muted small">Octave ${ui.octave - 1}</span><button class="icon-btn small" data-typing-shift="oct:1" data-help="Octave plus aiguë (${esc(labels.KeyX)})">${icon('plus', 12)}</button></span>
+      <span class="mt-ctl"><button class="icon-btn small" data-typing-shift="vel:-1" data-help="Jouer plus doucement (${esc(labels.KeyC)})">${icon('minus', 12)}</button><span class="muted small">Force ${ui.velocity}</span><button class="icon-btn small" data-typing-shift="vel:1" data-help="Jouer plus fort (${esc(labels.KeyV)})">${icon('plus', 12)}</button></span>
       <button class="icon-btn small" data-typing-close>${icon('close', 14)}</button></div>
     <div class="mt-keys">
       ${whites.map((c) => `<div class="mt-key white" data-code="${c}"><span>${esc(labels[c] || '')}</span><small>${esc(noteName(base() + MAP[c], ui.noteNames))}</small></div>`).join('')}
@@ -8802,7 +8871,39 @@ function typingPanelHtml() {
     </div></div>`;
 }
 
-return { initTypingLabels, typingKeyDown, typingKeyUp, releaseAllTyping, typingPanelHtml };
+// Touches du clavier à l'écran : jouables à la souris et au doigt (téléphone, tablette).
+function installTypingPointer(root) {
+  const touching = new Map();
+  root.addEventListener('pointerdown', (e) => {
+    const key = e.target.closest('.mt-key');
+    if (!key || !(key.dataset.code in MAP)) return;
+    e.preventDefault();
+    const pitch = Math.min(127, base() + MAP[key.dataset.code]);
+    touching.set(e.pointerId, { pitch, el: key });
+    key.classList.add('down');
+    noteOn(pitch, ui.velocity);
+  });
+  const end = (e) => {
+    const t = touching.get(e.pointerId);
+    if (!t) return;
+    touching.delete(e.pointerId);
+    t.el.classList.remove('down');
+    noteOff(t.pitch);
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('pointerleave', end, true);
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-typing-shift]');
+    if (!b) return;
+    const [what, dir] = b.dataset.typingShift.split(':');
+    if (what === 'oct') ui.octave = Math.max(0, Math.min(8, ui.octave + Number(dir)));
+    else ui.velocity = Math.max(1, Math.min(127, ui.velocity + Number(dir) * 16));
+    emit('typing');
+  });
+}
+
+return { initTypingLabels, typingKeyDown, typingKeyUp, releaseAllTyping, typingPanelHtml, installTypingPointer };
 })();
 
 // ---- src/version.js
@@ -9061,7 +9162,7 @@ const { installControls } = __modules["src/ui/controls.js"];
 const { showMenu, closeMenu } = __modules["src/ui/popup.js"];
 const { saveProject, importAudioPicker, importMidiPicker, pickSampleFor, openProjectFile } = __modules["src/ui/files.js"];
 const { newTrackDialog, APP_NAME } = __modules["src/ui/dialogs.js"];
-const { typingPanelHtml } = __modules["src/ui/musicalTyping.js"];
+const { typingPanelHtml, installTypingPointer } = __modules["src/ui/musicalTyping.js"];
 const { toast } = __modules["src/ui/toast.js"];
 // Assemblage de l'écran : barre de menus, barre de transport, bibliothèque, inspecteur,
 // arrangement, panneau du bas (éditeur ou console), aide rapide. Boucle d'affichage.
@@ -9378,6 +9479,7 @@ function mountApp(el) {
   installInspector($('#inspectorPanel'), { pickSample: pickSampleFor });
   installLibrary($('#libraryPanel'), { importAudio: importAudioPicker, importMidi: importMidiPicker });
   installKeyboard();
+  installTypingPointer($('#typingHost'));
   subscribe((kind) => { schedule(kind); watchTempo(); });
   applyLayout();
   renderPanels();
@@ -9420,6 +9522,18 @@ const { initTypingLabels } = __modules["src/ui/musicalTyping.js"];
 
 const prefs = loadPrefs();
 for (const k of ['noteNames', 'uiScale', 'latencyMs', 'quickHelp']) if (prefs[k] != null) ui[k] = prefs[k];
+
+// Téléphone ou petite tablette : panneaux latéraux fermés, aide au survol inutile au doigt.
+const small = window.matchMedia('(max-width: 900px)').matches;
+const coarse = window.matchMedia('(pointer: coarse)').matches;
+if (small) {
+  ui.showLibrary = false;
+  ui.showInspector = false;
+  ui.trackH = 58;
+  ui.zoom = 0.045;
+  ui.bottomH = Math.max(160, Math.round(window.innerHeight * 0.42));
+}
+if (coarse) { ui.quickHelp = false; ui.prKeyH = 18; }
 
 loadProject(createFromTemplate('empty'));
 mountApp(document.getElementById('app'));

@@ -299,7 +299,9 @@ function onDown(e) {
   }
   if (!e.shiftKey) ui.selectedNotes = new Set();
   els.scroller.setPointerCapture(e.pointerId);
-  drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedNotes) };
+  // Au doigt, glisser dans le vide fait défiler ; double-tap = nouvelle note.
+  if (e.pointerType === 'touch') drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: els.scroller.scrollLeft, st: els.scroller.scrollTop };
+  else drag = { type: 'rubber', x0: x, y0: y, x1: x, y1: y, moved: false, base: new Set(ui.selectedNotes) };
   emit('ui');
 }
 
@@ -311,6 +313,11 @@ function onMove(e) {
   if (!drag) {
     const hit = x > KEY_W && y > RULER ? noteAt(er.region, x, y, G) : null;
     els.scroller.style.cursor = x < KEY_W ? 'pointer' : hit ? (hit.edge ? 'ew-resize' : ui.tool === 'eraser' ? 'not-allowed' : 'grab') : (ui.tool === 'pencil' ? 'crosshair' : 'default');
+    return;
+  }
+  if (drag.type === 'pan') {
+    els.scroller.scrollLeft = drag.sl - (e.clientX - drag.cx);
+    els.scroller.scrollTop = drag.st - (e.clientY - drag.cy);
     return;
   }
   const grid = e.shiftKey ? 1 : gridSize();
