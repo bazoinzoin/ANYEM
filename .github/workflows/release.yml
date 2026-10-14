@@ -1,0 +1,74 @@
+# Onde Studio : à chaque étiquette studio-vX.Y.Z poussée sur GitHub, fabrique
+# le logiciel Windows (Electron, sur une machine Windows) et publie une page de téléchargement
+# (Release) avec l'installateur, la version portable et onde-studio.html.
+# Lancé à la main (onglet Actions, « Run workflow ») : fabrique les .exe à tester (artefacts de
+# l'exécution) ; avec « publier » coché, publie aussi la version de package.json
+# (l'étiquette studio-vX.Y.Z est alors créée par GitHub sur le commit lancé).
+name: Onde Studio Windows
+
+on:
+  push:
+    tags: ['studio-v*']
+  workflow_dispatch:
+    inputs:
+      publier:
+        description: 'Publier la version de package.json (étiquette studio-vX.Y.Z et page de téléchargement)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: npm test
+      - name: Version et notes
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/studio-v* ]]; then
+            test "studio-v$VERSION" = "$GITHUB_REF_NAME" || { echo "package.json ($VERSION) ≠ étiquette ($GITHUB_REF_NAME)"; exit 1; }
+          fi
+          node tools/changelog.mjs "$VERSION" > release-notes.md
+          echo "tag=studio-v$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == 0.* ]]; then
+            echo "beta=true" >> "$GITHUB_OUTPUT"
+            echo "title=Onde Studio v$VERSION (bêta)" >> "$GITHUB_OUTPUT"
+          else
+            echo "beta=false" >> "$GITHUB_OUTPUT"
+            echo "title=Onde Studio v$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Préparer la version Windows
+        run: npm run desktop
+      - name: Fabriquer les .exe
+        working-directory: desktop
+        run: |
+          npm install --no-audit --no-fund
+          npm run dist
+      - name: Artefacts (.exe à tester)
+        uses: actions/upload-artifact@v4
+        with:
+          name: onde-studio-windows
+          path: |
+            desktop/release/*.exe
+            dist/onde-studio.html
+      - name: Publier la version
+        if: startsWith(github.ref, 'refs/tags/studio-v') || inputs.publier
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.title }}
+          prerelease: ${{ steps.version.outputs.beta == 'true' }}
+          body_path: release-notes.md
+          files: |
+            desktop/release/*.exe
+            dist/onde-studio.html
