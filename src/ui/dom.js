@@ -1,5 +1,8 @@
 // Petits outils DOM.
 
+import { makeZip } from '../core/zip.js';
+
+
 export function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -64,7 +67,35 @@ export function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-export function downloadBlob(blob, filename) {
+// Formats que la page web hébergée (claude.ai) accepte d'enregistrer ; les autres sont
+// emballés : projet .onde → .onde.json, son ou MIDI → archive .zip.
+const HOSTED_EXT = ['json', 'txt', 'zip', 'csv', 'md', 'html', 'pdf', 'png', 'jpg', 'webm', 'mp4'];
+
+async function hostedDownloads() {
+  if (!globalThis.claude || typeof globalThis.claude.use !== 'function') return null;
+  try { return await globalThis.claude.use('downloads'); } catch { return null; }
+}
+
+export async function downloadBlob(blob, filename) {
+  const hosted = await hostedDownloads();
+  if (hosted) {
+    let name = filename;
+    let data = blob;
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    if (!HOSTED_EXT.includes(ext)) {
+      if (ext === 'onde') name = `${filename}.json`;
+      else {
+        name = `${filename}.zip`;
+        data = new Blob([makeZip([{ name: filename, data: new Uint8Array(await blob.arrayBuffer()) }])]);
+      }
+    }
+    try {
+      await hosted.save({ filename: name, data });
+    } catch (err) {
+      if (err && err.code !== 'declined') throw new Error(err.message || 'enregistrement refusé');
+    }
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

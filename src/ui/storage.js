@@ -126,11 +126,16 @@ export async function writeFileWithPicker(blob, suggestedName, handle, types) {
     return handle;
   }
   if (globalThis.showSaveFilePicker) {
-    const h = await globalThis.showSaveFilePicker({ suggestedName, types });
-    const w = await h.createWritable();
-    await w.write(blob);
-    await w.close();
-    return h;
+    try {
+      const h = await globalThis.showSaveFilePicker({ suggestedName, types });
+      const w = await h.createWritable();
+      await w.write(blob);
+      await w.close();
+      return h;
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      return null; // boîte de dialogue refusée (page intégrée…) : téléchargement à la place
+    }
   }
   return null;
 }

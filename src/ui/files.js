@@ -34,7 +34,7 @@ export async function saveProjectAs() {
   try {
     const handle = await writeFileWithPicker(blob, `${safeFileName(p.name)}.onde`, null, ONDE_TYPES);
     if (handle) ui.fileHandle = handle;
-    else downloadBlob(blob, `${safeFileName(p.name)}.onde`);
+    else await downloadBlob(blob, `${safeFileName(p.name)}.onde`);
     await saveToLibrary(p);
     state.dirty = false;
     toast('Fichier de projet enregistré', 'ok');
@@ -69,7 +69,7 @@ export async function openProjectPicker() {
       if (err.name === 'AbortError') return false;
     }
   }
-  const [file] = await pickFile('.onde,application/json');
+  const [file] = await pickFile('.onde,.json,application/json');
   return file ? openProjectFile(file) : false;
 }
 
@@ -164,16 +164,20 @@ export async function exportAudio({ range = 'song', bits = 16, stems = false, no
   if (files.length === 1) {
     const handle = await writeFileWithPicker(files[0].blob, files[0].name, null, [{ description: 'Fichier audio WAV', accept: { 'audio/wav': ['.wav'] } }]).catch((err) => { if (err.name === 'AbortError') return 'abort'; return null; });
     if (handle === 'abort') return;
-    if (!handle) downloadBlob(files[0].blob, files[0].name);
+    if (!handle) await downloadBlob(files[0].blob, files[0].name);
   } else {
-    for (const f of files) { downloadBlob(f.blob, f.name); await new Promise((r) => setTimeout(r, 350)); }
+    for (const f of files) { await downloadBlob(f.blob, f.name); await new Promise((r) => setTimeout(r, 350)); }
   }
   toast(files.length > 1 ? `${files.length} pistes exportées` : 'Morceau exporté en WAV', 'ok', 3500);
 }
 
-export function exportMidi() {
+export async function exportMidi() {
   const p = project();
   if (!p.tracks.some((t) => t.kind !== 'audio' && t.regions.length)) { toast('Aucune note à exporter.', 'error'); return; }
-  downloadBlob(new Blob([writeMidi(p)], { type: 'audio/midi' }), `${safeFileName(p.name)}.mid`);
-  toast('Fichier MIDI exporté', 'ok');
+  try {
+    await downloadBlob(new Blob([writeMidi(p)], { type: 'audio/midi' }), `${safeFileName(p.name)}.mid`);
+    toast('Fichier MIDI exporté', 'ok');
+  } catch (err) {
+    toast(`Export impossible : ${err.message}`, 'error', 5000);
+  }
 }

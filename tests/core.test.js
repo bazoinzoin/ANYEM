@@ -261,3 +261,16 @@ test('bibliothèque : préréglages, boucles et modèles valides', () => {
     assert.ok(proj.bpm > 0);
   }
 });
+
+test('zip : archive lisible (signature, CRC, taille)', async () => {
+  const { makeZip, crc32 } = await import('../src/core/zip.js');
+  assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926);
+  const data = new Uint8Array([1, 2, 3, 4, 5]);
+  const zip = makeZip([{ name: 'son.wav', data }]);
+  const v = new DataView(zip.buffer);
+  assert.equal(v.getUint32(0, true), 0x04034b50);
+  assert.equal(v.getUint32(18, true), 5);
+  assert.deepEqual([...zip.subarray(30 + 7, 30 + 7 + 5)], [1, 2, 3, 4, 5]);
+  assert.equal(v.getUint32(zip.length - 22, true), 0x06054b50);
+  assert.equal(zip.length, 30 + 7 + 5 + 46 + 7 + 22);
+});
